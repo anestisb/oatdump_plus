@@ -301,7 +301,7 @@ class ProfileCompilationInfo {
   // profile) fields in this struct because we can infer them from
   // profile_key_map_ and info_. However, it makes the profiles logic much
   // simpler if we have references here as well.
-  struct DexFileData : public ArenaObject<kArenaAllocProfile> {
+  struct DexFileData : public DeletableArenaObject<kArenaAllocProfile> {
     DexFileData(ArenaAllocator* arena,
                 const std::string& key,
                 uint32_t location_checksum,

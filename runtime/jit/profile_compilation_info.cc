@@ -84,6 +84,9 @@ ProfileCompilationInfo::ProfileCompilationInfo()
 
 ProfileCompilationInfo::~ProfileCompilationInfo() {
   VLOG(profiler) << Dumpable<MemStats>(arena_->GetMemStats());
+  for (DexFileData* data : info_) {
+    delete data;
+  }
 }
 
 void ProfileCompilationInfo::DexPcData::AddClass(uint16_t dex_profile_idx,
