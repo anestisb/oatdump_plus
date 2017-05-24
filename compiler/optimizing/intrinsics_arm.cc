@@ -2758,12 +2758,15 @@ void IntrinsicCodeGeneratorARM::VisitThreadInterrupted(HInvoke* invoke) {
   int32_t offset = Thread::InterruptedOffset<kArmPointerSize>().Int32Value();
   __ LoadFromOffset(kLoadWord, out, TR, offset);
   Label done;
-  __ CompareAndBranchIfZero(out, &done);
+  Label* const final_label = codegen_->GetFinalLabel(invoke, &done);
+  __ CompareAndBranchIfZero(out, final_label);
   __ dmb(ISH);
   __ LoadImmediate(IP, 0);
   __ StoreToOffset(kStoreWord, IP, TR, offset);
   __ dmb(ISH);
-  __ Bind(&done);
+  if (done.IsLinked()) {
+    __ Bind(&done);
+  }
 }
 
 UNIMPLEMENTED_INTRINSIC(ARM, MathMinDoubleDouble)

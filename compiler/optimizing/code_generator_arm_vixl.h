@@ -400,7 +400,8 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
                              bool far_target = true);
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     vixl::aarch32::Label* true_target,
-                                    vixl::aarch32::Label* false_target);
+                                    vixl::aarch32::Label* false_target,
+                                    bool is_far_target = true);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
