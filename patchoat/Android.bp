@@ -40,8 +40,8 @@ art_cc_binary {
 art_cc_binary {
     name: "patchoatd",
     defaults: [
-        "patchoat-defaults",
         "art_debug_defaults",
+        "patchoat-defaults",
     ],
     shared_libs: [
         "libartd",

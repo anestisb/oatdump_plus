@@ -49,7 +49,7 @@ art_cc_library {
     name: "libartbenchmark-micronative-host",
     host_supported: true,
     device_supported: false,
-    defaults: ["art_defaults", "art_debug_defaults"],
+    defaults: ["art_debug_defaults", "art_defaults" ],
     srcs: [
         "jni_loader.cc",
         "micro-native/micro_native.cc",
