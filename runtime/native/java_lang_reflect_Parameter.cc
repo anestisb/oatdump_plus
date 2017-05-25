@@ -24,6 +24,7 @@
 #include "dex_file-inl.h"
 #include "dex_file_annotations.h"
 #include "jni_internal.h"
+#include "native_util.h"
 #include "scoped_fast_native_object_access-inl.h"
 #include "utils.h"
 

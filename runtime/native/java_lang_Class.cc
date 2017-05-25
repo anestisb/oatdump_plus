@@ -36,6 +36,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
+#include "native_util.h"
 #include "obj_ptr-inl.h"
 #include "reflection.h"
 #include "scoped_thread_state_change-inl.h"

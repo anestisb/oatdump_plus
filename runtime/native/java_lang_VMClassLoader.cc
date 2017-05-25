@@ -22,6 +22,7 @@
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
+#include "native_util.h"
 #include "obj_ptr.h"
 #include "scoped_fast_native_object_access-inl.h"
 #include "ScopedLocalRef.h"

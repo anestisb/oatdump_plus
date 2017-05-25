@@ -20,6 +20,7 @@
 
 #include "jni_internal.h"
 #include "mirror/object-inl.h"
+#include "native_util.h"
 #include "scoped_fast_native_object_access-inl.h"
 
 namespace art {

@@ -3051,16 +3051,6 @@ const JNINativeInterface* GetRuntimeShutdownNativeInterface() {
   return reinterpret_cast<JNINativeInterface*>(&gJniSleepForeverStub);
 }
 
-void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods,
-                           jint method_count) {
-  ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
-  if (c.get() == nullptr) {
-    LOG(FATAL) << "Couldn't find class: " << jni_class_name;
-  }
-  jint jni_result = env->RegisterNatives(c.get(), methods, method_count);
-  CHECK_EQ(JNI_OK, jni_result);
-}
-
 }  // namespace art
 
 std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {
