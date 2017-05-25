@@ -750,6 +750,9 @@ def print_analysis():
     print_text(COLOR_ERROR + 'FAILED: ' + COLOR_NORMAL + '\n')
     for test_info in failed_tests:
       print_text(('%s\n%s\n' % (test_info[0], test_info[1])))
+    print_text(COLOR_ERROR + '----------' + COLOR_NORMAL + '\n')
+    for failed_test in sorted([test_info[0] for test_info in failed_tests]):
+      print_text(('%s\n' % (failed_test)))
 
 
 def parse_test_name(test_name):
