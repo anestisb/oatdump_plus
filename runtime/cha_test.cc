@@ -36,58 +36,58 @@ TEST_F(CHATest, CHACheckDependency) {
   ClassHierarchyAnalysis cha;
   MutexLock cha_mu(Thread::Current(), *Locks::cha_lock_);
 
-  ASSERT_EQ(cha.GetDependents(METHOD1), nullptr);
-  ASSERT_EQ(cha.GetDependents(METHOD2), nullptr);
-  ASSERT_EQ(cha.GetDependents(METHOD3), nullptr);
+  ASSERT_TRUE(cha.GetDependents(METHOD1).empty());
+  ASSERT_TRUE(cha.GetDependents(METHOD2).empty());
+  ASSERT_TRUE(cha.GetDependents(METHOD3).empty());
 
   cha.AddDependency(METHOD1, METHOD2, METHOD_HEADER2);
-  ASSERT_EQ(cha.GetDependents(METHOD2), nullptr);
-  ASSERT_EQ(cha.GetDependents(METHOD3), nullptr);
+  ASSERT_TRUE(cha.GetDependents(METHOD2).empty());
+  ASSERT_TRUE(cha.GetDependents(METHOD3).empty());
   auto dependents = cha.GetDependents(METHOD1);
-  ASSERT_EQ(dependents->size(), 1u);
-  ASSERT_EQ(dependents->at(0).first, METHOD2);
-  ASSERT_EQ(dependents->at(0).second, METHOD_HEADER2);
+  ASSERT_EQ(dependents.size(), 1u);
+  ASSERT_EQ(dependents[0].first, METHOD2);
+  ASSERT_EQ(dependents[0].second, METHOD_HEADER2);
 
   cha.AddDependency(METHOD1, METHOD3, METHOD_HEADER3);
-  ASSERT_EQ(cha.GetDependents(METHOD2), nullptr);
-  ASSERT_EQ(cha.GetDependents(METHOD3), nullptr);
+  ASSERT_TRUE(cha.GetDependents(METHOD2).empty());
+  ASSERT_TRUE(cha.GetDependents(METHOD3).empty());
   dependents = cha.GetDependents(METHOD1);
-  ASSERT_EQ(dependents->size(), 2u);
-  ASSERT_EQ(dependents->at(0).first, METHOD2);
-  ASSERT_EQ(dependents->at(0).second, METHOD_HEADER2);
-  ASSERT_EQ(dependents->at(1).first, METHOD3);
-  ASSERT_EQ(dependents->at(1).second, METHOD_HEADER3);
+  ASSERT_EQ(dependents.size(), 2u);
+  ASSERT_EQ(dependents[0].first, METHOD2);
+  ASSERT_EQ(dependents[0].second, METHOD_HEADER2);
+  ASSERT_EQ(dependents[1].first, METHOD3);
+  ASSERT_EQ(dependents[1].second, METHOD_HEADER3);
 
   std::unordered_set<OatQuickMethodHeader*> headers;
   headers.insert(METHOD_HEADER2);
   cha.RemoveDependentsWithMethodHeaders(headers);
-  ASSERT_EQ(cha.GetDependents(METHOD2), nullptr);
-  ASSERT_EQ(cha.GetDependents(METHOD3), nullptr);
+  ASSERT_TRUE(cha.GetDependents(METHOD2).empty());
+  ASSERT_TRUE(cha.GetDependents(METHOD3).empty());
   dependents = cha.GetDependents(METHOD1);
-  ASSERT_EQ(dependents->size(), 1u);
-  ASSERT_EQ(dependents->at(0).first, METHOD3);
-  ASSERT_EQ(dependents->at(0).second, METHOD_HEADER3);
+  ASSERT_EQ(dependents.size(), 1u);
+  ASSERT_EQ(dependents[0].first, METHOD3);
+  ASSERT_EQ(dependents[0].second, METHOD_HEADER3);
 
   cha.AddDependency(METHOD2, METHOD1, METHOD_HEADER1);
-  ASSERT_EQ(cha.GetDependents(METHOD3), nullptr);
+  ASSERT_TRUE(cha.GetDependents(METHOD3).empty());
   dependents = cha.GetDependents(METHOD1);
-  ASSERT_EQ(dependents->size(), 1u);
+  ASSERT_EQ(dependents.size(), 1u);
   dependents = cha.GetDependents(METHOD2);
-  ASSERT_EQ(dependents->size(), 1u);
+  ASSERT_EQ(dependents.size(), 1u);
 
   headers.insert(METHOD_HEADER3);
   cha.RemoveDependentsWithMethodHeaders(headers);
-  ASSERT_EQ(cha.GetDependents(METHOD1), nullptr);
-  ASSERT_EQ(cha.GetDependents(METHOD3), nullptr);
+  ASSERT_TRUE(cha.GetDependents(METHOD1).empty());
+  ASSERT_TRUE(cha.GetDependents(METHOD3).empty());
   dependents = cha.GetDependents(METHOD2);
-  ASSERT_EQ(dependents->size(), 1u);
-  ASSERT_EQ(dependents->at(0).first, METHOD1);
-  ASSERT_EQ(dependents->at(0).second, METHOD_HEADER1);
+  ASSERT_EQ(dependents.size(), 1u);
+  ASSERT_EQ(dependents[0].first, METHOD1);
+  ASSERT_EQ(dependents[0].second, METHOD_HEADER1);
 
-  cha.RemoveDependencyFor(METHOD2);
-  ASSERT_EQ(cha.GetDependents(METHOD1), nullptr);
-  ASSERT_EQ(cha.GetDependents(METHOD2), nullptr);
-  ASSERT_EQ(cha.GetDependents(METHOD3), nullptr);
+  cha.RemoveAllDependenciesFor(METHOD2);
+  ASSERT_TRUE(cha.GetDependents(METHOD1).empty());
+  ASSERT_TRUE(cha.GetDependents(METHOD2).empty());
+  ASSERT_TRUE(cha.GetDependents(METHOD3).empty());
 }
 
 }  // namespace art

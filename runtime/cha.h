@@ -94,12 +94,11 @@ class ClassHierarchyAnalysis {
                      OatQuickMethodHeader* dependent_header) REQUIRES(Locks::cha_lock_);
 
   // Return compiled code that assumes that `method` has single-implementation.
-  std::vector<MethodAndMethodHeaderPair>* GetDependents(ArtMethod* method)
-      REQUIRES(Locks::cha_lock_);
+  const ListOfDependentPairs& GetDependents(ArtMethod* method) REQUIRES(Locks::cha_lock_);
 
   // Remove dependency tracking for compiled code that assumes that
   // `method` has single-implementation.
-  void RemoveDependencyFor(ArtMethod* method) REQUIRES(Locks::cha_lock_);
+  void RemoveAllDependenciesFor(ArtMethod* method) REQUIRES(Locks::cha_lock_);
 
   // Remove from cha_dependency_map_ all entries that contain OatQuickMethodHeader from
   // the given `method_headers` set.
@@ -158,7 +157,7 @@ class ClassHierarchyAnalysis {
 
   // A map that maps a method to a set of compiled code that assumes that method has a
   // single implementation, which is used to do CHA-based devirtualization.
-  std::unordered_map<ArtMethod*, ListOfDependentPairs*> cha_dependency_map_
+  std::unordered_map<ArtMethod*, ListOfDependentPairs> cha_dependency_map_
     GUARDED_BY(Locks::cha_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(ClassHierarchyAnalysis);
