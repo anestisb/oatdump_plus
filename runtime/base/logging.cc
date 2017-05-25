@@ -112,7 +112,7 @@ void LogHelper::LogLineLowStack(const char* file,
   if (priority == ANDROID_LOG_FATAL) {
     // Allocate buffer for snprintf(buf, buf_size, "%s:%u] %s", file, line, message) below.
     // If allocation fails, fall back to printing only the message.
-    buf_size = strlen(file) + 1 /* ':' */ + std::numeric_limits<typeof(line)>::max_digits10 +
+    buf_size = strlen(file) + 1 /* ':' */ + std::numeric_limits<decltype(line)>::max_digits10 +
         2 /* "] " */ + strlen(message) + 1 /* terminating 0 */;
     buf = reinterpret_cast<char*>(malloc(buf_size));
   }

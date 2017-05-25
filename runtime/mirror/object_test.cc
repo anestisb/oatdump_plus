@@ -582,7 +582,7 @@ TEST_F(ObjectTest, IsAssignableFrom) {
 
   // Primitive types are only assignable to themselves
   const char* prims = "ZBCSIJFD";
-  Class* prim_types[strlen(prims)];
+  std::vector<Class*> prim_types(strlen(prims));
   for (size_t i = 0; i < strlen(prims); i++) {
     prim_types[i] = class_linker_->FindPrimitiveClass(prims[i]);
   }
