@@ -4004,7 +4004,8 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
       native_blocking_gcs_finished_++;
       native_blocking_gc_cond_->Broadcast(self);
     }
-  } else if (new_value > NativeAllocationGcWatermark() && !IsGCRequestPending()) {
+  } else if (new_value > NativeAllocationGcWatermark() * HeapGrowthMultiplier() &&
+             !IsGCRequestPending()) {
     // Trigger another GC because there have been enough native bytes
     // allocated since the last GC.
     if (IsGcConcurrent()) {
