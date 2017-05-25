@@ -2238,7 +2238,7 @@ class InitializeClassVisitor : public CompilationVisitor {
  public:
   explicit InitializeClassVisitor(const ParallelCompilationManager* manager) : manager_(manager) {}
 
-  void Visit(size_t class_def_index) REQUIRES(!Locks::mutator_lock_) OVERRIDE {
+  void Visit(size_t class_def_index) OVERRIDE {
     ATRACE_CALL();
     jobject jclass_loader = manager_->GetClassLoader();
     const DexFile& dex_file = *manager_->GetDexFile();
@@ -2253,89 +2253,123 @@ class InitializeClassVisitor : public CompilationVisitor {
     Handle<mirror::Class> klass(
         hs.NewHandle(manager_->GetClassLinker()->FindClass(soa.Self(), descriptor, class_loader)));
 
-    if (klass != nullptr && !SkipClass(jclass_loader, dex_file, klass.Get())) {
-      // Only try to initialize classes that were successfully verified.
-      if (klass->IsVerified()) {
-        // Attempt to initialize the class but bail if we either need to initialize the super-class
-        // or static fields.
-        manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, false);
-        if (!klass->IsInitialized()) {
-          // We don't want non-trivial class initialization occurring on multiple threads due to
-          // deadlock problems. For example, a parent class is initialized (holding its lock) that
-          // refers to a sub-class in its static/class initializer causing it to try to acquire the
-          // sub-class' lock. While on a second thread the sub-class is initialized (holding its lock)
-          // after first initializing its parents, whose locks are acquired. This leads to a
-          // parent-to-child and a child-to-parent lock ordering and consequent potential deadlock.
-          // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
-          // than use a special Object for the purpose we use the Class of java.lang.Class.
-          Handle<mirror::Class> h_klass(hs.NewHandle(klass->GetClass()));
-          ObjectLock<mirror::Class> lock(soa.Self(), h_klass);
-          // Attempt to initialize allowing initialization of parent classes but still not static
-          // fields.
+    if (klass != nullptr && !SkipClass(manager_->GetClassLoader(), dex_file, klass.Get())) {
+      TryInitializeClass(klass, class_loader);
+    }
+    // Clear any class not found or verification exceptions.
+    soa.Self()->ClearException();
+  }
+
+  // A helper function for initializing klass.
+  void TryInitializeClass(Handle<mirror::Class> klass, Handle<mirror::ClassLoader>& class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    const DexFile& dex_file = klass->GetDexFile();
+    const DexFile::ClassDef* class_def = klass->GetClassDef();
+    const DexFile::TypeId& class_type_id = dex_file.GetTypeId(class_def->class_idx_);
+    const char* descriptor = dex_file.StringDataByIdx(class_type_id.descriptor_idx_);
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    StackHandleScope<3> hs(soa.Self());
+
+    mirror::Class::Status old_status = klass->GetStatus();;
+    // Only try to initialize classes that were successfully verified.
+    if (klass->IsVerified()) {
+      // Attempt to initialize the class but bail if we either need to initialize the super-class
+      // or static fields.
+      manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, false);
+      old_status = klass->GetStatus();
+      if (!klass->IsInitialized()) {
+        // We don't want non-trivial class initialization occurring on multiple threads due to
+        // deadlock problems. For example, a parent class is initialized (holding its lock) that
+        // refers to a sub-class in its static/class initializer causing it to try to acquire the
+        // sub-class' lock. While on a second thread the sub-class is initialized (holding its lock)
+        // after first initializing its parents, whose locks are acquired. This leads to a
+        // parent-to-child and a child-to-parent lock ordering and consequent potential deadlock.
+        // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
+        // than use a special Object for the purpose we use the Class of java.lang.Class.
+        Handle<mirror::Class> h_klass(hs.NewHandle(klass->GetClass()));
+        ObjectLock<mirror::Class> lock(soa.Self(), h_klass);
+        // Attempt to initialize allowing initialization of parent classes but still not static
+        // fields.
+        bool is_superclass_initialized = InitializeDependencies(klass, class_loader, soa.Self());
+        if (is_superclass_initialized) {
           manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
-          if (!klass->IsInitialized()) {
+        }
+        old_status = klass->GetStatus();
+        // If superclass cannot be initialized, no need to proceed.
+        if (!klass->IsInitialized() &&
+            is_superclass_initialized &&
+            manager_->GetCompiler()->IsImageClass(descriptor)) {
+          bool can_init_static_fields = false;
+          if (manager_->GetCompiler()->GetCompilerOptions().IsBootImage()) {
             // We need to initialize static fields, we only do this for image classes that aren't
             // marked with the $NoPreloadHolder (which implies this should not be initialized early).
-            bool can_init_static_fields =
-                manager_->GetCompiler()->GetCompilerOptions().IsBootImage() &&
-                manager_->GetCompiler()->IsImageClass(descriptor) &&
-                !StringPiece(descriptor).ends_with("$NoPreloadHolder;");
-            if (can_init_static_fields) {
-              VLOG(compiler) << "Initializing: " << descriptor;
-              // TODO multithreading support. We should ensure the current compilation thread has
-              // exclusive access to the runtime and the transaction. To achieve this, we could use
-              // a ReaderWriterMutex but we're holding the mutator lock so we fail mutex sanity
-              // checks in Thread::AssertThreadSuspensionIsAllowable.
-              Runtime* const runtime = Runtime::Current();
-              Transaction transaction;
+            can_init_static_fields = !StringPiece(descriptor).ends_with("$NoPreloadHolder;");
+          } else {
+            can_init_static_fields = manager_->GetCompiler()->GetCompilerOptions().IsAppImage() &&
+                !soa.Self()->IsExceptionPending() &&
+                NoClinitInDependency(klass, soa.Self(), &class_loader);
+            // TODO The checking for clinit can be removed since it's already
+            // checked when init superclass. Currently keep it because it contains
+            // processing of intern strings. Will be removed later when intern strings
+            // and clinit are both initialized.
+          }
 
-              // Run the class initializer in transaction mode.
-              runtime->EnterTransactionMode(&transaction);
-              const mirror::Class::Status old_status = klass->GetStatus();
-              bool success = manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, true,
-                                                                           true);
-              // TODO we detach transaction from runtime to indicate we quit the transactional
-              // mode which prevents the GC from visiting objects modified during the transaction.
-              // Ensure GC is not run so don't access freed objects when aborting transaction.
+          if (can_init_static_fields) {
+            VLOG(compiler) << "Initializing: " << descriptor;
+            // TODO multithreading support. We should ensure the current compilation thread has
+            // exclusive access to the runtime and the transaction. To achieve this, we could use
+            // a ReaderWriterMutex but we're holding the mutator lock so we fail mutex sanity
+            // checks in Thread::AssertThreadSuspensionIsAllowable.
+            Runtime* const runtime = Runtime::Current();
+            Transaction transaction;
 
-              {
-                ScopedAssertNoThreadSuspension ants("Transaction end");
-                runtime->ExitTransactionMode();
+            // Run the class initializer in transaction mode.
+            runtime->EnterTransactionMode(&transaction);
+            bool success = manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, true,
+                                                                         true);
+            // TODO we detach transaction from runtime to indicate we quit the transactional
+            // mode which prevents the GC from visiting objects modified during the transaction.
+            // Ensure GC is not run so don't access freed objects when aborting transaction.
 
-                if (!success) {
-                  CHECK(soa.Self()->IsExceptionPending());
-                  mirror::Throwable* exception = soa.Self()->GetException();
-                  VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
-                      << exception->Dump();
-                  std::ostream* file_log = manager_->GetCompiler()->
-                      GetCompilerOptions().GetInitFailureOutput();
-                  if (file_log != nullptr) {
-                    *file_log << descriptor << "\n";
-                    *file_log << exception->Dump() << "\n";
-                  }
-                  soa.Self()->ClearException();
-                  transaction.Rollback();
-                  CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
-                }
-              }
+            {
+              ScopedAssertNoThreadSuspension ants("Transaction end");
+              runtime->ExitTransactionMode();
 
               if (!success) {
-                // On failure, still intern strings of static fields and seen in <clinit>, as these
-                // will be created in the zygote. This is separated from the transaction code just
-                // above as we will allocate strings, so must be allowed to suspend.
+                CHECK(soa.Self()->IsExceptionPending());
+                mirror::Throwable* exception = soa.Self()->GetException();
+                VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
+                               << exception->Dump();
+                std::ostream* file_log = manager_->GetCompiler()->
+                    GetCompilerOptions().GetInitFailureOutput();
+                if (file_log != nullptr) {
+                  *file_log << descriptor << "\n";
+                  *file_log << exception->Dump() << "\n";
+                }
+                soa.Self()->ClearException();
+                transaction.Rollback();
+                CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
+              }
+            }
+
+            if (!success) {
+              // On failure, still intern strings of static fields and seen in <clinit>, as these
+              // will be created in the zygote. This is separated from the transaction code just
+              // above as we will allocate strings, so must be allowed to suspend.
+              if (&klass->GetDexFile() == manager_->GetDexFile()) {
                 InternStrings(klass, class_loader);
               }
             }
           }
-          soa.Self()->AssertNoPendingException();
         }
+        soa.Self()->AssertNoPendingException();
       }
-      // Record the final class status if necessary.
-      ClassReference ref(manager_->GetDexFile(), class_def_index);
-      manager_->GetCompiler()->RecordClassStatus(ref, klass->GetStatus());
     }
-    // Clear any class not found or verification exceptions.
-    soa.Self()->ClearException();
+    // Record the final class status if necessary.
+    ClassReference ref(&dex_file, klass->GetDexClassDefIndex());
+    // Back up the status before doing initialization for static encoded fields,
+    // because the static encoded branch wants to keep the status to uninitialized.
+    manager_->GetCompiler()->RecordClassStatus(ref, old_status);
   }
 
  private:
@@ -2390,6 +2424,160 @@ class InitializeClassVisitor : public CompilationVisitor {
     }
   }
 
+  bool NoPotentialInternStrings(Handle<mirror::Class> klass,
+                                Handle<mirror::ClassLoader>* class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    StackHandleScope<1> hs(Thread::Current());
+    Handle<mirror::DexCache> h_dex_cache = hs.NewHandle(klass->GetDexCache());
+    const DexFile* dex_file = h_dex_cache->GetDexFile();
+    const DexFile::ClassDef* class_def = klass->GetClassDef();
+    annotations::RuntimeEncodedStaticFieldValueIterator value_it(*dex_file,
+                                                                 &h_dex_cache,
+                                                                 class_loader,
+                                                                 manager_->GetClassLinker(),
+                                                                 *class_def);
+
+    const auto jString = annotations::RuntimeEncodedStaticFieldValueIterator::kString;
+    for ( ; value_it.HasNext(); value_it.Next()) {
+      if (value_it.GetValueType() == jString) {
+        // We don't want cache the static encoded strings which is a potential intern.
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool ResolveTypesOfMethods(Thread* self, ArtMethod* m)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+      auto rtn_type = m->GetReturnType(true);  // return value is discarded because resolve will be done internally.
+      if (rtn_type == nullptr) {
+        self->ClearException();
+        return false;
+      }
+      const DexFile::TypeList* types = m->GetParameterTypeList();
+      if (types != nullptr) {
+        for (uint32_t i = 0; i < types->Size(); ++i) {
+          dex::TypeIndex param_type_idx = types->GetTypeItem(i).type_idx_;
+          auto param_type = m->GetClassFromTypeIndex(param_type_idx, true);
+          if (param_type == nullptr) {
+            self->ClearException();
+            return false;
+          }
+        }
+      }
+      return true;
+  }
+
+  // Pre resolve types mentioned in all method signatures before start a transaction
+  // since ResolveType doesn't work in transaction mode.
+  bool PreResolveTypes(Thread* self, const Handle<mirror::Class>& klass)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+      PointerSize pointer_size = manager_->GetClassLinker()->GetImagePointerSize();
+      for (ArtMethod& m : klass->GetMethods(pointer_size)) {
+        if (!ResolveTypesOfMethods(self, &m)) {
+          return false;
+        }
+      }
+      if (klass->IsInterface()) {
+        return true;
+      } else if (klass->HasSuperClass()) {
+        StackHandleScope<1> hs(self);
+        MutableHandle<mirror::Class> super_klass(hs.NewHandle<mirror::Class>(klass->GetSuperClass()));
+        for (int i = super_klass->GetVTableLength() - 1; i >= 0; --i) {
+          ArtMethod* m = klass->GetVTableEntry(i, pointer_size);
+          ArtMethod* super_m = super_klass->GetVTableEntry(i, pointer_size);
+          if (!ResolveTypesOfMethods(self, m) || !ResolveTypesOfMethods(self, super_m)) {
+            return false;
+          }
+        }
+        for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
+          super_klass.Assign(klass->GetIfTable()->GetInterface(i));
+          if (klass->GetClassLoader() != super_klass->GetClassLoader()) {
+            uint32_t num_methods = super_klass->NumVirtualMethods();
+            for (uint32_t j = 0; j < num_methods; ++j) {
+              ArtMethod* m = klass->GetIfTable()->GetMethodArray(i)->GetElementPtrSize<ArtMethod*>(
+                  j, pointer_size);
+              ArtMethod* super_m = super_klass->GetVirtualMethod(j, pointer_size);
+              if (!ResolveTypesOfMethods(self, m) || !ResolveTypesOfMethods(self, super_m)) {
+                return false;
+              }
+            }
+          }
+        }
+      }
+      return true;
+  }
+
+  // Initialize the klass's dependencies recursively before initializing itself.
+  // Checking for interfaces is also necessary since interfaces can contain
+  // both default methods and static encoded fields.
+  bool InitializeDependencies(const Handle<mirror::Class>& klass,
+                              Handle<mirror::ClassLoader> class_loader,
+                              Thread* self)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (klass->HasSuperClass()) {
+      ObjPtr<mirror::Class> super_class = klass->GetSuperClass();
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> handle_scope_super(hs.NewHandle(super_class));
+      if (!handle_scope_super->IsInitialized()) {
+        this->TryInitializeClass(handle_scope_super, class_loader);
+        if (!handle_scope_super->IsInitialized()) {
+          return false;
+        }
+      }
+    }
+
+    uint32_t num_if = klass->NumDirectInterfaces();
+    for (size_t i = 0; i < num_if; i++) {
+      ObjPtr<mirror::Class>
+          interface = mirror::Class::GetDirectInterface(self, klass.Get(), i);
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> handle_interface(hs.NewHandle(interface));
+
+      TryInitializeClass(handle_interface, class_loader);
+
+      if (!handle_interface->IsInitialized()) {
+        return false;
+      }
+    }
+
+    return PreResolveTypes(self, klass);
+  }
+
+  // In this phase the classes containing class initializers are ignored. Make sure no
+  // clinit appears in kalss's super class chain and interfaces.
+  bool NoClinitInDependency(const Handle<mirror::Class>& klass,
+                            Thread* self,
+                            Handle<mirror::ClassLoader>* class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    ArtMethod* clinit =
+        klass->FindClassInitializer(manager_->GetClassLinker()->GetImagePointerSize());
+    if (clinit != nullptr) {
+      VLOG(compiler) << klass->PrettyClass() << ' ' << clinit->PrettyMethod(true);
+      return false;
+    }
+    if (klass->HasSuperClass()) {
+      ObjPtr<mirror::Class> super_class = klass->GetSuperClass();
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> handle_scope_super(hs.NewHandle(super_class));
+      if (!NoClinitInDependency(handle_scope_super, self, class_loader))
+        return false;
+    }
+
+    uint32_t num_if = klass->NumDirectInterfaces();
+    for (size_t i = 0; i < num_if; i++) {
+      ObjPtr<mirror::Class>
+          interface = mirror::Class::GetDirectInterface(self, klass.Get(), i);
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> handle_interface(hs.NewHandle(interface));
+      if (!NoClinitInDependency(handle_interface, self, class_loader))
+        return false;
+    }
+
+    return NoPotentialInternStrings(klass, class_loader);
+  }
+
   const ParallelCompilationManager* const manager_;
 };
 
@@ -2409,7 +2597,10 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader,
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, jni_class_loader, this, &dex_file, dex_files,
                                      init_thread_pool);
-  if (GetCompilerOptions().IsBootImage()) {
+
+  if (GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsAppImage()) {
+    // Set the concurrency thread to 1 to support initialization for App Images since transaction
+    // doesn't support multithreading now.
     // TODO: remove this when transactional mode supports multithreading.
     init_thread_count = 1U;
   }
