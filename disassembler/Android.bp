@@ -47,8 +47,8 @@ art_cc_library {
 art_cc_library {
     name: "libartd-disassembler",
     defaults: [
-        "libart-disassembler-defaults",
         "art_debug_defaults",
+        "libart-disassembler-defaults",
     ],
     shared_libs: [
         // For disassembler_arm*.

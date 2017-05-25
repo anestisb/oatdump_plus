@@ -51,9 +51,9 @@ art_cc_defaults {
     // These really are gtests, but the gtest library comes from libart-gtest.so
     gtest: false,
     defaults: [
-        "art_defaults",
-        "art_debug_defaults",
         "art_test_defaults",
+        "art_debug_defaults",
+        "art_defaults",
     ],
 
     shared_libs: [
@@ -128,8 +128,8 @@ art_cc_defaults {
     name: "libart-gtest-defaults",
     host_supported: true,
     defaults: [
-        "art_defaults",
         "art_debug_defaults",
+        "art_defaults",
     ],
     shared_libs: [
         "libartd",
@@ -202,8 +202,8 @@ art_cc_library {
 cc_defaults {
     name: "libartagent-defaults",
     defaults: [
-        "art_defaults",
         "art_test_defaults",
+        "art_defaults",
     ],
     shared_libs: [
         "libbacktrace",
@@ -234,8 +234,8 @@ art_cc_test_library {
     name: "libartagentd",
     srcs: ["900-hello-plugin/load_unload.cc"],
     defaults: [
-        "libartagent-defaults",
         "art_debug_defaults",
+        "libartagent-defaults",
     ],
     shared_libs: ["libartd"],
 }
@@ -313,8 +313,8 @@ art_cc_test_library {
 art_cc_test_library {
     name: "libtiagentd",
     defaults: [
-        "libtiagent-defaults",
         "art_debug_defaults",
+        "libtiagent-defaults",
     ],
     shared_libs: ["libartd"],
 }
@@ -340,8 +340,8 @@ art_cc_test_library {
 art_cc_test_library {
     name: "libtistressd",
     defaults: [
-        "libtistress-defaults",
         "art_debug_defaults",
+        "libtistress-defaults",
     ],
     shared_libs: ["libartd"],
 }
@@ -355,8 +355,8 @@ art_cc_test_library {
 cc_defaults {
     name: "libarttest-defaults",
     defaults: [
-        "art_defaults",
         "art_test_defaults",
+        "art_defaults",
     ],
     srcs: [
         "common/runtime_state.cc",
@@ -421,8 +421,8 @@ art_cc_test_library {
 art_cc_test_library {
     name: "libarttestd",
     defaults: [
-        "libarttest-defaults",
         "art_debug_defaults",
+        "libarttest-defaults",
     ],
     shared_libs: ["libartd"],
 }
@@ -431,9 +431,9 @@ art_cc_test_library {
     name: "libnativebridgetest",
     shared_libs: ["libart"],
     defaults: [
-        "art_defaults",
-        "art_debug_defaults",
         "art_test_defaults",
+        "art_debug_defaults",
+        "art_defaults",
     ],
     srcs: ["115-native-bridge/nativebridge.cc"],
     target: {

@@ -64,8 +64,8 @@ art_cc_binary {
 art_cc_binary {
     name: "imgdiagd",
     defaults: [
-        "imgdiag-defaults",
         "art_debug_defaults",
+        "imgdiag-defaults",
     ],
     shared_libs: [
         "libartd",
