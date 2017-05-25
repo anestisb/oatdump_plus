@@ -259,7 +259,9 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
                        << " (" << classes.GetDexLocation() << ")";
       }
     }
-    auto info_it = profile_cache_.Put(filename, new ProfileCompilationInfo(Runtime::Current()->GetArenaPool()));
+    auto info_it = profile_cache_.Put(
+        filename,
+        new ProfileCompilationInfo(Runtime::Current()->GetArenaPool()));
 
     ProfileCompilationInfo* cached_info = info_it->second;
     cached_info->AddMethodsAndClasses(profile_methods_for_location,
@@ -366,6 +368,8 @@ bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number
         total_number_of_failed_writes_++;
       }
     }
+    // Trim the maps to madvise the pages used for profile info.
+    // It is unlikely we will need them again in the near feature.
     Runtime::Current()->GetArenaPool()->TrimMaps();
   }
 

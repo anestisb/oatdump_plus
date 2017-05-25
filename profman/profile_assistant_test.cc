@@ -32,7 +32,7 @@ namespace art {
 
 class ProfileAssistantTest : public CommonRuntimeTest {
  public:
-  virtual void PostRuntimeCreate() {
+  void PostRuntimeCreate() OVERRIDE {
     arena_.reset(new ArenaAllocator(Runtime::Current()->GetArenaPool()));
   }
 
@@ -72,10 +72,18 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     ASSERT_TRUE(profile.GetFile()->ResetOffset());
   }
 
+  // Creates an inline cache which will be destructed at the end of the test.
+  ProfileCompilationInfo::InlineCacheMap* CreateInlineCacheMap() {
+    used_inline_caches.emplace_back(new ProfileCompilationInfo::InlineCacheMap(
+        std::less<uint16_t>(), arena_->Adapter(kArenaAllocProfile)));
+    return used_inline_caches.back().get();
+  }
+
   ProfileCompilationInfo::OfflineProfileMethodInfo GetOfflineProfileMethodInfo(
         const std::string& dex_location1, uint32_t dex_checksum1,
         const std::string& dex_location2, uint32_t dex_checksum2) {
-    ProfileCompilationInfo::OfflineProfileMethodInfo pmi(arena_.get());
+    ProfileCompilationInfo::InlineCacheMap* ic_map = CreateInlineCacheMap();
+    ProfileCompilationInfo::OfflineProfileMethodInfo pmi(ic_map);
     pmi.dex_references.emplace_back(dex_location1, dex_checksum1);
     pmi.dex_references.emplace_back(dex_location2, dex_checksum2);
 
@@ -83,7 +91,7 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     for (uint16_t dex_pc = 0; dex_pc < 11; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data(arena_.get());
       dex_pc_data.AddClass(0, dex::TypeIndex(0));
-      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+      ic_map->Put(dex_pc, dex_pc_data);
     }
     // Polymorphic
     for (uint16_t dex_pc = 11; dex_pc < 22; dex_pc++) {
@@ -91,19 +99,19 @@ class ProfileAssistantTest : public CommonRuntimeTest {
       dex_pc_data.AddClass(0, dex::TypeIndex(0));
       dex_pc_data.AddClass(1, dex::TypeIndex(1));
 
-      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+      ic_map->Put(dex_pc, dex_pc_data);
     }
     // Megamorphic
     for (uint16_t dex_pc = 22; dex_pc < 33; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data(arena_.get());
       dex_pc_data.SetIsMegamorphic();
-      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+      ic_map->Put(dex_pc, dex_pc_data);
     }
     // Missing types
     for (uint16_t dex_pc = 33; dex_pc < 44; dex_pc++) {
       ProfileCompilationInfo::DexPcData dex_pc_data(arena_.get());
       dex_pc_data.SetIsMissingTypes();
-      pmi.inline_caches.Put(dex_pc, dex_pc_data);
+      ic_map->Put(dex_pc, dex_pc_data);
     }
 
     return pmi;
@@ -258,8 +266,8 @@ class ProfileAssistantTest : public CommonRuntimeTest {
                        method->GetDexFile()->GetLocationChecksum(),
                        method->GetDexMethodIndex());
     ASSERT_TRUE(pmi != nullptr);
-    ASSERT_EQ(pmi->inline_caches.size(), 1u);
-    ProfileCompilationInfo::DexPcData dex_pc_data = pmi->inline_caches.begin()->second;
+    ASSERT_EQ(pmi->inline_caches->size(), 1u);
+    const ProfileCompilationInfo::DexPcData& dex_pc_data = pmi->inline_caches->begin()->second;
 
     ASSERT_EQ(dex_pc_data.is_megamorphic, is_megamorphic);
     ASSERT_EQ(dex_pc_data.is_missing_types, is_missing_types);
@@ -280,6 +288,11 @@ class ProfileAssistantTest : public CommonRuntimeTest {
   }
 
   std::unique_ptr<ArenaAllocator> arena_;
+
+  // Cache of inline caches generated during tests.
+  // This makes it easier to pass data between different utilities and ensure that
+  // caches are destructed at the end of the test.
+  std::vector<std::unique_ptr<ProfileCompilationInfo::InlineCacheMap>> used_inline_caches;
 };
 
 TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferences) {
@@ -702,7 +715,7 @@ TEST_F(ProfileAssistantTest, TestProfileCreateInlineCache) {
                        no_inline_cache->GetDexFile()->GetLocationChecksum(),
                        no_inline_cache->GetDexMethodIndex());
     ASSERT_TRUE(pmi_no_inline_cache != nullptr);
-    ASSERT_TRUE(pmi_no_inline_cache->inline_caches.empty());
+    ASSERT_TRUE(pmi_no_inline_cache->inline_caches->empty());
   }
 }
 

@@ -69,21 +69,21 @@ static_assert(InlineCache::kIndividualCacheSize < kIsMissingTypesEncoding,
               "InlineCache::kIndividualCacheSize is larger than expected");
 
 ProfileCompilationInfo::ProfileCompilationInfo(ArenaPool* custom_arena_pool)
-    : default_arena_pool_(nullptr),
-      arena_(new ArenaAllocator(custom_arena_pool)),
-      info_(arena_->Adapter(kArenaAllocProfile)),
-      profile_key_map_(std::less<const std::string>(), arena_->Adapter(kArenaAllocProfile)) {
+    : default_arena_pool_(),
+      arena_(custom_arena_pool),
+      info_(arena_.Adapter(kArenaAllocProfile)),
+      profile_key_map_(std::less<const std::string>(), arena_.Adapter(kArenaAllocProfile)) {
 }
 
 ProfileCompilationInfo::ProfileCompilationInfo()
-    : default_arena_pool_(new ArenaPool(/*use_malloc*/true, /*low_4gb*/false, "ProfileCompilationInfo")),
-      arena_(new ArenaAllocator(default_arena_pool_.get())),
-      info_(arena_->Adapter(kArenaAllocProfile)),
-      profile_key_map_(std::less<const std::string>(), arena_->Adapter(kArenaAllocProfile)) {
+    : default_arena_pool_(/*use_malloc*/true, /*low_4gb*/false, "ProfileCompilationInfo"),
+      arena_(&default_arena_pool_),
+      info_(arena_.Adapter(kArenaAllocProfile)),
+      profile_key_map_(std::less<const std::string>(), arena_.Adapter(kArenaAllocProfile)) {
 }
 
 ProfileCompilationInfo::~ProfileCompilationInfo() {
-  VLOG(profiler) << Dumpable<MemStats>(arena_->GetMemStats());
+  VLOG(profiler) << Dumpable<MemStats>(arena_.GetMemStats());
   for (DexFileData* data : info_) {
     delete data;
   }
@@ -94,11 +94,27 @@ void ProfileCompilationInfo::DexPcData::AddClass(uint16_t dex_profile_idx,
   if (is_megamorphic || is_missing_types) {
     return;
   }
-  classes.emplace(dex_profile_idx, type_idx);
-  if (classes.size() >= InlineCache::kIndividualCacheSize) {
+
+  // Perform an explicit lookup for the type instead of directly emplacing the
+  // element. We do this because emplace() allocates the node before doing the
+  // lookup and if it then finds an identical element, it shall deallocate the
+  // node. For Arena allocations, that's essentially a leak.
+  ClassReference ref(dex_profile_idx, type_idx);
+  auto it = classes.find(ref);
+  if (it != classes.end()) {
+    // The type index exists.
+    return;
+  }
+
+  // Check if the adding the type will cause the cache to become megamorphic.
+  if (classes.size() + 1 >= InlineCache::kIndividualCacheSize) {
     is_megamorphic = true;
     classes.clear();
+    return;
   }
+
+  // The type does not exist and the inline cache will not be megamorphic.
+  classes.insert(ref);
 }
 
 // Transform the actual dex location into relative paths.
@@ -475,8 +491,8 @@ ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::GetOrAddDexFileData
   uint8_t profile_index = profile_index_it->second;
   if (info_.size() <= profile_index) {
     // This is a new addition. Add it to the info_ array.
-    DexFileData* dex_file_data = new (arena_.get()) DexFileData(
-        arena_.get(), profile_key, checksum, profile_index);
+    DexFileData* dex_file_data = new (&arena_) DexFileData(
+        &arena_, profile_key, checksum, profile_index);
     info_.push_back(dex_file_data);
   }
   DexFileData* result = info_[profile_index];
@@ -523,7 +539,7 @@ bool ProfileCompilationInfo::AddResolvedClasses(const DexCacheResolvedClasses& c
 bool ProfileCompilationInfo::AddMethodIndex(const std::string& dex_location,
                                             uint32_t dex_checksum,
                                             uint16_t method_index) {
-  return AddMethod(dex_location, dex_checksum, method_index, OfflineProfileMethodInfo(arena_.get()));
+  return AddMethod(dex_location, dex_checksum, method_index, OfflineProfileMethodInfo(nullptr));
 }
 
 bool ProfileCompilationInfo::AddMethod(const std::string& dex_location,
@@ -534,8 +550,14 @@ bool ProfileCompilationInfo::AddMethod(const std::string& dex_location,
   if (data == nullptr) {  // checksum mismatch
     return false;
   }
+  // Add the method.
   InlineCacheMap* inline_cache = data->FindOrAddMethod(method_index);
-  for (const auto& pmi_inline_cache_it : pmi.inline_caches) {
+
+  if (pmi.inline_caches == nullptr) {
+    // If we don't have inline caches return success right away.
+    return true;
+  }
+  for (const auto& pmi_inline_cache_it : *pmi.inline_caches) {
     uint16_t pmi_ic_dex_pc = pmi_inline_cache_it.first;
     const DexPcData& pmi_ic_dex_pc_data = pmi_inline_cache_it.second;
     DexPcData* dex_pc_data = FindOrAddDexPc(inline_cache, pmi_ic_dex_pc);
@@ -1167,7 +1189,8 @@ std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> ProfileCompila
   if (inline_caches == nullptr) {
     return nullptr;
   }
-  std::unique_ptr<OfflineProfileMethodInfo> pmi(new OfflineProfileMethodInfo(arena_.get()));
+
+  std::unique_ptr<OfflineProfileMethodInfo> pmi(new OfflineProfileMethodInfo(inline_caches));
 
   pmi->dex_references.resize(info_.size());
   for (const DexFileData* dex_data : info_) {
@@ -1175,8 +1198,6 @@ std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> ProfileCompila
     pmi->dex_references[dex_data->profile_index].dex_checksum = dex_data->checksum;
   }
 
-  // TODO(calin): maybe expose a direct pointer to avoid copying
-  pmi->inline_caches = *inline_caches;
   return pmi;
 }
 
@@ -1293,16 +1314,18 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
   return os.str();
 }
 
-bool ProfileCompilationInfo::GetClassesAndMethods(const DexFile* dex_file,
+bool ProfileCompilationInfo::GetClassesAndMethods(const DexFile& dex_file,
                                                   std::set<dex::TypeIndex>* class_set,
-                                                  MethodMap* method_map) const {
+                                                  std::set<uint16_t>* method_set) const {
   std::set<std::string> ret;
-  std::string profile_key = GetProfileDexFileKey(dex_file->GetLocation());
+  std::string profile_key = GetProfileDexFileKey(dex_file.GetLocation());
   const DexFileData* dex_data = FindDexData(profile_key);
-  if (dex_data == nullptr || dex_data->checksum != dex_file->GetLocationChecksum()) {
+  if (dex_data == nullptr || dex_data->checksum != dex_file.GetLocationChecksum()) {
     return false;
   }
-  *method_map = dex_data->method_map;
+  for (const auto& it : dex_data->method_map) {
+    method_set->insert(it.first);
+  }
   for (const dex::TypeIndex& type_index : dex_data->class_set) {
     class_set->insert(type_index);
   }
@@ -1415,17 +1438,17 @@ bool ProfileCompilationInfo::GenerateTestProfile(
 
 bool ProfileCompilationInfo::OfflineProfileMethodInfo::operator==(
       const OfflineProfileMethodInfo& other) const {
-  if (inline_caches.size() != other.inline_caches.size()) {
+  if (inline_caches->size() != other.inline_caches->size()) {
     return false;
   }
 
   // We can't use a simple equality test because we need to match the dex files
   // of the inline caches which might have different profile indexes.
-  for (const auto& inline_cache_it : inline_caches) {
+  for (const auto& inline_cache_it : *inline_caches) {
     uint16_t dex_pc = inline_cache_it.first;
     const DexPcData dex_pc_data = inline_cache_it.second;
-    const auto other_it = other.inline_caches.find(dex_pc);
-    if (other_it == other.inline_caches.end()) {
+    const auto& other_it = other.inline_caches->find(dex_pc);
+    if (other_it == other.inline_caches->end()) {
       return false;
     }
     const DexPcData& other_dex_pc_data = other_it->second;
@@ -1468,7 +1491,7 @@ ProfileCompilationInfo::DexFileData::FindOrAddMethod(uint16_t method_index) {
 
 ProfileCompilationInfo::DexPcData*
 ProfileCompilationInfo::FindOrAddDexPc(InlineCacheMap* inline_cache, uint32_t dex_pc) {
-  return &(inline_cache->FindOrAdd(dex_pc, DexPcData(arena_.get()))->second);
+  return &(inline_cache->FindOrAdd(dex_pc, DexPcData(&arena_))->second);
 }
 
 }  // namespace art
