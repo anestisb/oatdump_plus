@@ -3057,7 +3057,8 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
   if (c.get() == nullptr) {
     LOG(FATAL) << "Couldn't find class: " << jni_class_name;
   }
-  JNI::RegisterNativeMethods(env, c.get(), methods, method_count, false);
+  jint jni_result = env->RegisterNatives(c.get(), methods, method_count);
+  CHECK_EQ(JNI_OK, jni_result);
 }
 
 }  // namespace art
