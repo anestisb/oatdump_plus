@@ -64,12 +64,6 @@ art_global_defaults {
         "-Wno-constant-conversion",
         "-Wno-undefined-var-template",
 
-        "-DART_STACK_OVERFLOW_GAP_arm=8192",
-        "-DART_STACK_OVERFLOW_GAP_arm64=8192",
-        "-DART_STACK_OVERFLOW_GAP_mips=16384",
-        "-DART_STACK_OVERFLOW_GAP_mips64=16384",
-        "-DART_STACK_OVERFLOW_GAP_x86=8192",
-        "-DART_STACK_OVERFLOW_GAP_x86_64=8192",
         // Enable thread annotations for std::mutex, etc.
         "-D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS",
     ],
