@@ -18,8 +18,8 @@
 
 // Explicitly include our own elf.h to avoid Linux and other dependencies.
 #include "../elf.h"
+#include "android-base/logging.h"
 #include "base/bit_utils.h"
-#include "base/logging.h"
 #include "globals.h"
 
 namespace art {
@@ -36,11 +36,9 @@ void InstructionSetAbort(InstructionSet isa) {
     case kNone:
       LOG(FATAL) << "Unsupported instruction set " << isa;
       UNREACHABLE();
-
-    default:
-      LOG(FATAL) << "Unknown ISA " << isa;
-      UNREACHABLE();
   }
+  LOG(FATAL) << "Unknown ISA " << isa;
+  UNREACHABLE();
 }
 
 const char* GetInstructionSetString(InstructionSet isa) {
@@ -60,10 +58,9 @@ const char* GetInstructionSetString(InstructionSet isa) {
       return "mips64";
     case kNone:
       return "none";
-    default:
-      LOG(FATAL) << "Unknown ISA " << isa;
-      UNREACHABLE();
   }
+  LOG(FATAL) << "Unknown ISA " << isa;
+  UNREACHABLE();
 }
 
 InstructionSet GetInstructionSetFromString(const char* isa_str) {
@@ -128,10 +125,9 @@ size_t GetInstructionSetAlignment(InstructionSet isa) {
     case kNone:
       LOG(FATAL) << "ISA kNone does not have alignment.";
       UNREACHABLE();
-    default:
-      LOG(FATAL) << "Unknown ISA " << isa;
-      UNREACHABLE();
   }
+  LOG(FATAL) << "Unknown ISA " << isa;
+  UNREACHABLE();
 }
 
 #if !defined(ART_STACK_OVERFLOW_GAP_arm) || !defined(ART_STACK_OVERFLOW_GAP_arm64) || \
@@ -197,11 +193,9 @@ size_t GetStackOverflowReservedBytes(InstructionSet isa) {
     case kNone:
       LOG(FATAL) << "kNone has no stack overflow size";
       UNREACHABLE();
-
-    default:
-      LOG(FATAL) << "Unknown instruction set" << isa;
-      UNREACHABLE();
   }
+  LOG(FATAL) << "Unknown instruction set" << isa;
+  UNREACHABLE();
 }
 
 }  // namespace art
