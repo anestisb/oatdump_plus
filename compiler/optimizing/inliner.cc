@@ -578,7 +578,6 @@ HInliner::InlineCacheType HInliner::GetInlineCacheAOT(
     return kInlineCacheNoData;
   }
 
-  // Use the profile arena when extracting the method info.
   std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> offline_profile =
       pci->GetMethod(caller_dex_file.GetLocation(),
                      caller_dex_file.GetLocationChecksum(),
@@ -603,8 +602,8 @@ HInliner::InlineCacheType HInliner::ExtractClassesFromOfflineProfile(
     const ProfileCompilationInfo::OfflineProfileMethodInfo& offline_profile,
     /*out*/Handle<mirror::ObjectArray<mirror::Class>> inline_cache)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  const auto it = offline_profile.inline_caches.find(invoke_instruction->GetDexPc());
-  if (it == offline_profile.inline_caches.end()) {
+  const auto it = offline_profile.inline_caches->find(invoke_instruction->GetDexPc());
+  if (it == offline_profile.inline_caches->end()) {
     return kInlineCacheUninitialized;
   }
 
