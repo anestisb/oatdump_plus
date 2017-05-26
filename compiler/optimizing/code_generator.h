@@ -33,8 +33,8 @@
 #include "read_barrier_option.h"
 #include "stack_map_stream.h"
 #include "string_reference.h"
+#include "type_reference.h"
 #include "utils/label.h"
-#include "utils/type_reference.h"
 
 namespace art {
 

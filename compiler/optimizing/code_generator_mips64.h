@@ -21,8 +21,8 @@
 #include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
+#include "type_reference.h"
 #include "utils/mips64/assembler_mips64.h"
-#include "utils/type_reference.h"
 
 namespace art {
 namespace mips64 {

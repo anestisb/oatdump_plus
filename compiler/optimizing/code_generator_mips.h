@@ -23,8 +23,8 @@
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "string_reference.h"
+#include "type_reference.h"
 #include "utils/mips/assembler_mips.h"
-#include "utils/type_reference.h"
 
 namespace art {
 namespace mips {

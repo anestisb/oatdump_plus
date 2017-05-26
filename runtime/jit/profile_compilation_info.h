@@ -28,6 +28,7 @@
 #include "dex_file_types.h"
 #include "method_reference.h"
 #include "safe_map.h"
+#include "type_reference.h"
 
 namespace art {
 
@@ -36,24 +37,15 @@ namespace art {
  *  without the need to hold GC-able objects.
  */
 struct ProfileMethodInfo {
-  struct ProfileClassReference {
-    ProfileClassReference() : dex_file(nullptr) {}
-    ProfileClassReference(const DexFile* dex, const dex::TypeIndex index)
-        : dex_file(dex), type_index(index) {}
-
-    const DexFile* dex_file;
-    dex::TypeIndex type_index;
-  };
-
   struct ProfileInlineCache {
     ProfileInlineCache(uint32_t pc,
                        bool missing_types,
-                       const std::vector<ProfileClassReference>& profile_classes)
+                       const std::vector<TypeReference>& profile_classes)
         : dex_pc(pc), is_missing_types(missing_types), classes(profile_classes) {}
 
     const uint32_t dex_pc;
     const bool is_missing_types;
-    const std::vector<ProfileClassReference> classes;
+    const std::vector<TypeReference> classes;
   };
 
   ProfileMethodInfo(const DexFile* dex, uint32_t method_index)

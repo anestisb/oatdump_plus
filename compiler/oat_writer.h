@@ -31,7 +31,7 @@
 #include "os.h"
 #include "safe_map.h"
 #include "string_reference.h"
-#include "utils/type_reference.h"
+#include "type_reference.h"
 
 namespace art {
 

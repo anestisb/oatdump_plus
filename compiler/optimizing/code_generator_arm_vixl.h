@@ -24,8 +24,8 @@
 #include "nodes.h"
 #include "string_reference.h"
 #include "parallel_move_resolver.h"
+#include "type_reference.h"
 #include "utils/arm/assembler_arm_vixl.h"
-#include "utils/type_reference.h"
 
 // TODO(VIXL): make vixl clean wrt -Wshadow.
 #pragma GCC diagnostic push
