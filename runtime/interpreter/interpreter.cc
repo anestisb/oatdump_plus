@@ -264,7 +264,11 @@ static inline JValue Execute(
 
           // Pop the shadow frame before calling into compiled code.
           self->PopShadowFrame();
-          ArtInterpreterToCompiledCodeBridge(self, nullptr, code_item, &shadow_frame, &result);
+          // Calculate the offset of the first input reg. The input registers are in the high regs.
+          // It's ok to access the code item here since JIT code will have been touched by the
+          // interpreter and compiler already.
+          uint16_t arg_offset = code_item->registers_size_ - code_item->ins_size_;
+          ArtInterpreterToCompiledCodeBridge(self, nullptr, &shadow_frame, arg_offset, &result);
           // Push the shadow frame back as the caller will expect it.
           self->PushShadowFrame(&shadow_frame);
 
