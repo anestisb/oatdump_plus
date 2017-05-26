@@ -759,4 +759,63 @@ TEST_F(ProfileAssistantTest, MergeProfilesWithDifferentDexOrder) {
   CheckProfileInfo(profile1, info1);
 }
 
+TEST_F(ProfileAssistantTest, TestProfileCreateWithInvalidData) {
+  // Create the profile content.
+  std::vector<std::string> profile_methods = {
+    "LTestInline;->inlineMonomorphic(LSuper;)I+invalid_class",
+    "LTestInline;->invalid_method",
+    "invalid_class"
+  };
+  std::string input_file_contents;
+  for (std::string& m : profile_methods) {
+    input_file_contents += m + std::string("\n");
+  }
+
+  // Create the profile and save it to disk.
+  ScratchFile profile_file;
+  std::string dex_filename = GetTestDexFileName("ProfileTestMultiDex");
+  ASSERT_TRUE(CreateProfile(input_file_contents,
+                            profile_file.GetFilename(),
+                            dex_filename));
+
+  // Load the profile from disk.
+  ProfileCompilationInfo info;
+  profile_file.GetFile()->ResetOffset();
+  ASSERT_TRUE(info.Load(GetFd(profile_file)));
+
+  // Load the dex files and verify that the profile contains the expected methods info.
+  ScopedObjectAccess soa(Thread::Current());
+  jobject class_loader = LoadDex("ProfileTestMultiDex");
+  ASSERT_NE(class_loader, nullptr);
+
+  ArtMethod* inline_monomorphic = GetVirtualMethod(class_loader,
+                                                   "LTestInline;",
+                                                   "inlineMonomorphic");
+  const DexFile* dex_file = inline_monomorphic->GetDexFile();
+
+  // Verify that the inline cache contains the invalid type.
+  std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> pmi =
+      info.GetMethod(dex_file->GetLocation(),
+                     dex_file->GetLocationChecksum(),
+                     inline_monomorphic->GetDexMethodIndex());
+  ASSERT_TRUE(pmi != nullptr);
+  ASSERT_EQ(pmi->inline_caches->size(), 1u);
+  const ProfileCompilationInfo::DexPcData& dex_pc_data = pmi->inline_caches->begin()->second;
+  dex::TypeIndex invalid_class_index(std::numeric_limits<uint16_t>::max() - 1);
+  ASSERT_EQ(1u, dex_pc_data.classes.size());
+  ASSERT_EQ(invalid_class_index, dex_pc_data.classes.begin()->type_index);
+
+  // Verify that the start-up classes contain the invalid class.
+  std::set<dex::TypeIndex> classes;
+  std::set<uint16_t> methods;
+  ASSERT_TRUE(info.GetClassesAndMethods(*dex_file, &classes, &methods));
+  ASSERT_EQ(1u, classes.size());
+  ASSERT_TRUE(classes.find(invalid_class_index) != classes.end());
+
+  // Verify that the invalid method is in the profile.
+  ASSERT_EQ(2u, methods.size());
+  uint16_t invalid_method_index = std::numeric_limits<uint16_t>::max() - 1;
+  ASSERT_TRUE(methods.find(invalid_method_index) != methods.end());
+}
+
 }  // namespace art

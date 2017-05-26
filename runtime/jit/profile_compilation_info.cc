@@ -1167,16 +1167,24 @@ bool ProfileCompilationInfo::Equals(const ProfileCompilationInfo& other) {
 }
 
 std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses(
-    const std::unordered_set<std::string>& dex_files_locations) const {
-  std::unordered_map<std::string, std::string> key_to_location_map;
-  for (const std::string& location : dex_files_locations) {
-    key_to_location_map.emplace(GetProfileDexFileKey(location), location);
+    const std::vector<const DexFile*>& dex_files) const {
+  std::unordered_map<std::string, const DexFile* > key_to_dex_file;
+  for (const DexFile* dex_file : dex_files) {
+    key_to_dex_file.emplace(GetProfileDexFileKey(dex_file->GetLocation()), dex_file);
   }
   std::set<DexCacheResolvedClasses> ret;
   for (const DexFileData* dex_data : info_) {
-    const auto& it = key_to_location_map.find(dex_data->profile_key);
-    if (it != key_to_location_map.end()) {
-      DexCacheResolvedClasses classes(it->second, it->second, dex_data->checksum);
+    const auto it = key_to_dex_file.find(dex_data->profile_key);
+    if (it != key_to_dex_file.end()) {
+      const DexFile* dex_file = it->second;
+      const std::string& dex_location = dex_file->GetLocation();
+      if (dex_data->checksum != it->second->GetLocationChecksum()) {
+        LOG(ERROR) << "Dex checksum mismatch when getting resolved classes from profile for "
+            << "location " << dex_location << " (checksum=" << dex_file->GetLocationChecksum()
+            << ", profile checksum=" << dex_data->checksum;
+        return std::set<DexCacheResolvedClasses>();
+      }
+      DexCacheResolvedClasses classes(dex_location, dex_location, dex_data->checksum);
       classes.AddClasses(dex_data->class_set.begin(), dex_data->class_set.end());
       ret.insert(classes);
     }

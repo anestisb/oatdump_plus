@@ -259,7 +259,7 @@ class ProfileCompilationInfo {
 
   // Return the class descriptors for all of the classes in the profiles' class sets.
   std::set<DexCacheResolvedClasses> GetResolvedClasses(
-      const std::unordered_set<std::string>& dex_files_locations) const;
+      const std::vector<const DexFile*>& dex_files_) const;
 
   // Return the profile key associated with the given dex location.
   static std::string GetProfileDexFileKey(const std::string& dex_location);
