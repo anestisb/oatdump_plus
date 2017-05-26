@@ -70,16 +70,6 @@ class ObjectHandler implements AhatHandler {
     doc.descriptions();
     doc.description(DocString.text("Class"), Summarizer.summarize(cls));
 
-    DocString sizeDescription = DocString.format("%,14d ", inst.getSize());
-    sizeDescription.appendDelta(false, base.isPlaceHolder(),
-        inst.getSize(), base.getSize());
-    doc.description(DocString.text("Size"), sizeDescription);
-
-    DocString rsizeDescription = DocString.format("%,14d ", inst.getTotalRetainedSize());
-    rsizeDescription.appendDelta(false, base.isPlaceHolder(),
-        inst.getTotalRetainedSize(), base.getTotalRetainedSize());
-    doc.description(DocString.text("Retained Size"), rsizeDescription);
-
     doc.description(DocString.text("Heap"), DocString.text(inst.getHeap().getName()));
 
     Collection<String> rootTypes = inst.getRootTypes();
@@ -95,6 +85,13 @@ class ObjectHandler implements AhatHandler {
     }
 
     doc.end();
+
+    doc.section("Object Size");
+    SizeTable.table(doc, new Column(""), inst != base && !base.isPlaceHolder());
+    SizeTable.row(doc, DocString.text("Shallow"), inst.getSize(), base.getSize());
+    SizeTable.row(doc, DocString.text("Retained"),
+        inst.getTotalRetainedSize(), base.getTotalRetainedSize());
+    SizeTable.end(doc);
 
     printBitmap(doc, inst);
     if (inst.isClassInstance()) {

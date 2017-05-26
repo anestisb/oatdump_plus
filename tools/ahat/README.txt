@@ -76,6 +76,7 @@ Things to move to perflib:
 
 Release History:
  1.2 Pending
+   Show registered native sizes of objects.
    Simplify presentation of sample path from gc root.
 
  1.1 Feb 21, 2017

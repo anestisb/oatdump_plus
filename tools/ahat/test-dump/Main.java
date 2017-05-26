@@ -20,6 +20,7 @@ import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
+import libcore.util.NativeAllocationRegistry;
 import org.apache.harmony.dalvik.ddmc.DdmVmInternal;
 
 /**
@@ -97,6 +98,11 @@ public class Main {
       for (int i = 0; i < N; i++) {
         bigArray[i] = (byte)((i*i) & 0xFF);
       }
+
+      // 0x12345, 50000, and 0xABCDABCD are arbitrary values.
+      NativeAllocationRegistry registry = new NativeAllocationRegistry(
+          Main.class.getClassLoader(), 0x12345, 50000);
+      registry.registerNativeAllocation(anObject, 0xABCDABCD);
 
       addedObject = baseline ? null : new AddedObject();
       removedObject = baseline ? new RemovedObject() : null;

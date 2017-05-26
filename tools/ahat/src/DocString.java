@@ -126,6 +126,23 @@ class DocString {
   }
 
   /**
+   * Standard formatted DocString for describing a size.
+   *
+   * Nothing is printed for a size of zero.
+   * Set isPlaceHolder to true to indicate that the size field corresponds to
+   * for a place holder object that should be annotated specially.
+   */
+  public static DocString size(long size, boolean isPlaceHolder) {
+    DocString string = new DocString();
+    if (isPlaceHolder) {
+      string.append(DocString.removed("del"));
+    } else if (size != 0) {
+      string.appendFormat("%,14d", size);
+    }
+    return string;
+  }
+
+  /**
    * Standard formatted DocString for describing a change in size relative to
    * a baseline.
    * @param noCurrent - whether no current object exists.

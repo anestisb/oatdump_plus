@@ -38,7 +38,7 @@ class SitePrinter {
       }
 
       public long getSize(Site element, AhatHeap heap) {
-        return element.getSize(heap);
+        return element.getSize(heap).getSize();
       }
 
       public List<HeapTable.ValueConfig<Site>> getValueConfigs() {

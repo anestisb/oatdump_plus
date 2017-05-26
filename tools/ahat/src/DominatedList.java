@@ -55,7 +55,7 @@ class DominatedList {
 
     @Override
     public long getSize(AhatInstance element, AhatHeap heap) {
-      return element.getRetainedSize(heap);
+      return element.getRetainedSize(heap).getSize();
     }
 
     @Override

@@ -60,7 +60,7 @@ class SiteHandler implements AhatHandler {
         }
 
         public long getSize(Site element, AhatHeap heap) {
-          return element.getSize(heap);
+          return element.getSize(heap).getSize();
         }
 
         public List<HeapTable.ValueConfig<Site>> getValueConfigs() {
@@ -80,10 +80,7 @@ class SiteHandler implements AhatHandler {
     }
 
     doc.section("Objects Allocated");
-
-    doc.table(
-        new Column("Reachable Bytes Allocated", Column.Align.RIGHT),
-        new Column("Δ", Column.Align.RIGHT, mSnapshot.isDiffed()),
+    SizeTable.table(doc, mSnapshot.isDiffed(),
         new Column("Instances", Column.Align.RIGHT),
         new Column("Δ", Column.Align.RIGHT, mSnapshot.isDiffed()),
         new Column("Heap"),
@@ -100,9 +97,7 @@ class SiteHandler implements AhatHandler {
     for (Site.ObjectsInfo info : selector.selected()) {
       Site.ObjectsInfo baseinfo = info.getBaseline();
       String className = info.getClassName();
-      doc.row(
-          DocString.format("%,14d", info.numBytes),
-          DocString.delta(false, false, info.numBytes, baseinfo.numBytes),
+      SizeTable.row(doc, info.numBytes, baseinfo.numBytes,
           DocString.link(
             DocString.formattedUri("objects?id=%d&depth=%d&heap=%s&class=%s",
               site.getId(), site.getDepth(), info.heap.getName(), className),
@@ -111,7 +106,7 @@ class SiteHandler implements AhatHandler {
           DocString.text(info.heap.getName()),
           Summarizer.summarize(info.classObj));
     }
-    doc.end();
+    SizeTable.end(doc);
     selector.render(doc);
   }
 }

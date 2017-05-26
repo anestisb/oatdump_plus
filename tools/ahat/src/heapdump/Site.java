@@ -44,7 +44,7 @@ public class Site implements Diffable<Site> {
   // The total size of objects allocated in this site (including child sites),
   // organized by heap index. Heap indices outside the range of mSizesByHeap
   // implicitly have size 0.
-  private long[] mSizesByHeap;
+  private Size[] mSizesByHeap;
 
   // List of child sites.
   private List<Site> mChildren;
@@ -60,14 +60,18 @@ public class Site implements Diffable<Site> {
     public AhatHeap heap;
     public AhatClassObj classObj;   // May be null.
     public long numInstances;
-    public long numBytes;
+    public Size numBytes;
     private ObjectsInfo baseline;
 
-    public ObjectsInfo(AhatHeap heap, AhatClassObj classObj, long numInstances, long numBytes) {
+    /**
+     * Construct a new, empty objects info for the given heap and class
+     * combination.
+     */
+    public ObjectsInfo(AhatHeap heap, AhatClassObj classObj) {
       this.heap = heap;
       this.classObj = classObj;
-      this.numInstances = numInstances;
-      this.numBytes = numBytes;
+      this.numInstances = 0;
+      this.numBytes = Size.ZERO;
       this.baseline = this;
     }
 
@@ -107,7 +111,7 @@ public class Site implements Diffable<Site> {
     mLineNumber = line;
     mId = id;
     mDepth = depth;
-    mSizesByHeap = new long[1];
+    mSizesByHeap = new Size[0];
     mChildren = new ArrayList<Site>();
     mObjects = new ArrayList<AhatInstance>();
     mObjectsInfos = new ArrayList<ObjectsInfo>();
@@ -133,16 +137,20 @@ public class Site implements Diffable<Site> {
       if (inst.isReachable()) {
         AhatHeap heap = inst.getHeap();
         if (heap.getIndex() >= site.mSizesByHeap.length) {
-          long[] newSizes = new long[heap.getIndex() + 1];
+          Size[] newSizes = new Size[heap.getIndex() + 1];
           for (int i = 0; i < site.mSizesByHeap.length; i++) {
             newSizes[i] = site.mSizesByHeap[i];
           }
+          for (int i = site.mSizesByHeap.length; i < heap.getIndex() + 1; i++) {
+            newSizes[i] = Size.ZERO;
+          }
           site.mSizesByHeap = newSizes;
         }
-        site.mSizesByHeap[heap.getIndex()] += inst.getSize();
+        site.mSizesByHeap[heap.getIndex()]
+          = site.mSizesByHeap[heap.getIndex()].plus(inst.getSize());
 
         info.numInstances++;
-        info.numBytes += inst.getSize();
+        info.numBytes = info.numBytes.plus(inst.getSize());
       }
 
       if (depth > 0) {
@@ -172,9 +180,9 @@ public class Site implements Diffable<Site> {
   }
 
   // Get the size of a site for a specific heap.
-  public long getSize(AhatHeap heap) {
+  public Size getSize(AhatHeap heap) {
     int index = heap.getIndex();
-    return index >= 0 && index < mSizesByHeap.length ? mSizesByHeap[index] : 0;
+    return index >= 0 && index < mSizesByHeap.length ? mSizesByHeap[index] : Size.ZERO;
   }
 
   /**
@@ -198,7 +206,7 @@ public class Site implements Diffable<Site> {
 
     ObjectsInfo info = classToObjectsInfo.get(classObj);
     if (info == null) {
-      info = new ObjectsInfo(heap, classObj, 0, 0);
+      info = new ObjectsInfo(heap, classObj);
       mObjectsInfos.add(info);
       classToObjectsInfo.put(classObj, info);
     }
@@ -210,10 +218,10 @@ public class Site implements Diffable<Site> {
   }
 
   // Get the combined size of the site for all heaps.
-  public long getTotalSize() {
-    long total = 0;
+  public Size getTotalSize() {
+    Size total = Size.ZERO;
     for (int i = 0; i < mSizesByHeap.length; i++) {
-      total += mSizesByHeap[i];
+      total = total.plus(mSizesByHeap[i]);
     }
     return total;
   }

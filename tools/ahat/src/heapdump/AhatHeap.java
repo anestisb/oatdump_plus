@@ -18,7 +18,7 @@ package com.android.ahat.heapdump;
 
 public class AhatHeap implements Diffable<AhatHeap> {
   private String mName;
-  private long mSize = 0;
+  private Size mSize = Size.ZERO;
   private int mIndex;
   private AhatHeap mBaseline;
   private boolean mIsPlaceHolder = false;
@@ -47,8 +47,8 @@ public class AhatHeap implements Diffable<AhatHeap> {
     return new AhatHeap(name, baseline);
   }
 
-  void addToSize(long increment) {
-    mSize += increment;
+  void addToSize(Size size) {
+    mSize = mSize.plus(size);
   }
 
   /**
@@ -69,7 +69,7 @@ public class AhatHeap implements Diffable<AhatHeap> {
   /**
    * Returns the total number of bytes allocated on this heap.
    */
-  public long getSize() {
+  public Size getSize() {
     return mSize;
   }
 
