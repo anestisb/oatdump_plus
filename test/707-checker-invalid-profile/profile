@@ -1,0 +1,4 @@
+LMain;->attemptInlineMonomorphic(LMain;)I+invalid_class
+LMain;->attemptInlinePolymorphic(LMain;)I+LMain;,invalid_class
+LMain;->invalid_method
+invalid_class

@@ -672,6 +672,12 @@ HInliner::InlineCacheType HInliner::ExtractClassesFromOfflineProfile(
     ObjPtr<mirror::DexCache> dex_cache =
         dex_profile_index_to_dex_cache[class_ref.dex_profile_index];
     DCHECK(dex_cache != nullptr);
+
+    if (!dex_cache->GetDexFile()->IsTypeIndexValid(class_ref.type_index)) {
+      VLOG(compiler) << "Profile data corrupt: type index " << class_ref.type_index
+            << "is invalid in location" << dex_cache->GetDexFile()->GetLocation();
+      return kInlineCacheNoData;
+    }
     ObjPtr<mirror::Class> clazz = ClassLinker::LookupResolvedType(
           class_ref.type_index,
           dex_cache,
