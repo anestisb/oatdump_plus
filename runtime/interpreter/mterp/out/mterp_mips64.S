@@ -3699,19 +3699,27 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG_FLOAT f0, a2
     FETCH_ADVANCE_INST 1                # advance rPC, load rINST
 
+    trunc.w.s f0, f0
+/* File: mips64/fcvtFooter.S */
     /*
-     * TODO: simplify this when the MIPS64R6 emulator
-     * supports NAN2008=1.
+     * Stores a specified register containing the result of conversion
+     * from or to a floating-point type and jumps to the next instruction.
+     *
+     * Expects a1 to contain the destination Dalvik register number.
+     * a1 is set up by fcvtHeader.S.
+     *
+     * For: int-to-float, int-to-double, long-to-float, long-to-double,
+     *      float-to-int, float-to-long, float-to-double, double-to-int,
+     *      double-to-long, double-to-float, neg-float, neg-double.
+     *
+     * Note that this file can't be included after a break in other files
+     * and in those files its contents appear as a copy.
+     * See: float-to-int, float-to-long, double-to-int, double-to-long.
      */
-    li      t0, INT_MIN_AS_FLOAT
-    mtc1    t0, f1
-    cmp.le.s f1, f1, f0
-    bc1nez  f1, .Lop_float_to_int_trunc
-    cmp.eq.s f1, f0, f0
-    li      t0, INT_MIN
-    mfc1    t1, f1
-    and     t0, t0, t1
-    b       .Lop_float_to_int_done
+    GET_INST_OPCODE v0                  # extract opcode from rINST
+    SET_VREG_FLOAT f0, a1
+    GOTO_OPCODE v0                      # jump to next instruction
+
 
 /* ------------------------------ */
     .balign 128
@@ -3734,19 +3742,28 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG_FLOAT f0, a2
     FETCH_ADVANCE_INST 1                # advance rPC, load rINST
 
+    trunc.l.s f0, f0
+/* File: mips64/fcvtFooter.S */
     /*
-     * TODO: simplify this when the MIPS64R6 emulator
-     * supports NAN2008=1.
+     * Stores a specified register containing the result of conversion
+     * from or to a floating-point type and jumps to the next instruction.
+     *
+     * Expects a1 to contain the destination Dalvik register number.
+     * a1 is set up by fcvtHeader.S.
+     *
+     * For: int-to-float, int-to-double, long-to-float, long-to-double,
+     *      float-to-int, float-to-long, float-to-double, double-to-int,
+     *      double-to-long, double-to-float, neg-float, neg-double.
+     *
+     * Note that this file can't be included after a break in other files
+     * and in those files its contents appear as a copy.
+     * See: float-to-int, float-to-long, double-to-int, double-to-long.
      */
-    li      t0, LONG_MIN_AS_FLOAT
-    mtc1    t0, f1
-    cmp.le.s f1, f1, f0
-    bc1nez  f1, .Lop_float_to_long_trunc
-    cmp.eq.s f1, f0, f0
-    dli     t0, LONG_MIN
-    mfc1    t1, f1
-    and     t0, t0, t1
-    b       .Lop_float_to_long_done
+    GET_INST_OPCODE v0                  # extract opcode from rINST
+    SET_VREG_DOUBLE f0, a1
+    GOTO_OPCODE v0                      # jump to next instruction
+
+
 
 /* ------------------------------ */
     .balign 128
@@ -3817,19 +3834,27 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG_DOUBLE f0, a2
     FETCH_ADVANCE_INST 1                # advance rPC, load rINST
 
+    trunc.w.d f0, f0
+/* File: mips64/fcvtFooter.S */
     /*
-     * TODO: simplify this when the MIPS64R6 emulator
-     * supports NAN2008=1.
+     * Stores a specified register containing the result of conversion
+     * from or to a floating-point type and jumps to the next instruction.
+     *
+     * Expects a1 to contain the destination Dalvik register number.
+     * a1 is set up by fcvtHeader.S.
+     *
+     * For: int-to-float, int-to-double, long-to-float, long-to-double,
+     *      float-to-int, float-to-long, float-to-double, double-to-int,
+     *      double-to-long, double-to-float, neg-float, neg-double.
+     *
+     * Note that this file can't be included after a break in other files
+     * and in those files its contents appear as a copy.
+     * See: float-to-int, float-to-long, double-to-int, double-to-long.
      */
-    dli     t0, INT_MIN_AS_DOUBLE
-    dmtc1   t0, f1
-    cmp.le.d f1, f1, f0
-    bc1nez  f1, .Lop_double_to_int_trunc
-    cmp.eq.d f1, f0, f0
-    li      t0, INT_MIN
-    mfc1    t1, f1
-    and     t0, t0, t1
-    b       .Lop_double_to_int_done
+    GET_INST_OPCODE v0                  # extract opcode from rINST
+    SET_VREG_FLOAT f0, a1
+    GOTO_OPCODE v0                      # jump to next instruction
+
 
 /* ------------------------------ */
     .balign 128
@@ -3852,19 +3877,27 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG_DOUBLE f0, a2
     FETCH_ADVANCE_INST 1                # advance rPC, load rINST
 
+    trunc.l.d f0, f0
+/* File: mips64/fcvtFooter.S */
     /*
-     * TODO: simplify this when the MIPS64R6 emulator
-     * supports NAN2008=1.
+     * Stores a specified register containing the result of conversion
+     * from or to a floating-point type and jumps to the next instruction.
+     *
+     * Expects a1 to contain the destination Dalvik register number.
+     * a1 is set up by fcvtHeader.S.
+     *
+     * For: int-to-float, int-to-double, long-to-float, long-to-double,
+     *      float-to-int, float-to-long, float-to-double, double-to-int,
+     *      double-to-long, double-to-float, neg-float, neg-double.
+     *
+     * Note that this file can't be included after a break in other files
+     * and in those files its contents appear as a copy.
+     * See: float-to-int, float-to-long, double-to-int, double-to-long.
      */
-    dli     t0, LONG_MIN_AS_DOUBLE
-    dmtc1   t0, f1
-    cmp.le.d f1, f1, f0
-    bc1nez  f1, .Lop_double_to_long_trunc
-    cmp.eq.d f1, f0, f0
-    dli     t0, LONG_MIN
-    mfc1    t1, f1
-    and     t0, t0, t1
-    b       .Lop_double_to_long_done
+    GET_INST_OPCODE v0                  # extract opcode from rINST
+    SET_VREG_DOUBLE f0, a1
+    GOTO_OPCODE v0                      # jump to next instruction
+
 
 /* ------------------------------ */
     .balign 128
@@ -7131,46 +7164,6 @@ artMterpAsmInstructionEnd:
     .text
     .balign 4
 artMterpAsmSisterStart:
-
-/* continuation for op_float_to_int */
-.Lop_float_to_int_trunc:
-    trunc.w.s f0, f0
-    mfc1    t0, f0
-.Lop_float_to_int_done:
-    /* Can't include fcvtFooter.S after break */
-    GET_INST_OPCODE v0                  # extract opcode from rINST
-    SET_VREG t0, a1
-    GOTO_OPCODE v0                      # jump to next instruction
-
-/* continuation for op_float_to_long */
-.Lop_float_to_long_trunc:
-    trunc.l.s f0, f0
-    dmfc1   t0, f0
-.Lop_float_to_long_done:
-    /* Can't include fcvtFooter.S after break */
-    GET_INST_OPCODE v0                  # extract opcode from rINST
-    SET_VREG_WIDE t0, a1
-    GOTO_OPCODE v0                      # jump to next instruction
-
-/* continuation for op_double_to_int */
-.Lop_double_to_int_trunc:
-    trunc.w.d f0, f0
-    mfc1    t0, f0
-.Lop_double_to_int_done:
-    /* Can't include fcvtFooter.S after break */
-    GET_INST_OPCODE v0                  # extract opcode from rINST
-    SET_VREG t0, a1
-    GOTO_OPCODE v0                      # jump to next instruction
-
-/* continuation for op_double_to_long */
-.Lop_double_to_long_trunc:
-    trunc.l.d f0, f0
-    dmfc1   t0, f0
-.Lop_double_to_long_done:
-    /* Can't include fcvtFooter.S after break */
-    GET_INST_OPCODE v0                  # extract opcode from rINST
-    SET_VREG_WIDE t0, a1
-    GOTO_OPCODE v0                      # jump to next instruction
 
     .size   artMterpAsmSisterStart, .-artMterpAsmSisterStart
     .global artMterpAsmSisterEnd

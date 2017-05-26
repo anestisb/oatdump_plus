@@ -3,7 +3,8 @@
      *
      * We have to clip values to long min/max per the specification.  The
      * expected common case is a "reasonable" value that converts directly
-     * to modest integer.  The EABI convert function isn't doing this for us.
+     * to modest integer.  The EABI convert function isn't doing this for us
+     * for pre-R6.
      */
     /* unop vA, vB */
     GET_OPA4(rOBJ)                         #  rOBJ <- A+
@@ -13,19 +14,7 @@
     FETCH_ADVANCE_INST(1)                  #  advance rPC, load rINST
 
 #ifdef MIPS32REVGE6
-    /*
-     * TODO: simplify this when the MIPS64R6 emulator
-     * supports NAN2008=1.
-     */
-    li        t0, LONG_MIN_AS_DOUBLE_HIGH
-    mtc1      zero, fa1
-    mthc1     t0, fa1
-    cmp.le.d  ft0, fa1, fa0
     GET_INST_OPCODE(t1)                    #  extract opcode from rINST
-    bc1nez    ft0, 1f                      #  if LONG_MIN <= vB, proceed to truncation
-    cmp.eq.d  ft0, fa0, fa0
-    selnez.d  fa0, fa1, ft0                #  fa0 = ordered(vB) ? LONG_MIN_AS_DOUBLE : 0
-1:
     trunc.l.d fa0, fa0
     SET_VREG64_F_GOTO(fa0, fa0f, rOBJ, t1) #  vA <- result
 #else
