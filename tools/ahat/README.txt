@@ -75,7 +75,9 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
- 1.2 Pending
+ 1.3 Pending
+
+ 1.2 May 26, 2017
    Show registered native sizes of objects.
    Simplify presentation of sample path from gc root.
 
