@@ -187,9 +187,11 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
   return true;
 }
 
-int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target, bool profile_changed) {
+int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target,
+                                      bool profile_changed,
+                                      bool downgrade) {
   OatFileInfo& info = GetBestInfo();
-  DexOptNeeded dexopt_needed = info.GetDexOptNeeded(target, profile_changed);
+  DexOptNeeded dexopt_needed = info.GetDexOptNeeded(target, profile_changed, downgrade);
   if (info.IsOatLocation() || dexopt_needed == kDex2OatFromScratch) {
     return dexopt_needed;
   }
@@ -230,7 +232,7 @@ OatFileAssistant::MakeUpToDate(bool profile_changed, std::string* error_msg) {
   }
 
   OatFileInfo& info = GetBestInfo();
-  switch (info.GetDexOptNeeded(target, profile_changed)) {
+  switch (info.GetDexOptNeeded(target, profile_changed, /*downgrade*/ false)) {
     case kNoDexOptNeeded:
       return kUpdateSucceeded;
 
@@ -1005,9 +1007,9 @@ OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
 }
 
 OatFileAssistant::DexOptNeeded OatFileAssistant::OatFileInfo::GetDexOptNeeded(
-    CompilerFilter::Filter target, bool profile_changed) {
+    CompilerFilter::Filter target, bool profile_changed, bool downgrade) {
   bool compilation_desired = CompilerFilter::IsAotCompilationEnabled(target);
-  bool filter_okay = CompilerFilterIsOkay(target, profile_changed);
+  bool filter_okay = CompilerFilterIsOkay(target, profile_changed, downgrade);
 
   if (filter_okay && Status() == kOatUpToDate) {
     // The oat file is in good shape as is.
@@ -1064,7 +1066,7 @@ const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
 }
 
 bool OatFileAssistant::OatFileInfo::CompilerFilterIsOkay(
-    CompilerFilter::Filter target, bool profile_changed) {
+    CompilerFilter::Filter target, bool profile_changed, bool downgrade) {
   const OatFile* file = GetFile();
   if (file == nullptr) {
     return false;
@@ -1075,7 +1077,8 @@ bool OatFileAssistant::OatFileInfo::CompilerFilterIsOkay(
     VLOG(oat) << "Compiler filter not okay because Profile changed";
     return false;
   }
-  return CompilerFilter::IsAsGoodAs(current, target);
+  return downgrade ? !CompilerFilter::IsBetter(current, target) :
+    CompilerFilter::IsAsGoodAs(current, target);
 }
 
 bool OatFileAssistant::OatFileInfo::IsExecutable() {

@@ -165,6 +165,10 @@ bool CompilerFilter::IsAsGoodAs(Filter current, Filter target) {
   return current >= target;
 }
 
+bool CompilerFilter::IsBetter(Filter current, Filter target) {
+  return current > target;
+}
+
 std::string CompilerFilter::NameOfFilter(Filter filter) {
   switch (filter) {
     case CompilerFilter::kAssumeVerified: return "assume-verified";

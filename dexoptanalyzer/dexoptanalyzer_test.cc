@@ -71,12 +71,13 @@ class DexoptAnalyzerTest : public DexoptTest {
   // as the output of OatFileAssistant::GetDexOptNeeded.
   void Verify(const std::string& dex_file,
               CompilerFilter::Filter compiler_filter,
-              bool assume_profile_changed = false) {
+              bool assume_profile_changed = false,
+              bool downgrade = false) {
     int dexoptanalyzerResult = Analyze(dex_file, compiler_filter, assume_profile_changed);
     dexoptanalyzerResult = DexoptanalyzerToOatFileAssistant(dexoptanalyzerResult);
     OatFileAssistant oat_file_assistant(dex_file.c_str(), kRuntimeISA, /*load_executable*/ false);
     int assistantResult = oat_file_assistant.GetDexOptNeeded(
-        compiler_filter, assume_profile_changed);
+        compiler_filter, assume_profile_changed, downgrade);
     EXPECT_EQ(assistantResult, dexoptanalyzerResult);
   }
 };
@@ -116,6 +117,16 @@ TEST_F(DexoptAnalyzerTest, ProfileOatUpToDate) {
   Verify(dex_location, CompilerFilter::kQuicken, false);
   Verify(dex_location, CompilerFilter::kSpeedProfile, true);
   Verify(dex_location, CompilerFilter::kQuicken, true);
+}
+
+TEST_F(DexoptAnalyzerTest, Downgrade) {
+  std::string dex_location = GetScratchDir() + "/Downgrade.jar";
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOatForTest(dex_location.c_str(), CompilerFilter::kQuicken);
+
+  Verify(dex_location, CompilerFilter::kSpeedProfile, false, true);
+  Verify(dex_location, CompilerFilter::kQuicken, false, true);
+  Verify(dex_location, CompilerFilter::kVerify, false, true);
 }
 
 // Case: We have a MultiDEX file and up-to-date OAT file for it.

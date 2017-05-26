@@ -147,13 +147,24 @@ class OatFileAssistant {
   bool Lock(std::string* error_msg);
 
   // Return what action needs to be taken to produce up-to-date code for this
-  // dex location that is at least as good as an oat file generated with the
-  // given compiler filter. profile_changed should be true to indicate the
-  // profile has recently changed for this dex location.
+  // dex location. If "downgrade" is set to false, it verifies if the current
+  // compiler filter is at least as good as an oat file generated with the
+  // given compiler filter otherwise, if its set to true, it checks whether
+  // the oat file generated with the target filter will be downgraded as
+  // compared to the current state. For example, if the current compiler filter is
+  // quicken, and target filter is verify, it will recommend to dexopt, while
+  // if the target filter is speed profile, it will recommend to keep it in its
+  // current state.
+  // profile_changed should be true to indicate the profile has recently changed
+  // for this dex location.
+  // If the purpose of the dexopt is to downgrade the compiler filter,
+  // set downgrade to true.
   // Returns a positive status code if the status refers to the oat file in
   // the oat location. Returns a negative status code if the status refers to
   // the oat file in the odex location.
-  int GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter, bool profile_changed = false);
+  int GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
+                      bool profile_changed = false,
+                      bool downgrade = false);
 
   // Returns true if there is up-to-date code for this dex location,
   // irrespective of the compiler filter of the up-to-date code.
@@ -310,8 +321,11 @@ class OatFileAssistant {
     // given target_compilation_filter.
     // profile_changed should be true to indicate the profile has recently
     // changed for this dex location.
+    // downgrade should be true if the purpose of dexopt is to downgrade the
+    // compiler filter.
     DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
-                                 bool profile_changed);
+                                 bool profile_changed,
+                                 bool downgrade);
 
     // Returns the loaded file.
     // Loads the file if needed. Returns null if the file failed to load.
@@ -344,7 +358,9 @@ class OatFileAssistant {
     // least as good as the given target filter. profile_changed should be
     // true to indicate the profile has recently changed for this dex
     // location.
-    bool CompilerFilterIsOkay(CompilerFilter::Filter target, bool profile_changed);
+    // downgrade should be true if the purpose of dexopt is to downgrade the
+    // compiler filter.
+    bool CompilerFilterIsOkay(CompilerFilter::Filter target, bool profile_changed, bool downgrade);
 
     // Release the loaded oat file.
     // Returns null if the oat file hasn't been loaded.

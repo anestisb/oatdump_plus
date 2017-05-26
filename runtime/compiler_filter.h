@@ -84,6 +84,11 @@ class CompilerFilter FINAL {
   // not as good as kSpeed.
   static bool IsAsGoodAs(Filter current, Filter target);
 
+  // Returns true if 'current' compiler filter is better than 'target' compiler
+  // filter. Compared to IsAsGoodAs, this returns false if the compiler filters are
+  // equal.
+  static bool IsBetter(Filter current, Filter target);
+
   // Return the flag name of the given filter.
   // For example: given kVerifyAtRuntime, returns "verify-at-runtime".
   // The name returned corresponds to the name accepted by
