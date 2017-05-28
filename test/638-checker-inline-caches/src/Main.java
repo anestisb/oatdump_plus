@@ -36,16 +36,17 @@ public class Main {
   /// CHECK:       InvokeVirtual method_name:Super.getValue
 
   /// CHECK-START: int Main.inlineMonomorphicSubA(Super) inliner (after)
-  /// CHECK-NOT:   InvokeVirtual method_name:Super.getValue
-
-  /// CHECK-START: int Main.inlineMonomorphicSubA(Super) inliner (after)
   /// CHECK:  <<SubARet:i\d+>>      IntConstant 42
   /// CHECK:  <<Obj:l\d+>>          NullCheck
   /// CHECK:  <<ObjClass:l\d+>>     InstanceFieldGet [<<Obj>>] field_name:java.lang.Object.shadow$_klass_
   /// CHECK:  <<InlineClass:l\d+>>  LoadClass class_name:SubA
   /// CHECK:  <<Test:z\d+>>         NotEqual [<<InlineClass>>,<<ObjClass>>]
-  /// CHECK:                        Deoptimize [<<Test>>,<<Obj>>]
-  /// CHECK:                        Return [<<SubARet>>]
+  /// CHECK:  <<DefaultRet:i\d+>>   InvokeVirtual [<<Obj>>] method_name:Super.getValue
+
+  /// CHECK:  <<Ret:i\d+>>          Phi [<<SubARet>>,<<DefaultRet>>]
+  /// CHECK:                        Return [<<Ret>>]
+
+  /// CHECK-NOT:                    Deoptimize
   public static int inlineMonomorphicSubA(Super a) {
     return a.getValue();
   }
@@ -53,27 +54,27 @@ public class Main {
   /// CHECK-START: int Main.inlinePolymophicSubASubB(Super) inliner (before)
   /// CHECK:       InvokeVirtual method_name:Super.getValue
 
-  /// CHECK-START: int Main.inlinePolymophicSubASubB(Super) inliner (after)
-  /// CHECK-NOT:   InvokeVirtual method_name:Super.getValue
-
   // Note that the order in which the types are added to the inline cache in the profile matters.
 
   /// CHECK-START: int Main.inlinePolymophicSubASubB(Super) inliner (after)
   /// CHECK-DAG:  <<SubARet:i\d+>>          IntConstant 42
   /// CHECK-DAG:  <<SubBRet:i\d+>>          IntConstant 38
-  /// CHECK:      <<Obj:l\d+>>              NullCheck
-  /// CHECK:      <<ObjClassSubA:l\d+>>     InstanceFieldGet [<<Obj>>] field_name:java.lang.Object.shadow$_klass_
-  /// CHECK:      <<InlineClassSubA:l\d+>>  LoadClass class_name:SubA
-  /// CHECK:      <<TestSubA:z\d+>>         NotEqual [<<InlineClassSubA>>,<<ObjClassSubA>>]
-  /// CHECK:                                If [<<TestSubA>>]
+  /// CHECK-DAG:   <<Obj:l\d+>>             NullCheck
+  /// CHECK-DAG:   <<ObjClassSubA:l\d+>>    InstanceFieldGet [<<Obj>>] field_name:java.lang.Object.shadow$_klass_
+  /// CHECK-DAG:   <<InlineClassSubA:l\d+>> LoadClass class_name:SubA
+  /// CHECK-DAG:   <<TestSubA:z\d+>>        NotEqual [<<InlineClassSubA>>,<<ObjClassSubA>>]
+  /// CHECK-DAG:                            If [<<TestSubA>>]
 
-  /// CHECK:      <<ObjClassSubB:l\d+>>     InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
-  /// CHECK:      <<InlineClassSubB:l\d+>>  LoadClass class_name:SubB
-  /// CHECK:      <<TestSubB:z\d+>>         NotEqual [<<InlineClassSubB>>,<<ObjClassSubB>>]
-  /// CHECK:                                Deoptimize [<<TestSubB>>,<<Obj>>]
+  /// CHECK-DAG:   <<ObjClassSubB:l\d+>>    InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
+  /// CHECK-DAG:   <<InlineClassSubB:l\d+>> LoadClass class_name:SubB
+  /// CHECK-DAG:   <<TestSubB:z\d+>>        NotEqual [<<InlineClassSubB>>,<<ObjClassSubB>>]
+  /// CHECK-DAG:   <<DefaultRet:i\d+>>      InvokeVirtual [<<Obj>>] method_name:Super.getValue
 
-  /// CHECK:      <<Ret:i\d+>>              Phi [<<SubARet>>,<<SubBRet>>]
-  /// CHECK:                                Return [<<Ret>>]
+  /// CHECK-DAG:  <<FirstMerge:i\d+>>       Phi [<<SubBRet>>,<<DefaultRet>>]
+  /// CHECK-DAG:  <<Ret:i\d+>>              Phi [<<SubARet>>,<<FirstMerge>>]
+  /// CHECK-DAG:                            Return [<<Ret>>]
+
+  /// CHECK-NOT:                            Deoptimize
   public static int inlinePolymophicSubASubB(Super a) {
     return a.getValue();
   }
@@ -81,27 +82,27 @@ public class Main {
   /// CHECK-START: int Main.inlinePolymophicCrossDexSubASubC(Super) inliner (before)
   /// CHECK:       InvokeVirtual method_name:Super.getValue
 
-  /// CHECK-START: int Main.inlinePolymophicCrossDexSubASubC(Super) inliner (after)
-  /// CHECK-NOT:   InvokeVirtual method_name:Super.getValue
-
   // Note that the order in which the types are added to the inline cache in the profile matters.
 
   /// CHECK-START: int Main.inlinePolymophicCrossDexSubASubC(Super) inliner (after)
   /// CHECK-DAG:  <<SubARet:i\d+>>          IntConstant 42
   /// CHECK-DAG:  <<SubCRet:i\d+>>          IntConstant 24
-  /// CHECK:      <<Obj:l\d+>>              NullCheck
-  /// CHECK:      <<ObjClassSubA:l\d+>>     InstanceFieldGet [<<Obj>>] field_name:java.lang.Object.shadow$_klass_
-  /// CHECK:      <<InlineClassSubA:l\d+>>  LoadClass class_name:SubA
-  /// CHECK:      <<TestSubA:z\d+>>         NotEqual [<<InlineClassSubA>>,<<ObjClassSubA>>]
-  /// CHECK:                                If [<<TestSubA>>]
+  /// CHECK-DAG:  <<Obj:l\d+>>              NullCheck
+  /// CHECK-DAG:  <<ObjClassSubA:l\d+>>     InstanceFieldGet [<<Obj>>] field_name:java.lang.Object.shadow$_klass_
+  /// CHECK-DAG:  <<InlineClassSubA:l\d+>>  LoadClass class_name:SubA
+  /// CHECK-DAG:  <<TestSubA:z\d+>>         NotEqual [<<InlineClassSubA>>,<<ObjClassSubA>>]
+  /// CHECK-DAG:                            If [<<TestSubA>>]
 
-  /// CHECK:      <<ObjClassSubC:l\d+>>     InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
-  /// CHECK:      <<InlineClassSubC:l\d+>>  LoadClass class_name:SubC
-  /// CHECK:      <<TestSubC:z\d+>>         NotEqual [<<InlineClassSubC>>,<<ObjClassSubC>>]
-  /// CHECK:                                Deoptimize [<<TestSubC>>,<<Obj>>]
+  /// CHECK-DAG:  <<ObjClassSubC:l\d+>>     InstanceFieldGet field_name:java.lang.Object.shadow$_klass_
+  /// CHECK-DAG:  <<InlineClassSubC:l\d+>>  LoadClass class_name:SubC
+  /// CHECK-DAG:  <<TestSubC:z\d+>>         NotEqual [<<InlineClassSubC>>,<<ObjClassSubC>>]
+  /// CHECK-DAG:  <<DefaultRet:i\d+>>       InvokeVirtual [<<Obj>>] method_name:Super.getValue
 
-  /// CHECK:      <<Ret:i\d+>>              Phi [<<SubARet>>,<<SubCRet>>]
-  /// CHECK:                                Return [<<Ret>>]
+  /// CHECK-DAG:  <<FirstMerge:i\d+>>       Phi [<<SubCRet>>,<<DefaultRet>>]
+  /// CHECK-DAG:  <<Ret:i\d+>>              Phi [<<SubARet>>,<<FirstMerge>>]
+  /// CHECK-DAG:                            Return [<<Ret>>]
+
+  /// CHECK-NOT:                            Deoptimize
   public static int inlinePolymophicCrossDexSubASubC(Super a) {
     return a.getValue();
   }

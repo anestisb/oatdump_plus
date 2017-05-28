@@ -514,7 +514,6 @@
             "640-checker-short-simd",
             "641-checker-arraycopy",
             "643-checker-bogus-ic",
-            "644-checker-deopt",
             "645-checker-abs-simd",
             "706-checker-scheduler"],
         "description": ["Checker tests are not compatible with jvmti."],

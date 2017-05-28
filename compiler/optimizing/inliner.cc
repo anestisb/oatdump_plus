@@ -462,6 +462,33 @@ static Handle<mirror::ObjectArray<mirror::Class>> AllocateInlineCacheHolder(
   return inline_cache;
 }
 
+bool HInliner::UseOnlyPolymorphicInliningWithNoDeopt() {
+  // If we are compiling AOT or OSR, pretend the call using inline caches is polymorphic and
+  // do not generate a deopt.
+  //
+  // For AOT:
+  //    Generating a deopt does not ensure that we will actually capture the new types;
+  //    and the danger is that we could be stuck in a loop with "forever" deoptimizations.
+  //    Take for example the following scenario:
+  //      - we capture the inline cache in one run
+  //      - the next run, we deoptimize because we miss a type check, but the method
+  //        never becomes hot again
+  //    In this case, the inline cache will not be updated in the profile and the AOT code
+  //    will keep deoptimizing.
+  //    Another scenario is if we use profile compilation for a process which is not allowed
+  //    to JIT (e.g. system server). If we deoptimize we will run interpreted code for the
+  //    rest of the lifetime.
+  // TODO(calin):
+  //    This is a compromise because we will most likely never update the inline cache
+  //    in the profile (unless there's another reason to deopt). So we might be stuck with
+  //    a sub-optimal inline cache.
+  //    We could be smarter when capturing inline caches to mitigate this.
+  //    (e.g. by having different thresholds for new and old methods).
+  //
+  // For OSR:
+  //     We may come from the interpreter and it may have seen different receiver types.
+  return Runtime::Current()->IsAotCompiler() || outermost_graph_->IsCompilingOsr();
+}
 bool HInliner::TryInlineFromInlineCache(const DexFile& caller_dex_file,
                                         HInvoke* invoke_instruction,
                                         ArtMethod* resolved_method)
@@ -495,9 +522,7 @@ bool HInliner::TryInlineFromInlineCache(const DexFile& caller_dex_file,
 
     case kInlineCacheMonomorphic: {
       MaybeRecordStat(kMonomorphicCall);
-      if (outermost_graph_->IsCompilingOsr()) {
-        // If we are compiling OSR, we pretend this call is polymorphic, as we may come from the
-        // interpreter and it may have seen different receiver types.
+      if (UseOnlyPolymorphicInliningWithNoDeopt()) {
         return TryInlinePolymorphicCall(invoke_instruction, resolved_method, inline_cache);
       } else {
         return TryInlineMonomorphicCall(invoke_instruction, resolved_method, inline_cache);
@@ -570,12 +595,11 @@ HInliner::InlineCacheType HInliner::GetInlineCacheAOT(
     return kInlineCacheNoData;
   }
 
-  ProfileCompilationInfo::OfflineProfileMethodInfo offline_profile;
-  bool found = pci->GetMethod(caller_dex_file.GetLocation(),
-                              caller_dex_file.GetLocationChecksum(),
-                              caller_compilation_unit_.GetDexMethodIndex(),
-                              &offline_profile);
-  if (!found) {
+  std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> offline_profile =
+      pci->GetMethod(caller_dex_file.GetLocation(),
+                     caller_dex_file.GetLocationChecksum(),
+                     caller_compilation_unit_.GetDexMethodIndex());
+  if (offline_profile == nullptr) {
     return kInlineCacheNoData;  // no profile information for this invocation.
   }
 
@@ -585,7 +609,7 @@ HInliner::InlineCacheType HInliner::GetInlineCacheAOT(
     return kInlineCacheNoData;
   } else {
     return ExtractClassesFromOfflineProfile(invoke_instruction,
-                                            offline_profile,
+                                            *(offline_profile.get()),
                                             *inline_cache);
   }
 }
@@ -595,8 +619,8 @@ HInliner::InlineCacheType HInliner::ExtractClassesFromOfflineProfile(
     const ProfileCompilationInfo::OfflineProfileMethodInfo& offline_profile,
     /*out*/Handle<mirror::ObjectArray<mirror::Class>> inline_cache)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  const auto it = offline_profile.inline_caches.find(invoke_instruction->GetDexPc());
-  if (it == offline_profile.inline_caches.end()) {
+  const auto it = offline_profile.inline_caches->find(invoke_instruction->GetDexPc());
+  if (it == offline_profile.inline_caches->end()) {
     return kInlineCacheUninitialized;
   }
 
@@ -918,14 +942,11 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
 
       // If we have inlined all targets before, and this receiver is the last seen,
       // we deoptimize instead of keeping the original invoke instruction.
-      bool deoptimize = all_targets_inlined &&
+      bool deoptimize = !UseOnlyPolymorphicInliningWithNoDeopt() &&
+          all_targets_inlined &&
           (i != InlineCache::kIndividualCacheSize - 1) &&
           (classes->Get(i + 1) == nullptr);
 
-      if (outermost_graph_->IsCompilingOsr()) {
-        // We do not support HDeoptimize in OSR methods.
-        deoptimize = false;
-      }
       HInstruction* compare = AddTypeGuard(receiver,
                                            cursor,
                                            bb_cursor,

@@ -238,4 +238,8 @@ extern "C" JNIEXPORT int JNICALL Java_Main_getHotnessCounter(JNIEnv* env,
   return method->GetCounter();
 }
 
+extern "C" JNIEXPORT int JNICALL Java_Main_numberOfDeoptimizations(JNIEnv*, jclass) {
+  return Runtime::Current()->GetNumberOfDeoptimizations();
+}
+
 }  // namespace art
