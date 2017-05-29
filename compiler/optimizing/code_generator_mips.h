@@ -61,6 +61,8 @@ static constexpr FRegister kFpuCalleeSaves[] =
 
 class CodeGeneratorMIPS;
 
+VectorRegister VectorRegisterFrom(Location location);
+
 class InvokeDexCallingConvention : public CallingConvention<Register, FRegister> {
  public:
   InvokeDexCallingConvention()
@@ -372,7 +374,11 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   size_t GetWordSize() const OVERRIDE { return kMipsWordSize; }
 
-  size_t GetFloatingPointSpillSlotSize() const OVERRIDE { return kMipsDoublewordSize; }
+  size_t GetFloatingPointSpillSlotSize() const OVERRIDE {
+    return GetGraph()->HasSIMD()
+        ? 2 * kMipsDoublewordSize   // 16 bytes for each spill.
+        : 1 * kMipsDoublewordSize;  //  8 bytes for each spill.
+  }
 
   uintptr_t GetAddressOf(HBasicBlock* block) OVERRIDE {
     return assembler_.GetLabelLocation(GetLabelOf(block));
