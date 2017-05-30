@@ -18,6 +18,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/callee_save_type.h"
 #include "callee_save_frame.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
@@ -59,12 +60,12 @@ static ArtMethod* GetReferrer(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_
   if (kIsDebugBuild) {
     // stub_test doesn't call this code with a proper frame, so get the outer, and if
     // it does not have compiled code return it.
-    ArtMethod* outer = GetCalleeSaveOuterMethod(self, Runtime::kSaveRefsOnly);
+    ArtMethod* outer = GetCalleeSaveOuterMethod(self, CalleeSaveType::kSaveRefsOnly);
     if (outer->GetEntryPointFromQuickCompiledCode() == nullptr) {
       return outer;
     }
   }
-  return GetCalleeSaveMethodCallerAndOuterMethod(self, Runtime::kSaveRefsOnly).caller;
+  return GetCalleeSaveMethodCallerAndOuterMethod(self, CalleeSaveType::kSaveRefsOnly).caller;
 }
 
 #define ART_GET_FIELD_FROM_CODE(Kind, PrimitiveType, RetType, SetType,         \

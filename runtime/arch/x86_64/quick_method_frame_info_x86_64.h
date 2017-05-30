@@ -17,10 +17,12 @@
 #ifndef ART_RUNTIME_ARCH_X86_64_QUICK_METHOD_FRAME_INFO_X86_64_H_
 #define ART_RUNTIME_ARCH_X86_64_QUICK_METHOD_FRAME_INFO_X86_64_H_
 
+#include "arch/instruction_set.h"
 #include "base/bit_utils.h"
+#include "base/callee_save_type.h"
+#include "base/enums.h"
 #include "quick/quick_method_frame_info.h"
 #include "registers_x86_64.h"
-#include "runtime.h"  // for Runtime::CalleeSaveType.
 
 namespace art {
 namespace x86_64 {
@@ -53,25 +55,25 @@ static constexpr uint32_t kX86_64CalleeSaveFpEverythingSpills =
     (1 << art::x86_64::XMM8) | (1 << art::x86_64::XMM9) |
     (1 << art::x86_64::XMM10) | (1 << art::x86_64::XMM11);
 
-constexpr uint32_t X86_64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
+constexpr uint32_t X86_64CalleeSaveCoreSpills(CalleeSaveType type) {
   return kX86_64CalleeSaveAlwaysSpills | kX86_64CalleeSaveRefSpills |
-      (type == Runtime::kSaveRefsAndArgs ? kX86_64CalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveEverything ? kX86_64CalleeSaveEverythingSpills : 0);
+      (type == CalleeSaveType::kSaveRefsAndArgs ? kX86_64CalleeSaveArgSpills : 0) |
+      (type == CalleeSaveType::kSaveEverything ? kX86_64CalleeSaveEverythingSpills : 0);
 }
 
-constexpr uint32_t X86_64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
+constexpr uint32_t X86_64CalleeSaveFpSpills(CalleeSaveType type) {
   return kX86_64CalleeSaveFpSpills |
-      (type == Runtime::kSaveRefsAndArgs ? kX86_64CalleeSaveFpArgSpills : 0) |
-      (type == Runtime::kSaveEverything ? kX86_64CalleeSaveFpEverythingSpills : 0);
+      (type == CalleeSaveType::kSaveRefsAndArgs ? kX86_64CalleeSaveFpArgSpills : 0) |
+      (type == CalleeSaveType::kSaveEverything ? kX86_64CalleeSaveFpEverythingSpills : 0);
 }
 
-constexpr uint32_t X86_64CalleeSaveFrameSize(Runtime::CalleeSaveType type) {
+constexpr uint32_t X86_64CalleeSaveFrameSize(CalleeSaveType type) {
   return RoundUp((POPCOUNT(X86_64CalleeSaveCoreSpills(type)) /* gprs */ +
                   POPCOUNT(X86_64CalleeSaveFpSpills(type)) /* fprs */ +
                   1 /* Method* */) * static_cast<size_t>(kX86_64PointerSize), kStackAlignment);
 }
 
-constexpr QuickMethodFrameInfo X86_64CalleeSaveMethodFrameInfo(Runtime::CalleeSaveType type) {
+constexpr QuickMethodFrameInfo X86_64CalleeSaveMethodFrameInfo(CalleeSaveType type) {
   return QuickMethodFrameInfo(X86_64CalleeSaveFrameSize(type),
                               X86_64CalleeSaveCoreSpills(type),
                               X86_64CalleeSaveFpSpills(type));

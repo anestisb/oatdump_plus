@@ -71,6 +71,7 @@ namespace verifier {
 }  // namespace verifier
 class ArenaPool;
 class ArtMethod;
+enum class CalleeSaveType: uint32_t;
 class ClassHierarchyAnalysis;
 class ClassLinker;
 class CompilerCallbacks;
@@ -377,17 +378,8 @@ class Runtime {
     imt_unimplemented_method_ = nullptr;
   }
 
-  // Returns a special method that describes all callee saves being spilled to the stack.
-  enum CalleeSaveType {
-    kSaveAllCalleeSaves,  // All callee-save registers.
-    kSaveRefsOnly,        // Only those callee-save registers that can hold references.
-    kSaveRefsAndArgs,     // References (see above) and arguments (usually caller-save registers).
-    kSaveEverything,      // All registers, including both callee-save and caller-save.
-    kLastCalleeSaveType   // Value used for iteration
-  };
-
   bool HasCalleeSaveMethod(CalleeSaveType type) const {
-    return callee_save_methods_[type] != 0u;
+    return callee_save_methods_[static_cast<size_t>(type)] != 0u;
   }
 
   ArtMethod* GetCalleeSaveMethod(CalleeSaveType type)
@@ -397,14 +389,14 @@ class Runtime {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   QuickMethodFrameInfo GetCalleeSaveMethodFrameInfo(CalleeSaveType type) const {
-    return callee_save_method_frame_infos_[type];
+    return callee_save_method_frame_infos_[static_cast<size_t>(type)];
   }
 
   QuickMethodFrameInfo GetRuntimeMethodFrameInfo(ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static size_t GetCalleeSaveMethodOffset(CalleeSaveType type) {
-    return OFFSETOF_MEMBER(Runtime, callee_save_methods_[type]);
+    return OFFSETOF_MEMBER(Runtime, callee_save_methods_[static_cast<size_t>(type)]);
   }
 
   InstructionSet GetInstructionSet() const {
@@ -724,8 +716,10 @@ class Runtime {
   static constexpr int kProfileForground = 0;
   static constexpr int kProfileBackground = 1;
 
+  static constexpr uint32_t kCalleeSaveSize = 4u;
+
   // 64 bit so that we can share the same asm offsets for both 32 and 64 bits.
-  uint64_t callee_save_methods_[kLastCalleeSaveType];
+  uint64_t callee_save_methods_[kCalleeSaveSize];
   GcRoot<mirror::Throwable> pre_allocated_OutOfMemoryError_;
   GcRoot<mirror::Throwable> pre_allocated_NoClassDefFoundError_;
   ArtMethod* resolution_method_;
@@ -739,7 +733,7 @@ class Runtime {
   GcRoot<mirror::Object> sentinel_;
 
   InstructionSet instruction_set_;
-  QuickMethodFrameInfo callee_save_method_frame_infos_[kLastCalleeSaveType];
+  QuickMethodFrameInfo callee_save_method_frame_infos_[kCalleeSaveSize];
 
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
@@ -959,7 +953,6 @@ class Runtime {
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
-std::ostream& operator<<(std::ostream& os, const Runtime::CalleeSaveType& rhs);
 
 }  // namespace art
 

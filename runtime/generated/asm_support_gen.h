@@ -27,13 +27,13 @@ DEFINE_CHECK_EQ(static_cast<size_t>(COMPRESSED_REFERENCE_SIZE), (static_cast<siz
 #define COMPRESSED_REFERENCE_SIZE_SHIFT 0x2
 DEFINE_CHECK_EQ(static_cast<size_t>(COMPRESSED_REFERENCE_SIZE_SHIFT), (static_cast<size_t>(art::WhichPowerOf2(sizeof(art::mirror::CompressedReference<art::mirror::Object>)))))
 #define RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET 0
-DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveAllCalleeSaves))))
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveAllCalleeSaves))))
 #define RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET 0x8
-DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveRefsOnly))))
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveRefsOnly))))
 #define RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET 0x10
-DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveRefsAndArgs))))
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveRefsAndArgs))))
 #define RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET 0x18
-DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveEverything))))
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveEverything))))
 #define THREAD_FLAGS_OFFSET 0
 DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_FLAGS_OFFSET), (static_cast<int32_t>(art::Thread:: ThreadFlagsOffset<art::kRuntimePointerSize>().Int32Value())))
 #define THREAD_ID_OFFSET 12

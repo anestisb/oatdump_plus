@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "base/arena_allocator.h"
+#include "base/callee_save_type.h"
 #include "base/enums.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
@@ -170,7 +171,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   Runtime* r = Runtime::Current();
   r->SetInstructionSet(kRuntimeISA);
   ArtMethod* save_method = r->CreateCalleeSaveMethod();
-  r->SetCalleeSaveMethod(save_method, Runtime::kSaveAllCalleeSaves);
+  r->SetCalleeSaveMethod(save_method, CalleeSaveType::kSaveAllCalleeSaves);
   QuickMethodFrameInfo frame_info = r->GetRuntimeMethodFrameInfo(save_method);
 
   ASSERT_EQ(kStackAlignment, 16U);

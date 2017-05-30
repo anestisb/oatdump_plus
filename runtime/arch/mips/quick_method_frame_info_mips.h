@@ -17,10 +17,12 @@
 #ifndef ART_RUNTIME_ARCH_MIPS_QUICK_METHOD_FRAME_INFO_MIPS_H_
 #define ART_RUNTIME_ARCH_MIPS_QUICK_METHOD_FRAME_INFO_MIPS_H_
 
+#include "arch/instruction_set.h"
 #include "base/bit_utils.h"
+#include "base/callee_save_type.h"
+#include "base/enums.h"
 #include "quick/quick_method_frame_info.h"
 #include "registers_mips.h"
-#include "runtime.h"  // for Runtime::CalleeSaveType.
 
 namespace art {
 namespace mips {
@@ -62,27 +64,27 @@ static constexpr uint32_t kMipsCalleeSaveFpEverythingSpills =
     (1 << art::mips::F24) | (1 << art::mips::F25) | (1 << art::mips::F26) | (1 << art::mips::F27) |
     (1 << art::mips::F28) | (1 << art::mips::F29) | (1 << art::mips::F30) | (1u << art::mips::F31);
 
-constexpr uint32_t MipsCalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
+constexpr uint32_t MipsCalleeSaveCoreSpills(CalleeSaveType type) {
   return kMipsCalleeSaveAlwaysSpills | kMipsCalleeSaveRefSpills |
-      (type == Runtime::kSaveRefsAndArgs ? kMipsCalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveAllCalleeSaves ? kMipsCalleeSaveAllSpills : 0) |
-      (type == Runtime::kSaveEverything ? kMipsCalleeSaveEverythingSpills : 0);
+      (type == CalleeSaveType::kSaveRefsAndArgs ? kMipsCalleeSaveArgSpills : 0) |
+      (type == CalleeSaveType::kSaveAllCalleeSaves ? kMipsCalleeSaveAllSpills : 0) |
+      (type == CalleeSaveType::kSaveEverything ? kMipsCalleeSaveEverythingSpills : 0);
 }
 
-constexpr uint32_t MipsCalleeSaveFPSpills(Runtime::CalleeSaveType type) {
+constexpr uint32_t MipsCalleeSaveFPSpills(CalleeSaveType type) {
   return kMipsCalleeSaveFpAlwaysSpills | kMipsCalleeSaveFpRefSpills |
-      (type == Runtime::kSaveRefsAndArgs ? kMipsCalleeSaveFpArgSpills : 0) |
-      (type == Runtime::kSaveAllCalleeSaves ? kMipsCalleeSaveAllFPSpills : 0) |
-      (type == Runtime::kSaveEverything ? kMipsCalleeSaveFpEverythingSpills : 0);
+      (type == CalleeSaveType::kSaveRefsAndArgs ? kMipsCalleeSaveFpArgSpills : 0) |
+      (type == CalleeSaveType::kSaveAllCalleeSaves ? kMipsCalleeSaveAllFPSpills : 0) |
+      (type == CalleeSaveType::kSaveEverything ? kMipsCalleeSaveFpEverythingSpills : 0);
 }
 
-constexpr uint32_t MipsCalleeSaveFrameSize(Runtime::CalleeSaveType type) {
+constexpr uint32_t MipsCalleeSaveFrameSize(CalleeSaveType type) {
   return RoundUp((POPCOUNT(MipsCalleeSaveCoreSpills(type)) /* gprs */ +
                   POPCOUNT(MipsCalleeSaveFPSpills(type))   /* fprs */ +
                   1 /* Method* */) * static_cast<size_t>(kMipsPointerSize), kStackAlignment);
 }
 
-constexpr QuickMethodFrameInfo MipsCalleeSaveMethodFrameInfo(Runtime::CalleeSaveType type) {
+constexpr QuickMethodFrameInfo MipsCalleeSaveMethodFrameInfo(CalleeSaveType type) {
   return QuickMethodFrameInfo(MipsCalleeSaveFrameSize(type),
                               MipsCalleeSaveCoreSpills(type),
                               MipsCalleeSaveFPSpills(type));

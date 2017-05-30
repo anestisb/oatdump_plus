@@ -20,6 +20,7 @@
 #include "art_method.h"
 
 #include "art_field.h"
+#include "base/callee_save_type.h"
 #include "base/logging.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
@@ -201,8 +202,8 @@ inline bool ArtMethod::IsCalleeSaveMethod() {
   }
   Runtime* runtime = Runtime::Current();
   bool result = false;
-  for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    if (this == runtime->GetCalleeSaveMethod(Runtime::CalleeSaveType(i))) {
+  for (uint32_t i = 0; i < static_cast<uint32_t>(CalleeSaveType::kLastCalleeSaveType); i++) {
+    if (this == runtime->GetCalleeSaveMethod(CalleeSaveType(i))) {
       result = true;
       break;
     }
@@ -273,12 +274,14 @@ inline const char* ArtMethod::GetName() {
     return "<runtime internal resolution method>";
   } else if (this == runtime->GetImtConflictMethod()) {
     return "<runtime internal imt conflict method>";
-  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves)) {
+  } else if (this == runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveAllCalleeSaves)) {
     return "<runtime internal callee-save all registers method>";
-  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kSaveRefsOnly)) {
+  } else if (this == runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsOnly)) {
     return "<runtime internal callee-save reference registers method>";
-  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs)) {
+  } else if (this == runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs)) {
     return "<runtime internal callee-save reference and argument registers method>";
+  } else if (this == runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveEverything)) {
+    return "<runtime internal save-every-register method>";
   } else {
     return "<unknown runtime internal method>";
   }
