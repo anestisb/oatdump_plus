@@ -276,6 +276,9 @@ class ProfileCompilationInfo {
 
   ArenaAllocator* GetArena() { return &arena_; }
 
+  // Add a method index to the profile (without inline caches).
+  bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
+
  private:
   enum ProfileLoadSatus {
     kProfileLoadWouldOverwiteData,
@@ -332,9 +335,6 @@ class ProfileCompilationInfo {
   // Return the profile data for the given profile key or null if the dex location
   // already exists but has a different checksum
   DexFileData* GetOrAddDexFileData(const std::string& profile_key, uint32_t checksum);
-
-  // Add a method index to the profile (without inline caches).
-  bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
 
   // Add a method to the profile using its online representation (containing runtime structures).
   bool AddMethod(const ProfileMethodInfo& pmi);

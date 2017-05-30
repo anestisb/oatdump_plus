@@ -98,8 +98,11 @@ class CommonRuntimeTestImpl {
   // Returns bin directory which contains host's prebuild tools.
   static std::string GetAndroidHostToolsDir();
 
-  // Returns bin directory wahich contains target's prebuild tools.
+  // Returns bin directory which contains target's prebuild tools.
   static std::string GetAndroidTargetToolsDir(InstructionSet isa);
+
+  // Retuerns the filename for a test dex (i.e. XandY or ManyMethods).
+  std::string GetTestDexFileName(const char* name) const;
 
  protected:
   // Allow subclases such as CommonCompilerTest to add extra options.
@@ -126,8 +129,6 @@ class CommonRuntimeTestImpl {
   void ClearDirectory(const char* dirpath);
 
   std::string GetTestAndroidRoot();
-
-  std::string GetTestDexFileName(const char* name) const;
 
   std::vector<std::unique_ptr<const DexFile>> OpenTestDexFiles(const char* name);
 
