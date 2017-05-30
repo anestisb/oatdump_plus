@@ -85,7 +85,7 @@ struct VariableLocation {
 // The result will cover all ranges where the variable is in scope.
 // PCs corresponding to stackmap with dex register map are accurate,
 // all other PCs are best-effort only.
-std::vector<VariableLocation> GetVariableLocations(
+static std::vector<VariableLocation> GetVariableLocations(
     const MethodDebugInfo* method_info,
     const std::vector<DexRegisterMap>& dex_register_maps,
     uint16_t vreg,
