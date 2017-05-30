@@ -1674,6 +1674,7 @@ Literal* CodeGeneratorMIPS::DeduplicateBootImageAddressLiteral(uint32_t address)
 void CodeGeneratorMIPS::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info,
                                                              Register out,
                                                              Register base) {
+  DCHECK_NE(out, base);
   if (GetInstructionSetFeatures().IsR6()) {
     DCHECK_EQ(base, ZERO);
     __ Bind(&info->high_label);
@@ -7139,8 +7140,8 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
       PcRelativePatchInfo* info = NewPcRelativeMethodPatch(invoke->GetTargetMethod());
       bool reordering = __ SetReorder(false);
       Register temp_reg = temp.AsRegister<Register>();
-      EmitPcRelativeAddressPlaceholderHigh(info, temp_reg, base_reg);
-      __ Addiu(temp_reg, temp_reg, /* placeholder */ 0x5678);
+      EmitPcRelativeAddressPlaceholderHigh(info, TMP, base_reg);
+      __ Addiu(temp_reg, TMP, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
       break;
     }
