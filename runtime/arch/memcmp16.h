@@ -59,7 +59,7 @@ namespace testing {
 // implementation.
 int32_t MemCmp16Testing(const uint16_t* s0, const uint16_t* s1, size_t count);
 
-}
+}  // namespace testing
 
 }  // namespace art
 

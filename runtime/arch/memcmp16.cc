@@ -37,7 +37,7 @@ int32_t MemCmp16Testing(const uint16_t* s0, const uint16_t* s1, size_t count) {
   return MemCmp16(s0, s1, count);
 }
 
-}
+}  // namespace testing
 
 }  // namespace art
 

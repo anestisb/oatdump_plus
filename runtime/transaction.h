@@ -36,7 +36,7 @@ class Array;
 class DexCache;
 class Object;
 class String;
-}
+}  // namespace mirror
 class InternTable;
 
 class Transaction FINAL {

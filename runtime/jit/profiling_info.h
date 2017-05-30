@@ -29,11 +29,11 @@ class ProfilingInfo;
 
 namespace jit {
 class JitCodeCache;
-}
+}  // namespace jit
 
 namespace mirror {
 class Class;
-}
+}  // namespace mirror
 
 // Structure to store the classes seen at runtime for a specific instruction.
 // Once the classes_ array is full, we consider the INVOKE to be megamorphic.

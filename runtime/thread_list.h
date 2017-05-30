@@ -34,7 +34,7 @@ namespace art {
 namespace gc {
   namespace collector {
     class GarbageCollector;
-  }  // namespac collector
+  }  // namespace collector
   class GcPauseListener;
 }  // namespace gc
 class Closure;

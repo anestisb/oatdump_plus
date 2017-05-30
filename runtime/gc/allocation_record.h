@@ -33,7 +33,7 @@ class Thread;
 namespace mirror {
   class Class;
   class Object;
-}
+}  // namespace mirror
 
 namespace gc {
 

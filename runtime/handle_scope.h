@@ -36,7 +36,7 @@ class VariableSizedHandleScope;
 
 namespace mirror {
 class Object;
-}
+}  // namespace mirror
 
 // Basic handle scope, tracked by a list. May be variable sized.
 class PACKED(4) BaseHandleScope {
