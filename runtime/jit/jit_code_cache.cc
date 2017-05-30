@@ -191,18 +191,25 @@ bool JitCodeCache::ContainsMethod(ArtMethod* method) {
 
 class ScopedCodeCacheWrite : ScopedTrace {
  public:
-  explicit ScopedCodeCacheWrite(MemMap* code_map)
+  explicit ScopedCodeCacheWrite(MemMap* code_map, bool only_for_tlb_shootdown = false)
       : ScopedTrace("ScopedCodeCacheWrite"),
-        code_map_(code_map) {
+        code_map_(code_map),
+        only_for_tlb_shootdown_(only_for_tlb_shootdown) {
     ScopedTrace trace("mprotect all");
-    CHECKED_MPROTECT(code_map_->Begin(), code_map_->Size(), kProtAll);
+    CHECKED_MPROTECT(
+        code_map_->Begin(), only_for_tlb_shootdown_ ? kPageSize : code_map_->Size(), kProtAll);
   }
   ~ScopedCodeCacheWrite() {
     ScopedTrace trace("mprotect code");
-    CHECKED_MPROTECT(code_map_->Begin(), code_map_->Size(), kProtCode);
+    CHECKED_MPROTECT(
+        code_map_->Begin(), only_for_tlb_shootdown_ ? kPageSize : code_map_->Size(), kProtCode);
   }
  private:
   MemMap* const code_map_;
+
+  // If we're using ScopedCacheWrite only for TLB shootdown, we limit the scope of mprotect to
+  // one page.
+  const bool only_for_tlb_shootdown_;
 
   DISALLOW_COPY_AND_ASSIGN(ScopedCodeCacheWrite);
 };
@@ -563,11 +570,6 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
           core_spill_mask,
           fp_spill_mask,
           code_size);
-      DCHECK_EQ(FromStackMapToRoots(stack_map), roots_data);
-      DCHECK_LE(roots_data, stack_map);
-      // Flush data cache, as compiled code references literals in it.
-      FlushDataCache(reinterpret_cast<char*>(roots_data),
-                     reinterpret_cast<char*>(roots_data + data_size));
       // Flush caches before we remove write permission because some ARMv8 Qualcomm kernels may
       // trigger a segfault if a page fault occurs when requesting a cache maintenance operation.
       // This is a kernel bug that we need to work around until affected devices (e.g. Nexus 5X and
@@ -619,10 +621,18 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     // possible that the compiled code is considered invalidated by some class linking,
     // but below we still make the compiled code valid for the method.
     MutexLock mu(self, lock_);
-    method_code_map_.Put(code_ptr, method);
     // Fill the root table before updating the entry point.
     DCHECK_EQ(FromStackMapToRoots(stack_map), roots_data);
+    DCHECK_LE(roots_data, stack_map);
     FillRootTable(roots_data, roots);
+    {
+      // Flush data cache, as compiled code references literals in it.
+      // We also need a TLB shootdown to act as memory barrier across cores.
+      ScopedCodeCacheWrite ccw(code_map_.get(), /* only_for_tlb_shootdown */ true);
+      FlushDataCache(reinterpret_cast<char*>(roots_data),
+                     reinterpret_cast<char*>(roots_data + data_size));
+    }
+    method_code_map_.Put(code_ptr, method);
     if (osr) {
       number_of_osr_compilations_++;
       osr_code_map_.Put(method, code_ptr);
