@@ -204,7 +204,7 @@ std::unique_ptr<const DexFile> DexFile::Open(const std::string& location,
                                                  verify_checksum,
                                                  error_msg);
   if (dex_file != nullptr) {
-    dex_file->mem_map_.reset(map.release());
+    dex_file->mem_map_ = std::move(map);
   }
   return dex_file;
 }
@@ -323,7 +323,7 @@ std::unique_ptr<const DexFile> DexFile::OpenFile(int fd,
                                                  verify_checksum,
                                                  error_msg);
   if (dex_file != nullptr) {
-    dex_file->mem_map_.reset(map.release());
+    dex_file->mem_map_ = std::move(map);
   }
 
   return dex_file;
@@ -397,7 +397,7 @@ std::unique_ptr<const DexFile> DexFile::OpenOneDexFileFromZip(const ZipArchive& 
     }
     return nullptr;
   }
-  dex_file->mem_map_.reset(map.release());
+  dex_file->mem_map_ = std::move(map);
   if (!dex_file->DisableWrite()) {
     *error_msg = StringPrintf("Failed to make dex file '%s' read only", location.c_str());
     *error_code = ZipOpenErrorCode::kMakeReadOnlyError;
