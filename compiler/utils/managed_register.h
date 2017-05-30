@@ -26,24 +26,24 @@ namespace art {
 
 namespace arm {
 class ArmManagedRegister;
-}
+}  // namespace arm
 namespace arm64 {
 class Arm64ManagedRegister;
-}
+}  // namespace arm64
 namespace mips {
 class MipsManagedRegister;
-}
+}  // namespace mips
 namespace mips64 {
 class Mips64ManagedRegister;
-}
+}  // namespace mips64
 
 namespace x86 {
 class X86ManagedRegister;
-}
+}  // namespace x86
 
 namespace x86_64 {
 class X86_64ManagedRegister;
-}
+}  // namespace x86_64
 
 class ManagedRegister : public ValueObject {
  public:

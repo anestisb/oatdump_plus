@@ -24,7 +24,8 @@ namespace aarch64 {
 
 class MacroAssembler;
 
-}}  // namespace vixl::aarch64
+}  // namespace aarch64
+}  // namespace vixl
 
 namespace art {
 

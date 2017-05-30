@@ -29,24 +29,24 @@ class AssemblerFixup;
 namespace arm {
   class ArmAssembler;
   class Thumb2Assembler;
-}
+}  // namespace arm
 namespace arm64 {
   class Arm64Assembler;
-}
+}  // namespace arm64
 namespace mips {
   class MipsAssembler;
-}
+}  // namespace mips
 namespace mips64 {
   class Mips64Assembler;
-}
+}  // namespace mips64
 namespace x86 {
   class X86Assembler;
   class NearLabel;
-}
+}  // namespace x86
 namespace x86_64 {
   class X86_64Assembler;
   class NearLabel;
-}
+}  // namespace x86_64
 
 class ExternalLabel {
  public:

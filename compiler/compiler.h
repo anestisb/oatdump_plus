@@ -25,11 +25,11 @@ namespace art {
 
 namespace jit {
   class JitCodeCache;
-}
+}  // namespace jit
 namespace mirror {
   class ClassLoader;
   class DexCache;
-}
+}  // namespace mirror
 
 class ArtMethod;
 class CompilerDriver;

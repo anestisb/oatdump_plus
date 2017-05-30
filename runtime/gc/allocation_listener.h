@@ -30,7 +30,7 @@ namespace art {
 
 namespace mirror {
   class Object;
-}
+}  // namespace mirror
 
 class Thread;
 

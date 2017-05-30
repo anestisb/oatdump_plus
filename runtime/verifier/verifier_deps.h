@@ -39,7 +39,7 @@ class VariableIndentationOutputStream;
 namespace mirror {
 class Class;
 class ClassLoader;
-}
+}  // namespace mirror
 
 namespace verifier {
 

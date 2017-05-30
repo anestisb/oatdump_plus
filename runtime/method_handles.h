@@ -29,7 +29,7 @@ namespace art {
 namespace mirror {
   class MethodHandle;
   class MethodType;
-}  // mirror
+}  // namespace mirror
 
 class ShadowFrame;
 

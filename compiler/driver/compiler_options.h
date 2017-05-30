@@ -31,7 +31,7 @@ namespace art {
 
 namespace verifier {
   class VerifierDepsTest;
-}
+}  // namespace verifier
 
 class DexFile;
 

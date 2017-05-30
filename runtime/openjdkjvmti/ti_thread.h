@@ -37,7 +37,7 @@
 
 namespace art {
 class ArtField;
-}
+}  // namespace art
 
 namespace openjdkjvmti {
 

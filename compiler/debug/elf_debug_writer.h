@@ -29,7 +29,7 @@ namespace art {
 class OatHeader;
 namespace mirror {
 class Class;
-}
+}  // namespace mirror
 namespace debug {
 struct MethodDebugInfo;
 
