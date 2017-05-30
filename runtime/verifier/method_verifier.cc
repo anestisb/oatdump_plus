@@ -1258,7 +1258,7 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst,
 }
 
 inline bool MethodVerifier::CheckRegisterIndex(uint32_t idx) {
-  if (idx >= code_item_->registers_size_) {
+  if (UNLIKELY(idx >= code_item_->registers_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register index out of range (" << idx << " >= "
                                       << code_item_->registers_size_ << ")";
     return false;
@@ -1267,7 +1267,7 @@ inline bool MethodVerifier::CheckRegisterIndex(uint32_t idx) {
 }
 
 inline bool MethodVerifier::CheckWideRegisterIndex(uint32_t idx) {
-  if (idx + 1 >= code_item_->registers_size_) {
+  if (UNLIKELY(idx + 1 >= code_item_->registers_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "wide register index out of range (" << idx
                                       << "+1 >= " << code_item_->registers_size_ << ")";
     return false;
@@ -1276,7 +1276,7 @@ inline bool MethodVerifier::CheckWideRegisterIndex(uint32_t idx) {
 }
 
 inline bool MethodVerifier::CheckFieldIndex(uint32_t idx) {
-  if (idx >= dex_file_->GetHeader().field_ids_size_) {
+  if (UNLIKELY(idx >= dex_file_->GetHeader().field_ids_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad field index " << idx << " (max "
                                       << dex_file_->GetHeader().field_ids_size_ << ")";
     return false;
@@ -1285,7 +1285,7 @@ inline bool MethodVerifier::CheckFieldIndex(uint32_t idx) {
 }
 
 inline bool MethodVerifier::CheckMethodIndex(uint32_t idx) {
-  if (idx >= dex_file_->GetHeader().method_ids_size_) {
+  if (UNLIKELY(idx >= dex_file_->GetHeader().method_ids_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad method index " << idx << " (max "
                                       << dex_file_->GetHeader().method_ids_size_ << ")";
     return false;
@@ -1294,17 +1294,17 @@ inline bool MethodVerifier::CheckMethodIndex(uint32_t idx) {
 }
 
 inline bool MethodVerifier::CheckNewInstance(dex::TypeIndex idx) {
-  if (idx.index_ >= dex_file_->GetHeader().type_ids_size_) {
+  if (UNLIKELY(idx.index_ >= dex_file_->GetHeader().type_ids_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
   }
   // We don't need the actual class, just a pointer to the class name.
   const char* descriptor = dex_file_->StringByTypeIdx(idx);
-  if (descriptor[0] != 'L') {
+  if (UNLIKELY(descriptor[0] != 'L')) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "can't call new-instance on type '" << descriptor << "'";
     return false;
-  } else if (strcmp(descriptor, "Ljava/lang/Class;") == 0) {
+  } else if (UNLIKELY(strcmp(descriptor, "Ljava/lang/Class;") == 0)) {
     // An unlikely new instance on Class is not allowed. Fall back to interpreter to ensure an
     // exception is thrown when this statement is executed (compiled code would not do that).
     Fail(VERIFY_ERROR_INSTANTIATION);
@@ -1313,7 +1313,7 @@ inline bool MethodVerifier::CheckNewInstance(dex::TypeIndex idx) {
 }
 
 inline bool MethodVerifier::CheckPrototypeIndex(uint32_t idx) {
-  if (idx >= dex_file_->GetHeader().proto_ids_size_) {
+  if (UNLIKELY(idx >= dex_file_->GetHeader().proto_ids_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad prototype index " << idx << " (max "
                                       << dex_file_->GetHeader().proto_ids_size_ << ")";
     return false;
@@ -1322,7 +1322,7 @@ inline bool MethodVerifier::CheckPrototypeIndex(uint32_t idx) {
 }
 
 inline bool MethodVerifier::CheckStringIndex(uint32_t idx) {
-  if (idx >= dex_file_->GetHeader().string_ids_size_) {
+  if (UNLIKELY(idx >= dex_file_->GetHeader().string_ids_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad string index " << idx << " (max "
                                       << dex_file_->GetHeader().string_ids_size_ << ")";
     return false;
@@ -1331,7 +1331,7 @@ inline bool MethodVerifier::CheckStringIndex(uint32_t idx) {
 }
 
 inline bool MethodVerifier::CheckTypeIndex(dex::TypeIndex idx) {
-  if (idx.index_ >= dex_file_->GetHeader().type_ids_size_) {
+  if (UNLIKELY(idx.index_ >= dex_file_->GetHeader().type_ids_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
@@ -1340,7 +1340,7 @@ inline bool MethodVerifier::CheckTypeIndex(dex::TypeIndex idx) {
 }
 
 bool MethodVerifier::CheckNewArray(dex::TypeIndex idx) {
-  if (idx.index_ >= dex_file_->GetHeader().type_ids_size_) {
+  if (UNLIKELY(idx.index_ >= dex_file_->GetHeader().type_ids_size_)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
@@ -1351,12 +1351,12 @@ bool MethodVerifier::CheckNewArray(dex::TypeIndex idx) {
   while (*cp++ == '[') {
     bracket_count++;
   }
-  if (bracket_count == 0) {
+  if (UNLIKELY(bracket_count == 0)) {
     /* The given class must be an array type. */
     Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "can't new-array class '" << descriptor << "' (not an array)";
     return false;
-  } else if (bracket_count > 255) {
+  } else if (UNLIKELY(bracket_count > 255)) {
     /* It is illegal to create an array of more than 255 dimensions. */
     Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "can't new-array class '" << descriptor << "' (exceeds limit)";
@@ -1374,8 +1374,8 @@ bool MethodVerifier::CheckArrayData(uint32_t cur_offset) {
   DCHECK_LT(cur_offset, insn_count);
   /* make sure the start of the array data table is in range */
   array_data_offset = insns[1] | (static_cast<int32_t>(insns[2]) << 16);
-  if (static_cast<int32_t>(cur_offset) + array_data_offset < 0 ||
-      cur_offset + array_data_offset + 2 >= insn_count) {
+  if (UNLIKELY(static_cast<int32_t>(cur_offset) + array_data_offset < 0 ||
+               cur_offset + array_data_offset + 2 >= insn_count)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid array data start: at " << cur_offset
                                       << ", data offset " << array_data_offset
                                       << ", count " << insn_count;
@@ -1384,14 +1384,14 @@ bool MethodVerifier::CheckArrayData(uint32_t cur_offset) {
   /* offset to array data table is a relative branch-style offset */
   array_data = insns + array_data_offset;
   // Make sure the table is at an even dex pc, that is, 32-bit aligned.
-  if (!IsAligned<4>(array_data)) {
+  if (UNLIKELY(!IsAligned<4>(array_data))) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unaligned array data table: at " << cur_offset
                                       << ", data offset " << array_data_offset;
     return false;
   }
   // Make sure the array-data is marked as an opcode. This ensures that it was reached when
   // traversing the code item linearly. It is an approximation for a by-spec padding value.
-  if (!GetInstructionFlags(cur_offset + array_data_offset).IsOpcode()) {
+  if (UNLIKELY(!GetInstructionFlags(cur_offset + array_data_offset).IsOpcode())) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array data table at " << cur_offset
                                       << ", data offset " << array_data_offset
                                       << " not correctly visited, probably bad padding.";
@@ -1402,7 +1402,7 @@ bool MethodVerifier::CheckArrayData(uint32_t cur_offset) {
   uint32_t value_count = *reinterpret_cast<const uint32_t*>(&array_data[2]);
   uint32_t table_size = 4 + (value_width * value_count + 1) / 2;
   /* make sure the end of the switch is in range */
-  if (cur_offset + array_data_offset + table_size > insn_count) {
+  if (UNLIKELY(cur_offset + array_data_offset + table_size > insn_count)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid array data end: at " << cur_offset
                                       << ", data offset " << array_data_offset << ", end "
                                       << cur_offset + array_data_offset + table_size
@@ -1418,23 +1418,23 @@ bool MethodVerifier::CheckBranchTarget(uint32_t cur_offset) {
   if (!GetBranchOffset(cur_offset, &offset, &isConditional, &selfOkay)) {
     return false;
   }
-  if (!selfOkay && offset == 0) {
+  if (UNLIKELY(!selfOkay && offset == 0)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "branch offset of zero not allowed at"
                                       << reinterpret_cast<void*>(cur_offset);
     return false;
   }
   // Check for 32-bit overflow. This isn't strictly necessary if we can depend on the runtime
   // to have identical "wrap-around" behavior, but it's unwise to depend on that.
-  if (((int64_t) cur_offset + (int64_t) offset) != (int64_t) (cur_offset + offset)) {
+  if (UNLIKELY(((int64_t) cur_offset + (int64_t) offset) != (int64_t) (cur_offset + offset))) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "branch target overflow "
                                       << reinterpret_cast<void*>(cur_offset) << " +" << offset;
     return false;
   }
   const uint32_t insn_count = code_item_->insns_size_in_code_units_;
   int32_t abs_offset = cur_offset + offset;
-  if (abs_offset < 0 ||
-      (uint32_t) abs_offset >= insn_count ||
-      !GetInstructionFlags(abs_offset).IsOpcode()) {
+  if (UNLIKELY(abs_offset < 0 ||
+               (uint32_t) abs_offset >= insn_count ||
+               !GetInstructionFlags(abs_offset).IsOpcode())) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid branch target " << offset << " (-> "
                                       << reinterpret_cast<void*>(abs_offset) << ") at "
                                       << reinterpret_cast<void*>(cur_offset);
@@ -1487,8 +1487,8 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   const uint16_t* insns = code_item_->insns_ + cur_offset;
   /* make sure the start of the switch is in range */
   int32_t switch_offset = insns[1] | (static_cast<int32_t>(insns[2]) << 16);
-  if (static_cast<int32_t>(cur_offset) + switch_offset < 0 ||
-      cur_offset + switch_offset + 2 > insn_count) {
+  if (UNLIKELY(static_cast<int32_t>(cur_offset) + switch_offset < 0 ||
+               cur_offset + switch_offset + 2 > insn_count)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch start: at " << cur_offset
                                       << ", switch offset " << switch_offset
                                       << ", count " << insn_count;
@@ -1497,14 +1497,14 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   /* offset to switch table is a relative branch-style offset */
   const uint16_t* switch_insns = insns + switch_offset;
   // Make sure the table is at an even dex pc, that is, 32-bit aligned.
-  if (!IsAligned<4>(switch_insns)) {
+  if (UNLIKELY(!IsAligned<4>(switch_insns))) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unaligned switch table: at " << cur_offset
                                       << ", switch offset " << switch_offset;
     return false;
   }
   // Make sure the switch data is marked as an opcode. This ensures that it was reached when
   // traversing the code item linearly. It is an approximation for a by-spec padding value.
-  if (!GetInstructionFlags(cur_offset + switch_offset).IsOpcode()) {
+  if (UNLIKELY(!GetInstructionFlags(cur_offset + switch_offset).IsOpcode())) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "switch table at " << cur_offset
                                       << ", switch offset " << switch_offset
                                       << " not correctly visited, probably bad padding.";
@@ -1526,14 +1526,14 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
     expected_signature = Instruction::kSparseSwitchSignature;
   }
   uint32_t table_size = targets_offset + switch_count * 2;
-  if (switch_insns[0] != expected_signature) {
+  if (UNLIKELY(switch_insns[0] != expected_signature)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << StringPrintf("wrong signature for switch table (%x, wanted %x)",
                         switch_insns[0], expected_signature);
     return false;
   }
   /* make sure the end of the switch is in range */
-  if (cur_offset + switch_offset + table_size > (uint32_t) insn_count) {
+  if (UNLIKELY(cur_offset + switch_offset + table_size > (uint32_t) insn_count)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch end: at " << cur_offset
                                       << ", switch offset " << switch_offset
                                       << ", end " << (cur_offset + switch_offset + table_size)
@@ -1548,7 +1548,7 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
       int32_t first_key = switch_insns[keys_offset] | (switch_insns[keys_offset + 1] << 16);
       int32_t max_first_key =
           std::numeric_limits<int32_t>::max() - (static_cast<int32_t>(switch_count) - 1);
-      if (first_key > max_first_key) {
+      if (UNLIKELY(first_key > max_first_key)) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid packed switch: first_key=" << first_key
                                           << ", switch_count=" << switch_count;
         return false;
@@ -1560,7 +1560,7 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
         int32_t key =
             static_cast<int32_t>(switch_insns[keys_offset + targ * 2]) |
             static_cast<int32_t>(switch_insns[keys_offset + targ * 2 + 1] << 16);
-        if (key <= last_key) {
+        if (UNLIKELY(key <= last_key)) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid sparse switch: last key=" << last_key
                                             << ", this=" << key;
           return false;
@@ -1574,9 +1574,9 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
     int32_t offset = static_cast<int32_t>(switch_insns[targets_offset + targ * 2]) |
                      static_cast<int32_t>(switch_insns[targets_offset + targ * 2 + 1] << 16);
     int32_t abs_offset = cur_offset + offset;
-    if (abs_offset < 0 ||
-        abs_offset >= static_cast<int32_t>(insn_count) ||
-        !GetInstructionFlags(abs_offset).IsOpcode()) {
+    if (UNLIKELY(abs_offset < 0 ||
+                 abs_offset >= static_cast<int32_t>(insn_count) ||
+                 !GetInstructionFlags(abs_offset).IsOpcode())) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch target " << offset
                                         << " (-> " << reinterpret_cast<void*>(abs_offset) << ") at "
                                         << reinterpret_cast<void*>(cur_offset)
@@ -1591,7 +1591,7 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
 bool MethodVerifier::CheckVarArgRegs(uint32_t vA, uint32_t arg[]) {
   uint16_t registers_size = code_item_->registers_size_;
   for (uint32_t idx = 0; idx < vA; idx++) {
-    if (arg[idx] >= registers_size) {
+    if (UNLIKELY(arg[idx] >= registers_size)) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid reg index (" << arg[idx]
                                         << ") in non-range invoke (>= " << registers_size << ")";
       return false;
@@ -1605,7 +1605,7 @@ bool MethodVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
   uint16_t registers_size = code_item_->registers_size_;
   // vA/vC are unsigned 8-bit/16-bit quantities for /range instructions, so there's no risk of
   // integer overflow when adding them here.
-  if (vA + vC > registers_size) {
+  if (UNLIKELY(vA + vC > registers_size)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid reg index " << vA << "+" << vC
                                       << " in range invoke (> " << registers_size << ")";
     return false;
