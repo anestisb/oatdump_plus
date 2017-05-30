@@ -26,7 +26,7 @@
 
 namespace art {
 
-void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
+static void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // JNI
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
 

@@ -59,19 +59,19 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
 
   // Remove the mapping for the given object, returning whether such a mapping existed (and the old
   // value).
-  bool Remove(art::mirror::Object* obj, /* out */ T* tag)
+  ALWAYS_INLINE bool Remove(art::mirror::Object* obj, /* out */ T* tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
-  bool RemoveLocked(art::mirror::Object* obj, /* out */ T* tag)
+  ALWAYS_INLINE bool RemoveLocked(art::mirror::Object* obj, /* out */ T* tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
 
   // Set the mapping for the given object. Returns true if this overwrites an already existing
   // mapping.
-  virtual bool Set(art::mirror::Object* obj, T tag)
+  ALWAYS_INLINE virtual bool Set(art::mirror::Object* obj, T tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
-  virtual bool SetLocked(art::mirror::Object* obj, T tag)
+  ALWAYS_INLINE virtual bool SetLocked(art::mirror::Object* obj, T tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
 
@@ -97,11 +97,12 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
   }
 
   // Sweep the container. DO NOT CALL MANUALLY.
-  void Sweep(art::IsMarkedVisitor* visitor)
+  ALWAYS_INLINE void Sweep(art::IsMarkedVisitor* visitor)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
 
   // Return all objects that have a value mapping in tags.
+  ALWAYS_INLINE
   jvmtiError GetTaggedObjects(jvmtiEnv* jvmti_env,
                               jint tag_count,
                               const T* tags,
@@ -112,11 +113,11 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
       REQUIRES(!allow_disallow_lock_);
 
   // Locking functions, to allow coarse-grained locking and amortization.
-  void Lock() ACQUIRE(allow_disallow_lock_);
-  void Unlock() RELEASE(allow_disallow_lock_);
-  void AssertLocked() ASSERT_CAPABILITY(allow_disallow_lock_);
+  ALWAYS_INLINE  void Lock() ACQUIRE(allow_disallow_lock_);
+  ALWAYS_INLINE void Unlock() RELEASE(allow_disallow_lock_);
+  ALWAYS_INLINE void AssertLocked() ASSERT_CAPABILITY(allow_disallow_lock_);
 
-  art::mirror::Object* Find(T tag)
+  ALWAYS_INLINE art::mirror::Object* Find(T tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
 
@@ -129,10 +130,12 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
   virtual void HandleNullSweep(T tag ATTRIBUTE_UNUSED) {}
 
  private:
+  ALWAYS_INLINE
   bool SetLocked(art::Thread* self, art::mirror::Object* obj, T tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
 
+  ALWAYS_INLINE
   bool RemoveLocked(art::Thread* self, art::mirror::Object* obj, /* out */ T* tag)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
@@ -160,12 +163,14 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
 
   // Slow-path for GetTag. We didn't find the object, but we might be storing from-pointers and
   // are asked to retrieve with a to-pointer.
+  ALWAYS_INLINE
   bool GetTagSlowPath(art::Thread* self, art::mirror::Object* obj, /* out */ T* result)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
 
   // Update the table by doing read barriers on each element, ensuring that to-space pointers
   // are stored.
+  ALWAYS_INLINE
   void UpdateTableWithReadBarrier()
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
