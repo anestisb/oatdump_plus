@@ -22,6 +22,7 @@
 #include "mirror/object-inl.h"
 #include "obj_ptr.h"
 #include "scoped_fast_native_object_access-inl.h"
+#include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
@@ -122,16 +123,24 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
 static jobjectArray VMClassLoader_getBootClassPathEntries(JNIEnv* env, jclass) {
   const std::vector<const DexFile*>& path =
       Runtime::Current()->GetClassLinker()->GetBootClassPath();
-  jclass stringClass = env->FindClass("java/lang/String");
-  jobjectArray array = env->NewObjectArray(path.size(), stringClass, nullptr);
+  jobjectArray array =
+      env->NewObjectArray(path.size(), WellKnownClasses::java_lang_String, nullptr);
+  if (array == nullptr) {
+    DCHECK(env->ExceptionCheck());
+    return nullptr;
+  }
   for (size_t i = 0; i < path.size(); ++i) {
     const DexFile* dex_file = path[i];
 
     // For multidex locations, e.g., x.jar:classes2.dex, we want to look into x.jar.
     const std::string& location(dex_file->GetBaseLocation());
 
-    jstring javaPath = env->NewStringUTF(location.c_str());
-    env->SetObjectArrayElement(array, i, javaPath);
+    ScopedLocalRef<jstring> javaPath(env, env->NewStringUTF(location.c_str()));
+    if (javaPath.get() == nullptr) {
+      DCHECK(env->ExceptionCheck());
+      return nullptr;
+    }
+    env->SetObjectArrayElement(array, i, javaPath.get());
   }
   return array;
 }
