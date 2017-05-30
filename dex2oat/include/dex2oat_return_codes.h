@@ -21,9 +21,10 @@ namespace art {
 namespace dex2oat {
 
 enum class ReturnCode : int {
-  kNoFailure = 0,
-  kOther = 1,
-  kCreateRuntime = 2,
+  kNoFailure = 0,          // No failure, execution completed successfully.
+  kOther = 1,              // Some other not closer specified error occurred.
+  kCreateRuntime = 2,      // Dex2oat failed creating a runtime. This may be indicative
+                           // of a missing or out of date boot image, for example.
 };
 
 }  // namespace dex2oat
