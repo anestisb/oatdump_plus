@@ -34,10 +34,7 @@
 #include "experimental_flags.h"
 #include "gc_root.h"
 #include "instrumentation.h"
-#include "jobject_comparator.h"
-#include "method_reference.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
 #include "offsets.h"
 #include "process_state.h"
 #include "quick/quick_method_frame_info.h"
@@ -79,6 +76,7 @@ class ClassLinker;
 class CompilerCallbacks;
 class DexFile;
 class InternTable;
+class IsMarkedVisitor;
 class JavaVMExt;
 class LinearAlloc;
 class MemMap;

@@ -20,8 +20,7 @@
 #include <dlfcn.h>
 #include <jni.h>  // for jint, JavaVM* etc declarations
 
-#include "runtime.h"
-#include "utils.h"
+#include "base/logging.h"
 
 namespace art {
 namespace ti {

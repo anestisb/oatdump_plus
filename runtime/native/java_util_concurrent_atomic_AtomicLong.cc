@@ -16,6 +16,8 @@
 
 #include "java_util_concurrent_atomic_AtomicLong.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "arch/instruction_set.h"
 #include "atomic.h"
 #include "jni_internal.h"

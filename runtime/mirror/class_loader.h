@@ -23,6 +23,7 @@ namespace art {
 
 struct ClassLoaderOffsets;
 class ClassTable;
+class LinearAlloc;
 
 namespace mirror {
 

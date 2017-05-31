@@ -19,7 +19,6 @@
 
 #include <jni.h>
 #include <iosfwd>
-#include "nativehelper/jni_macros.h"
 
 #include "base/macros.h"
 

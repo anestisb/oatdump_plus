@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include "android-base/stringprintf.h"
+#include "nativehelper/jni_macros.h"
 
 #include "base/logging.h"
 #include "base/stl_util.h"

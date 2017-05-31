@@ -27,7 +27,6 @@
 #include "base/enums.h"
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "class_table.h"
 #include "dex_cache_resolved_classes.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
@@ -35,7 +34,6 @@
 #include "handle.h"
 #include "jni.h"
 #include "mirror/class.h"
-#include "object_callbacks.h"
 #include "verifier/verifier_enums.h"
 
 namespace art {
@@ -59,11 +57,13 @@ namespace mirror {
   class StackTraceElement;
 }  // namespace mirror
 
+class ClassTable;
 template<class T> class Handle;
 class ImtConflictTable;
 template<typename T> class LengthPrefixedArray;
 template<class T> class MutableHandle;
 class InternTable;
+class LinearAlloc;
 class OatFile;
 template<class T> class ObjectLock;
 class Runtime;
@@ -640,8 +640,11 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns null if not found.
+  // This returns a pointer to the class-table, without requiring any locking - including the
+  // boot class-table. It is the caller's responsibility to access this under lock, if required.
   ClassTable* ClassTableForClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      NO_THREAD_SAFETY_ANALYSIS;
 
   void AppendToBootClassPath(Thread* self, const DexFile& dex_file)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -1110,18 +1113,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);
 
-  // new_class_set is the set of classes that were read from the class table section in the image.
-  // If there was no class table section, it is null.
-  bool UpdateAppImageClassLoadersAndDexCaches(
-      gc::space::ImageSpace* space,
-      Handle<mirror::ClassLoader> class_loader,
-      Handle<mirror::ObjectArray<mirror::DexCache>> dex_caches,
-      ClassTable::ClassSet* new_class_set,
-      bool* out_forward_dex_cache_array,
-      std::string* out_error_msg)
-      REQUIRES(!Locks::dex_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Check that c1 == FindSystemClass(self, descriptor). Abort with class dumps otherwise.
   void CheckSystemClass(Thread* self, Handle<mirror::Class> c1, const char* descriptor)
       REQUIRES(!Locks::dex_lock_)
@@ -1171,7 +1162,7 @@ class ClassLinker {
       GUARDED_BY(Locks::classlinker_classes_lock_);
 
   // Boot class path table. Since the class loader for this is null.
-  ClassTable boot_class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
+  std::unique_ptr<ClassTable> boot_class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
   // New class roots, only used by CMS since the GC needs to mark these in the pause.
   std::vector<GcRoot<mirror::Class>> new_class_roots_ GUARDED_BY(Locks::classlinker_classes_lock_);
@@ -1212,12 +1203,14 @@ class ClassLinker {
   PointerSize image_pointer_size_;
 
   class FindVirtualMethodHolderVisitor;
+
+  friend class AppImageClassLoadersAndDexCachesHelper;
   friend struct CompilationHelper;  // For Compile in ImageTest.
   friend class ImageDumper;  // for DexLock
   friend class ImageWriter;  // for GetClassRoots
-  friend class VMClassLoader;  // for LookupClass and FindClassInBaseDexClassLoader.
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub
   friend class JniInternalTest;  // for GetRuntimeQuickGenericJniStub
+  friend class VMClassLoader;  // for LookupClass and FindClassInBaseDexClassLoader.
   ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for DexLock, and RegisterDexFileLocked
   ART_FRIEND_TEST(mirror::DexCacheMethodHandlesTest, Open);  // for AllocDexCache
   ART_FRIEND_TEST(mirror::DexCacheTest, Open);  // for AllocDexCache

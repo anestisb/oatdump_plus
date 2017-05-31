@@ -25,18 +25,17 @@
 #include "base/hash_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "dex_file.h"
 #include "gc_root.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
-#include "runtime.h"
 
 namespace art {
 
 class OatFile;
 
 namespace mirror {
+  class Class;
   class ClassLoader;
+  class Object;
 }  // namespace mirror
 
 // Each loader has a ClassTable

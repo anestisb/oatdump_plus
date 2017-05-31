@@ -16,6 +16,8 @@
 
 #include "java_lang_Object.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "jni_internal.h"
 #include "mirror/object-inl.h"
 #include "scoped_fast_native_object_access-inl.h"

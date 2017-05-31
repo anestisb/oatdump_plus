@@ -18,6 +18,8 @@
 
 #define CMDLINE_NDEBUG 1  // Do not output any debugging information for parsing.
 
+#include <list>
+
 #include "memory_representation.h"
 #include "detail/cmdline_debug_detail.h"
 #include "cmdline_type_parser.h"

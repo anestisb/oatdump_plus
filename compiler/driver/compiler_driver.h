@@ -38,7 +38,6 @@
 #include "method_reference.h"
 #include "mirror/class.h"  // For mirror::Class::Status.
 #include "os.h"
-#include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
 #include "utils/atomic_method_ref_map.h"
@@ -61,6 +60,7 @@ class CompilerOptions;
 class DexCompilationUnit;
 struct InlineIGetIPutData;
 class InstructionSetFeatures;
+class InternTable;
 class ParallelCompilationManager;
 class ScopedObjectAccess;
 template <class Allocator> class SrcMap;
@@ -131,10 +131,7 @@ class CompilerDriver {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!compiled_classes_lock_, !dex_to_dex_references_lock_);
 
-  VerificationResults* GetVerificationResults() const {
-    DCHECK(Runtime::Current()->IsAotCompiler());
-    return verification_results_;
-  }
+  VerificationResults* GetVerificationResults() const;
 
   InstructionSet GetInstructionSet() const {
     return instruction_set_;

@@ -16,6 +16,8 @@
 
 #include "java_lang_System.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "common_throws.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"

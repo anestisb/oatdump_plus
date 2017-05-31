@@ -16,6 +16,8 @@
 
 #include "java_lang_String.h"
 
+#include "nativehelper/jni_macros.h"
+
 #include "common_throws.h"
 #include "jni_internal.h"
 #include "mirror/array.h"

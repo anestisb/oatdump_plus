@@ -22,6 +22,7 @@
 #include <numeric>
 #include "gtest/gtest.h"
 #include "runtime/experimental_flags.h"
+#include "runtime/runtime.h"
 
 #define EXPECT_NULL(expected) EXPECT_EQ(reinterpret_cast<const void*>(expected), \
                                         reinterpret_cast<void*>(nullptr));

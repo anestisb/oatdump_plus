@@ -134,6 +134,7 @@
 #include "native_stack_dump.h"
 #include "oat_file.h"
 #include "oat_file_manager.h"
+#include "object_callbacks.h"
 #include "os.h"
 #include "parsed_options.h"
 #include "jit/profile_saver.h"

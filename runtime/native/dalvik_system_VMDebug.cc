@@ -21,6 +21,8 @@
 
 #include <sstream>
 
+#include "nativehelper/jni_macros.h"
+
 #include "base/histogram-inl.h"
 #include "base/time_utils.h"
 #include "class_linker.h"
