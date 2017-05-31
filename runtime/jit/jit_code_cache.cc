@@ -597,11 +597,10 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     bool single_impl_still_valid = true;
     for (ArtMethod* single_impl : cha_single_implementation_list) {
       if (!single_impl->HasSingleImplementation()) {
-        // We simply discard the compiled code. Clear the
-        // counter so that it may be recompiled later. Hopefully the
-        // class hierarchy will be more stable when compilation is retried.
+        // Simply discard the compiled code. Clear the counter so that it may be recompiled later.
+        // Hopefully the class hierarchy will be more stable when compilation is retried.
         single_impl_still_valid = false;
-        method->ClearCounter();
+        method->SetCounter(1);
         break;
       }
     }
@@ -1069,8 +1068,9 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
         if (info->GetSavedEntryPoint() != nullptr) {
           info->SetSavedEntryPoint(nullptr);
           // We are going to move this method back to interpreter. Clear the counter now to
-          // give it a chance to be hot again.
-          info->GetMethod()->ClearCounter();
+          // give it a chance to be hot again, but set it to 1 so that this method can still be
+          // considered a startup method in case it's not executed again.
+          info->GetMethod()->SetCounter(1);
         }
       }
     } else if (kIsDebugBuild) {
@@ -1377,10 +1377,9 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
   ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
   if (info == nullptr) {
     VLOG(jit) << method->PrettyMethod() << " needs a ProfilingInfo to be compiled";
-    // Because the counter is not atomic, there are some rare cases where we may not
-    // hit the threshold for creating the ProfilingInfo. Reset the counter now to
-    // "correct" this.
-    method->ClearCounter();
+    // Because the counter is not atomic, there are some rare cases where we may not hit the
+    // threshold for creating the ProfilingInfo. Reset the counter now to "correct" this.
+    method->SetCounter(1);
     return false;
   }
 
@@ -1432,12 +1431,12 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
   }
 
   if (method->GetEntryPointFromQuickCompiledCode() == header->GetEntryPoint()) {
-    // The entrypoint is the one to invalidate, so we just update
-    // it to the interpreter entry point and clear the counter to get the method
-    // Jitted again.
+    // The entrypoint is the one to invalidate, so we just update it to the interpreter entry point
+    // and clear the counter to get the method Jitted again. We reset the counter to 1 to preserve
+    // it as a potential startup method.
     Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
         method, GetQuickToInterpreterBridge());
-    method->ClearCounter();
+    method->SetCounter(1);
   } else {
     MutexLock mu(Thread::Current(), lock_);
     auto it = osr_code_map_.find(method);
