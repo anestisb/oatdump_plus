@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+
 class Main {
   static class Inner {
     final public static int abc = 10;
@@ -46,13 +50,76 @@ class Main {
     if (!checkInitialized(StaticFieldsInit.class))
       System.out.println("StaticFieldsInit class is not initialized!");
 
-    if (checkInitialized(StaticInternString.class))
-      System.out.println("StaticInternString class is initialized!");
+    if (!checkInitialized(StaticInternString.class))
+      System.out.println("StaticInternString class is not initialized!");
+
+    StringBuffer sb = new StringBuffer();
+    sb.append("java.");
+    sb.append("abc.");
+    sb.append("Action");
+
+    String tmp = sb.toString();
+    String intern = tmp.intern();
+
+    assertNotEqual(tmp, intern, "Dynamically constructed String, not interned.");
+    assertEqual(intern, StaticInternString.intent, "Static encoded literal String not interned.");
+    assertEqual(BootInternedString.boot, BootInternedString.boot.intern(),
+        "Static encoded literal String not moved back to runtime intern table.");
+
+    try {
+      Field f = StaticInternString.class.getDeclaredField("intent");
+      assertEqual(intern, f.get(null), "String Literals are not interned properly.");
+
+    } catch (Exception e) {
+      System.out.println("Exception");
+    }
+
+    assertEqual(StaticInternString.getIntent(), StaticInternString2.getIntent(),
+        "String Literals are not intenred properly, App image static strings duplicated.");
+
+    // reload the class StaticInternString, check whether static strings interned properly
+    final String DEX_FILE = System.getenv("DEX_LOCATION") + "/596-app-images.jar";
+    final String LIBRARY_SEARCH_PATH = System.getProperty("java.library.path");
+
+    try {
+      Class<?> pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
+      if (pathClassLoader == null) {
+        throw new AssertionError("Counldn't find path class loader class");
+      }
+      Constructor<?> ctor =
+          pathClassLoader.getDeclaredConstructor(String.class, String.class, ClassLoader.class);
+      ClassLoader loader = (ClassLoader) ctor.newInstance(
+          DEX_FILE, LIBRARY_SEARCH_PATH, null);
+
+      Class<?> staticInternString = loader.loadClass("StaticInternString");
+
+      if (!checkAppImageContains(staticInternString)) {
+        System.out.println("Not loaded again.");
+      }
+      Method getIntent = staticInternString.getDeclaredMethod("getIntent");
+
+      assertEqual(StaticInternString.getIntent(), getIntent.invoke(staticInternString),
+          "Dynamically loaded app image's literal strings not interned properly.");
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
   }
 
   public static native boolean checkAppImageLoaded();
   public static native boolean checkAppImageContains(Class<?> klass);
   public static native boolean checkInitialized(Class<?> klass);
+
+  public static void assertEqual(Object a, Object b, String msg) {
+    if (a != b)
+      System.out.println(msg);
+  }
+
+  public static void assertNotEqual(Object a, Object b, String msg) {
+    if (a == b)
+      System.out.println(msg);
+  }
+
 }
 
 class StaticFields{
@@ -68,6 +135,21 @@ class StaticFieldsInit{
 }
 
 class StaticInternString {
-  final public static String intern = "java.abc.Action";
+  final public static String intent = "java.abc.Action";
+  static public String getIntent() {
+    return intent;
+  }
+}
+
+class BootInternedString {
+  final public static String boot = "double";
+}
+
+class StaticInternString2 {
+  final public static String intent = "java.abc.Action";
+
+  static String getIntent() {
+    return intent;
+  }
 }
 

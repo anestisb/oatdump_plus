@@ -2424,33 +2424,9 @@ class InitializeClassVisitor : public CompilationVisitor {
     }
   }
 
-  bool NoPotentialInternStrings(Handle<mirror::Class> klass,
-                                Handle<mirror::ClassLoader>* class_loader)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    StackHandleScope<1> hs(Thread::Current());
-    Handle<mirror::DexCache> h_dex_cache = hs.NewHandle(klass->GetDexCache());
-    const DexFile* dex_file = h_dex_cache->GetDexFile();
-    const DexFile::ClassDef* class_def = klass->GetClassDef();
-    annotations::RuntimeEncodedStaticFieldValueIterator value_it(*dex_file,
-                                                                 &h_dex_cache,
-                                                                 class_loader,
-                                                                 manager_->GetClassLinker(),
-                                                                 *class_def);
-
-    const auto jString = annotations::RuntimeEncodedStaticFieldValueIterator::kString;
-    for ( ; value_it.HasNext(); value_it.Next()) {
-      if (value_it.GetValueType() == jString) {
-        // We don't want cache the static encoded strings which is a potential intern.
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   bool ResolveTypesOfMethods(Thread* self, ArtMethod* m)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-      auto rtn_type = m->GetReturnType(true);  // return value is discarded because resolve will be done internally.
+      auto rtn_type = m->GetReturnType(true);
       if (rtn_type == nullptr) {
         self->ClearException();
         return false;
@@ -2575,7 +2551,7 @@ class InitializeClassVisitor : public CompilationVisitor {
         return false;
     }
 
-    return NoPotentialInternStrings(klass, class_loader);
+    return true;
   }
 
   const ParallelCompilationManager* const manager_;
