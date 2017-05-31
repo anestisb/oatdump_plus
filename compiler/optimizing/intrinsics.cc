@@ -146,7 +146,7 @@ void IntrinsicsRecognizer::Run() {
           Intrinsics intrinsic = static_cast<Intrinsics>(art_method->GetIntrinsic());
           if (!CheckInvokeType(intrinsic, invoke)) {
             LOG(WARNING) << "Found an intrinsic with unexpected invoke type: "
-                << intrinsic << " for "
+                << static_cast<uint32_t>(intrinsic) << " for "
                 << art_method->PrettyMethod()
                 << invoke->DebugName();
           } else {

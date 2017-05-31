@@ -60,16 +60,20 @@ static constexpr uint32_t kAccFastNative =            0x00080000;  // method (de
 static constexpr uint32_t kAccCopied =                0x00100000;  // method (runtime)
 static constexpr uint32_t kAccMiranda =               0x00200000;  // method (dex only)
 static constexpr uint32_t kAccDefault =               0x00400000;  // method (runtime)
+
+// Set by the JIT when clearing profiling infos to denote that a method was previously warm.
+static constexpr uint32_t kAccPreviouslyWarm =        0x00800000;  // method (runtime)
+
 // This is set by the class linker during LinkInterfaceMethods. Prior to that point we do not know
 // if any particular method needs to be a default conflict. Used to figure out at runtime if
 // invoking this method will throw an exception.
-static constexpr uint32_t kAccDefaultConflict =       0x00800000;  // method (runtime)
+static constexpr uint32_t kAccDefaultConflict =       0x01000000;  // method (runtime)
 
 // Set by the verifier for a method we do not want the compiler to compile.
-static constexpr uint32_t kAccCompileDontBother =     0x01000000;  // method (runtime)
+static constexpr uint32_t kAccCompileDontBother =     0x02000000;  // method (runtime)
 
 // Set by the verifier for a method that could not be verified to follow structured locking.
-static constexpr uint32_t kAccMustCountLocks =        0x02000000;  // method (runtime)
+static constexpr uint32_t kAccMustCountLocks =        0x04000000;  // method (runtime)
 
 // Set by the class linker for a method that has only one implementation for a
 // virtual call.
@@ -85,8 +89,8 @@ static constexpr uint32_t kAccHasDefaultMethod          = 0x40000000;
 // class/ancestor overrides finalize()
 static constexpr uint32_t kAccClassIsFinalizable        = 0x80000000;
 
-static constexpr uint32_t kAccFlagsNotUsedByIntrinsic   = 0x007FFFFF;
-static constexpr uint32_t kAccMaxIntrinsic              = 0xFF;
+static constexpr uint32_t kAccFlagsNotUsedByIntrinsic   = 0x00FFFFFF;
+static constexpr uint32_t kAccMaxIntrinsic              = 0x7F;
 
 // Valid (meaningful) bits for a field.
 static constexpr uint32_t kAccValidFieldFlags = kAccPublic | kAccPrivate | kAccProtected |
@@ -96,7 +100,7 @@ static constexpr uint32_t kAccValidFieldFlags = kAccPublic | kAccPrivate | kAccP
 static constexpr uint32_t kAccValidMethodFlags = kAccPublic | kAccPrivate | kAccProtected |
     kAccStatic | kAccFinal | kAccSynchronized | kAccBridge | kAccVarargs | kAccNative |
     kAccAbstract | kAccStrict | kAccSynthetic | kAccMiranda | kAccConstructor |
-    kAccDeclaredSynchronized;
+    kAccDeclaredSynchronized | kAccPreviouslyWarm;
 
 // Valid (meaningful) bits for a class (not interface).
 // Note 1. These are positive bits. Other bits may have to be zero.
