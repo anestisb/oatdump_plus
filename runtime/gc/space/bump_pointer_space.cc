@@ -271,6 +271,14 @@ void BumpPointerSpace::LogFragmentationAllocFailure(std::ostream& os,
   // Caller's job to print failed_alloc_bytes.
 }
 
+size_t BumpPointerSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size) {
+  size_t num_bytes = obj->SizeOf();
+  if (usable_size != nullptr) {
+    *usable_size = RoundUp(num_bytes, kAlignment);
+  }
+  return num_bytes;
+}
+
 }  // namespace space
 }  // namespace gc
 }  // namespace art

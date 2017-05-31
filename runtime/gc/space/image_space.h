@@ -19,6 +19,7 @@
 
 #include "arch/instruction_set.h"
 #include "gc/accounting/space_bitmap.h"
+#include "image.h"
 #include "space.h"
 
 namespace art {

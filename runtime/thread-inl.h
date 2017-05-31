@@ -27,7 +27,7 @@
 
 #include "base/casts.h"
 #include "base/mutex-inl.h"
-#include "gc/heap.h"
+#include "base/time_utils.h"
 #include "jni_env_ext.h"
 #include "obj_ptr.h"
 #include "runtime.h"
@@ -297,9 +297,7 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
 
 inline void Thread::VerifyStack() {
   if (kVerifyStack) {
-    if (Runtime::Current()->GetHeap()->IsObjectValidationEnabled()) {
-      VerifyStackImpl();
-    }
+    VerifyStackImpl();
   }
 }
 

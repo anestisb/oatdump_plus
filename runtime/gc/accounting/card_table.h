@@ -155,6 +155,14 @@ class CardTable {
 };
 
 }  // namespace accounting
+
+class AgeCardVisitor {
+ public:
+  uint8_t operator()(uint8_t card) const {
+    return (card == accounting::CardTable::kCardDirty) ? card - 1 : 0;
+  }
+};
+
 }  // namespace gc
 }  // namespace art
 

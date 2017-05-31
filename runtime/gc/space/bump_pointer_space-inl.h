@@ -17,8 +17,9 @@
 #ifndef ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_INL_H_
 #define ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_INL_H_
 
-#include "base/bit_utils.h"
 #include "bump_pointer_space.h"
+
+#include "base/bit_utils.h"
 
 namespace art {
 namespace gc {
@@ -84,15 +85,6 @@ inline mirror::Object* BumpPointerSpace::AllocNonvirtual(size_t num_bytes) {
     bytes_allocated_.FetchAndAddSequentiallyConsistent(num_bytes);
   }
   return ret;
-}
-
-inline size_t BumpPointerSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  size_t num_bytes = obj->SizeOf();
-  if (usable_size != nullptr) {
-    *usable_size = RoundUp(num_bytes, kAlignment);
-  }
-  return num_bytes;
 }
 
 }  // namespace space

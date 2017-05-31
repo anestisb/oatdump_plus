@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_CHA_H_
 #define ART_RUNTIME_CHA_H_
 
-#include "art_method.h"
 #include "base/enums.h"
 #include "base/mutex.h"
 #include "handle.h"
@@ -27,6 +26,8 @@
 #include <unordered_set>
 
 namespace art {
+
+class ArtMethod;
 
 /**
  * Class Hierarchy Analysis (CHA) tries to devirtualize virtual calls into

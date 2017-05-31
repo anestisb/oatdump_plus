@@ -26,11 +26,9 @@
 #include "arch/instruction_set.h"
 #include "atomic.h"
 #include "base/time_utils.h"
-#include "gc/accounting/atomic_stack.h"
-#include "gc/accounting/card_table.h"
-#include "gc/accounting/read_barrier_table.h"
 #include "gc/gc_cause.h"
 #include "gc/collector/gc_type.h"
+#include "gc/collector/iteration.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "globals.h"
@@ -46,6 +44,7 @@ namespace art {
 
 class ConditionVariable;
 class Mutex;
+class RootVisitor;
 class StackVisitor;
 class Thread;
 class ThreadPool;
@@ -67,8 +66,12 @@ class TaskProcessor;
 class Verification;
 
 namespace accounting {
+  template <typename T> class AtomicStack;
+  typedef AtomicStack<mirror::Object> ObjectStack;
+  class CardTable;
   class HeapBitmap;
   class ModUnionTable;
+  class ReadBarrierTable;
   class RememberedSet;
 }  // namespace accounting
 
@@ -98,13 +101,6 @@ namespace space {
   class Space;
   class ZygoteSpace;
 }  // namespace space
-
-class AgeCardVisitor {
- public:
-  uint8_t operator()(uint8_t card) const {
-    return (card == accounting::CardTable::kCardDirty) ? card - 1 : 0;
-  }
-};
 
 enum HomogeneousSpaceCompactResult {
   // Success.

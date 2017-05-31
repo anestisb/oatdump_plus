@@ -35,6 +35,7 @@
 #include "debugger.h"
 #include "gc/collector/concurrent_copying.h"
 #include "gc/gc_pause_listener.h"
+#include "gc/heap.h"
 #include "gc/reference_processor.h"
 #include "jni_internal.h"
 #include "lock_word.h"

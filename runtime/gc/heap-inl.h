@@ -21,6 +21,7 @@
 
 #include "allocation_listener.h"
 #include "base/time_utils.h"
+#include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/allocation_record.h"
 #include "gc/collector/semi_space.h"

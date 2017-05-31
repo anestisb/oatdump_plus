@@ -16,14 +16,17 @@
 
 #include "large_object_space.h"
 
+#include <sys/mman.h>
+
 #include <memory>
 
-#include "gc/accounting/heap_bitmap-inl.h"
-#include "gc/accounting/space_bitmap-inl.h"
 #include "base/logging.h"
 #include "base/memory_tool.h"
 #include "base/mutex-inl.h"
 #include "base/stl_util.h"
+#include "gc/accounting/heap_bitmap-inl.h"
+#include "gc/accounting/space_bitmap-inl.h"
+#include "gc/heap.h"
 #include "image.h"
 #include "os.h"
 #include "scoped_thread_state_change-inl.h"

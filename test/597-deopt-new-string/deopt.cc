@@ -21,6 +21,7 @@
 #include "thread_state.h"
 #include "gc/gc_cause.h"
 #include "gc/scoped_gc_critical_section.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 

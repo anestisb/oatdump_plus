@@ -16,6 +16,7 @@
 
 #include "bump_pointer_space.h"
 #include "bump_pointer_space-inl.h"
+#include "gc/accounting/read_barrier_table.h"
 #include "mirror/object-inl.h"
 #include "mirror/class-inl.h"
 #include "thread_list.h"
@@ -509,6 +510,20 @@ void RegionSpace::Region::Dump(std::ostream& os) const {
      << " objects_allocated=" << objects_allocated_
      << " alloc_time=" << alloc_time_ << " live_bytes=" << live_bytes_
      << " is_newly_allocated=" << is_newly_allocated_ << " is_a_tlab=" << is_a_tlab_ << " thread=" << thread_ << "\n";
+}
+
+size_t RegionSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size) {
+  size_t num_bytes = obj->SizeOf();
+  if (usable_size != nullptr) {
+    if (LIKELY(num_bytes <= kRegionSize)) {
+      DCHECK(RefToRegion(obj)->IsAllocated());
+      *usable_size = RoundUp(num_bytes, kAlignment);
+    } else {
+      DCHECK(RefToRegion(obj)->IsLarge());
+      *usable_size = RoundUp(num_bytes, kRegionSize);
+    }
+  }
+  return num_bytes;
 }
 
 }  // namespace space

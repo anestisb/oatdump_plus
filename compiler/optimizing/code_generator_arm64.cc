@@ -29,6 +29,7 @@
 #include "linker/arm64/relative_patcher_arm64.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
+#include "lock_word.h"
 #include "offsets.h"
 #include "thread.h"
 #include "utils/arm64/assembler_arm64.h"

@@ -19,6 +19,7 @@
 
 #include "read_barrier.h"
 
+#include "gc/accounting/read_barrier_table.h"
 #include "gc/collector/concurrent_copying-inl.h"
 #include "gc/heap.h"
 #include "mirror/object_reference.h"

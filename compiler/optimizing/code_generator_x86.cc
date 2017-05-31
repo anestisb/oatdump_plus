@@ -26,6 +26,7 @@
 #include "intrinsics_x86.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
+#include "lock_word.h"
 #include "thread.h"
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"

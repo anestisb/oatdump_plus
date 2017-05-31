@@ -23,7 +23,6 @@
 #include "jni.h"
 #include "object_callbacks.h"
 #include "offsets.h"
-#include "gc/accounting/space_bitmap.h"
 #include "mirror/object.h"
 #include "mirror/object_reference.h"
 #include "safe_map.h"
@@ -40,6 +39,7 @@ namespace gc {
 namespace accounting {
   template<typename T> class AtomicStack;
   typedef AtomicStack<mirror::Object> ObjectStack;
+  template <size_t kAlignment> class SpaceBitmap;
   typedef SpaceBitmap<kObjectAlignment> ContinuousSpaceBitmap;
   class HeapBitmap;
   class ReadBarrierTable;
@@ -284,7 +284,7 @@ class ConcurrentCopying : public GarbageCollector {
   bool is_active_;                        // True while the collection is ongoing.
   bool is_asserting_to_space_invariant_;  // True while asserting the to-space invariant.
   ImmuneSpaces immune_spaces_;
-  accounting::SpaceBitmap<kObjectAlignment>* region_space_bitmap_;
+  accounting::ContinuousSpaceBitmap* region_space_bitmap_;
   // A cache of Heap::GetMarkBitmap().
   accounting::HeapBitmap* heap_mark_bitmap_;
   size_t live_stack_freeze_size_;

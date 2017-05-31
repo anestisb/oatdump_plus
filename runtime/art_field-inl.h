@@ -352,11 +352,6 @@ inline ObjPtr<mirror::String> ArtField::GetStringName(Thread* self, bool resolve
   return name;
 }
 
-template<typename RootVisitorType>
-inline void ArtField::VisitRoots(RootVisitorType& visitor) {
-  visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
-}
-
 template <typename Visitor>
 inline void ArtField::UpdateObjects(const Visitor& visitor) {
   ObjPtr<mirror::Class> old_class = DeclaringClassRoot().Read<kWithoutReadBarrier>();
