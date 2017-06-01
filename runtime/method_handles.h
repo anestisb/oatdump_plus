@@ -23,6 +23,7 @@
 #include "handle.h"
 #include "jvalue.h"
 #include "mirror/class.h"
+#include "stack.h"
 
 namespace art {
 

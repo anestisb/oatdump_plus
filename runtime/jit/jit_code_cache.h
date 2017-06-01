@@ -39,6 +39,7 @@ namespace art {
 class ArtMethod;
 class LinearAlloc;
 class InlineCache;
+class OatQuickMethodHeader;
 class ProfilingInfo;
 
 namespace jit {

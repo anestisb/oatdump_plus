@@ -39,9 +39,10 @@ class BitVector;
 class ElfFile;
 template <class MirrorType> class GcRoot;
 class MemMap;
-class OatMethodOffsets;
-class OatHeader;
 class OatDexFile;
+class OatHeader;
+class OatMethodOffsets;
+class OatQuickMethodHeader;
 class VdexFile;
 
 namespace gc {

@@ -34,7 +34,9 @@
 #include "linear_alloc.h"
 #include "mem_map.h"
 #include "oat_file-inl.h"
+#include "oat_quick_method_header.h"
 #include "scoped_thread_state_change-inl.h"
+#include "stack.h"
 #include "thread_list.h"
 
 namespace art {

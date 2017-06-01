@@ -1141,7 +1141,7 @@ class MarkSweep::CheckpointMarkThreadRoots : public Closure, public RootVisitor 
     Thread* const self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
-    thread->VisitRoots(this);
+    thread->VisitRoots(this, kVisitRootFlagAllRoots);
     if (revoke_ros_alloc_thread_local_buffers_at_checkpoint_) {
       ScopedTrace trace2("RevokeRosAllocThreadLocalBuffers");
       mark_sweep_->GetHeap()->RevokeRosAllocThreadLocalBuffers(thread);

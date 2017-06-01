@@ -22,15 +22,16 @@
 #include "interpreter_common.h"
 #include "interpreter_mterp_impl.h"
 #include "interpreter_switch_impl.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "jvalue-inl.h"
 #include "mirror/string-inl.h"
+#include "mterp/mterp.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "stack.h"
+#include "thread-inl.h"
 #include "unstarted_runtime.h"
-#include "mterp/mterp.h"
-#include "jit/jit.h"
-#include "jit/jit_code_cache.h"
 
 namespace art {
 namespace interpreter {

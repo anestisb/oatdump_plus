@@ -29,6 +29,7 @@
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "linear_alloc.h"
+#include "managed_stack.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -66,34 +67,6 @@ mirror::Object* ShadowFrame::GetThisObject(uint16_t num_ins) const {
   } else {
     return GetVRegReference(NumberOfVRegs() - num_ins);
   }
-}
-
-size_t ManagedStack::NumJniShadowFrameReferences() const {
-  size_t count = 0;
-  for (const ManagedStack* current_fragment = this; current_fragment != nullptr;
-       current_fragment = current_fragment->GetLink()) {
-    for (ShadowFrame* current_frame = current_fragment->top_shadow_frame_; current_frame != nullptr;
-         current_frame = current_frame->GetLink()) {
-      if (current_frame->GetMethod()->IsNative()) {
-        // The JNI ShadowFrame only contains references. (For indirect reference.)
-        count += current_frame->NumberOfVRegs();
-      }
-    }
-  }
-  return count;
-}
-
-bool ManagedStack::ShadowFramesContain(StackReference<mirror::Object>* shadow_frame_entry) const {
-  for (const ManagedStack* current_fragment = this; current_fragment != nullptr;
-       current_fragment = current_fragment->GetLink()) {
-    for (ShadowFrame* current_frame = current_fragment->top_shadow_frame_; current_frame != nullptr;
-         current_frame = current_frame->GetLink()) {
-      if (current_frame->Contains(shadow_frame_entry)) {
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 StackVisitor::StackVisitor(Thread* thread,

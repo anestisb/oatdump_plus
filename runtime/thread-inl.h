@@ -29,6 +29,7 @@
 #include "base/mutex-inl.h"
 #include "base/time_utils.h"
 #include "jni_env_ext.h"
+#include "managed_stack-inl.h"
 #include "obj_ptr.h"
 #include "runtime.h"
 #include "thread_pool.h"
@@ -382,6 +383,14 @@ inline bool Thread::ModifySuspendCount(Thread* self,
   } else {
     return ModifySuspendCountInternal(self, delta, suspend_barrier, for_debugger);
   }
+}
+
+inline ShadowFrame* Thread::PushShadowFrame(ShadowFrame* new_top_frame) {
+  return tlsPtr_.managed_stack.PushShadowFrame(new_top_frame);
+}
+
+inline ShadowFrame* Thread::PopShadowFrame() {
+  return tlsPtr_.managed_stack.PopShadowFrame();
 }
 
 }  // namespace art

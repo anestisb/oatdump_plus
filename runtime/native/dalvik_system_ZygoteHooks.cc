@@ -31,6 +31,7 @@
 #include "non_debuggable_classes.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
+#include "stack.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "trace.h"

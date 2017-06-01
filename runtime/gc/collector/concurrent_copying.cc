@@ -359,7 +359,7 @@ class ConcurrentCopying::ThreadFlipVisitor : public Closure, public RootVisitor 
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // We can use the non-CAS VisitRoots functions below because we update thread-local GC roots
     // only.
-    thread->VisitRoots(this);
+    thread->VisitRoots(this, kVisitRootFlagAllRoots);
     concurrent_copying_->GetBarrier().Pass(self);
   }
 

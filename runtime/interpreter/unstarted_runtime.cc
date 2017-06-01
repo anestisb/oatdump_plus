@@ -50,7 +50,7 @@
 #include "mirror/string-inl.h"
 #include "nth_caller_visitor.h"
 #include "reflection.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "transaction.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"

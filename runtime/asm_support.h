@@ -30,6 +30,7 @@
 #include "mirror/string.h"
 #include "utils/dex_cache_arrays_layout.h"
 #include "runtime.h"
+#include "stack.h"
 #include "thread.h"
 #endif
 

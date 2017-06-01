@@ -22,9 +22,7 @@
 #include "base/mutex.h"
 #include "base/time_utils.h"
 #include "base/value_object.h"
-#include "gc_root.h"
 #include "jni.h"
-#include "object_callbacks.h"
 
 #include <bitset>
 #include <list>
@@ -38,8 +36,10 @@ namespace gc {
   class GcPauseListener;
 }  // namespace gc
 class Closure;
+class RootVisitor;
 class Thread;
 class TimingLogger;
+enum VisitRootFlags : uint8_t;
 
 class ThreadList {
  public:
