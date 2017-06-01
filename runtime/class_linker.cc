@@ -3535,6 +3535,39 @@ ObjPtr<mirror::DexCache> ClassLinker::EnsureSameClassLoader(
   return dex_cache;
 }
 
+void ClassLinker::RegisterExistingDexCache(ObjPtr<mirror::DexCache> dex_cache,
+                                           ObjPtr<mirror::ClassLoader> class_loader) {
+  Thread* self = Thread::Current();
+  StackHandleScope<2> hs(self);
+  Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(dex_cache));
+  Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(class_loader));
+  const DexFile* dex_file = dex_cache->GetDexFile();
+  DCHECK(dex_file != nullptr) << "Attempt to register uninitialized dex_cache object!";
+  if (kIsDebugBuild) {
+    DexCacheData old_data;
+    {
+      ReaderMutexLock mu(self, *Locks::dex_lock_);
+      old_data = FindDexCacheDataLocked(*dex_file);
+    }
+    ObjPtr<mirror::DexCache> old_dex_cache = DecodeDexCache(self, old_data);
+    DCHECK(old_dex_cache.IsNull()) << "Attempt to manually register a dex cache thats already "
+                                   << "been registered on dex file " << dex_file->GetLocation();
+  }
+  ClassTable* table;
+  {
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    table = InsertClassTableForClassLoader(h_class_loader.Get());
+  }
+  WriterMutexLock mu(self, *Locks::dex_lock_);
+  RegisterDexFileLocked(*dex_file, h_dex_cache.Get(), h_class_loader.Get());
+  table->InsertStrongRoot(h_dex_cache.Get());
+  if (h_class_loader.Get() != nullptr) {
+    // Since we added a strong root to the class table, do the write barrier as required for
+    // remembered sets and generational GCs.
+    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(h_class_loader.Get());
+  }
+}
+
 ObjPtr<mirror::DexCache> ClassLinker::RegisterDexFile(const DexFile& dex_file,
                                                       ObjPtr<mirror::ClassLoader> class_loader) {
   Thread* self = Thread::Current();

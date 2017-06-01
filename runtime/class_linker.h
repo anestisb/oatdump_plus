@@ -385,6 +385,13 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
 
+  // Directly register an already existing dex cache. RegisterDexFile should be preferred since that
+  // reduplicates DexCaches when possible. The DexCache given to this function must already be fully
+  // initialized and not already registered.
+  void RegisterExistingDexCache(ObjPtr<mirror::DexCache> cache,
+                                ObjPtr<mirror::ClassLoader> class_loader)
+      REQUIRES(!Locks::dex_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   ObjPtr<mirror::DexCache> RegisterDexFile(const DexFile& dex_file,
                                            ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::dex_lock_)
