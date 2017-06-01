@@ -32,7 +32,7 @@ class InstructionSetFeatures;
 class PACKED(4) OatHeader {
  public:
   static constexpr uint8_t kOatMagic[] = { 'o', 'a', 't', '\n' };
-  static constexpr uint8_t kOatVersion[] = { '1', '2', '5', '\0' };  // ARM Baker narrow thunks.
+  static constexpr uint8_t kOatVersion[] = { '1', '2', '6', '\0' };  // Shuffle access flags.
 
   static constexpr const char* kImageLocationKey = "image-location";
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
