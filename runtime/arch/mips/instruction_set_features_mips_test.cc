@@ -20,15 +20,109 @@
 
 namespace art {
 
-TEST(MipsInstructionSetFeaturesTest, MipsFeatures) {
+TEST(MipsInstructionSetFeaturesTest, MipsFeaturesFromDefaultVariant) {
   std::string error_msg;
   std::unique_ptr<const InstructionSetFeatures> mips_features(
       InstructionSetFeatures::FromVariant(kMips, "default", &error_msg));
   ASSERT_TRUE(mips_features.get() != nullptr) << error_msg;
   EXPECT_EQ(mips_features->GetInstructionSet(), kMips);
   EXPECT_TRUE(mips_features->Equals(mips_features.get()));
-  EXPECT_STREQ("fpu32,mips2", mips_features->GetFeatureString().c_str());
+  EXPECT_STREQ("fpu32,mips2,-msa", mips_features->GetFeatureString().c_str());
   EXPECT_EQ(mips_features->AsBitmap(), 3U);
+}
+
+TEST(MipsInstructionSetFeaturesTest, MipsFeaturesFromR1Variant) {
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> mips32r1_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r1", &error_msg));
+  ASSERT_TRUE(mips32r1_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(mips32r1_features->GetInstructionSet(), kMips);
+  EXPECT_TRUE(mips32r1_features->Equals(mips32r1_features.get()));
+  EXPECT_STREQ("fpu32,-mips2,-msa", mips32r1_features->GetFeatureString().c_str());
+  EXPECT_EQ(mips32r1_features->AsBitmap(), 1U);
+
+  std::unique_ptr<const InstructionSetFeatures> mips_default_features(
+      InstructionSetFeatures::FromVariant(kMips, "default", &error_msg));
+  ASSERT_TRUE(mips_default_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r1_features->Equals(mips_default_features.get()));
+}
+
+TEST(MipsInstructionSetFeaturesTest, MipsFeaturesFromR2Variant) {
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> mips32r2_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r2", &error_msg));
+  ASSERT_TRUE(mips32r2_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(mips32r2_features->GetInstructionSet(), kMips);
+  EXPECT_TRUE(mips32r2_features->Equals(mips32r2_features.get()));
+  EXPECT_STREQ("fpu32,mips2,-msa", mips32r2_features->GetFeatureString().c_str());
+  EXPECT_EQ(mips32r2_features->AsBitmap(), 3U);
+
+  std::unique_ptr<const InstructionSetFeatures> mips_default_features(
+      InstructionSetFeatures::FromVariant(kMips, "default", &error_msg));
+  ASSERT_TRUE(mips_default_features.get() != nullptr) << error_msg;
+  EXPECT_TRUE(mips32r2_features->Equals(mips_default_features.get()));
+
+  std::unique_ptr<const InstructionSetFeatures> mips32r1_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r1", &error_msg));
+  ASSERT_TRUE(mips32r1_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r2_features->Equals(mips32r1_features.get()));
+}
+
+TEST(MipsInstructionSetFeaturesTest, MipsFeaturesFromR5Variant) {
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> mips32r5_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r5", &error_msg));
+  ASSERT_TRUE(mips32r5_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(mips32r5_features->GetInstructionSet(), kMips);
+  EXPECT_TRUE(mips32r5_features->Equals(mips32r5_features.get()));
+  EXPECT_STREQ("-fpu32,mips2,msa", mips32r5_features->GetFeatureString().c_str());
+  EXPECT_EQ(mips32r5_features->AsBitmap(), 10U);
+
+  std::unique_ptr<const InstructionSetFeatures> mips_default_features(
+      InstructionSetFeatures::FromVariant(kMips, "default", &error_msg));
+  ASSERT_TRUE(mips_default_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r5_features->Equals(mips_default_features.get()));
+
+  std::unique_ptr<const InstructionSetFeatures> mips32r1_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r1", &error_msg));
+  ASSERT_TRUE(mips32r1_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r5_features->Equals(mips32r1_features.get()));
+
+  std::unique_ptr<const InstructionSetFeatures> mips32r2_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r2", &error_msg));
+  ASSERT_TRUE(mips32r2_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r5_features->Equals(mips32r2_features.get()));
+}
+
+TEST(MipsInstructionSetFeaturesTest, MipsFeaturesFromR6Variant) {
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> mips32r6_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r6", &error_msg));
+  ASSERT_TRUE(mips32r6_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(mips32r6_features->GetInstructionSet(), kMips);
+  EXPECT_TRUE(mips32r6_features->Equals(mips32r6_features.get()));
+  EXPECT_STREQ("-fpu32,mips2,r6,msa", mips32r6_features->GetFeatureString().c_str());
+  EXPECT_EQ(mips32r6_features->AsBitmap(), 14U);
+
+  std::unique_ptr<const InstructionSetFeatures> mips_default_features(
+      InstructionSetFeatures::FromVariant(kMips, "default", &error_msg));
+  ASSERT_TRUE(mips_default_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r6_features->Equals(mips_default_features.get()));
+
+  std::unique_ptr<const InstructionSetFeatures> mips32r1_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r1", &error_msg));
+  ASSERT_TRUE(mips32r1_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r6_features->Equals(mips32r1_features.get()));
+
+  std::unique_ptr<const InstructionSetFeatures> mips32r2_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r2", &error_msg));
+  ASSERT_TRUE(mips32r2_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r6_features->Equals(mips32r2_features.get()));
+
+  std::unique_ptr<const InstructionSetFeatures> mips32r5_features(
+      InstructionSetFeatures::FromVariant(kMips, "mips32r5", &error_msg));
+  ASSERT_TRUE(mips32r5_features.get() != nullptr) << error_msg;
+  EXPECT_FALSE(mips32r6_features->Equals(mips32r5_features.get()));
 }
 
 }  // namespace art

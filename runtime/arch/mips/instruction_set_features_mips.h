@@ -75,6 +75,11 @@ class MipsInstructionSetFeatures FINAL : public InstructionSetFeatures {
     return r6_;
   }
 
+  // Does it have MSA (MIPS SIMD Architecture) support.
+  bool HasMsa() const {
+    return msa_;
+  }
+
   virtual ~MipsInstructionSetFeatures() {}
 
  protected:
@@ -84,11 +89,12 @@ class MipsInstructionSetFeatures FINAL : public InstructionSetFeatures {
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  MipsInstructionSetFeatures(bool fpu_32bit, bool mips_isa_gte2, bool r6)
+  MipsInstructionSetFeatures(bool fpu_32bit, bool mips_isa_gte2, bool r6, bool msa)
       : InstructionSetFeatures(),
         fpu_32bit_(fpu_32bit),
         mips_isa_gte2_(mips_isa_gte2),
-        r6_(r6) {
+        r6_(r6),
+        msa_(msa) {
     // Sanity checks.
     if (r6) {
       CHECK(mips_isa_gte2);
@@ -104,11 +110,13 @@ class MipsInstructionSetFeatures FINAL : public InstructionSetFeatures {
     kFpu32Bitfield = 1 << 0,
     kIsaRevGte2Bitfield = 1 << 1,
     kR6 = 1 << 2,
+    kMsaBitfield = 1 << 3,
   };
 
   const bool fpu_32bit_;
   const bool mips_isa_gte2_;
   const bool r6_;
+  const bool msa_;
 
   DISALLOW_COPY_AND_ASSIGN(MipsInstructionSetFeatures);
 };
