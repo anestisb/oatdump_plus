@@ -31,7 +31,8 @@
 #include "gc/heap.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
-#include "thread-inl.h"
+#include "runtime.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 #include "utils.h"
 

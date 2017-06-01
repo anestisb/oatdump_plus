@@ -18,7 +18,7 @@
 
 #include "base/logging.h"
 #include "base/mutex-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "monitor.h"
 
 namespace art {

@@ -149,6 +149,7 @@ static constexpr size_t kNumRosAllocThreadLocalSizeBracketsInThread = 16;
 class Thread {
  public:
   static const size_t kStackOverflowImplicitCheckSize;
+  static constexpr bool kVerifyStack = kIsDebugBuild;
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
@@ -563,7 +564,11 @@ class Thread {
   void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE void VerifyStack() REQUIRES_SHARED(Locks::mutator_lock_);
+  void VerifyStack() REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kVerifyStack) {
+      VerifyStackImpl();
+    }
+  }
 
   //
   // Offsets of various members of native Thread class, used by compiled code.

@@ -32,7 +32,7 @@
 #include "mirror/object-refvisitor-inl.h"
 #include "runtime.h"
 #include "stack.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 
 namespace art {

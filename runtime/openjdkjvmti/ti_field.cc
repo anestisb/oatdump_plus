@@ -39,7 +39,7 @@
 #include "mirror/object_array-inl.h"
 #include "modifiers.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace openjdkjvmti {
 

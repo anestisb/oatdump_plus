@@ -22,7 +22,7 @@
 
 #include "art_method-inl.h"
 #include "base/dumpable.h"
-#include "base/mutex.h"
+#include "base/mutex-inl.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "check_jni.h"

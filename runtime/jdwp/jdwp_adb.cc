@@ -24,7 +24,7 @@
 
 #include "base/logging.h"
 #include "jdwp/jdwp_priv.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 #ifdef ART_TARGET_ANDROID
 #include "cutils/sockets.h"

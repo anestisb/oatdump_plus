@@ -23,7 +23,7 @@
 #include "base/array_ref.h"
 #include "dedupe_set-inl.h"
 #include "gtest/gtest.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

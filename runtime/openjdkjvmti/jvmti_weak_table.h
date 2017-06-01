@@ -41,7 +41,7 @@
 #include "globals.h"
 #include "jvmti.h"
 #include "mirror/object.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace openjdkjvmti {
 

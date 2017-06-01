@@ -21,7 +21,7 @@
 #include "base/enums.h"
 #include "base/mutex.h"
 #include "runtime.h"
-#include "thread-inl.h"
+#include "thread.h"
 
 // Specific frame size code is in architecture-specific files. We include this to compile-time
 // specialize the code.
@@ -42,13 +42,6 @@ class ScopedQuickEntrypointChecks {
                                        bool exit_check = kIsDebugBuild)
       REQUIRES_SHARED(Locks::mutator_lock_) : self_(self), exit_check_(exit_check) {
     if (entry_check) {
-      TestsOnEntry();
-    }
-  }
-
-  ScopedQuickEntrypointChecks() REQUIRES_SHARED(Locks::mutator_lock_)
-      : self_(kIsDebugBuild ? Thread::Current() : nullptr), exit_check_(kIsDebugBuild) {
-    if (kIsDebugBuild) {
       TestsOnEntry();
     }
   }

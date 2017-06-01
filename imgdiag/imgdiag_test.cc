@@ -28,6 +28,7 @@
 #include "runtime/utils.h"
 #include "runtime/gc/space/image_space.h"
 #include "runtime/gc/heap.h"
+#include "runtime/runtime.h"
 
 #include <sys/types.h>
 #include <unistd.h>

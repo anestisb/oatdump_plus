@@ -21,7 +21,7 @@
 #include <sstream>
 
 #include "base/mutex.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "utils.h"
 
 // Headers for LogMessage::LogLine.

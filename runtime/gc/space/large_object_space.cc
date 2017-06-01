@@ -31,7 +31,7 @@
 #include "os.h"
 #include "scoped_thread_state_change-inl.h"
 #include "space-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 namespace gc {

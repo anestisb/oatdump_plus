@@ -52,7 +52,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "stack.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 #include "thread_pool.h"
 #include "well_known_classes.h"

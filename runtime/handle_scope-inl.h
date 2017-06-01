@@ -22,7 +22,7 @@
 #include "base/mutex.h"
 #include "handle.h"
 #include "obj_ptr-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "verify_object.h"
 
 namespace art {

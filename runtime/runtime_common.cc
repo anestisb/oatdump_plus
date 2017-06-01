@@ -29,7 +29,8 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "native_stack_dump.h"
-#include "thread-inl.h"
+#include "runtime.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 
 namespace art {

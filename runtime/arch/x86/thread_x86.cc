@@ -22,7 +22,7 @@
 #include "asm_support_x86.h"
 #include "base/enums.h"
 #include "base/macros.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 
 #if defined(__APPLE__)

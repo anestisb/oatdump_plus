@@ -58,7 +58,7 @@
 #include "parallel_move_resolver.h"
 #include "ssa_liveness_analysis.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "utils/assembler.h"
 
 namespace art {

@@ -45,7 +45,7 @@
 #include "base/unix_file/fd_file.h"
 #include "oat_quick_method_header.h"
 #include "os.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "utils.h"
 
 #endif

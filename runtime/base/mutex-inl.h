@@ -194,6 +194,16 @@ inline uint64_t Mutex::GetExclusiveOwnerTid() const {
   return exclusive_owner_;
 }
 
+inline void Mutex::AssertExclusiveHeld(const Thread* self) const {
+  if (kDebugLocking && (gAborting == 0)) {
+    CHECK(IsExclusiveHeld(self)) << *this;
+  }
+}
+
+inline void Mutex::AssertHeld(const Thread* self) const {
+  AssertExclusiveHeld(self);
+}
+
 inline bool ReaderWriterMutex::IsExclusiveHeld(const Thread* self) const {
   DCHECK(self == nullptr || self == Thread::Current());
   bool result = (GetExclusiveOwnerTid() == SafeGetTid(self));
@@ -221,6 +231,16 @@ inline uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
 #endif
 }
 
+inline void ReaderWriterMutex::AssertExclusiveHeld(const Thread* self) const {
+  if (kDebugLocking && (gAborting == 0)) {
+    CHECK(IsExclusiveHeld(self)) << *this;
+  }
+}
+
+inline void ReaderWriterMutex::AssertWriterHeld(const Thread* self) const {
+  AssertExclusiveHeld(self);
+}
+
 inline void MutatorMutex::TransitionFromRunnableToSuspended(Thread* self) {
   AssertSharedHeld(self);
   RegisterAsUnlocked(self);
@@ -230,6 +250,19 @@ inline void MutatorMutex::TransitionFromSuspendedToRunnable(Thread* self) {
   RegisterAsLocked(self);
   AssertSharedHeld(self);
 }
+
+inline ReaderMutexLock::ReaderMutexLock(Thread* self, ReaderWriterMutex& mu)
+    : self_(self), mu_(mu) {
+  mu_.SharedLock(self_);
+}
+
+inline ReaderMutexLock::~ReaderMutexLock() {
+  mu_.SharedUnlock(self_);
+}
+
+// Catch bug where variable name is omitted. "ReaderMutexLock (lock);" instead of
+// "ReaderMutexLock mu(lock)".
+#define ReaderMutexLock(x) static_assert(0, "ReaderMutexLock declaration missing variable name")
 
 }  // namespace art
 

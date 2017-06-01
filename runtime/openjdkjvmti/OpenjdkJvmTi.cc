@@ -46,7 +46,7 @@
 #include "object_tagging.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 #include "ti_class.h"
 #include "ti_dump.h"

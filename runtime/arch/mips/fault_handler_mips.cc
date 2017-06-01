@@ -24,7 +24,7 @@
 #include "globals.h"
 #include "quick_method_frame_info_mips.h"
 #include "registers_mips.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_throw_null_pointer_exception_from_signal();

@@ -26,7 +26,7 @@
 #include "base/macros.h"
 #include "base/safe_copy.h"
 #include "globals.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 #if defined(__APPLE__)
 #define ucontext __darwin_ucontext

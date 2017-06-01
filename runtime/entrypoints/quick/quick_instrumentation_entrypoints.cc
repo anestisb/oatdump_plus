@@ -21,7 +21,7 @@
 #include "instrumentation.h"
 #include "mirror/object-inl.h"
 #include "runtime.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

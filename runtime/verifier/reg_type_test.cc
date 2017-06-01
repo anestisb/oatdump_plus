@@ -25,7 +25,7 @@
 #include "reg_type_cache-inl.h"
 #include "reg_type-inl.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 namespace verifier {

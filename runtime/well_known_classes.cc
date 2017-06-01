@@ -30,7 +30,7 @@
 #include "obj_ptr-inl.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

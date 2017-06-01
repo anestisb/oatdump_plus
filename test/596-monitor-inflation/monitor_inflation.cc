@@ -18,7 +18,7 @@
 #include "jni.h"
 #include "monitor.h"
 #include "runtime.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 namespace {

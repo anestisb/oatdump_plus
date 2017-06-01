@@ -48,7 +48,6 @@ enum VerifyObjectFlags {
   kVerifyAll = kVerifyThis | kVerifyReads | kVerifyWrites,
 };
 
-static constexpr bool kVerifyStack = kIsDebugBuild;
 static constexpr VerifyObjectFlags kDefaultVerifyFlags = kVerifyNone;
 static constexpr VerifyObjectMode kVerifyObjectSupport =
     kDefaultVerifyFlags != 0 ? kVerifyObjectModeFast : kVerifyObjectModeDisabled;
