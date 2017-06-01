@@ -194,7 +194,8 @@ class GetMethodsVisitor : public ClassVisitor {
     for (ArtMethod& method : klass->GetMethods(kRuntimePointerSize)) {
       if (!method.IsNative()) {
         if (method.GetCounter() >= startup_method_samples_ ||
-            method.GetProfilingInfo(kRuntimePointerSize) != nullptr) {
+            method.GetProfilingInfo(kRuntimePointerSize) != nullptr ||
+            (method.GetAccessFlags() & kAccPreviouslyWarm) != 0) {
           // Have samples, add to profile.
           const DexFile* dex_file =
               method.GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetDexFile();

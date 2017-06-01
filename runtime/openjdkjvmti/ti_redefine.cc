@@ -602,8 +602,8 @@ bool Redefiner::ClassRedefinition::CheckSameMethods() {
     // Since direct methods have different flags than virtual ones (specifically direct methods must
     // have kAccPrivate or kAccStatic or kAccConstructor flags) we can tell if a method changes from
     // virtual to direct.
-    uint32_t new_flags = new_iter.GetMethodAccessFlags();
-    if (new_flags != (old_method->GetAccessFlags() & art::kAccValidMethodFlags)) {
+    uint32_t new_flags = new_iter.GetMethodAccessFlags() & ~art::kAccPreviouslyWarm;
+    if (new_flags != (old_method->GetAccessFlags() & (art::kAccValidMethodFlags ^ art::kAccPreviouslyWarm))) {
       RecordFailure(ERR(UNSUPPORTED_REDEFINITION_METHOD_MODIFIERS_CHANGED),
                     StringPrintf("method '%s' (sig: %s) had different access flags",
                                  new_method_name,
