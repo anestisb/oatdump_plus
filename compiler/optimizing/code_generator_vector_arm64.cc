@@ -22,6 +22,8 @@ using namespace vixl::aarch64;  // NOLINT(build/namespaces)
 namespace art {
 namespace arm64 {
 
+using helpers::ARM64EncodableConstantOrRegister;
+using helpers::Arm64CanEncodeConstantAsImmediate;
 using helpers::DRegisterFrom;
 using helpers::VRegisterFrom;
 using helpers::HeapOperand;
@@ -34,6 +36,7 @@ using helpers::WRegisterFrom;
 
 void LocationsBuilderARM64::VisitVecReplicateScalar(HVecReplicateScalar* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  HInstruction* input = instruction->InputAt(0);
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -41,13 +44,19 @@ void LocationsBuilderARM64::VisitVecReplicateScalar(HVecReplicateScalar* instruc
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
-      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(0, ARM64EncodableConstantOrRegister(input, instruction));
       locations->SetOut(Location::RequiresFpuRegister());
       break;
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      if (input->IsConstant() &&
+          Arm64CanEncodeConstantAsImmediate(input->AsConstant(), instruction)) {
+        locations->SetInAt(0, Location::ConstantLocation(input->AsConstant()));
+        locations->SetOut(Location::RequiresFpuRegister());
+      } else {
+        locations->SetInAt(0, Location::RequiresFpuRegister());
+        locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      }
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";
@@ -57,33 +66,58 @@ void LocationsBuilderARM64::VisitVecReplicateScalar(HVecReplicateScalar* instruc
 
 void InstructionCodeGeneratorARM64::VisitVecReplicateScalar(HVecReplicateScalar* instruction) {
   LocationSummary* locations = instruction->GetLocations();
+  Location src_loc = locations->InAt(0);
   VRegister dst = VRegisterFrom(locations->Out());
   switch (instruction->GetPackedType()) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
       DCHECK_EQ(16u, instruction->GetVectorLength());
-      __ Dup(dst.V16B(), InputRegisterAt(instruction, 0));
+      if (src_loc.IsConstant()) {
+        __ Movi(dst.V16B(), Int64ConstantFrom(src_loc));
+      } else {
+        __ Dup(dst.V16B(), InputRegisterAt(instruction, 0));
+      }
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
       DCHECK_EQ(8u, instruction->GetVectorLength());
-      __ Dup(dst.V8H(), InputRegisterAt(instruction, 0));
+      if (src_loc.IsConstant()) {
+        __ Movi(dst.V8H(), Int64ConstantFrom(src_loc));
+      } else {
+        __ Dup(dst.V8H(), InputRegisterAt(instruction, 0));
+      }
       break;
     case Primitive::kPrimInt:
       DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Dup(dst.V4S(), InputRegisterAt(instruction, 0));
+      if (src_loc.IsConstant()) {
+        __ Movi(dst.V4S(), Int64ConstantFrom(src_loc));
+      } else {
+        __ Dup(dst.V4S(), InputRegisterAt(instruction, 0));
+      }
       break;
     case Primitive::kPrimLong:
       DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Dup(dst.V2D(), XRegisterFrom(locations->InAt(0)));
+      if (src_loc.IsConstant()) {
+        __ Movi(dst.V2D(), Int64ConstantFrom(src_loc));
+      } else {
+        __ Dup(dst.V2D(), XRegisterFrom(src_loc));
+      }
       break;
     case Primitive::kPrimFloat:
       DCHECK_EQ(4u, instruction->GetVectorLength());
-      __ Dup(dst.V4S(), VRegisterFrom(locations->InAt(0)).V4S(), 0);
+      if (src_loc.IsConstant()) {
+        __ Fmov(dst.V4S(), src_loc.GetConstant()->AsFloatConstant()->GetValue());
+      } else {
+        __ Dup(dst.V4S(), VRegisterFrom(src_loc).V4S(), 0);
+      }
       break;
     case Primitive::kPrimDouble:
       DCHECK_EQ(2u, instruction->GetVectorLength());
-      __ Dup(dst.V2D(), VRegisterFrom(locations->InAt(0)).V2D(), 0);
+      if (src_loc.IsConstant()) {
+        __ Fmov(dst.V2D(), src_loc.GetConstant()->AsDoubleConstant()->GetValue());
+      } else {
+        __ Dup(dst.V2D(), VRegisterFrom(src_loc).V2D(), 0);
+      }
       break;
     default:
       LOG(FATAL) << "Unsupported SIMD type";

@@ -234,9 +234,20 @@ inline vixl::aarch64::Operand OperandFromMemOperand(
   }
 }
 
-inline bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* instr) {
-  DCHECK(constant->IsIntConstant() || constant->IsLongConstant() || constant->IsNullConstant())
-      << constant->DebugName();
+inline bool Arm64CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* instr) {
+  int64_t value = CodeGenerator::GetInt64ValueOf(constant);
+
+  // TODO: Improve this when IsSIMDConstantEncodable method is implemented in VIXL.
+  if (instr->IsVecReplicateScalar()) {
+    if (constant->IsLongConstant()) {
+      return false;
+    } else if (constant->IsFloatConstant()) {
+      return vixl::aarch64::Assembler::IsImmFP32(constant->AsFloatConstant()->GetValue());
+    } else if (constant->IsDoubleConstant()) {
+      return vixl::aarch64::Assembler::IsImmFP64(constant->AsDoubleConstant()->GetValue());
+    }
+    return IsUint<8>(value);
+  }
 
   // For single uses we let VIXL handle the constant generation since it will
   // use registers that are not managed by the register allocator (wip0, wip1).
@@ -248,8 +259,6 @@ inline bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* inst
   if (instr->IsRor()) {
     return true;
   }
-
-  int64_t value = CodeGenerator::GetInt64ValueOf(constant);
 
   if (instr->IsAnd() || instr->IsOr() || instr->IsXor()) {
     // Uses logical operations.
@@ -276,7 +285,7 @@ inline bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* inst
 inline Location ARM64EncodableConstantOrRegister(HInstruction* constant,
                                                         HInstruction* instr) {
   if (constant->IsConstant()
-      && CanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
+      && Arm64CanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
     return Location::ConstantLocation(constant->AsConstant());
   }
 
