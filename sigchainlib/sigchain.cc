@@ -262,8 +262,8 @@ void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
   ucontext_t* ucontext = static_cast<ucontext_t*>(ucontext_raw);
   sigset_t mask;
   sigorset(&mask, &ucontext->uc_sigmask, &chains[signo].action_.sa_mask);
-  if ((handler_flags & SA_NODEFER)) {
-    sigdelset(&mask, signo);
+  if (!(handler_flags & SA_NODEFER)) {
+    sigaddset(&mask, signo);
   }
   linked_sigprocmask(SIG_SETMASK, &mask, nullptr);
 
