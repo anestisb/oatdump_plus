@@ -582,6 +582,10 @@ class DexFile {
     return header_->type_ids_size_;
   }
 
+  bool IsTypeIndexValid(dex::TypeIndex idx) const {
+    return idx.IsValid() && idx.index_ < NumTypeIds();
+  }
+
   // Returns the TypeId at the specified index.
   const TypeId& GetTypeId(dex::TypeIndex idx) const {
     DCHECK_LT(idx.index_, NumTypeIds()) << GetLocation();
