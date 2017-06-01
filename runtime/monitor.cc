@@ -437,17 +437,11 @@ void Monitor::Lock(Thread* self) {
                     << " in " << ArtMethod::PrettyMethod(m) << " for "
                     << PrettyDuration(MsToNs(wait_ms));
               }
-              const char* owners_filename;
-              int32_t owners_line_number;
-              TranslateLocation(owners_method,
-                                owners_dex_pc,
-                                &owners_filename,
-                                &owners_line_number);
               LogContentionEvent(self,
                                  wait_ms,
                                  sample_percent,
-                                 owners_filename,
-                                 owners_line_number);
+                                 owners_method,
+                                 owners_dex_pc);
             }
           }
         }

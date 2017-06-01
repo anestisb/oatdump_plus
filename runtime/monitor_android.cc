@@ -49,8 +49,15 @@ static char* EventLogWriteString(char* dst, const char* value, size_t len) {
   return dst + len;
 }
 
-void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
-                                 const char* owner_filename, int32_t owner_line_number) {
+void Monitor::LogContentionEvent(Thread* self,
+                                 uint32_t wait_ms,
+                                 uint32_t sample_percent,
+                                 ArtMethod* owner_method,
+                                 uint32_t owner_dex_pc) {
+  const char* owner_filename;
+  int32_t owner_line_number;
+  TranslateLocation(owner_method, owner_dex_pc, &owner_filename, &owner_line_number);
+
   // Emit the event list length, 1 byte.
   char eventBuffer[174];
   char* cp = eventBuffer;
