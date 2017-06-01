@@ -350,7 +350,22 @@ class MANAGED LOCKABLE Object {
   template<bool kTransactionActive,
            bool kCheckTransaction = true,
            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldWeakReleaseObjectWithoutWriteBarrier(MemberOffset field_offset,
+                                                    ObjPtr<Object> old_value,
+                                                    ObjPtr<Object> new_value)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<bool kTransactionActive,
+           bool kCheckTransaction = true,
+           VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CasFieldStrongRelaxedObjectWithoutWriteBarrier(MemberOffset field_offset,
+                                                      ObjPtr<Object> old_value,
+                                                      ObjPtr<Object> new_value)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  template<bool kTransactionActive,
+           bool kCheckTransaction = true,
+           VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldStrongReleaseObjectWithoutWriteBarrier(MemberOffset field_offset,
                                                       ObjPtr<Object> old_value,
                                                       ObjPtr<Object> new_value)
       REQUIRES_SHARED(Locks::mutator_lock_);
