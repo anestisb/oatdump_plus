@@ -10,6 +10,7 @@ or using various target architectures. Any difference between the outputs
 
 JFuzz can be combined with DexFuzz to get multi-layered fuzz testing.
 
+
 How to run JFuzz
 ================
 
