@@ -76,13 +76,28 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 		asflags = append(asflags, "-DART_USE_OLD_ARM_BACKEND=1")
 	}
 
-	cflags = append(cflags,
-			"-DART_STACK_OVERFLOW_GAP_arm=8192",
-			"-DART_STACK_OVERFLOW_GAP_arm64=8192",
-			"-DART_STACK_OVERFLOW_GAP_mips=16384",
-			"-DART_STACK_OVERFLOW_GAP_mips64=16384",
-			"-DART_STACK_OVERFLOW_GAP_x86=8192",
-			"-DART_STACK_OVERFLOW_GAP_x86_64=8192")
+	// We need larger stack overflow guards for ASAN, as the compiled code will have
+	// larger frame sizes. For simplicity, just use global not-target-specific cflags.
+	// Note: We increase this for both debug and non-debug, as the overflow gap will
+	//       be compiled into managed code. We always preopt (and build core images) with
+	//       the debug version. So make the gap consistent (and adjust for the worst).
+	if len(ctx.AConfig().SanitizeDevice()) > 0 || len(ctx.AConfig().SanitizeHost()) > 0 {
+		cflags = append(cflags,
+				"-DART_STACK_OVERFLOW_GAP_arm=8192",
+				"-DART_STACK_OVERFLOW_GAP_arm64=8192",
+				"-DART_STACK_OVERFLOW_GAP_mips=16384",
+				"-DART_STACK_OVERFLOW_GAP_mips64=16384",
+				"-DART_STACK_OVERFLOW_GAP_x86=12288",
+				"-DART_STACK_OVERFLOW_GAP_x86_64=20480")
+	} else {
+		cflags = append(cflags,
+				"-DART_STACK_OVERFLOW_GAP_arm=8192",
+				"-DART_STACK_OVERFLOW_GAP_arm64=8192",
+				"-DART_STACK_OVERFLOW_GAP_mips=16384",
+				"-DART_STACK_OVERFLOW_GAP_mips64=16384",
+				"-DART_STACK_OVERFLOW_GAP_x86=8192",
+				"-DART_STACK_OVERFLOW_GAP_x86_64=8192")
+	}
 
 	return cflags, asflags
 }
