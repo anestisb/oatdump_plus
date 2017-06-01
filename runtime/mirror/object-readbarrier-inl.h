@@ -221,6 +221,36 @@ inline bool Object::CasFieldStrongRelaxedObjectWithoutWriteBarrier(
   return success;
 }
 
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldStrongReleaseObjectWithoutWriteBarrier(
+    MemberOffset field_offset,
+    ObjPtr<Object> old_value,
+    ObjPtr<Object> new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  if (kVerifyFlags & kVerifyWrites) {
+    VerifyObject(new_value);
+  }
+  if (kVerifyFlags & kVerifyReads) {
+    VerifyObject(old_value);
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
+  }
+  HeapReference<Object> old_ref(HeapReference<Object>::FromObjPtr(old_value));
+  HeapReference<Object> new_ref(HeapReference<Object>::FromObjPtr(new_value));
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
+  Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
+
+  bool success = atomic_addr->CompareExchangeStrongRelease(old_ref.reference_,
+                                                           new_ref.reference_);
+  return success;
+}
+
 }  // namespace mirror
 }  // namespace art
 
