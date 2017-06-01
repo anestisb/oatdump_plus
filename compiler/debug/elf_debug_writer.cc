@@ -30,6 +30,7 @@
 #include "debug/method_debug_info.h"
 #include "elf_builder.h"
 #include "linker/vector_output_stream.h"
+#include "oat.h"
 
 namespace art {
 namespace debug {

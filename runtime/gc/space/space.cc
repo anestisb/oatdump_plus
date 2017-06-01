@@ -19,6 +19,7 @@
 #include "base/logging.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/accounting/space_bitmap-inl.h"
+#include "gc/heap.h"
 #include "runtime.h"
 #include "thread-inl.h"
 

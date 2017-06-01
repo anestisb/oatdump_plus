@@ -17,13 +17,17 @@
 #ifndef ART_RUNTIME_GC_SPACE_REGION_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_REGION_SPACE_H_
 
-#include "gc/accounting/read_barrier_table.h"
 #include "object_callbacks.h"
 #include "space.h"
 #include "thread.h"
 
 namespace art {
 namespace gc {
+
+namespace accounting {
+class ReadBarrierTable;
+}  // namespace accounting
+
 namespace space {
 
 // A space that consists of equal-sized regions.

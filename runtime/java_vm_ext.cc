@@ -28,6 +28,7 @@
 #include "check_jni.h"
 #include "dex_file-inl.h"
 #include "fault_handler.h"
+#include "gc_root-inl.h"
 #include "indirect_reference_table-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"

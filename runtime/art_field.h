@@ -171,7 +171,9 @@ class ArtField FINAL {
 
   // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
   template<typename RootVisitorType>
-  void VisitRoots(RootVisitorType& visitor) NO_THREAD_SAFETY_ANALYSIS;
+  ALWAYS_INLINE inline void VisitRoots(RootVisitorType& visitor) NO_THREAD_SAFETY_ANALYSIS {
+    visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
+  }
 
   bool IsVolatile() REQUIRES_SHARED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccVolatile) != 0;

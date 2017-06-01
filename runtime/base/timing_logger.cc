@@ -24,6 +24,7 @@
 #include "base/histogram-inl.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
+#include "gc/heap.h"
 #include "thread-inl.h"
 
 #include <cmath>

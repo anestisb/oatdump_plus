@@ -16,6 +16,8 @@
 
 #include "dex_file.h"
 
+#include <sys/mman.h>
+
 #include <memory>
 
 #include "base/stl_util.h"

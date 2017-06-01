@@ -18,6 +18,7 @@
 
 #include <pthread.h>
 
+#include <sys/mman.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 

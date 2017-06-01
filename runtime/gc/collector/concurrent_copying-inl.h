@@ -19,11 +19,12 @@
 
 #include "concurrent_copying.h"
 
+#include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "gc/space/region_space.h"
-#include "mirror/object-readbarrier-inl.h"
 #include "lock_word.h"
+#include "mirror/object-readbarrier-inl.h"
 
 namespace art {
 namespace gc {

@@ -3442,11 +3442,13 @@ class VerifyRootVisitor : public SingleRootVisitor {
 };
 
 void Thread::VerifyStackImpl() {
-  VerifyRootVisitor visitor;
-  std::unique_ptr<Context> context(Context::Create());
-  RootCallbackVisitor visitor_to_callback(&visitor, GetThreadId());
-  ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context.get(), visitor_to_callback);
-  mapper.WalkStack();
+  if (Runtime::Current()->GetHeap()->IsObjectValidationEnabled()) {
+    VerifyRootVisitor visitor;
+    std::unique_ptr<Context> context(Context::Create());
+    RootCallbackVisitor visitor_to_callback(&visitor, GetThreadId());
+    ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context.get(), visitor_to_callback);
+    mapper.WalkStack();
+  }
 }
 
 // Set the stack end to that to be used during a stack overflow
