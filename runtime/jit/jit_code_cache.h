@@ -170,6 +170,13 @@ class JitCodeCache {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Removes method from the cache for testing purposes. The caller
+  // must ensure that all threads are suspended and the method should
+  // not be in any thread's stack.
+  bool RemoveMethod(ArtMethod* method, bool release_memory)
+      REQUIRES(!lock_)
+      REQUIRES(Locks::mutator_lock_);
+
   // Remove all methods in our cache that were allocated by 'alloc'.
   void RemoveMethodsIn(Thread* self, const LinearAlloc& alloc)
       REQUIRES(!lock_)
