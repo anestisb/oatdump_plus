@@ -692,5 +692,12 @@
         "description": "ASAN aborts when large thread stacks are requested.",
         "variant": "target",
         "env_vars": {"SANITIZE_TARGET": "address"}
+    },
+    {
+        "tests": "071-dexfile-map-clean",
+        "description": [ "We use prebuilt zipalign on master-art-host to avoid pulling in a lot",
+                         "of the framework. But a non-sanitized zipalign binary does not work with",
+                         "a sanitized libc++."],
+        "env_vars": {"SANITIZE_HOST": "address"}
     }
 ]
