@@ -1962,6 +1962,20 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
   check_jni_abort_catcher.Check("use of deleted local reference");
 }
 
+TEST_F(JniInternalTest, PushLocalFrame_LimitAndOverflow) {
+  // Try a very large value that should fail.
+  ASSERT_NE(JNI_OK, env_->PushLocalFrame(std::numeric_limits<jint>::max()));
+
+  // On 32-bit, also check for some overflow conditions.
+#ifndef __LP64__
+  ASSERT_EQ(JNI_OK, env_->PushLocalFrame(10));
+  ASSERT_NE(JNI_OK, env_->PushLocalFrame(std::numeric_limits<jint>::max() - 10));
+  ASSERT_TRUE(env_->ExceptionCheck());
+  env_->ExceptionClear();
+  EXPECT_EQ(env_->PopLocalFrame(nullptr), nullptr);
+#endif
+}
+
 TEST_F(JniInternalTest, NewGlobalRef_nullptr) {
   EXPECT_EQ(env_->NewGlobalRef(nullptr), nullptr);
 }
