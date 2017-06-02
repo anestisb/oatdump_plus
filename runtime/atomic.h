@@ -257,6 +257,13 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
     return this->compare_exchange_strong(expected_value, desired_value, std::memory_order_relaxed);
   }
 
+  // Atomically replace the value with desired value if it matches the expected value. Prior writes
+  // to other memory locations become visible to the threads that do a consume or an acquire on the
+  // same location.
+  bool CompareExchangeStrongRelease(T expected_value, T desired_value) {
+    return this->compare_exchange_strong(expected_value, desired_value, std::memory_order_release);
+  }
+
   // The same, except it may fail spuriously.
   bool CompareExchangeWeakRelaxed(T expected_value, T desired_value) {
     return this->compare_exchange_weak(expected_value, desired_value, std::memory_order_relaxed);
