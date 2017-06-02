@@ -31,6 +31,7 @@
 #include "nodes.h"
 #include "optimizing_compiler_stats.h"
 #include "read_barrier_option.h"
+#include "stack.h"
 #include "stack_map_stream.h"
 #include "string_reference.h"
 #include "type_reference.h"

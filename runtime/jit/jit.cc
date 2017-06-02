@@ -32,7 +32,9 @@
 #include "profile_saver.h"
 #include "runtime.h"
 #include "runtime_options.h"
+#include "stack.h"
 #include "stack_map.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 #include "utils.h"
 

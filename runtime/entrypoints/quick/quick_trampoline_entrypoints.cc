@@ -18,6 +18,7 @@
 #include "base/enums.h"
 #include "callee_save_frame.h"
 #include "common_throws.h"
+#include "debugger.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
@@ -40,7 +41,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
-#include "debugger.h"
+#include "thread-inl.h"
 #include "well_known_classes.h"
 
 namespace art {

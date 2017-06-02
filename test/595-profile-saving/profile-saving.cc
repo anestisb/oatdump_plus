@@ -26,6 +26,7 @@
 #include "oat_file_manager.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
+#include "stack.h"
 #include "thread.h"
 
 namespace art {

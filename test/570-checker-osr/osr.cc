@@ -21,6 +21,7 @@
 #include "oat_quick_method_header.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
+#include "stack.h"
 #include "stack_map.h"
 
 namespace art {

@@ -37,6 +37,7 @@
 #include "gc/gc_pause_listener.h"
 #include "gc/heap.h"
 #include "gc/reference_processor.h"
+#include "gc_root.h"
 #include "jni_internal.h"
 #include "lock_word.h"
 #include "monitor.h"
@@ -1509,7 +1510,7 @@ void ThreadList::VisitRootsForSuspendedThreads(RootVisitor* visitor) {
   // Visit roots without holding thread_list_lock_ and thread_suspend_count_lock_ to prevent lock
   // order violations.
   for (Thread* thread : threads_to_visit) {
-    thread->VisitRoots(visitor);
+    thread->VisitRoots(visitor, kVisitRootFlagAllRoots);
   }
 
   // Restore suspend counts.

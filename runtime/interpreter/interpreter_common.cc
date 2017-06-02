@@ -32,6 +32,7 @@
 #include "reflection.h"
 #include "reflection-inl.h"
 #include "stack.h"
+#include "thread-inl.h"
 #include "well_known_classes.h"
 
 namespace art {

@@ -123,6 +123,7 @@ cc_defaults {
         "jni_internal.cc",
         "jobject_comparator.cc",
         "linear_alloc.cc",
+        "managed_stack.cc",
         "mem_map.cc",
         "memory_region.cc",
         "method_handles.cc",

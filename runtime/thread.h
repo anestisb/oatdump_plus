@@ -33,15 +33,13 @@
 #include "base/mutex.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
-#include "gc_root.h"
 #include "globals.h"
 #include "handle_scope.h"
 #include "instrumentation.h"
 #include "jvalue.h"
-#include "object_callbacks.h"
+#include "managed_stack.h"
 #include "offsets.h"
 #include "runtime_stats.h"
-#include "stack.h"
 #include "thread_state.h"
 
 class BacktraceMap;
@@ -87,12 +85,14 @@ class FrameIdToShadowFrame;
 class JavaVMExt;
 struct JNIEnvExt;
 class Monitor;
+class RootVisitor;
 class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;
 class SingleStepControl;
 class StackedShadowFrameRecord;
 class Thread;
 class ThreadList;
+enum VisitRootFlags : uint8_t;
 
 // Thread priorities. These must match the Thread.MIN_PRIORITY,
 // Thread.NORM_PRIORITY, and Thread.MAX_PRIORITY constants.
@@ -560,7 +560,7 @@ class Thread {
     return tlsPtr_.frame_id_to_shadow_frame != nullptr;
   }
 
-  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags = kVisitRootFlagAllRoots)
+  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void VerifyStack() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -793,13 +793,8 @@ class Thread {
     tlsPtr_.managed_stack.PopManagedStackFragment(fragment);
   }
 
-  ShadowFrame* PushShadowFrame(ShadowFrame* new_top_frame) {
-    return tlsPtr_.managed_stack.PushShadowFrame(new_top_frame);
-  }
-
-  ShadowFrame* PopShadowFrame() {
-    return tlsPtr_.managed_stack.PopShadowFrame();
-  }
+  ALWAYS_INLINE ShadowFrame* PushShadowFrame(ShadowFrame* new_top_frame);
+  ALWAYS_INLINE ShadowFrame* PopShadowFrame();
 
   template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> TopShadowFrameOffset() {
@@ -1250,9 +1245,10 @@ class Thread {
 
   static void* CreateCallback(void* arg);
 
-  void HandleUncaughtExceptions(ScopedObjectAccess& soa)
+  void HandleUncaughtExceptions(ScopedObjectAccessAlreadyRunnable& soa)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void RemoveFromThreadGroup(ScopedObjectAccess& soa) REQUIRES_SHARED(Locks::mutator_lock_);
+  void RemoveFromThreadGroup(ScopedObjectAccessAlreadyRunnable& soa)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Initialize a thread.
   //
