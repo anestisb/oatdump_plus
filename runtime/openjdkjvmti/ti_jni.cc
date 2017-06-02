@@ -38,7 +38,7 @@
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
 #include "runtime.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace openjdkjvmti {
 

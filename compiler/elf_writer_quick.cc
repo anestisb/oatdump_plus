@@ -34,7 +34,7 @@
 #include "leb128.h"
 #include "linker/buffered_output_stream.h"
 #include "linker/file_output_stream.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread_pool.h"
 #include "utils.h"
 

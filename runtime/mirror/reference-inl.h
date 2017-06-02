@@ -20,6 +20,7 @@
 #include "reference.h"
 
 #include "obj_ptr-inl.h"
+#include "runtime.h"
 
 namespace art {
 namespace mirror {

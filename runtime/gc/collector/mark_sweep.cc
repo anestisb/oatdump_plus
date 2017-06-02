@@ -42,7 +42,7 @@
 #include "mirror/object-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 
 namespace art {

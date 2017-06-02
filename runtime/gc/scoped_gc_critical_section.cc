@@ -19,7 +19,7 @@
 #include "gc/collector_type.h"
 #include "gc/heap.h"
 #include "runtime.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 namespace gc {

@@ -25,7 +25,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "globals.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 //
 // ARM specific fault handler functions.

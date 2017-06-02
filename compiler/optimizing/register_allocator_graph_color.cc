@@ -20,7 +20,7 @@
 #include "linear_order.h"
 #include "register_allocation_resolver.h"
 #include "ssa_liveness_analysis.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

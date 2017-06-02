@@ -26,7 +26,7 @@
 #include "base/macros.h"
 #include "globals.h"
 #include "registers_arm64.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_throw_null_pointer_exception_from_signal();

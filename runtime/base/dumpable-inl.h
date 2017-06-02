@@ -19,7 +19,7 @@
 
 #include "base/dumpable.h"
 #include "base/mutex.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

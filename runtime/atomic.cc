@@ -17,7 +17,7 @@
 #include "atomic.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

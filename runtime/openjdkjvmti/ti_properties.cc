@@ -40,7 +40,7 @@
 
 #include "art_jvmti.h"
 #include "runtime.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "ti_phase.h"
 #include "well_known_classes.h"
 

@@ -19,7 +19,7 @@
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "partial_mark_sweep.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 namespace gc {

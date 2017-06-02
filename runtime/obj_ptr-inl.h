@@ -18,7 +18,7 @@
 #define ART_RUNTIME_OBJ_PTR_INL_H_
 
 #include "obj_ptr.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

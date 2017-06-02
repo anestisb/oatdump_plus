@@ -32,7 +32,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
 #include "stack.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 #include "trace.h"
 

@@ -21,7 +21,7 @@
 
 #include "base/logging.h"
 #include "compiled_method.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "utils.h"
 #include "utils/dedupe_set-inl.h"
 #include "utils/swap_space.h"

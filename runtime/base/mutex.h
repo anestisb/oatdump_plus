@@ -244,15 +244,11 @@ class LOCKABLE Mutex : public BaseMutex {
   void Unlock(Thread* self) RELEASE() {  ExclusiveUnlock(self); }
 
   // Is the current thread the exclusive holder of the Mutex.
-  bool IsExclusiveHeld(const Thread* self) const;
+  ALWAYS_INLINE bool IsExclusiveHeld(const Thread* self) const;
 
   // Assert that the Mutex is exclusively held by the current thread.
-  void AssertExclusiveHeld(const Thread* self) ASSERT_CAPABILITY(this) {
-    if (kDebugLocking && (gAborting == 0)) {
-      CHECK(IsExclusiveHeld(self)) << *this;
-    }
-  }
-  void AssertHeld(const Thread* self) ASSERT_CAPABILITY(this) { AssertExclusiveHeld(self); }
+  ALWAYS_INLINE void AssertExclusiveHeld(const Thread* self) const ASSERT_CAPABILITY(this);
+  ALWAYS_INLINE void AssertHeld(const Thread* self) const ASSERT_CAPABILITY(this);
 
   // Assert that the Mutex is not held by the current thread.
   void AssertNotHeldExclusive(const Thread* self) ASSERT_CAPABILITY(!*this) {
@@ -349,15 +345,11 @@ class SHARED_LOCKABLE ReaderWriterMutex : public BaseMutex {
   void ReaderUnlock(Thread* self) RELEASE_SHARED() { SharedUnlock(self); }
 
   // Is the current thread the exclusive holder of the ReaderWriterMutex.
-  bool IsExclusiveHeld(const Thread* self) const;
+  ALWAYS_INLINE bool IsExclusiveHeld(const Thread* self) const;
 
   // Assert the current thread has exclusive access to the ReaderWriterMutex.
-  void AssertExclusiveHeld(const Thread* self) ASSERT_CAPABILITY(this) {
-    if (kDebugLocking && (gAborting == 0)) {
-      CHECK(IsExclusiveHeld(self)) << *this;
-    }
-  }
-  void AssertWriterHeld(const Thread* self) ASSERT_CAPABILITY(this) { AssertExclusiveHeld(self); }
+  ALWAYS_INLINE void AssertExclusiveHeld(const Thread* self) const ASSERT_CAPABILITY(this);
+  ALWAYS_INLINE void AssertWriterHeld(const Thread* self) const ASSERT_CAPABILITY(this);
 
   // Assert the current thread doesn't have exclusive access to the ReaderWriterMutex.
   void AssertNotExclusiveHeld(const Thread* self) ASSERT_CAPABILITY(!this) {
@@ -517,23 +509,15 @@ class SCOPED_CAPABILITY MutexLock {
 // construction and releases it upon destruction.
 class SCOPED_CAPABILITY ReaderMutexLock {
  public:
-  ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) ACQUIRE(mu) ALWAYS_INLINE :
-      self_(self), mu_(mu) {
-    mu_.SharedLock(self_);
-  }
+  ALWAYS_INLINE ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) ACQUIRE(mu);
 
-  ~ReaderMutexLock() RELEASE() ALWAYS_INLINE {
-    mu_.SharedUnlock(self_);
-  }
+  ALWAYS_INLINE ~ReaderMutexLock() RELEASE();
 
  private:
   Thread* const self_;
   ReaderWriterMutex& mu_;
   DISALLOW_COPY_AND_ASSIGN(ReaderMutexLock);
 };
-// Catch bug where variable name is omitted. "ReaderMutexLock (lock);" instead of
-// "ReaderMutexLock mu(lock)".
-#define ReaderMutexLock(x) static_assert(0, "ReaderMutexLock declaration missing variable name")
 
 // Scoped locker/unlocker for a ReaderWriterMutex that acquires write access to mu upon
 // construction and releases it upon destruction.

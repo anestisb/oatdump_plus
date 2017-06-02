@@ -28,6 +28,7 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/mutex-inl.h"
 #include "dex_file-inl.h"
 #include "dex2oat_environment_test.h"
 #include "dex2oat_return_codes.h"

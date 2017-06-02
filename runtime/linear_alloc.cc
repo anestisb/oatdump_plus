@@ -16,7 +16,7 @@
 
 #include "linear_alloc.h"
 
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

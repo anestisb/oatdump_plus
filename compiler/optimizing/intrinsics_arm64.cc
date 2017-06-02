@@ -28,7 +28,7 @@
 #include "mirror/reference.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "utils/arm64/assembler_arm64.h"
 
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)

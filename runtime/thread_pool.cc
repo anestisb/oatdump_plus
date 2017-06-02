@@ -30,7 +30,7 @@
 #include "base/stl_util.h"
 #include "base/time_utils.h"
 #include "runtime.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

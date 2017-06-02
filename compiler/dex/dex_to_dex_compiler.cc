@@ -28,7 +28,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "mirror/dex_cache.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 
 namespace art {
 namespace optimizer {

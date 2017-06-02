@@ -21,7 +21,7 @@
 #include "gc/space/space-inl.h"
 #include "mirror/array-inl.h"
 #include "space_bitmap-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread_list.h"
 
 namespace art {

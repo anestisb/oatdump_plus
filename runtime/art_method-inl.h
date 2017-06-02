@@ -38,7 +38,7 @@
 #include "quick/quick_method_frame_info.h"
 #include "runtime-inl.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "utils.h"
 
 namespace art {

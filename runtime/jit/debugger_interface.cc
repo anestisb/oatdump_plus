@@ -18,7 +18,7 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
-#include "thread-inl.h"
+#include "thread-current-inl.h"
 #include "thread.h"
 
 #include <unordered_map>
