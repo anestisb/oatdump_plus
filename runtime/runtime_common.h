@@ -68,7 +68,8 @@ int GetTimeoutSignal();
 void HandleUnexpectedSignalCommon(int signal_number,
                                   siginfo_t* info,
                                   void* raw_context,
-                                  bool running_on_linux);
+                                  bool handle_timeout_signal,
+                                  bool dump_on_stderr);
 
 void InitPlatformSignalHandlersCommon(void (*newact)(int, siginfo_t*, void*),
                                       struct sigaction* oldact,

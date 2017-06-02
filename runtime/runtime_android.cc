@@ -27,7 +27,11 @@ namespace art {
 struct sigaction old_action;
 
 void HandleUnexpectedSignalAndroid(int signal_number, siginfo_t* info, void* raw_context) {
-  HandleUnexpectedSignalCommon(signal_number, info, raw_context, /* running_on_linux */ false);
+  HandleUnexpectedSignalCommon(signal_number,
+                               info,
+                               raw_context,
+                               /* handle_timeout_signal */ false,
+                               /* dump_on_stderr */ false);
 
   // Run the old signal handler.
   old_action.sa_sigaction(signal_number, info, raw_context);
