@@ -341,18 +341,30 @@ class DexLayoutTest : public CommonRuntimeTest {
         if ((i & 3) != 0) {
           pfi.AddMethodIndex(dex_location,
                              dex_file->GetLocationChecksum(),
-                             i);
+                             i,
+                             dex_file->NumMethodIds());
+          ++profile_methods;
+        } else if ((i & 2) != 0) {
+          pfi.AddSampledMethod(/*startup*/true,
+                               dex_location,
+                               dex_file->GetLocationChecksum(),
+                               i,
+                               dex_file->NumMethodIds());
           ++profile_methods;
         }
       }
       DexCacheResolvedClasses cur_classes(dex_location,
                                           dex_location,
-                                          dex_file->GetLocationChecksum());
+                                          dex_file->GetLocationChecksum(),
+                                          dex_file->NumMethodIds());
       // Add every even class too.
       for (uint32_t i = 0; i < dex_file->NumClassDefs(); i += 1) {
-        cur_classes.AddClass(dex_file->GetClassDef(i).class_idx_);
-        ++profile_classes;
+        if ((i & 2) == 0) {
+          cur_classes.AddClass(dex_file->GetClassDef(i).class_idx_);
+          ++profile_classes;
+        }
       }
+      classes.insert(cur_classes);
     }
     pfi.AddMethodsAndClasses(pmis, classes);
     // Write to provided file.

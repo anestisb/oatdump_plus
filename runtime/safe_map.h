@@ -46,6 +46,7 @@ class SafeMap {
 
   SafeMap() = default;
   SafeMap(const SafeMap&) = default;
+  SafeMap(SafeMap&&) = default;
   explicit SafeMap(const key_compare& cmp, const allocator_type& allocator = allocator_type())
     : map_(cmp, allocator) {
   }
@@ -149,6 +150,11 @@ class SafeMap {
 
   bool Equals(const Self& rhs) const {
     return map_ == rhs.map_;
+  }
+
+  template <class... Args>
+  std::pair<iterator, bool> emplace(Args&&... args) {
+    return map_.emplace(std::forward<Args>(args)...);
   }
 
  private:
