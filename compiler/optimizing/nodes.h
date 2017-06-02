@@ -1790,7 +1790,7 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
                              uint32_t dex_pc,
                              HInstruction* holder)
      : vregs_(number_of_vregs, arena->Adapter(kArenaAllocEnvironmentVRegs)),
-       locations_(number_of_vregs, arena->Adapter(kArenaAllocEnvironmentLocations)),
+       locations_(arena->Adapter(kArenaAllocEnvironmentLocations)),
        parent_(nullptr),
        method_(method),
        dex_pc_(dex_pc),
@@ -1803,6 +1803,11 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
                      to_copy.GetMethod(),
                      to_copy.GetDexPc(),
                      holder) {}
+
+  void AllocateLocations() {
+    DCHECK(locations_.empty());
+    locations_.resize(vregs_.size());
+  }
 
   void SetAndCopyParentChain(ArenaAllocator* allocator, HEnvironment* parent) {
     if (parent_ != nullptr) {
