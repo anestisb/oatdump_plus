@@ -49,43 +49,27 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
                                                    uint32_t target_offset) {
   uint32_t anchor_literal_offset = patch.PcInsnOffset();
   uint32_t literal_offset = patch.LiteralOffset();
-  uint32_t literal_low_offset;
+  bool high_patch = ((*code)[literal_offset + 0] == 0x34) && ((*code)[literal_offset + 1] == 0x12);
 
-  // Perform basic sanity checks and initialize `literal_low_offset` to point
-  // to the instruction containing the 16 least significant bits of the
-  // relative address.
-  if (is_r6) {
-    DCHECK_GE(code->size(), 8u);
-    DCHECK_LE(literal_offset, code->size() - 8u);
-    DCHECK_EQ(literal_offset, anchor_literal_offset);
-    // AUIPC reg, offset_high
-    DCHECK_EQ((*code)[literal_offset + 0], 0x34);
-    DCHECK_EQ((*code)[literal_offset + 1], 0x12);
-    DCHECK_EQ(((*code)[literal_offset + 2] & 0x1F), 0x1E);
-    DCHECK_EQ(((*code)[literal_offset + 3] & 0xFC), 0xEC);
-    // instr reg(s), offset_low
-    DCHECK_EQ((*code)[literal_offset + 4], 0x78);
-    DCHECK_EQ((*code)[literal_offset + 5], 0x56);
-    literal_low_offset = literal_offset + 4;
+  // Perform basic sanity checks.
+  if (high_patch) {
+    if (is_r6) {
+      // auipc reg, offset_high
+      DCHECK_EQ(((*code)[literal_offset + 2] & 0x1F), 0x1E);
+      DCHECK_EQ(((*code)[literal_offset + 3] & 0xFC), 0xEC);
+    } else {
+      // lui reg, offset_high
+      DCHECK_EQ(((*code)[literal_offset + 2] & 0xE0), 0x00);
+      DCHECK_EQ((*code)[literal_offset + 3], 0x3C);
+      // addu reg, reg, reg2
+      DCHECK_EQ((*code)[literal_offset + 4], 0x21);
+      DCHECK_EQ(((*code)[literal_offset + 5] & 0x07), 0x00);
+      DCHECK_EQ(((*code)[literal_offset + 7] & 0xFC), 0x00);
+    }
   } else {
-    DCHECK_GE(code->size(), 16u);
-    DCHECK_LE(literal_offset, code->size() - 12u);
-    DCHECK_GE(literal_offset, 4u);
-    // The NAL instruction does not precede immediately as the PC+0
-    // comes from HMipsComputeBaseMethodAddress.
-    // LUI reg, offset_high
-    DCHECK_EQ((*code)[literal_offset + 0], 0x34);
-    DCHECK_EQ((*code)[literal_offset + 1], 0x12);
-    DCHECK_EQ(((*code)[literal_offset + 2] & 0xE0), 0x00);
-    DCHECK_EQ((*code)[literal_offset + 3], 0x3C);
-    // ADDU reg, reg, reg2
-    DCHECK_EQ((*code)[literal_offset + 4], 0x21);
-    DCHECK_EQ(((*code)[literal_offset + 5] & 0x07), 0x00);
-    DCHECK_EQ(((*code)[literal_offset + 7] & 0xFC), 0x00);
     // instr reg(s), offset_low
-    DCHECK_EQ((*code)[literal_offset + 8], 0x78);
-    DCHECK_EQ((*code)[literal_offset + 9], 0x56);
-    literal_low_offset = literal_offset + 8;
+    CHECK_EQ((*code)[literal_offset + 0], 0x78);
+    CHECK_EQ((*code)[literal_offset + 1], 0x56);
   }
 
   // Apply patch.
@@ -93,12 +77,15 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   uint32_t diff = target_offset - anchor_offset;
   diff += (diff & 0x8000) << 1;  // Account for sign extension in "instr reg(s), offset_low".
 
-  // LUI reg, offset_high / AUIPC reg, offset_high
-  (*code)[literal_offset + 0] = static_cast<uint8_t>(diff >> 16);
-  (*code)[literal_offset + 1] = static_cast<uint8_t>(diff >> 24);
-  // instr reg(s), offset_low
-  (*code)[literal_low_offset + 0] = static_cast<uint8_t>(diff >> 0);
-  (*code)[literal_low_offset + 1] = static_cast<uint8_t>(diff >> 8);
+  if (high_patch) {
+    // lui reg, offset_high / auipc reg, offset_high
+    (*code)[literal_offset + 0] = static_cast<uint8_t>(diff >> 16);
+    (*code)[literal_offset + 1] = static_cast<uint8_t>(diff >> 24);
+  } else {
+    // instr reg(s), offset_low
+    (*code)[literal_offset + 0] = static_cast<uint8_t>(diff >> 0);
+    (*code)[literal_offset + 1] = static_cast<uint8_t>(diff >> 8);
+  }
 }
 
 void MipsRelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
