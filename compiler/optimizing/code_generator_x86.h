@@ -408,7 +408,6 @@ class CodeGeneratorX86 : public CodeGenerator {
       HInvokeStaticOrDirect* invoke) OVERRIDE;
 
   // Generate a call to a static or direct method.
-  Location GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   // Generate a call to a virtual method.
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
