@@ -25,7 +25,13 @@
 namespace art {
 
 void HandleUnexpectedSignalLinux(int signal_number, siginfo_t* info, void* raw_context) {
-  HandleUnexpectedSignalCommon(signal_number, info, raw_context, /* running_on_linux */ true);
+  // Linux is mainly used for host testing. Under those conditions, react to the timeout signal,
+  // and dump to stderr to avoid missing output on double-faults.
+  HandleUnexpectedSignalCommon(signal_number,
+                               info,
+                               raw_context,
+                               /* handle_timeout_signal */ true,
+                               /* dump_on_stderr */ true);
 
   if (getenv("debug_db_uid") != nullptr || getenv("art_wait_for_gdb_on_crash") != nullptr) {
     pid_t tid = GetTid();

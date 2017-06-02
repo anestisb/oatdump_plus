@@ -370,10 +370,8 @@ static bool IsTimeoutSignal(int signal_number) {
 void HandleUnexpectedSignalCommon(int signal_number,
                                   siginfo_t* info,
                                   void* raw_context,
-                                  bool running_on_linux) {
-  bool handle_timeout_signal = running_on_linux;
-  bool dump_on_stderr = running_on_linux;
-
+                                  bool handle_timeout_signal,
+                                  bool dump_on_stderr) {
   static bool handling_unexpected_signal = false;
   if (handling_unexpected_signal) {
     LogHelper::LogLineLowStack(__FILE__,
@@ -393,39 +391,41 @@ void HandleUnexpectedSignalCommon(int signal_number,
   gAborting++;  // set before taking any locks
   MutexLock mu(Thread::Current(), *Locks::unexpected_signal_lock_);
 
-  bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||
-                      signal_number == SIGFPE || signal_number == SIGSEGV);
+  auto logger = [&](auto& stream) {
+    bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||
+                        signal_number == SIGFPE || signal_number == SIGSEGV);
+    OsInfo os_info;
+    const char* cmd_line = GetCmdLine();
+    if (cmd_line == nullptr) {
+      cmd_line = "<unset>";  // Because no-one called InitLogging.
+    }
+    pid_t tid = GetTid();
+    std::string thread_name(GetThreadName(tid));
+    UContext thread_context(raw_context);
+    Backtrace thread_backtrace(raw_context);
 
-  OsInfo os_info;
-  const char* cmd_line = GetCmdLine();
-  if (cmd_line == nullptr) {
-    cmd_line = "<unset>";  // Because no-one called InitLogging.
-  }
-  pid_t tid = GetTid();
-  std::string thread_name(GetThreadName(tid));
-  UContext thread_context(raw_context);
-  Backtrace thread_backtrace(raw_context);
+    stream << "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***" << std::endl
+           << StringPrintf("Fatal signal %d (%s), code %d (%s)",
+                             signal_number,
+                             GetSignalName(signal_number),
+                             info->si_code,
+                             GetSignalCodeName(signal_number, info->si_code))
+           << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "") << std::endl
+           << "OS: " << Dumpable<OsInfo>(os_info) << std::endl
+           << "Cmdline: " << cmd_line << std::endl
+           << "Thread: " << tid << " \"" << thread_name << "\"" << std::endl
+           << "Registers:\n" << Dumpable<UContext>(thread_context) << std::endl
+           << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace) << std::endl;
+    stream << std::flush;
+  };
 
-  std::ostringstream stream;
-  stream << "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n"
-         << StringPrintf("Fatal signal %d (%s), code %d (%s)",
-                         signal_number,
-                         GetSignalName(signal_number),
-                         info->si_code,
-                         GetSignalCodeName(signal_number, info->si_code))
-         << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "") << '\n'
-         << "OS: " << Dumpable<OsInfo>(os_info) << '\n'
-         << "Cmdline: " << cmd_line << '\n'
-         << "Thread: " << tid << " \"" << thread_name << "\"" << '\n'
-         << "Registers:\n" << Dumpable<UContext>(thread_context) << '\n'
-         << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace) << '\n';
   if (dump_on_stderr) {
     // Note: We are using cerr directly instead of LOG macros to ensure even just partial output
     //       makes it out. That means we lose the "dalvikvm..." prefix, but that is acceptable
     //       considering this is an abort situation.
-    std::cerr << stream.str() << std::flush;
+    logger(std::cerr);
   } else {
-    LOG(FATAL_WITHOUT_ABORT) << stream.str() << std::flush;
+    logger(LOG_STREAM(FATAL_WITHOUT_ABORT));
   }
   if (kIsDebugBuild && signal_number == SIGSEGV) {
     PrintFileToLog("/proc/self/maps", LogSeverity::FATAL_WITHOUT_ABORT);
