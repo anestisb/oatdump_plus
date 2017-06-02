@@ -56,11 +56,10 @@ class IntrinsicSlowPath : public SlowPathCode {
     Location method_loc = MoveArguments(codegen);
 
     if (invoke_->IsInvokeStaticOrDirect()) {
-      codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(), method_loc);
+      codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(), method_loc, this);
     } else {
-      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), method_loc);
+      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), method_loc, this);
     }
-    codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
 
     // Copy the result back to the expected output.
     Location out = invoke_->GetLocations()->Out();

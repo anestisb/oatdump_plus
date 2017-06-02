@@ -124,12 +124,12 @@ class IntrinsicSlowPathARM64 : public SlowPathCodeARM64 {
       // are no pools emitted.
       vixl::EmissionCheckScope guard(codegen->GetVIXLAssembler(), kInvokeCodeMarginSizeInBytes);
       if (invoke_->IsInvokeStaticOrDirect()) {
-        codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(),
-                                            LocationFrom(kArtMethodRegister));
+        codegen->GenerateStaticOrDirectCall(
+            invoke_->AsInvokeStaticOrDirect(), LocationFrom(kArtMethodRegister), this);
       } else {
-        codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), LocationFrom(kArtMethodRegister));
+        codegen->GenerateVirtualCall(
+            invoke_->AsInvokeVirtual(), LocationFrom(kArtMethodRegister), this);
       }
-      codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
     }
 
     // Copy the result back to the expected output.

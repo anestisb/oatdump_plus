@@ -888,7 +888,7 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
     }
 
     HInvokeStaticOrDirect::DispatchInfo dispatch_info = {
-        HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod,
+        HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall,
         HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
         0u
     };

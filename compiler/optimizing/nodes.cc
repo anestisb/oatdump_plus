@@ -2623,7 +2623,7 @@ const DexFile& HInvokeStaticOrDirect::GetDexFileForPcRelativeDexCache() const {
 }
 
 bool HInvokeStaticOrDirect::NeedsDexCacheOfDeclaringClass() const {
-  if (GetMethodLoadKind() != MethodLoadKind::kDexCacheViaMethod) {
+  if (GetMethodLoadKind() != MethodLoadKind::kRuntimeCall) {
     return false;
   }
   if (!IsIntrinsic()) {
@@ -2645,8 +2645,8 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::MethodLoadKind
       return os << "DirectAddress";
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
       return os << "DexCachePcRelative";
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod:
-      return os << "DexCacheViaMethod";
+    case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall:
+      return os << "RuntimeCall";
     default:
       LOG(FATAL) << "Unknown MethodLoadKind: " << static_cast<int>(rhs);
       UNREACHABLE();

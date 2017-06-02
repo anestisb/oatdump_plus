@@ -19,8 +19,8 @@
 ## CHECK-START-X86: int IrreducibleLoop.simpleLoop1(int) dead_code_elimination$initial (before)
 ## CHECK-DAG: <<Constant:i\d+>>   IntConstant 42
 ## CHECK-DAG:                     Goto irreducible:true
-## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>] loop:none
-## CHECK-DAG:                     InvokeStaticOrDirect [{{i\d+}}] loop:none
+## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>{{(,[ij]\d+)?}}] loop:none
+## CHECK-DAG:                     InvokeStaticOrDirect [{{i\d+}}{{(,[ij]\d+)?}}] loop:none
 .method public static simpleLoop1(I)I
    .registers 3
    const/16 v0, 42
@@ -59,8 +59,8 @@
 ## CHECK-START-X86: int IrreducibleLoop.simpleLoop2(int) dead_code_elimination$initial (before)
 ## CHECK-DAG: <<Constant:i\d+>>   IntConstant 42
 ## CHECK-DAG:                     Goto irreducible:true
-## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>] loop:none
-## CHECK-DAG:                     InvokeStaticOrDirect [{{i\d+}}] loop:none
+## CHECK-DAG:                     InvokeStaticOrDirect [<<Constant>>{{(,[ij]\d+)?}}] loop:none
+## CHECK-DAG:                     InvokeStaticOrDirect [{{i\d+}}{{(,[ij]\d+)?}}] loop:none
 .method public static simpleLoop2(I)I
    .registers 3
    const/16 v0, 42
