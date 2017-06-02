@@ -212,7 +212,7 @@ public class Main {
   }
 
   /// CHECK-START: java.lang.String Main.$noinline$getBootImageString() sharpening (before)
-  /// CHECK:                LoadString load_kind:DexCacheViaMethod
+  /// CHECK:                LoadString load_kind:RuntimeCall
 
   /// CHECK-START-X86: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
@@ -246,7 +246,7 @@ public class Main {
   }
 
   /// CHECK-START: java.lang.String Main.$noinline$getNonBootImageString() sharpening (before)
-  /// CHECK:                LoadString load_kind:DexCacheViaMethod
+  /// CHECK:                LoadString load_kind:RuntimeCall
 
   /// CHECK-START-X86: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
   /// CHECK:                LoadString load_kind:BssEntry

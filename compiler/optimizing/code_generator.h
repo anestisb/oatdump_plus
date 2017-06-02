@@ -541,7 +541,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
       case HLoadString::LoadKind::kBssEntry:
         DCHECK(load->NeedsEnvironment());
         return LocationSummary::kCallOnSlowPath;
-      case HLoadString::LoadKind::kDexCacheViaMethod:
+      case HLoadString::LoadKind::kRuntimeCall:
         DCHECK(load->NeedsEnvironment());
         return LocationSummary::kCallOnMainOnly;
       case HLoadString::LoadKind::kJitTableAddress:

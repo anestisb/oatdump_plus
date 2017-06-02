@@ -7016,12 +7016,12 @@ HLoadString::LoadKind CodeGeneratorMIPS::GetSupportedLoadStringKind(
       DCHECK(Runtime::Current()->UseJitCompilation());
       fallback_load = false;
       break;
-    case HLoadString::LoadKind::kDexCacheViaMethod:
+    case HLoadString::LoadKind::kRuntimeCall:
       fallback_load = false;
       break;
   }
   if (fallback_load) {
-    desired_string_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
+    desired_string_load_kind = HLoadString::LoadKind::kRuntimeCall;
   }
   return desired_string_load_kind;
 }
@@ -7050,12 +7050,12 @@ HLoadClass::LoadKind CodeGeneratorMIPS::GetSupportedLoadClassKind(
       DCHECK(Runtime::Current()->UseJitCompilation());
       fallback_load = false;
       break;
-    case HLoadClass::LoadKind::kDexCacheViaMethod:
+    case HLoadClass::LoadKind::kRuntimeCall:
       fallback_load = false;
       break;
   }
   if (fallback_load) {
-    desired_class_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
+    desired_class_load_kind = HLoadClass::LoadKind::kRuntimeCall;
   }
   return desired_class_load_kind;
 }
@@ -7277,7 +7277,7 @@ void InstructionCodeGeneratorMIPS::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 
 void LocationsBuilderMIPS::VisitLoadClass(HLoadClass* cls) {
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
-  if (load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
+  if (load_kind == HLoadClass::LoadKind::kRuntimeCall) {
     InvokeRuntimeCallingConvention calling_convention;
     Location loc = Location::RegisterLocation(calling_convention.GetRegisterAt(0));
     CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(cls, loc, loc);
@@ -7331,7 +7331,7 @@ void LocationsBuilderMIPS::VisitLoadClass(HLoadClass* cls) {
 // move.
 void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAFETY_ANALYSIS {
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
-  if (load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) {
+  if (load_kind == HLoadClass::LoadKind::kRuntimeCall) {
     codegen_->GenerateLoadClassRuntimeCall(cls);
     return;
   }
@@ -7350,7 +7350,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
       base_or_current_method_reg = isR6 ? ZERO : locations->InAt(0).AsRegister<Register>();
       break;
     case HLoadClass::LoadKind::kReferrersClass:
-    case HLoadClass::LoadKind::kDexCacheViaMethod:
+    case HLoadClass::LoadKind::kRuntimeCall:
       base_or_current_method_reg = locations->InAt(0).AsRegister<Register>();
       break;
     default:
@@ -7428,7 +7428,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
       __ SetReorder(reordering);
       break;
     }
-    case HLoadClass::LoadKind::kDexCacheViaMethod:
+    case HLoadClass::LoadKind::kRuntimeCall:
     case HLoadClass::LoadKind::kInvalid:
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
@@ -7488,13 +7488,13 @@ void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
       }
       FALLTHROUGH_INTENDED;
     // We need an extra register for PC-relative dex cache accesses.
-    case HLoadString::LoadKind::kDexCacheViaMethod:
+    case HLoadString::LoadKind::kRuntimeCall:
       locations->SetInAt(0, Location::RequiresRegister());
       break;
     default:
       break;
   }
-  if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod) {
+  if (load_kind == HLoadString::LoadKind::kRuntimeCall) {
     InvokeRuntimeCallingConvention calling_convention;
     locations->SetOut(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
   } else {
@@ -7610,7 +7610,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
   }
 
   // TODO: Re-add the compiler code to do string dex cache lookup again.
-  DCHECK(load_kind == HLoadString::LoadKind::kDexCacheViaMethod);
+  DCHECK(load_kind == HLoadString::LoadKind::kRuntimeCall);
   InvokeRuntimeCallingConvention calling_convention;
   DCHECK_EQ(calling_convention.GetRegisterAt(0), out);
   __ LoadConst32(calling_convention.GetRegisterAt(0), load->GetStringIndex().index_);
