@@ -17,7 +17,11 @@
 #ifndef ART_COMPILER_OPTIMIZING_SCHEDULER_ARM_H_
 #define ART_COMPILER_OPTIMIZING_SCHEDULER_ARM_H_
 
+#ifdef ART_USE_OLD_ARM_BACKEND
+#include "code_generator_arm.h"
+#else
 #include "code_generator_arm_vixl.h"
+#endif
 #include "scheduler.h"
 
 namespace art {
