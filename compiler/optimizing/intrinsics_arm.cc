@@ -2624,58 +2624,6 @@ void IntrinsicCodeGeneratorARM::VisitDoubleIsInfinite(HInvoke* invoke) {
   codegen_->GenerateConditionWithZero(kCondEQ, out, out);
 }
 
-void IntrinsicLocationsBuilderARM::VisitReferenceGetReferent(HInvoke* invoke) {
-  if (kEmitCompilerReadBarrier) {
-    // Do not intrinsify this call with the read barrier configuration.
-    return;
-  }
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnSlowPath,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::SameAsFirstInput());
-  locations->AddTemp(Location::RequiresRegister());
-}
-
-void IntrinsicCodeGeneratorARM::VisitReferenceGetReferent(HInvoke* invoke) {
-  DCHECK(!kEmitCompilerReadBarrier);
-  ArmAssembler* const assembler = GetAssembler();
-  LocationSummary* locations = invoke->GetLocations();
-
-  Register obj = locations->InAt(0).AsRegister<Register>();
-  Register out = locations->Out().AsRegister<Register>();
-
-  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
-  codegen_->AddSlowPath(slow_path);
-
-  // Load ArtMethod first.
-  HInvokeStaticOrDirect* invoke_direct = invoke->AsInvokeStaticOrDirect();
-  DCHECK(invoke_direct != nullptr);
-  Register temp = codegen_->GenerateCalleeMethodStaticOrDirectCall(
-      invoke_direct, locations->GetTemp(0)).AsRegister<Register>();
-
-  // Now get declaring class.
-  __ ldr(temp, Address(temp, ArtMethod::DeclaringClassOffset().Int32Value()));
-
-  uint32_t slow_path_flag_offset = codegen_->GetReferenceSlowFlagOffset();
-  uint32_t disable_flag_offset = codegen_->GetReferenceDisableFlagOffset();
-  DCHECK_NE(slow_path_flag_offset, 0u);
-  DCHECK_NE(disable_flag_offset, 0u);
-  DCHECK_NE(slow_path_flag_offset, disable_flag_offset);
-
-  // Check static flags that prevent using intrinsic.
-  __ ldr(IP, Address(temp, disable_flag_offset));
-  __ ldr(temp, Address(temp, slow_path_flag_offset));
-  __ orr(IP, IP, ShifterOperand(temp));
-  __ CompareAndBranchIfNonZero(IP, slow_path->GetEntryLabel());
-
-  // Fast path.
-  __ ldr(out, Address(obj, mirror::Reference::ReferentOffset().Int32Value()));
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  __ MaybeUnpoisonHeapReference(out);
-  __ Bind(slow_path->GetExitLabel());
-}
-
 void IntrinsicLocationsBuilderARM::VisitIntegerValueOf(HInvoke* invoke) {
   InvokeRuntimeCallingConvention calling_convention;
   IntrinsicVisitor::ComputeIntegerValueOfLocations(
@@ -2782,6 +2730,7 @@ UNIMPLEMENTED_INTRINSIC(ARM, MathRoundDouble)   // Could be done by changing rou
 UNIMPLEMENTED_INTRINSIC(ARM, MathRoundFloat)    // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(ARM, UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(ARM, SystemArrayCopyChar)
+UNIMPLEMENTED_INTRINSIC(ARM, ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(ARM, IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM, LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM, IntegerLowestOneBit)
