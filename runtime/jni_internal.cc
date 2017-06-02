@@ -2407,18 +2407,18 @@ class JNI {
   static jint EnsureLocalCapacityInternal(ScopedObjectAccess& soa, jint desired_capacity,
                                           const char* caller)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    // TODO: we should try to expand the table if necessary.
-    if (desired_capacity < 0 || desired_capacity > static_cast<jint>(kLocalsInitial)) {
+    if (desired_capacity < 0) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
       return JNI_ERR;
     }
-    // TODO: this isn't quite right, since "capacity" includes holes.
-    const size_t capacity = soa.Env()->locals.Capacity();
-    bool okay = (static_cast<jint>(kLocalsInitial - capacity) >= desired_capacity);
-    if (!okay) {
-      soa.Self()->ThrowOutOfMemoryError(caller);
+
+    std::string error_msg;
+    if (!soa.Env()->locals.EnsureFreeCapacity(static_cast<size_t>(desired_capacity), &error_msg)) {
+      std::string caller_error = android::base::StringPrintf("%s: %s", caller, error_msg.c_str());
+      soa.Self()->ThrowOutOfMemoryError(caller_error.c_str());
+      return JNI_ERR;
     }
-    return okay ? JNI_OK : JNI_ERR;
+    return JNI_OK;
   }
 
   template<typename JniT, typename ArtT>

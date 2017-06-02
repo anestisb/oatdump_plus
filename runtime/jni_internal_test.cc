@@ -1908,9 +1908,6 @@ TEST_F(JniInternalTest, PushLocalFrame_10395422) {
 
   // Negative capacities are not allowed.
   ASSERT_EQ(JNI_ERR, env_->PushLocalFrame(-1));
-
-  // And it's okay to have an upper limit. Ours is currently 512.
-  ASSERT_EQ(JNI_ERR, env_->PushLocalFrame(8192));
 }
 
 TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
@@ -1965,6 +1962,8 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
 TEST_F(JniInternalTest, PushLocalFrame_LimitAndOverflow) {
   // Try a very large value that should fail.
   ASSERT_NE(JNI_OK, env_->PushLocalFrame(std::numeric_limits<jint>::max()));
+  ASSERT_TRUE(env_->ExceptionCheck());
+  env_->ExceptionClear();
 
   // On 32-bit, also check for some overflow conditions.
 #ifndef __LP64__
@@ -1974,6 +1973,12 @@ TEST_F(JniInternalTest, PushLocalFrame_LimitAndOverflow) {
   env_->ExceptionClear();
   EXPECT_EQ(env_->PopLocalFrame(nullptr), nullptr);
 #endif
+}
+
+TEST_F(JniInternalTest, PushLocalFrame_b62223672) {
+  // The 512 entry limit has been lifted, try a larger value.
+  ASSERT_EQ(JNI_OK, env_->PushLocalFrame(1024));
+  EXPECT_EQ(env_->PopLocalFrame(nullptr), nullptr);
 }
 
 TEST_F(JniInternalTest, NewGlobalRef_nullptr) {

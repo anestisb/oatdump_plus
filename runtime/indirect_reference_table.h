@@ -285,6 +285,13 @@ class IndirectReferenceTable {
     return segment_state_.top_index;
   }
 
+  // Ensure that at least free_capacity elements are available, or return false.
+  bool EnsureFreeCapacity(size_t free_capacity, std::string* error_msg)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // See implementation of EnsureFreeCapacity. We'll only state here how much is trivially free,
+  // without recovering holes. Thus this is a conservative estimate.
+  size_t FreeCapacity() REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Note IrtIterator does not have a read barrier as it's used to visit roots.
   IrtIterator begin() {
     return IrtIterator(table_, 0, Capacity());
