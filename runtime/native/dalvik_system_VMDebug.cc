@@ -39,6 +39,7 @@
 #include "jni_internal.h"
 #include "mirror/class.h"
 #include "mirror/object_array-inl.h"
+#include "native_util.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "scoped_fast_native_object_access-inl.h"

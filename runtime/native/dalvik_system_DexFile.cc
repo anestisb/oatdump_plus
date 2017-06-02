@@ -31,6 +31,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
+#include "native_util.h"
 #include "oat_file.h"
 #include "oat_file_assistant.h"
 #include "oat_file_manager.h"
