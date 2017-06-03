@@ -29,6 +29,7 @@
 #include "base/systrace.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
+#include "dex_file_tracking_registrar.h"
 #include "gc/scoped_gc_critical_section.h"
 #include "gc/space/image_space.h"
 #include "handle_scope-inl.h"
@@ -737,6 +738,11 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             // Successfully added image space to heap, release the map so that it does not get
             // freed.
             image_space.release();
+
+            // Register for tracking.
+            for (const auto& dex_file : dex_files) {
+              dex::tracking::RegisterDexFile(dex_file.get());
+            }
           } else {
             LOG(INFO) << "Failed to add image file " << temp_error_msg;
             dex_files.clear();
@@ -756,6 +762,11 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     if (!added_image_space) {
       DCHECK(dex_files.empty());
       dex_files = oat_file_assistant.LoadDexFiles(*source_oat_file, dex_location);
+
+      // Register for tracking.
+      for (const auto& dex_file : dex_files) {
+        dex::tracking::RegisterDexFile(dex_file.get());
+      }
     }
     if (dex_files.empty()) {
       error_msgs->push_back("Failed to open dex files from " + source_oat_file->GetLocation());

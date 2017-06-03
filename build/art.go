@@ -170,12 +170,23 @@ func globalDefaults(ctx android.LoadHookContext) {
 		}
 		Cflags  []string
 		Asflags []string
+		Sanitize struct {
+		  Recover []string
+		}
 	}
 
 	p := &props{}
 	p.Cflags, p.Asflags = globalFlags(ctx)
 	p.Target.Android.Cflags = deviceFlags(ctx)
 	p.Target.Host.Cflags = hostFlags(ctx)
+
+	if envTrue(ctx, "ART_DEX_FILE_ACCESS_TRACKING") {
+		p.Cflags = append(p.Cflags, "-DART_DEX_FILE_ACCESS_TRACKING")
+		p.Sanitize.Recover = []string {
+			"address",
+		}
+	}
+
 	ctx.AppendProperties(p)
 }
 
