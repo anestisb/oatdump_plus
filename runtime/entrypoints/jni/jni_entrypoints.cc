@@ -42,12 +42,11 @@ extern "C" const void* artFindNativeMethod(Thread* self) {
   // otherwise we return the address of the method we found.
   void* native_code = soa.Vm()->FindCodeForNativeMethod(method);
   if (native_code == nullptr) {
-    DCHECK(self->IsExceptionPending());
+    self->AssertPendingException();
     return nullptr;
-  } else {
-    // Register so that future calls don't come here
-    return method->RegisterNative(native_code, false);
   }
+  // Register so that future calls don't come here
+  return method->RegisterNative(native_code, false);
 }
 
 }  // namespace art

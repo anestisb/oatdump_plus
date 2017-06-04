@@ -145,19 +145,24 @@ class SharedLibrary {
     return needs_native_bridge_;
   }
 
-  void* FindSymbol(const std::string& symbol_name, const char* shorty = nullptr) {
+  // No mutator lock since dlsym may block for a while if another thread is doing dlopen.
+  void* FindSymbol(const std::string& symbol_name, const char* shorty = nullptr)
+      REQUIRES(!Locks::mutator_lock_) {
     return NeedsNativeBridge()
         ? FindSymbolWithNativeBridge(symbol_name.c_str(), shorty)
         : FindSymbolWithoutNativeBridge(symbol_name.c_str());
   }
 
-  void* FindSymbolWithoutNativeBridge(const std::string& symbol_name) {
+  // No mutator lock since dlsym may block for a while if another thread is doing dlopen.
+  void* FindSymbolWithoutNativeBridge(const std::string& symbol_name)
+      REQUIRES(!Locks::mutator_lock_) {
     CHECK(!NeedsNativeBridge());
 
     return dlsym(handle_, symbol_name.c_str());
   }
 
-  void* FindSymbolWithNativeBridge(const std::string& symbol_name, const char* shorty) {
+  void* FindSymbolWithNativeBridge(const std::string& symbol_name, const char* shorty)
+      REQUIRES(!Locks::mutator_lock_) {
     CHECK(NeedsNativeBridge());
 
     uint32_t len = 0;
@@ -236,8 +241,8 @@ class Libraries {
   }
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
-  void* FindNativeMethod(ArtMethod* m, std::string& detail)
-      REQUIRES(Locks::jni_libraries_lock_)
+  void* FindNativeMethod(Thread* self, ArtMethod* m, std::string& detail)
+      REQUIRES(!Locks::jni_libraries_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     std::string jni_short_name(m->JniShortName());
     std::string jni_long_name(m->JniLongName());
@@ -246,25 +251,18 @@ class Libraries {
     void* const declaring_class_loader_allocator =
         Runtime::Current()->GetClassLinker()->GetAllocatorForClassLoader(declaring_class_loader);
     CHECK(declaring_class_loader_allocator != nullptr);
-    for (const auto& lib : libraries_) {
-      SharedLibrary* const library = lib.second;
-      // Use the allocator address for class loader equality to avoid unnecessary weak root decode.
-      if (library->GetClassLoaderAllocator() != declaring_class_loader_allocator) {
-        // We only search libraries loaded by the appropriate ClassLoader.
-        continue;
-      }
-      // Try the short name then the long name...
-      const char* shorty = library->NeedsNativeBridge()
-          ? m->GetShorty()
-          : nullptr;
-      void* fn = library->FindSymbol(jni_short_name, shorty);
-      if (fn == nullptr) {
-        fn = library->FindSymbol(jni_long_name, shorty);
-      }
-      if (fn != nullptr) {
-        VLOG(jni) << "[Found native code for " << m->PrettyMethod()
-                  << " in \"" << library->GetPath() << "\"]";
-        return fn;
+    // TODO: Avoid calling GetShorty here to prevent dirtying dex pages?
+    const char* shorty = m->GetShorty();
+    {
+      // Go to suspended since dlsym may block for a long time if other threads are using dlopen.
+      ScopedThreadSuspension sts(self, kNative);
+      void* native_code = FindNativeMethodInternal(self,
+                                                   declaring_class_loader_allocator,
+                                                   shorty,
+                                                   jni_short_name,
+                                                   jni_long_name);
+      if (native_code != nullptr) {
+        return native_code;
       }
     }
     detail += "No implementation found for ";
@@ -273,22 +271,51 @@ class Libraries {
     return nullptr;
   }
 
+  void* FindNativeMethodInternal(Thread* self,
+                                 void* declaring_class_loader_allocator,
+                                 const char* shorty,
+                                 const std::string& jni_short_name,
+                                 const std::string& jni_long_name)
+      REQUIRES(!Locks::jni_libraries_lock_)
+      REQUIRES(!Locks::mutator_lock_) {
+    MutexLock mu(self, *Locks::jni_libraries_lock_);
+    for (const auto& lib : libraries_) {
+      SharedLibrary* const library = lib.second;
+      // Use the allocator address for class loader equality to avoid unnecessary weak root decode.
+      if (library->GetClassLoaderAllocator() != declaring_class_loader_allocator) {
+        // We only search libraries loaded by the appropriate ClassLoader.
+        continue;
+      }
+      // Try the short name then the long name...
+      const char* arg_shorty = library->NeedsNativeBridge() ? shorty : nullptr;
+      void* fn = library->FindSymbol(jni_short_name, arg_shorty);
+      if (fn == nullptr) {
+        fn = library->FindSymbol(jni_long_name, arg_shorty);
+      }
+      if (fn != nullptr) {
+        VLOG(jni) << "[Found native code for " << jni_long_name
+                  << " in \"" << library->GetPath() << "\"]";
+        return fn;
+      }
+    }
+    return nullptr;
+  }
+
   // Unload native libraries with cleared class loaders.
   void UnloadNativeLibraries()
       REQUIRES(!Locks::jni_libraries_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    ScopedObjectAccessUnchecked soa(Thread::Current());
+    Thread* const self = Thread::Current();
     std::vector<SharedLibrary*> unload_libraries;
     {
-      MutexLock mu(soa.Self(), *Locks::jni_libraries_lock_);
+      MutexLock mu(self, *Locks::jni_libraries_lock_);
       for (auto it = libraries_.begin(); it != libraries_.end(); ) {
         SharedLibrary* const library = it->second;
         // If class loader is null then it was unloaded, call JNI_OnUnload.
         const jweak class_loader = library->GetClassLoader();
         // If class_loader is a null jobject then it is the boot class loader. We should not unload
         // the native libraries of the boot class loader.
-        if (class_loader != nullptr &&
-            soa.Self()->IsJWeakCleared(class_loader)) {
+        if (class_loader != nullptr && self->IsJWeakCleared(class_loader)) {
           unload_libraries.push_back(library);
           it = libraries_.erase(it);
         } else {
@@ -296,6 +323,7 @@ class Libraries {
         }
       }
     }
+    ScopedThreadSuspension sts(self, kNative);
     // Do this without holding the jni libraries lock to prevent possible deadlocks.
     typedef void (*JNI_OnUnloadFn)(JavaVM*, void*);
     for (auto library : unload_libraries) {
@@ -305,7 +333,7 @@ class Libraries {
       } else {
         VLOG(jni) << "[JNI_OnUnload found for \"" << library->GetPath() << "\"]: Calling...";
         JNI_OnUnloadFn jni_on_unload = reinterpret_cast<JNI_OnUnloadFn>(sym);
-        jni_on_unload(soa.Vm(), nullptr);
+        jni_on_unload(self->GetJniEnv()->vm, nullptr);
       }
       delete library;
     }
@@ -956,12 +984,8 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
   // If this is a static method, it could be called before the class has been initialized.
   CHECK(c->IsInitializing()) << c->GetStatus() << " " << m->PrettyMethod();
   std::string detail;
-  void* native_method;
-  Thread* self = Thread::Current();
-  {
-    MutexLock mu(self, *Locks::jni_libraries_lock_);
-    native_method = libraries_->FindNativeMethod(m, detail);
-  }
+  Thread* const self = Thread::Current();
+  void* native_method = libraries_->FindNativeMethod(self, m, detail);
   if (native_method == nullptr) {
     // Lookup JNI native methods from native TI Agent libraries. See runtime/ti/agent.h for more
     // information. Agent libraries are searched for native methods after all jni libraries.
