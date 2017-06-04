@@ -8948,6 +8948,12 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForResolvedClass
                      << info.GetClasses().size() << " classes";
       DCHECK_EQ(dex_file->GetLocationChecksum(), info.GetLocationChecksum());
       for (dex::TypeIndex type_idx : info.GetClasses()) {
+        if (!dex_file->IsTypeIndexValid(type_idx)) {
+          // Something went bad. The profile is probably corrupted. Abort and return an emtpy set.
+          LOG(WARNING) << "Corrupted profile: invalid type index "
+              << type_idx.index_ << " in dex " << location;
+          return std::unordered_set<std::string>();
+        }
         const DexFile::TypeId& type_id = dex_file->GetTypeId(type_idx);
         const char* descriptor = dex_file->GetTypeDescriptor(type_id);
         ret.insert(descriptor);

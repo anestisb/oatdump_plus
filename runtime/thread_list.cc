@@ -741,7 +741,7 @@ void ThreadList::SuspendAllInternal(Thread* self,
         // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
         if ((errno != EAGAIN) && (errno != EINTR)) {
           if (errno == ETIMEDOUT) {
-            LOG(::android::base::FATAL)
+            LOG(kIsDebugBuild ? ::android::base::FATAL : ::android::base::ERROR)
                 << "Timed out waiting for threads to suspend, waited for "
                 << PrettyDuration(NanoTime() - start_time);
           } else {
