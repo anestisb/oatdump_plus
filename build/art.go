@@ -87,7 +87,7 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 				"-DART_STACK_OVERFLOW_GAP_arm64=8192",
 				"-DART_STACK_OVERFLOW_GAP_mips=16384",
 				"-DART_STACK_OVERFLOW_GAP_mips64=16384",
-				"-DART_STACK_OVERFLOW_GAP_x86=12288",
+				"-DART_STACK_OVERFLOW_GAP_x86=16384",
 				"-DART_STACK_OVERFLOW_GAP_x86_64=20480")
 	} else {
 		cflags = append(cflags,
