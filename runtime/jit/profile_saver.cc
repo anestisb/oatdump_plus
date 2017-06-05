@@ -184,11 +184,11 @@ void ProfileSaver::NotifyJitActivityInternal() {
 class GetMethodsVisitor : public ClassVisitor {
  public:
   GetMethodsVisitor(std::vector<MethodReference>* hot_methods,
-                    std::vector<MethodReference>* startup_methods,
-                    uint32_t startup_method_samples)
+                    std::vector<MethodReference>* sampled_methods,
+                    uint32_t hot_method_sample_threshold)
     : hot_methods_(hot_methods),
-      startup_methods_(startup_methods),
-      startup_method_samples_(startup_method_samples) {}
+      sampled_methods_(sampled_methods),
+      hot_method_sample_threshold_(hot_method_sample_threshold) {}
 
   virtual bool operator()(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
@@ -198,12 +198,14 @@ class GetMethodsVisitor : public ClassVisitor {
       if (!method.IsNative() && !method.IsProxyMethod()) {
         const uint16_t counter = method.GetCounter();
         MethodReference ref(method.GetDexFile(), method.GetDexMethodIndex());
+        // Mark startup methods as hot if they have more than hot_method_sample_threshold_ samples.
+        // This means they will get compiled by the compiler driver.
         if (method.GetProfilingInfo(kRuntimePointerSize) != nullptr ||
-            (method.GetAccessFlags() & kAccPreviouslyWarm) != 0) {
+            (method.GetAccessFlags() & kAccPreviouslyWarm) != 0 ||
+            counter >= hot_method_sample_threshold_) {
           hot_methods_->push_back(ref);
-          startup_methods_->push_back(ref);
-        } else if (counter >= startup_method_samples_) {
-          startup_methods_->push_back(ref);
+        } else if (counter != 0) {
+          sampled_methods_->push_back(ref);
         }
       } else {
         CHECK_EQ(method.GetCounter(), 0u);
@@ -214,8 +216,8 @@ class GetMethodsVisitor : public ClassVisitor {
 
  private:
   std::vector<MethodReference>* const hot_methods_;
-  std::vector<MethodReference>* const startup_methods_;
-  uint32_t startup_method_samples_;
+  std::vector<MethodReference>* const sampled_methods_;
+  uint32_t hot_method_sample_threshold_;
 };
 
 void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
@@ -241,11 +243,11 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
       ScopedTrace trace2("Get hot methods");
       GetMethodsVisitor visitor(&hot_methods,
                                 &startup_methods,
-                                options_.GetStartupMethodSamples());
+                                options_.GetHotStartupMethodSamples());
       class_linker->VisitClasses(&visitor);
       VLOG(profiler) << "Profile saver recorded " << hot_methods.size() << " hot methods and "
                      << startup_methods.size() << " startup methods with threshold "
-                     << options_.GetStartupMethodSamples();
+                     << options_.GetHotStartupMethodSamples();
     }
   }
   MutexLock mu(self, *Locks::profiler_lock_);
@@ -256,12 +258,14 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
     const std::string& filename = it.first;
     const std::set<std::string>& locations = it.second;
     std::vector<ProfileMethodInfo> profile_methods_for_location;
+    std::vector<MethodReference> startup_methods_for_locations;
     for (const MethodReference& ref : hot_methods) {
       if (locations.find(ref.dex_file->GetBaseLocation()) != locations.end()) {
         profile_methods_for_location.emplace_back(ref.dex_file, ref.dex_method_index);
+        // Hot methods are also startup methods since this function is only invoked during startup.
+        startup_methods_for_locations.push_back(ref);
       }
     }
-    std::vector<MethodReference> startup_methods_for_locations;
     for (const MethodReference& ref : startup_methods) {
       if (locations.find(ref.dex_file->GetBaseLocation()) != locations.end()) {
         startup_methods_for_locations.push_back(ref);
@@ -618,7 +622,7 @@ bool ProfileSaver::HasSeenMethod(const std::string& profile,
     if (!info.Load(profile, /*clear_if_invalid*/false)) {
       return false;
     }
-    return info.ContainsMethod(MethodReference(dex_file, method_idx));
+    return info.ContainsHotMethod(MethodReference(dex_file, method_idx));
   }
   return false;
 }

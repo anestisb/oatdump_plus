@@ -727,10 +727,10 @@ struct CmdlineType<ProfileSaverOptions> : CmdlineTypeParser<ProfileSaverOptions>
              &ProfileSaverOptions::save_resolved_classes_delay_ms_,
              type_parser.Parse(suffix));
     }
-    if (android::base::StartsWith(option, "startup-method-samples:")) {
+    if (android::base::StartsWith(option, "hot-startup-method-samples:")) {
       CmdlineType<unsigned int> type_parser;
       return ParseInto(existing,
-             &ProfileSaverOptions::startup_method_samples_,
+             &ProfileSaverOptions::hot_startup_method_samples_,
              type_parser.Parse(suffix));
     }
     if (android::base::StartsWith(option, "min-methods-to-save:")) {

@@ -1256,7 +1256,7 @@ bool ProfileCompilationInfo::IsStartupOrHotMethod(const std::string& dex_locatio
   return method_it != methods.end();
 }
 
-bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) const {
+bool ProfileCompilationInfo::ContainsHotMethod(const MethodReference& method_ref) const {
   return FindMethod(method_ref.dex_file->GetLocation(),
                     method_ref.dex_file->GetLocationChecksum(),
                     method_ref.dex_method_index) != nullptr;
