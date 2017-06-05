@@ -47,8 +47,8 @@
 namespace art {
 
 const uint8_t ProfileCompilationInfo::kProfileMagic[] = { 'p', 'r', 'o', '\0' };
-// Last profile version: Instead of method index, put the difference with the last
-// method's index.
+// Last profile version: Move startup methods to use a bitmap. Also add support for post-startup
+// methods.
 const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '8', '\0' };
 
 static constexpr uint16_t kMaxDexFileKeyLength = PATH_MAX;
@@ -284,10 +284,13 @@ static constexpr size_t kLineHeaderSize =
 /**
  * Serialization format:
  *    magic,version,number_of_dex_files,uncompressed_size_of_zipped_data,compressed_data_size,
- *    zipped[dex_location1,number_of_classes1,methods_region_size,dex_location_checksum1, \
+ *    zipped[dex_location1,number_of_classes1,methods_region_size,dex_location_checksum1
+ *        num_method_ids,
  *        method_encoding_11,method_encoding_12...,class_id1,class_id2...
- *    dex_location2,number_of_classes2,methods_region_size,dex_location_checksum2, \
+ *        startup/post startup bitmap,
+ *    dex_location2,number_of_classes2,methods_region_size,dex_location_checksum2, num_method_ids,
  *        method_encoding_21,method_encoding_22...,,class_id1,class_id2...
+ *        startup/post startup bitmap,
  *    .....]
  * The method_encoding is:
  *    method_id,number_of_inline_caches,inline_cache1,inline_cache2...
@@ -992,15 +995,6 @@ bool ProfileCompilationInfo::Load(int fd) {
   } else {
     LOG(WARNING) << "Error when reading profile: " << error;
     return false;
-  }
-}
-
-void ProfileCompilationInfo::DexFileData::CreateBitmap() {
-  const size_t num_bits = num_method_ids * kMethodBitCount;
-  bitmap_storage.resize(RoundUp(num_bits, kBitsPerByte) / kBitsPerByte);
-  if (!bitmap_storage.empty()) {
-    method_bitmap =
-        BitMemoryRegion(MemoryRegion(&bitmap_storage[0], bitmap_storage.size()), 0, num_bits);
   }
 }
 
