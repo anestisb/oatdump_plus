@@ -2292,9 +2292,18 @@ class InitializeClassVisitor : public CompilationVisitor {
         ObjectLock<mirror::Class> lock(soa.Self(), h_klass);
         // Attempt to initialize allowing initialization of parent classes but still not static
         // fields.
-        bool is_superclass_initialized = InitializeDependencies(klass, class_loader, soa.Self());
-        if (is_superclass_initialized) {
+        bool is_superclass_initialized = true;
+        if (!manager_->GetCompiler()->GetCompilerOptions().IsAppImage()) {
+          // If not an app image case, the compiler won't initialize too much things and do a fast
+          // fail, don't check dependencies.
           manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
+        } else {
+          // For app images, do the initialization recursively and resolve types encountered to make
+          // sure the compiler runs without error.
+          is_superclass_initialized = InitializeDependencies(klass, class_loader, soa.Self());
+          if (is_superclass_initialized) {
+            manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
+          }
         }
         old_status = klass->GetStatus();
         // If superclass cannot be initialized, no need to proceed.
