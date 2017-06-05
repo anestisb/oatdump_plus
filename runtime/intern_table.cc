@@ -28,6 +28,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/string-inl.h"
 #include "object_callbacks.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "utf.h"
 

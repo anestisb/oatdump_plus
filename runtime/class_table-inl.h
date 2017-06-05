@@ -18,6 +18,8 @@
 #define ART_RUNTIME_CLASS_TABLE_INL_H_
 
 #include "class_table.h"
+
+#include "gc_root-inl.h"
 #include "oat_file.h"
 
 namespace art {

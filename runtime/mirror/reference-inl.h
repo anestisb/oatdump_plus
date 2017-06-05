@@ -19,6 +19,7 @@
 
 #include "reference.h"
 
+#include "gc_root-inl.h"
 #include "obj_ptr-inl.h"
 #include "runtime.h"
 
@@ -46,6 +47,12 @@ inline void Reference::SetPendingNext(ObjPtr<Reference> pending_next) {
 template<bool kTransactionActive>
 inline void FinalizerReference::SetZombie(ObjPtr<Object> zombie) {
   return SetFieldObjectVolatile<kTransactionActive>(ZombieOffset(), zombie);
+}
+
+template<ReadBarrierOption kReadBarrierOption>
+inline Class* Reference::GetJavaLangRefReference() {
+  DCHECK(!java_lang_ref_Reference_.IsNull());
+  return java_lang_ref_Reference_.Read<kReadBarrierOption>();
 }
 
 }  // namespace mirror

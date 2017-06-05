@@ -19,6 +19,8 @@
 
 #include "reference_processor.h"
 
+#include "mirror/reference-inl.h"
+
 namespace art {
 namespace gc {
 

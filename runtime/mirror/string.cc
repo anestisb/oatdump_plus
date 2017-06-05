@@ -21,6 +21,7 @@
 #include "base/array_ref.h"
 #include "class-inl.h"
 #include "gc/accounting/card_table-inl.h"
+#include "gc_root-inl.h"
 #include "handle_scope-inl.h"
 #include "intern_table.h"
 #include "object-inl.h"
