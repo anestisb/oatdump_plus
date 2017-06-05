@@ -48,6 +48,7 @@
 #include "gc/allocation_listener.h"
 #include "gc/heap.h"
 #include "instrumentation.h"
+#include "intern_table.h"
 #include "jdwp/jdwp.h"
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_event.h"
@@ -452,7 +453,30 @@ art::mirror::ClassLoader* Redefiner::ClassRedefinition::GetClassLoader() {
 
 art::mirror::DexCache* Redefiner::ClassRedefinition::CreateNewDexCache(
     art::Handle<art::mirror::ClassLoader> loader) {
-  return driver_->runtime_->GetClassLinker()->RegisterDexFile(*dex_file_, loader.Get()).Ptr();
+  art::StackHandleScope<2> hs(driver_->self_);
+  art::ClassLinker* cl = driver_->runtime_->GetClassLinker();
+  art::Handle<art::mirror::DexCache> cache(hs.NewHandle(
+      art::ObjPtr<art::mirror::DexCache>::DownCast(
+          cl->GetClassRoot(art::ClassLinker::kJavaLangDexCache)->AllocObject(driver_->self_))));
+  if (cache.IsNull()) {
+    driver_->self_->AssertPendingOOMException();
+    return nullptr;
+  }
+  art::Handle<art::mirror::String> location(hs.NewHandle(
+      cl->GetInternTable()->InternStrong(dex_file_->GetLocation().c_str())));
+  if (location.IsNull()) {
+    driver_->self_->AssertPendingOOMException();
+    return nullptr;
+  }
+  art::WriterMutexLock mu(driver_->self_, *art::Locks::dex_lock_);
+  art::mirror::DexCache::InitializeDexCache(driver_->self_,
+                                            cache.Get(),
+                                            location.Get(),
+                                            dex_file_.get(),
+                                            loader.IsNull() ? driver_->runtime_->GetLinearAlloc()
+                                                            : loader->GetAllocator(),
+                                            art::kRuntimePointerSize);
+  return cache.Get();
 }
 
 void Redefiner::RecordFailure(jvmtiError result,
@@ -1293,8 +1317,10 @@ jvmtiError Redefiner::Run() {
 
   // At this point we can no longer fail without corrupting the runtime state.
   for (RedefinitionDataIter data = holder.begin(); data != holder.end(); ++data) {
+    art::ClassLinker* cl = runtime_->GetClassLinker();
+    cl->RegisterExistingDexCache(data.GetNewDexCache(), data.GetSourceClassLoader());
     if (data.GetSourceClassLoader() == nullptr) {
-      runtime_->GetClassLinker()->AppendToBootClassPath(self_, data.GetRedefinition().GetDexFile());
+      cl->AppendToBootClassPath(self_, data.GetRedefinition().GetDexFile());
     }
   }
   UnregisterAllBreakpoints();
