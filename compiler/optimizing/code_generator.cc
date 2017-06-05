@@ -508,7 +508,7 @@ void CodeGenerator::GenerateUnresolvedFieldAccess(
 void CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(HLoadClass* cls,
                                                               Location runtime_type_index_location,
                                                               Location runtime_return_location) {
-  DCHECK_EQ(cls->GetLoadKind(), HLoadClass::LoadKind::kDexCacheViaMethod);
+  DCHECK_EQ(cls->GetLoadKind(), HLoadClass::LoadKind::kRuntimeCall);
   DCHECK_EQ(cls->InputCount(), 1u);
   LocationSummary* locations = new (cls->GetBlock()->GetGraph()->GetArena()) LocationSummary(
       cls, LocationSummary::kCallOnMainOnly);
@@ -518,7 +518,7 @@ void CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(HLoadClass* cls,
 }
 
 void CodeGenerator::GenerateLoadClassRuntimeCall(HLoadClass* cls) {
-  DCHECK_EQ(cls->GetLoadKind(), HLoadClass::LoadKind::kDexCacheViaMethod);
+  DCHECK_EQ(cls->GetLoadKind(), HLoadClass::LoadKind::kRuntimeCall);
   LocationSummary* locations = cls->GetLocations();
   MoveConstant(locations->GetTemp(0), cls->GetTypeIndex().index_);
   if (cls->NeedsAccessCheck()) {

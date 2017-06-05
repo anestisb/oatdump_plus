@@ -159,7 +159,7 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
                                                        CompilerDriver* compiler_driver,
                                                        const DexCompilationUnit& dex_compilation_unit) {
   Handle<mirror::Class> klass = load_class->GetClass();
-  DCHECK(load_class->GetLoadKind() == HLoadClass::LoadKind::kDexCacheViaMethod ||
+  DCHECK(load_class->GetLoadKind() == HLoadClass::LoadKind::kRuntimeCall ||
          load_class->GetLoadKind() == HLoadClass::LoadKind::kReferrersClass)
       << load_class->GetLoadKind();
   DCHECK(!load_class->IsInBootImage()) << "HLoadClass should not be optimized before sharpening.";
@@ -185,7 +185,7 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
       DCHECK(!runtime->UseJitCompilation());
       if (!compiler_driver->GetSupportBootImageFixup()) {
         // compiler_driver_test. Do not sharpen.
-        desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
+        desired_load_kind = HLoadClass::LoadKind::kRuntimeCall;
       } else if ((klass != nullptr) &&
                  compiler_driver->IsImageClass(dex_file.StringByTypeIdx(type_index))) {
         is_in_boot_image = true;
@@ -210,7 +210,7 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
           // this `HLoadClass` hasn't been executed in the interpreter.
           // Fallback to the dex cache.
           // TODO(ngeoffray): Generate HDeoptimize instead.
-          desired_load_kind = HLoadClass::LoadKind::kDexCacheViaMethod;
+          desired_load_kind = HLoadClass::LoadKind::kRuntimeCall;
         }
       } else if (is_in_boot_image && !codegen->GetCompilerOptions().GetCompilePic()) {
         // AOT app compilation. Check if the class is in the boot image.
@@ -229,7 +229,7 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
   }
 
   if (!IsSameDexFile(load_class->GetDexFile(), *dex_compilation_unit.GetDexFile())) {
-    if ((load_kind == HLoadClass::LoadKind::kDexCacheViaMethod) ||
+    if ((load_kind == HLoadClass::LoadKind::kRuntimeCall) ||
         (load_kind == HLoadClass::LoadKind::kBssEntry)) {
       // We actually cannot reference this class, we're forced to bail.
       // We cannot reference this class with Bss, as the entrypoint will lookup the class
@@ -241,7 +241,7 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(HLoadClass* load_class,
 }
 
 void HSharpening::ProcessLoadString(HLoadString* load_string) {
-  DCHECK_EQ(load_string->GetLoadKind(), HLoadString::LoadKind::kDexCacheViaMethod);
+  DCHECK_EQ(load_string->GetLoadKind(), HLoadString::LoadKind::kRuntimeCall);
 
   const DexFile& dex_file = load_string->GetDexFile();
   dex::StringIndex string_index = load_string->GetStringIndex();
@@ -268,7 +268,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
         desired_load_kind = HLoadString::LoadKind::kBootImageLinkTimePcRelative;
       } else {
         // compiler_driver_test. Do not sharpen.
-        desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
+        desired_load_kind = HLoadString::LoadKind::kRuntimeCall;
       }
     } else if (runtime->UseJitCompilation()) {
       DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
@@ -280,7 +280,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
           desired_load_kind = HLoadString::LoadKind::kJitTableAddress;
         }
       } else {
-        desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
+        desired_load_kind = HLoadString::LoadKind::kRuntimeCall;
       }
     } else {
       // AOT app compilation. Try to lookup the string without allocating if not found.

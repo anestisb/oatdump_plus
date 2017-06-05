@@ -5692,12 +5692,11 @@ class HLoadClass FINAL : public HInstruction {
     // Load from the root table associated with the JIT compiled method.
     kJitTableAddress,
 
-    // Load from resolved types array accessed through the class loaded from
-    // the compiled method's own ArtMethod*. This is the default access type when
-    // all other types are unavailable.
-    kDexCacheViaMethod,
+    // Load using a simple runtime call. This is the fall-back load kind when
+    // the codegen is unable to use another appropriate kind.
+    kRuntimeCall,
 
-    kLast = kDexCacheViaMethod
+    kLast = kRuntimeCall
   };
 
   HLoadClass(HCurrentMethod* current_method,
@@ -5718,7 +5717,7 @@ class HLoadClass FINAL : public HInstruction {
     DCHECK(!is_referrers_class || !needs_access_check);
 
     SetPackedField<LoadKindField>(
-        is_referrers_class ? LoadKind::kReferrersClass : LoadKind::kDexCacheViaMethod);
+        is_referrers_class ? LoadKind::kReferrersClass : LoadKind::kRuntimeCall);
     SetPackedFlag<kFlagNeedsAccessCheck>(needs_access_check);
     SetPackedFlag<kFlagIsInBootImage>(false);
     SetPackedFlag<kFlagGenerateClInitCheck>(false);
@@ -5752,7 +5751,7 @@ class HLoadClass FINAL : public HInstruction {
   bool CanCallRuntime() const {
     return NeedsAccessCheck() ||
            MustGenerateClinitCheck() ||
-           GetLoadKind() == LoadKind::kDexCacheViaMethod ||
+           GetLoadKind() == LoadKind::kRuntimeCall ||
            GetLoadKind() == LoadKind::kBssEntry;
   }
 
@@ -5762,7 +5761,7 @@ class HLoadClass FINAL : public HInstruction {
            // If the class is in the boot image, the lookup in the runtime call cannot throw.
            // This keeps CanThrow() consistent between non-PIC (using kBootImageAddress) and
            // PIC and subsequently avoids a DCE behavior dependency on the PIC option.
-           ((GetLoadKind() == LoadKind::kDexCacheViaMethod ||
+           ((GetLoadKind() == LoadKind::kRuntimeCall ||
              GetLoadKind() == LoadKind::kBssEntry) &&
             !IsInBootImage());
   }
@@ -5781,7 +5780,7 @@ class HLoadClass FINAL : public HInstruction {
   const DexFile& GetDexFile() const { return dex_file_; }
 
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE {
-    return GetLoadKind() == LoadKind::kDexCacheViaMethod;
+    return GetLoadKind() == LoadKind::kRuntimeCall;
   }
 
   static SideEffects SideEffectsForArchRuntimeCalls() {
@@ -5832,12 +5831,12 @@ class HLoadClass FINAL : public HInstruction {
     return load_kind == LoadKind::kReferrersClass ||
         load_kind == LoadKind::kBootImageLinkTimePcRelative ||
         load_kind == LoadKind::kBssEntry ||
-        load_kind == LoadKind::kDexCacheViaMethod;
+        load_kind == LoadKind::kRuntimeCall;
   }
 
   void SetLoadKindInternal(LoadKind load_kind);
 
-  // The special input is the HCurrentMethod for kDexCacheViaMethod or kReferrersClass.
+  // The special input is the HCurrentMethod for kRuntimeCall or kReferrersClass.
   // For other load kinds it's empty or possibly some architecture-specific instruction
   // for PC-relative loads, i.e. kBssEntry or kBootImageLinkTimePcRelative.
   HUserRecord<HInstruction*> special_input_;
@@ -5846,7 +5845,7 @@ class HLoadClass FINAL : public HInstruction {
   // - The compiling method's dex file if the class is defined there too.
   // - The compiling method's dex file if the class is referenced there.
   // - The dex file where the class is defined. When the load kind can only be
-  //   kBssEntry or kDexCacheViaMethod, we cannot emit code for this `HLoadClass`.
+  //   kBssEntry or kRuntimeCall, we cannot emit code for this `HLoadClass`.
   const dex::TypeIndex type_index_;
   const DexFile& dex_file_;
 
@@ -5889,12 +5888,11 @@ class HLoadString FINAL : public HInstruction {
     // Load from the root table associated with the JIT compiled method.
     kJitTableAddress,
 
-    // Load from resolved strings array accessed through the class loaded from
-    // the compiled method's own ArtMethod*. This is the default access type when
-    // all other types are unavailable.
-    kDexCacheViaMethod,
+    // Load using a simple runtime call. This is the fall-back load kind when
+    // the codegen is unable to use another appropriate kind.
+    kRuntimeCall,
 
-    kLast = kDexCacheViaMethod,
+    kLast = kRuntimeCall,
   };
 
   HLoadString(HCurrentMethod* current_method,
@@ -5905,7 +5903,7 @@ class HLoadString FINAL : public HInstruction {
         special_input_(HUserRecord<HInstruction*>(current_method)),
         string_index_(string_index),
         dex_file_(dex_file) {
-    SetPackedField<LoadKindField>(LoadKind::kDexCacheViaMethod);
+    SetPackedField<LoadKindField>(LoadKind::kRuntimeCall);
   }
 
   void SetLoadKind(LoadKind load_kind);
@@ -5949,7 +5947,7 @@ class HLoadString FINAL : public HInstruction {
   }
 
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE {
-    return GetLoadKind() == LoadKind::kDexCacheViaMethod;
+    return GetLoadKind() == LoadKind::kRuntimeCall;
   }
 
   bool CanBeNull() const OVERRIDE { return false; }
@@ -5983,7 +5981,7 @@ class HLoadString FINAL : public HInstruction {
 
   void SetLoadKindInternal(LoadKind load_kind);
 
-  // The special input is the HCurrentMethod for kDexCacheViaMethod.
+  // The special input is the HCurrentMethod for kRuntimeCall.
   // For other load kinds it's empty or possibly some architecture-specific instruction
   // for PC-relative loads, i.e. kBssEntry or kBootImageLinkTimePcRelative.
   HUserRecord<HInstruction*> special_input_;
