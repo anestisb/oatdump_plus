@@ -699,5 +699,12 @@
                          "of the framework. But a non-sanitized zipalign binary does not work with",
                          "a sanitized libc++."],
         "env_vars": {"SANITIZE_HOST": "address"}
+    },
+    {
+        "tests": "137-cfi",
+        "description": [ "ASan is reporting out-of-bounds reads in libunwind."],
+        "variant": "host",
+        "env_vars": {"SANITIZE_HOST": "address"},
+        "bug": "b/62350406"
     }
 ]
