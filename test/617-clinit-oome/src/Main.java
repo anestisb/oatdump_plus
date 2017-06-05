@@ -37,7 +37,7 @@ public class Main {
         Other.print();
     } catch (OutOfMemoryError e) {
     } catch (Exception e) {
-        System.err.println(e);
+        System.out.println(e);
     }
   }
 }

@@ -140,7 +140,7 @@ public class Main {
             allocator.join();
             dumper.join();
         } catch (InterruptedException e) {
-            System.err.println("join interrupted");
+            System.out.println("join interrupted");
         }
     }
 
@@ -178,7 +178,7 @@ public class Main {
         try {
             Thread.sleep(ms);
         } catch (InterruptedException e) {
-            System.err.println("sleep interrupted");
+            System.out.println("sleep interrupted");
         }
     }
 
@@ -223,7 +223,7 @@ public class Main {
         try {
             meth = vmdClass.getMethod("dumpHprofData", String.class);
         } catch (NoSuchMethodException nsme) {
-            System.err.println("Found VMDebug but not dumpHprofData method");
+            System.out.println("Found VMDebug but not dumpHprofData method");
             return null;
         }
 

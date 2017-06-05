@@ -34,31 +34,31 @@ public class Main {
         try {
             testCalendar();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
 
         try {
             testDateFormatSymbols();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
 
         try {
             testCurrency();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
 
         try {
             testNormalizer();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
 
         try {
             testIso3();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
     }
 
@@ -125,13 +125,13 @@ public class Main {
 
         res = Normalizer.normalize(composed, Normalizer.Form.NFD);
         if (!decomposed.equals(res)) {
-            System.err.println("Bad decompose: '" + composed + "' --> '"
+            System.out.println("Bad decompose: '" + composed + "' --> '"
                 + res + "'");
         }
 
         res = Normalizer.normalize(decomposed, Normalizer.Form.NFC);
         if (!composed.equals(res)) {
-            System.err.println("Bad compose: '" + decomposed + "' --> '"
+            System.out.println("Bad compose: '" + decomposed + "' --> '"
                 + res + "'");
         }
 
@@ -153,7 +153,7 @@ public class Main {
         try {
             System.out.println(" iso3=" + loc.getISO3Language());
         } catch (MissingResourceException mre) {
-            System.err.println("couldn't get iso3 language");
+            System.out.println("couldn't get iso3 language");
         }
     }
 }

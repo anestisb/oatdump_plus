@@ -39,7 +39,7 @@ public class Main {
             Thread.sleep(1000);
         } catch (InterruptedException ie) {
             System.out.println("INTERRUPT!");
-            ie.printStackTrace();
+            ie.printStackTrace(System.out);
         }
         System.out.println("GONE");
     }
@@ -56,7 +56,7 @@ public class Main {
                 one.wait();
             } catch (InterruptedException ie) {
                 System.out.println("INTERRUPT!");
-                ie.printStackTrace();
+                ie.printStackTrace(System.out);
             }
         }
 
@@ -69,7 +69,7 @@ public class Main {
             two.join();
         } catch (InterruptedException ie) {
             System.out.println("INTERRUPT!");
-            ie.printStackTrace();
+            ie.printStackTrace(System.out);
         }
         System.out.println("main: all done");
     }
@@ -167,7 +167,7 @@ class SleepyThread extends Thread {
                         " interrupted, flag=" + Thread.interrupted());
                 intr = true;
             } catch (Exception ex) {
-                ex.printStackTrace();
+                ex.printStackTrace(System.out);
             }
 
             if (!intr)

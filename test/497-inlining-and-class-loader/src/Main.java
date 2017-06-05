@@ -121,7 +121,7 @@ class Main {
     // Because we cleared dex cache entries, we will have to find
     // classes again, which require to use the correct class loader
     // in the presence of inlining.
-    new Exception().printStackTrace();
+    new Exception().printStackTrace(System.out);
   }
   static Object savedResolvedMethods;
 

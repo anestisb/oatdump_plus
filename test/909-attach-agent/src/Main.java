@@ -19,17 +19,17 @@ import java.io.IOException;
 
 public class Main {
   public static void main(String[] args) {
-    System.err.println("Hello, world!");
+    System.out.println("Hello, world!");
     for(String a : args) {
       if(a.startsWith("agent:")) {
         String agent = a.substring(6);
         try {
           VMDebug.attachAgent(agent);
         } catch(IOException e) {
-          e.printStackTrace();
+          e.printStackTrace(System.out);
         }
       }
     }
-    System.err.println("Goodbye!");
+    System.out.println("Goodbye!");
   }
 }

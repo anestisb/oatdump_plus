@@ -52,7 +52,7 @@ public class DefaultDeclared {
       System.out.println("NoSuchMethodException thrown for class " + klass.toString());
     } catch (Throwable t) {
       System.out.println("Unknown error thrown for class " + klass.toString());
-      t.printStackTrace();
+      t.printStackTrace(System.out);
     }
   }
 

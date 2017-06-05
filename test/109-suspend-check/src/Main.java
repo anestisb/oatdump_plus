@@ -55,7 +55,7 @@ public class Main {
         try {
             Thread.sleep(ms);
         } catch (InterruptedException ie) {
-            System.err.println("sleep was interrupted");
+            System.out.println("sleep was interrupted");
         }
     }
 }

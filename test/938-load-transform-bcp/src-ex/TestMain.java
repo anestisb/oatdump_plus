@@ -29,7 +29,7 @@ public class TestMain {
       System.out.println(
           "Exception occured (did something load OptionalLong before this test method!: "
           + e.toString());
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
   }
 }

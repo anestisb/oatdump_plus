@@ -18,7 +18,7 @@ public class Main {
     static public void main(String[] args) {
         try {
             PublicAccess.accessStaticField();
-            System.err.println("ERROR: call 1 not expected to succeed");
+            System.out.println("ERROR: call 1 not expected to succeed");
         } catch (VerifyError ve) {
             // dalvik
             System.out.println("Got expected failure 1");
@@ -29,7 +29,7 @@ public class Main {
 
         try {
             PublicAccess.accessStaticMethod();
-            System.err.println("ERROR: call 2 not expected to succeed");
+            System.out.println("ERROR: call 2 not expected to succeed");
         } catch (IllegalAccessError iae) {
             // reference
             System.out.println("Got expected failure 2");
@@ -37,7 +37,7 @@ public class Main {
 
         try {
             PublicAccess.accessInstanceField();
-            System.err.println("ERROR: call 3 not expected to succeed");
+            System.out.println("ERROR: call 3 not expected to succeed");
         } catch (VerifyError ve) {
             // dalvik
             System.out.println("Got expected failure 3");
@@ -48,7 +48,7 @@ public class Main {
 
         try {
             PublicAccess.accessInstanceMethod();
-            System.err.println("ERROR: call 4 not expected to succeed");
+            System.out.println("ERROR: call 4 not expected to succeed");
         } catch (IllegalAccessError iae) {
             // reference
             System.out.println("Got expected failure 4");
@@ -56,7 +56,7 @@ public class Main {
 
         try {
             CheckInstanceof.main(new Object());
-            System.err.println("ERROR: call 5 not expected to succeed");
+            System.out.println("ERROR: call 5 not expected to succeed");
         } catch (VerifyError ve) {
             // dalvik
             System.out.println("Got expected failure 5");

@@ -133,12 +133,12 @@ public class ClassAttrs {
             System.out.println("field signature: "
                     + getSignatureAttribute(field));
         } catch (NoSuchMethodException nsme) {
-            System.err.println("FAILED: " + nsme);
+            System.out.println("FAILED: " + nsme);
         } catch (NoSuchFieldException nsfe) {
-            System.err.println("FAILED: " + nsfe);
+            System.out.println("FAILED: " + nsfe);
         } catch (RuntimeException re) {
-            System.err.println("FAILED: " + re);
-            re.printStackTrace();
+            System.out.println("FAILED: " + re);
+            re.printStackTrace(System.out);
         }
 
         test_isAssignableFrom();
@@ -228,7 +228,7 @@ public class ClassAttrs {
             method = c.getDeclaredMethod("getSignatureAttribute");
             method.setAccessible(true);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
             return "<unknown>";
         }
 

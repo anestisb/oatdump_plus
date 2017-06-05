@@ -67,7 +67,7 @@ public class Main {
         } catch (Throwable th) {
             // We and the RI throw ClassNotFoundException, but that isn't declared so javac
             // won't let us try to catch it.
-            th.printStackTrace();
+            th.printStackTrace(System.out);
         }
         InternedString.run();
         GenSelect.run();

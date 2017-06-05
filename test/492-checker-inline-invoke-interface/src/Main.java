@@ -21,7 +21,7 @@ interface Itf {
 class ForceStatic {
   static {
     System.out.println("Hello from clinit");
-    new Exception().printStackTrace();
+    new Exception().printStackTrace(System.out);
   }
   static int field;
 }

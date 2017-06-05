@@ -23,7 +23,7 @@ public class Main extends SuperMain implements IMain {
     void doit() {
         try {
             System.out.println("value=" + this.f);
-            System.err.println("Succeeded unexpectedly");
+            System.out.println("Succeeded unexpectedly");
         } catch (IncompatibleClassChangeError icce) {
             System.out.println("Got expected failure");
         }

@@ -50,7 +50,7 @@ public class Main {
             // Test that objects keep class loader live for sticky GC.
             testStickyUnload(constructor);
         } catch (Exception e) {
-            e.printStackTrace();
+            e.printStackTrace(System.out);
         }
     }
 

@@ -70,30 +70,30 @@ public class Main {
   }
 
   public static void fail() {
-    System.err.println("fail");
+    System.out.println("fail");
     Thread.dumpStack();
   }
 
   public static void fail(String message) {
-    System.err.println("fail: " + message);
+    System.out.println("fail: " + message);
     Thread.dumpStack();
   }
 
   public static int Min2Print2(int a, int b) {
     int[] values = new int[] { a, b };
-    System.err.println("Running Main.Min2Print2(" + Arrays.toString(values) + ")");
+    System.out.println("Running Main.Min2Print2(" + Arrays.toString(values) + ")");
     return a > b ? a : b;
   }
 
   public static int Min2Print3(int a, int b, int c) {
     int[] values = new int[] { a, b, c };
-    System.err.println("Running Main.Min2Print3(" + Arrays.toString(values) + ")");
+    System.out.println("Running Main.Min2Print3(" + Arrays.toString(values) + ")");
     return a > b ? a : b;
   }
 
   public static int Min2Print6(int a, int b, int c, int d, int e, int f) {
     int[] values = new int[] { a, b, c, d, e, f };
-    System.err.println("Running Main.Min2Print6(" + Arrays.toString(values) + ")");
+    System.out.println("Running Main.Min2Print6(" + Arrays.toString(values) + ")");
     return a > b ? a : b;
   }
 
@@ -106,7 +106,7 @@ public class Main {
                                 int y, int z) {
     int[] values = new int[] { a, b, c, d, e, f, g, h, i, j, k, l, m,
                                n, o, p, q, r, s, t, u, v, w, x, y, z };
-    System.err.println("Running Main.Min2Print26(" + Arrays.toString(values) + ")");
+    System.out.println("Running Main.Min2Print26(" + Arrays.toString(values) + ")");
     return a > b ? a : b;
   }
 
@@ -176,7 +176,7 @@ public class Main {
         fail("No NPE for you");
     } catch (NullPointerException npe) {}
 
-    System.err.println("BasicTest done.");
+    System.out.println("BasicTest done.");
   }
 
   private static boolean And(boolean lhs, boolean rhs) {
@@ -248,7 +248,7 @@ public class Main {
     assertEquals(true, (boolean) mh.invoke(false, true));
     assertEquals(false, (boolean) mh.invoke(false, false));
 
-    System.err.println("$opt$ReturnBooleanTest done.");
+    System.out.println("$opt$ReturnBooleanTest done.");
   }
 
   public static void $opt$ReturnCharTest() throws Throwable {
@@ -257,7 +257,7 @@ public class Main {
                            MethodType.methodType(char.class, char.class));
     assertEquals('B', (char) mh.invokeExact('A'));
     assertEquals((char) -55, (char) mh.invokeExact((char) -56));
-    System.err.println("$opt$ReturnCharTest done.");
+    System.out.println("$opt$ReturnCharTest done.");
   }
 
   public static void $opt$ReturnByteTest() throws Throwable {
@@ -266,7 +266,7 @@ public class Main {
                                          MethodType.methodType(byte.class, byte.class, byte.class));
     assertEquals((byte) 30, (byte) mh.invokeExact((byte) 10, (byte) 3));
     assertEquals((byte) -90, (byte) mh.invoke((byte) -10, (byte) 9));
-    System.err.println("$opt$ReturnByteTest done.");
+    System.out.println("$opt$ReturnByteTest done.");
   }
 
   public static void $opt$ReturnShortTest() throws Throwable {
@@ -275,7 +275,7 @@ public class Main {
                            MethodType.methodType(short.class, short.class, short.class));
     assertEquals((short) 3000, (short) mh.invokeExact((short) 1000, (short) 3));
     assertEquals((short) -3000, (short) mh.invoke((short) -1000, (short) 3));
-    System.err.println("$opt$ReturnShortTest done.");
+    System.out.println("$opt$ReturnShortTest done.");
   }
 
   public static void $opt$ReturnIntTest() throws Throwable {
@@ -284,7 +284,7 @@ public class Main {
                            MethodType.methodType(int.class, int.class, int.class));
     assertEquals(3_000_000, (int) mh.invokeExact(1_000_000, 3));
     assertEquals(-3_000_000, (int) mh.invoke(-1_000, 3_000));
-    System.err.println("$opt$ReturnIntTest done.");
+    System.out.println("$opt$ReturnIntTest done.");
   }
 
   public static void $opt$ReturnLongTest() throws Throwable {
@@ -293,7 +293,7 @@ public class Main {
                            MethodType.methodType(long.class, long.class, long.class));
     assertEquals(4_294_967_295_000L, (long) mh.invokeExact(1000L, 4_294_967_295L));
     assertEquals(-4_294_967_295_000L, (long) mh.invoke(-1000L, 4_294_967_295L));
-    System.err.println("$opt$ReturnLongTest done.");
+    System.out.println("$opt$ReturnLongTest done.");
   }
 
   public static void $opt$ReturnFloatTest() throws Throwable {
@@ -302,7 +302,7 @@ public class Main {
                            MethodType.methodType(float.class, float.class, float.class));
     assertEquals(3.0F, (float) mh.invokeExact(1000.0F, 3e-3F));
     assertEquals(-3.0F, (float) mh.invoke(-1000.0F, 3e-3F));
-    System.err.println("$opt$ReturnFloatTest done.");
+    System.out.println("$opt$ReturnFloatTest done.");
   }
 
   public static void $opt$ReturnDoubleTest() throws Throwable {
@@ -311,7 +311,7 @@ public class Main {
                            MethodType.methodType(double.class, double.class, double.class));
     assertEquals(3033000.0, (double) mh.invokeExact(1000.0, 3.033e3));
     assertEquals(-3033000.0, (double) mh.invoke(-1000.0, 3.033e3));
-    System.err.println("$opt$ReturnDoubleTest done.");
+    System.out.println("$opt$ReturnDoubleTest done.");
   }
 
   public static void $opt$ReturnStringTest() throws Throwable {
@@ -320,7 +320,7 @@ public class Main {
                            MethodType.methodType(String.class, String.class, int.class));
     assertEquals("100010001000", (String) mh.invokeExact("1000", 3));
     assertEquals("100010001000", (String) mh.invoke("1000", 3));
-    System.err.println("$opt$ReturnStringTest done.");
+    System.out.println("$opt$ReturnStringTest done.");
   }
 
   public static void ReturnValuesTest() throws Throwable {
@@ -333,7 +333,7 @@ public class Main {
     $opt$ReturnFloatTest();
     $opt$ReturnDoubleTest();
     $opt$ReturnStringTest();
-    System.err.println("ReturnValuesTest done.");
+    System.out.println("ReturnValuesTest done.");
   }
 
   static class ValueHolder {

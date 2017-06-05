@@ -99,7 +99,7 @@ public class Main {
                         System.exit(0);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    e.printStackTrace(System.out);
                 }
             }
         });
@@ -127,7 +127,7 @@ public class Main {
                     map.put(new DummyObject(10), Long.valueOf(100));
                     assertIsInterpreted();  // Every deoptimizeable method is deoptimized.
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    e.printStackTrace(System.out);
                 }
             }
         });

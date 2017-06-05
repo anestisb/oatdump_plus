@@ -81,7 +81,7 @@ public class Main {
                      !message.endsWith(" with multiple class loaders");
       }
       if (unexpected) {
-        cnfe.getCause().printStackTrace();
+        cnfe.getCause().printStackTrace(System.out);
       }
     }
   }

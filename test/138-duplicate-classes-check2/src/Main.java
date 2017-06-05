@@ -37,7 +37,7 @@ public class Main {
             Method test = testEx.getDeclaredMethod("test");
             test.invoke(null);
         } catch (Exception exc) {
-            exc.printStackTrace();
+            exc.printStackTrace(System.out);
         }
     }
 }

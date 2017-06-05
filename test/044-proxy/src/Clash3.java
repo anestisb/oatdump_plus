@@ -35,7 +35,7 @@ public class Clash3 {
                     Interface3aa.class,
                     Interface3b.class },
                 handler);
-            System.err.println("Clash3 did not throw expected exception");
+            System.out.println("Clash3 did not throw expected exception");
         } catch (IllegalArgumentException iae) {
             System.out.println("Clash3 threw expected exception");
         }

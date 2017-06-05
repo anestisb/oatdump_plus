@@ -111,7 +111,7 @@ class Main {
       run_test.invoke(null);
     } catch (Exception e) {
       System.out.println(e.toString());
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
   }
 }

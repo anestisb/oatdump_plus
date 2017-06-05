@@ -19,7 +19,7 @@ public class Main {
         /* try to use the reference; should fail */
         try {
             holder.mValue.run();
-            System.err.println("ERROR: did not get expected ICCE");
+            System.out.println("ERROR: did not get expected ICCE");
         } catch (IncompatibleClassChangeError icce) {
             System.out.println("Got expected IncompatibleClassChangeError");
         }

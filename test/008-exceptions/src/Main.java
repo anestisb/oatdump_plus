@@ -155,7 +155,7 @@ public class Main {
         } catch (BadError e) {
             System.out.println(e);
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
         try {
             // Before splitting mirror::Class::kStatusError into
@@ -171,11 +171,11 @@ public class Main {
             throw new IllegalStateException("Should not reach here.");
         } catch (NoClassDefFoundError ncdfe) {
             if (!(ncdfe.getCause() instanceof BadError)) {
-                ncdfe.getCause().printStackTrace();
+                ncdfe.getCause().printStackTrace(System.out);
             }
         } catch (VerifyError e) {
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
     }
 
@@ -186,7 +186,7 @@ public class Main {
         } catch (Error e) {
             System.out.println(e);
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
         // Before splitting mirror::Class::kStatusError into
         // kStatusErrorUnresolved and kStatusErrorResolved,
@@ -200,7 +200,7 @@ public class Main {
             System.out.println(ncdfe);
             System.out.println("  cause: " + ncdfe.getCause());
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
         try {
             MultiDexBadInitWrapper2.setDummy(1);
@@ -209,7 +209,7 @@ public class Main {
             System.out.println(ncdfe);
             System.out.println("  cause: " + ncdfe.getCause());
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
     }
 }

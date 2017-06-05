@@ -120,7 +120,7 @@ public class Main {
       static void printNonFinalized() {
         for (int i = 0; i < maxCount; ++i) {
           if (!FinalizeCounter.finalized[i]) {
-            System.err.println("Element " + i + " was not finalized");
+            System.out.println("Element " + i + " was not finalized");
           }
         }
       }

@@ -24,7 +24,7 @@ public class Main {
         // that is currently a resolution stub because it's running on behalf of <clinit>.
         try {
             throwDuringClinit();
-            System.err.println("didn't throw!");
+            System.out.println("didn't throw!");
         } catch (NullPointerException ex) {
             System.out.println("caught exception thrown during clinit");
         }
@@ -44,34 +44,34 @@ public class Main {
         try {
             Thread.sleep(msec);
         } catch (InterruptedException ie) {
-            System.err.println("sleep interrupted");
+            System.out.println("sleep interrupted");
         }
     }
 
     static void checkExceptions() {
         try {
             System.out.println(PartialInit.FIELD0);
-            System.err.println("Construction of PartialInit succeeded unexpectedly");
+            System.out.println("Construction of PartialInit succeeded unexpectedly");
         } catch (ExceptionInInitializerError eiie) {
             System.out.println("Got expected EIIE for FIELD0");
         }
 
         try {
             System.out.println(PartialInit.FIELD0);
-            System.err.println("Load of FIELD0 succeeded unexpectedly");
+            System.out.println("Load of FIELD0 succeeded unexpectedly");
         } catch (NoClassDefFoundError ncdfe) {
             System.out.println("Got expected NCDFE for FIELD0");
         }
         try {
             System.out.println(PartialInit.FIELD1);
-            System.err.println("Load of FIELD1 succeeded unexpectedly");
+            System.out.println("Load of FIELD1 succeeded unexpectedly");
         } catch (NoClassDefFoundError ncdfe) {
             System.out.println("Got expected NCDFE for FIELD1");
         }
 
         try {
             System.out.println(Exploder.FIELD);
-            System.err.println("Load of FIELD succeeded unexpectedly");
+            System.out.println("Load of FIELD succeeded unexpectedly");
         } catch (AssertionError expected) {
             System.out.println("Got expected '" + expected.getMessage() + "' from Exploder");
         }
@@ -92,7 +92,7 @@ public class Main {
             fieldThread.join();
             methodThread.join();
         } catch (InterruptedException ie) {
-            System.err.println(ie);
+            System.out.println(ie);
         }
 
         /* print all values */

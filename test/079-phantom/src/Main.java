@@ -21,7 +21,7 @@ public class Main {
         try {
             Thread.sleep(ms);
         } catch (InterruptedException ie) {
-            System.err.println("sleep interrupted");
+            System.out.println("sleep interrupted");
         }
     }
 

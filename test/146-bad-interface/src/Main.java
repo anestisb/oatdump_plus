@@ -37,7 +37,7 @@ public class Main {
     } catch (Throwable t) {
       System.out.println("Error occurred");
       System.out.println(t);
-      t.printStackTrace();
+      t.printStackTrace(System.out);
     }
   }
 }

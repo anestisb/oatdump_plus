@@ -129,7 +129,7 @@ public class Main {
           "privateSayHi", int.class, Consumer.class, Runnable.class);
     } catch (Exception e) {
       System.out.println("Unable to find methods!");
-      e.printStackTrace();
+      e.printStackTrace(System.out);
       return;
     }
     // Makes sure the stack is the way we want it for the test and does the redefinition. It will

@@ -89,7 +89,7 @@ public class Main {
 
             try {
                 meth = target.getMethod("packageMethod");
-                System.err.println("succeeded on package-scope method");
+                System.out.println("succeeded on package-scope method");
             } catch (NoSuchMethodException nsme) {
                 // good
             }
@@ -101,7 +101,7 @@ public class Main {
             try {
                 if (!FULL_ACCESS_CHECKS) { throw new IllegalAccessException(); }
                 meth.invoke(instance);
-                System.err.println("inner-method invoke unexpectedly worked");
+                System.out.println("inner-method invoke unexpectedly worked");
             } catch (IllegalAccessException iae) {
                 // good
             }
@@ -110,13 +110,13 @@ public class Main {
             try {
                 int x = field.getInt(instance);
                 if (!FULL_ACCESS_CHECKS) { throw new IllegalAccessException(); }
-                System.err.println("field get unexpectedly worked: " + x);
+                System.out.println("field get unexpectedly worked: " + x);
             } catch (IllegalAccessException iae) {
                 // good
             }
         } catch (Exception ex) {
             System.out.println("----- unexpected exception -----");
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
     }
 
@@ -171,7 +171,7 @@ public class Main {
             }
             catch (Exception ex) {
                 System.out.println("GLITCH: invoke got wrong exception:");
-                ex.printStackTrace();
+                ex.printStackTrace(System.out);
             }
             System.out.println("");
 
@@ -400,7 +400,7 @@ public class Main {
 
         } catch (Exception ex) {
             System.out.println("----- unexpected exception -----");
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
 
         System.out.println("ReflectTest done!");
@@ -414,7 +414,7 @@ public class Main {
             m = Collections.class.getDeclaredMethod("swap",
                             Object[].class, int.class, int.class);
         } catch (NoSuchMethodException nsme) {
-            nsme.printStackTrace();
+            nsme.printStackTrace(System.out);
             return;
         }
         System.out.println(m + " accessible=" + m.isAccessible());
@@ -423,10 +423,10 @@ public class Main {
         try {
             m.invoke(null, objects, 0, 1);
         } catch (IllegalAccessException iae) {
-            iae.printStackTrace();
+            iae.printStackTrace(System.out);
             return;
         } catch (InvocationTargetException ite) {
-            ite.printStackTrace();
+            ite.printStackTrace(System.out);
             return;
         }
 
@@ -434,10 +434,10 @@ public class Main {
             String s = "Should be ignored";
             m.invoke(s, objects, 0, 1);
         } catch (IllegalAccessException iae) {
-            iae.printStackTrace();
+            iae.printStackTrace(System.out);
             return;
         } catch (InvocationTargetException ite) {
-            ite.printStackTrace();
+            ite.printStackTrace(System.out);
             return;
         }
 
@@ -449,7 +449,7 @@ public class Main {
         } catch (InvocationTargetException ite) {
             System.out.println("checkType got expected exception");
         } catch (IllegalAccessException iae) {
-            iae.printStackTrace();
+            iae.printStackTrace(System.out);
             return;
         }
     }
@@ -826,7 +826,7 @@ class FieldNoisyInit {
     static {
         System.out.println("FieldNoisyInit is initializing");
         //Throwable th = new Throwable();
-        //th.printStackTrace();
+        //th.printStackTrace(System.out);
     }
 }
 
@@ -842,7 +842,7 @@ class MethodNoisyInit {
     static {
         System.out.println("MethodNoisyInit is initializing");
         //Throwable th = new Throwable();
-        //th.printStackTrace();
+        //th.printStackTrace(System.out);
     }
 }
 

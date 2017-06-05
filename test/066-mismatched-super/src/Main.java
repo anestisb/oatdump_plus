@@ -21,7 +21,7 @@ public class Main {
     public static void main(String[] args) {
         try {
             Indirect.main();
-            System.err.println("Succeeded unexpectedly");
+            System.out.println("Succeeded unexpectedly");
         } catch (IncompatibleClassChangeError icce) {
             System.out.println("Got expected ICCE");
         }

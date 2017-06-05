@@ -91,7 +91,7 @@ public class Main {
           if (e.getCause() instanceof VerifyError) {
             System.out.println("Caught wrapped VerifyError.");
           } else {
-            e.printStackTrace();
+            e.printStackTrace(System.out);
           }
         }
 

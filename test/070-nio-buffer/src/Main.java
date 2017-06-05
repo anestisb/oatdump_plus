@@ -58,7 +58,7 @@ public class Main {
 
         try {
             shortBuf.put(myShorts, 0, 1);     // should fail
-            System.err.println("ERROR: out-of-bounds put succeeded\n");
+            System.out.println("ERROR: out-of-bounds put succeeded\n");
         } catch (BufferOverflowException boe) {
             System.out.println("Got expected buffer overflow exception");
         }
@@ -66,7 +66,7 @@ public class Main {
         try {
             shortBuf.position(0);
             shortBuf.put(myShorts, 0, 33);     // should fail
-            System.err.println("ERROR: out-of-bounds put succeeded\n");
+            System.out.println("ERROR: out-of-bounds put succeeded\n");
         } catch (IndexOutOfBoundsException ioobe) {
             System.out.println("Got expected out-of-bounds exception");
         }
@@ -74,7 +74,7 @@ public class Main {
         try {
             shortBuf.position(16);
             shortBuf.put(myShorts, 0, 17);     // should fail
-            System.err.println("ERROR: out-of-bounds put succeeded\n");
+            System.out.println("ERROR: out-of-bounds put succeeded\n");
         } catch (BufferOverflowException boe) {
             System.out.println("Got expected buffer overflow exception");
         }

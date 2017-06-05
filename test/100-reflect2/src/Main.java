@@ -292,7 +292,7 @@ class Main {
       // Expected.
     } catch (Exception e) {
       // Error.
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
   }
 
@@ -304,7 +304,7 @@ class Main {
       cons.newInstance();
     } catch (Exception e) {
       // Error.
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
   }
 

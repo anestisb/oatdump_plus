@@ -32,7 +32,7 @@ public class Clash {
             Proxy.newProxyInstance(Clash.class.getClassLoader(),
                 new Class<?>[] { Interface1A.class, Interface1A.class },
                 handler);
-            System.err.println("Dupe did not throw expected exception");
+            System.out.println("Dupe did not throw expected exception");
         } catch (IllegalArgumentException iae) {
             System.out.println("Dupe threw expected exception");
         }
@@ -41,7 +41,7 @@ public class Clash {
             Proxy.newProxyInstance(Clash.class.getClassLoader(),
                 new Class<?>[] { Interface1A.class, Interface1B.class },
                 handler);
-            System.err.println("Clash did not throw expected exception");
+            System.out.println("Clash did not throw expected exception");
         } catch (IllegalArgumentException iae) {
             System.out.println("Clash threw expected exception");
         }

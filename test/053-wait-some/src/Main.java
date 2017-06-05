@@ -39,7 +39,7 @@ public class Main {
             } catch (IllegalArgumentException iae) {
                 System.out.println("Caught expected exception on neg arg");
             } catch (InterruptedException ie) {
-                ie.printStackTrace();
+                ie.printStackTrace(System.out);
             }
 
             for (long delay : DELAYS) {
@@ -49,7 +49,7 @@ public class Main {
                 try {
                     sleepy.wait(delay);
                 } catch (InterruptedException ie) {
-                    ie.printStackTrace();
+                    ie.printStackTrace(System.out);
                 }
                 end = System.currentTimeMillis();
 

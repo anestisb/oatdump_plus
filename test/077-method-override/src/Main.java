@@ -37,8 +37,8 @@ public class Main {
             ((Base)derived).overrideVirtualWithStatic();
         } catch (NoSuchMethodError nsme) {
             /* NSME is subclass of ICCE, so check it explicitly */
-            System.err.println("Got NSME - ovws");
-            nsme.printStackTrace(System.err);
+            System.out.println("Got NSME - ovws");
+            nsme.printStackTrace(System.out);
         } catch (IncompatibleClassChangeError icce) {
             System.out.println("Got expected exception - ovws");
         }
@@ -46,8 +46,8 @@ public class Main {
         try {
             ((Base)derived).overrideStaticWithVirtual();
         } catch (NoSuchMethodError nsme) {
-            System.err.println("Got NSME - oswv");
-            nsme.printStackTrace(System.err);
+            System.out.println("Got NSME - oswv");
+            nsme.printStackTrace(System.out);
         } catch (IncompatibleClassChangeError icce) {
             System.out.println("Got expected exception - oswv");
         }

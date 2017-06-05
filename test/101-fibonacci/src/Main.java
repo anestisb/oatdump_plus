@@ -51,7 +51,7 @@ class Main {
             y = fibonacci(x + 1);
             System.out.printf("fibonacci(%d)=%d\n", x + 1, y);
         } catch (NumberFormatException ex) {
-            System.err.println(ex);
+            System.out.println(ex);
             System.exit(1);
         }
     }
