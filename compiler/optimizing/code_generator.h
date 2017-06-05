@@ -573,9 +573,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   virtual void GenerateNop() = 0;
 
-  uint32_t GetReferenceSlowFlagOffset() const;
-  uint32_t GetReferenceDisableFlagOffset() const;
-
   static QuickEntrypointEnum GetArrayAllocationEntrypoint(Handle<mirror::Class> array_klass);
 
  protected:
