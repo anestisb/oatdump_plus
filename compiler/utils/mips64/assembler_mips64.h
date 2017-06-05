@@ -774,6 +774,9 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void IlvrW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void IlvrD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
 
+  // Helper for replicating floating point value in all destination elements.
+  void ReplicateFPToVectorRegister(VectorRegister dst, FpuRegister src, bool is_double);
+
   // Higher level composite instructions.
   int InstrCountForLoadReplicatedConst32(int64_t);
   void LoadConst32(GpuRegister rd, int32_t value);

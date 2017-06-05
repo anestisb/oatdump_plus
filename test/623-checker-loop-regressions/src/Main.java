@@ -291,6 +291,9 @@ public class Main {
   /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
   //
   // NOTE: should correctly deal with compressed and uncompressed cases.
+  //
+  /// CHECK-START-MIPS64: void Main.string2Bytes(char[], java.lang.String) loop_optimization (after)
+  /// CHECK-NOT: VecLoad
   private static void string2Bytes(char[] a, String b) {
     int min = Math.min(a.length, b.length());
     for (int i = 0; i < min; i++) {
@@ -333,6 +336,13 @@ public class Main {
   /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi>>,<<Repl>>] loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi>>,<<Repl>>] loop:<<Loop>>      outer_loop:none
   //
+  /// CHECK-START-MIPS64: void Main.oneBoth(short[], char[]) loop_optimization (after)
+  /// CHECK-DAG: <<One:i\d+>>  IntConstant 1                        loop:none
+  /// CHECK-DAG: <<Repl:d\d+>> VecReplicateScalar [<<One>>]         loop:none
+  /// CHECK-DAG: <<Phi:i\d+>>  Phi                                  loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi>>,<<Repl>>] loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi>>,<<Repl>>] loop:<<Loop>>      outer_loop:none
+  //
   // Bug b/37764324: integral same-length packed types can be mixed freely.
   private static void oneBoth(short[] a, char[] b) {
     for (int i = 0; i < Math.min(a.length, b.length); i++) {
@@ -360,6 +370,19 @@ public class Main {
   /// CHECK-DAG:               ArraySet [{{l\d+}},<<Phi>>,<<Cnv>>] loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-START-ARM64: void Main.typeConv(byte[], byte[]) loop_optimization (after)
+  /// CHECK-DAG: <<One:i\d+>>  IntConstant 1                         loop:none
+  /// CHECK-DAG: <<Repl:d\d+>> VecReplicateScalar [<<One>>]          loop:none
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi                                   loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Load:d\d+>> VecLoad [{{l\d+}},<<Phi1>>]           loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: <<Vadd:d\d+>> VecAdd [<<Load>>,<<Repl>>]            loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG:               VecStore [{{l\d+}},<<Phi1>>,<<Vadd>>] loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi                                   loop:<<Loop2:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Get:b\d+>>  ArrayGet [{{l\d+}},<<Phi2>>]          loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: <<Add:i\d+>>  Add [<<Get>>,<<One>>]                 loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG: <<Cnv:b\d+>>  TypeConversion [<<Add>>]              loop:<<Loop2>>      outer_loop:none
+  /// CHECK-DAG:               ArraySet [{{l\d+}},<<Phi2>>,<<Cnv>>]  loop:<<Loop2>>      outer_loop:none
+  //
+  /// CHECK-START-MIPS64: void Main.typeConv(byte[], byte[]) loop_optimization (after)
   /// CHECK-DAG: <<One:i\d+>>  IntConstant 1                         loop:none
   /// CHECK-DAG: <<Repl:d\d+>> VecReplicateScalar [<<One>>]          loop:none
   /// CHECK-DAG: <<Phi1:i\d+>> Phi                                   loop:<<Loop1:B\d+>> outer_loop:none

@@ -1795,6 +1795,17 @@ void Mips64Assembler::IlvrD(VectorRegister wd, VectorRegister ws, VectorRegister
   EmitMsa3R(0x5, 0x3, wt, ws, wd, 0x14);
 }
 
+void Mips64Assembler::ReplicateFPToVectorRegister(VectorRegister dst,
+                                                  FpuRegister src,
+                                                  bool is_double) {
+  // Float or double in FPU register Fx can be considered as 0th element in vector register Wx.
+  if (is_double) {
+    SplatiD(dst, static_cast<VectorRegister>(src), 0);
+  } else {
+    SplatiW(dst, static_cast<VectorRegister>(src), 0);
+  }
+}
+
 void Mips64Assembler::LoadConst32(GpuRegister rd, int32_t value) {
   TemplateLoadConst32(this, rd, value);
 }
