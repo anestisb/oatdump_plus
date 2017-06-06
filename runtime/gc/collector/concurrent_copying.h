@@ -21,9 +21,7 @@
 #include "garbage_collector.h"
 #include "immune_spaces.h"
 #include "jni.h"
-#include "object_callbacks.h"
 #include "offsets.h"
-#include "mirror/object.h"
 #include "mirror/object_reference.h"
 #include "safe_map.h"
 
@@ -33,6 +31,10 @@
 namespace art {
 class Closure;
 class RootInfo;
+
+namespace mirror {
+class Object;
+}  // namespace mirror
 
 namespace gc {
 

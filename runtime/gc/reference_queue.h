@@ -27,7 +27,6 @@
 #include "globals.h"
 #include "jni.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
 #include "offsets.h"
 #include "thread_pool.h"
 
@@ -35,6 +34,9 @@ namespace art {
 namespace mirror {
 class Reference;
 }  // namespace mirror
+
+class IsMarkedVisitor;
+class MarkObjectVisitor;
 
 namespace gc {
 

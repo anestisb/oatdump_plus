@@ -19,23 +19,22 @@
 
 #include "gc_root.h"
 #include "object.h"
-#include "object_callbacks.h"
-#include "string.h"
 
 namespace art {
 
+class RootVisitor;
 struct ThrowableOffsets;
 
 namespace mirror {
+
+class String;
 
 // C++ mirror of java.lang.Throwable
 class MANAGED Throwable : public Object {
  public:
   void SetDetailMessage(ObjPtr<String> new_detail_message) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  String* GetDetailMessage() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_));
-  }
+  String* GetDetailMessage() REQUIRES_SHARED(Locks::mutator_lock_);
 
   std::string Dump() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -59,12 +58,8 @@ class MANAGED Throwable : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
-  Object* GetStackState() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, backtrace_));
-  }
-  Object* GetStackTrace() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, backtrace_));
-  }
+  Object* GetStackState() REQUIRES_SHARED(Locks::mutator_lock_);
+  Object* GetStackTrace() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   HeapReference<Object> backtrace_;  // Note this is Java volatile:

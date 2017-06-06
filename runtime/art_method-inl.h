@@ -27,6 +27,7 @@
 #include "dex_file_annotations.h"
 #include "dex_file-inl.h"
 #include "gc_root-inl.h"
+#include "invoke_type.h"
 #include "jit/profiling_info.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"

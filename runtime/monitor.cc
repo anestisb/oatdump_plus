@@ -31,6 +31,7 @@
 #include "lock_word-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "object_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread.h"

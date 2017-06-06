@@ -25,7 +25,6 @@
 
 #include "base/mutex.h"
 #include "globals.h"
-#include "object_callbacks.h"
 
 namespace art {
 
@@ -34,6 +33,9 @@ namespace mirror {
   class Object;
 }  // namespace mirror
 class MemMap;
+
+// Same as in object_callbacks.h. Just avoid the include.
+typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
 
 namespace gc {
 namespace accounting {

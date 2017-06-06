@@ -26,7 +26,9 @@
 #include "object-inl.h"
 #include "object_array.h"
 #include "object_array-inl.h"
+#include "object_callbacks.h"
 #include "stack_trace_element.h"
+#include "string.h"
 #include "utils.h"
 #include "well_known_classes.h"
 
@@ -167,6 +169,18 @@ void Throwable::ResetClass() {
 
 void Throwable::VisitRoots(RootVisitor* visitor) {
   java_lang_Throwable_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
+}
+
+Object* Throwable::GetStackState() {
+  return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, backtrace_));
+}
+
+Object* Throwable::GetStackTrace() {
+  return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, backtrace_));
+}
+
+String* Throwable::GetDetailMessage() {
+  return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_));
 }
 
 }  // namespace mirror

@@ -29,7 +29,6 @@
 #include "jni.h"
 #include "method_reference.h"
 #include "oat_file.h"
-#include "object_callbacks.h"
 #include "profile_compilation_info.h"
 #include "safe_map.h"
 #include "thread_pool.h"
@@ -39,6 +38,7 @@ namespace art {
 class ArtMethod;
 class LinearAlloc;
 class InlineCache;
+class IsMarkedVisitor;
 class OatQuickMethodHeader;
 class ProfilingInfo;
 

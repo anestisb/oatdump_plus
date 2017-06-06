@@ -30,13 +30,13 @@
 #include "base/mutex.h"
 #include "gc_root.h"
 #include "lock_word.h"
-#include "object_callbacks.h"
 #include "read_barrier_option.h"
 #include "thread_state.h"
 
 namespace art {
 
 class ArtMethod;
+class IsMarkedVisitor;
 class LockWord;
 template<class T> class Handle;
 class StackVisitor;

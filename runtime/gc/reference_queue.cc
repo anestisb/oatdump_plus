@@ -22,6 +22,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/reference-inl.h"
+#include "object_callbacks.h"
 
 namespace art {
 namespace gc {

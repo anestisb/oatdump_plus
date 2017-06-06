@@ -25,9 +25,10 @@
 #include "base/mutex.h"
 #include "gc_root.h"
 #include "gc/weak_root_state.h"
-#include "object_callbacks.h"
 
 namespace art {
+
+class IsMarkedVisitor;
 
 namespace gc {
 namespace space {

@@ -433,8 +433,11 @@ bool InlineMethodAnalyser::AnalyseMethodCode(ArtMethod* method, InlineMethod* re
     // Native or abstract.
     return false;
   }
-  return AnalyseMethodCode(
-      code_item, method->ToMethodReference(), method->IsStatic(), method, result);
+  return AnalyseMethodCode(code_item,
+                           MethodReference(method->GetDexFile(), method->GetDexMethodIndex()),
+                           method->IsStatic(),
+                           method,
+                           result);
 }
 
 bool InlineMethodAnalyser::AnalyseMethodCode(const DexFile::CodeItem* code_item,
