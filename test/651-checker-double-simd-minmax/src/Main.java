@@ -27,6 +27,7 @@ public class Main {
   /// CHECK-DAG:               ArraySet [{{l\d+}},<<Phi>>,<<Min>>] loop:<<Loop>>      outer_loop:none
   //
   // TODO x86: 0.0 vs -0.0?
+  // TODO MIPS64: min(x, NaN)?
   //
   /// CHECK-START-ARM64: void Main.doitMin(double[], double[], double[]) loop_optimization (after)
   /// CHECK-DAG: <<Phi:i\d+>>  Phi                                 loop:<<Loop:B\d+>> outer_loop:none
@@ -49,6 +50,7 @@ public class Main {
   /// CHECK-DAG:               ArraySet [{{l\d+}},<<Phi>>,<<Max>>] loop:<<Loop>>      outer_loop:none
   //
   // TODO x86: 0.0 vs -0.0?
+  // TODO MIPS64: max(x, NaN)?
   //
   /// CHECK-START-ARM64: void Main.doitMax(double[], double[], double[]) loop_optimization (after)
   /// CHECK-DAG: <<Phi:i\d+>>  Phi                                 loop:<<Loop:B\d+>> outer_loop:none

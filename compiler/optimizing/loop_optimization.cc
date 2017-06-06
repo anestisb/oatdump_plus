@@ -1084,23 +1084,23 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
         switch (type) {
           case Primitive::kPrimBoolean:
           case Primitive::kPrimByte:
-            *restrictions |= kNoDiv | kNoMinMax;
+            *restrictions |= kNoDiv;
             return TrySetVectorLength(16);
           case Primitive::kPrimChar:
           case Primitive::kPrimShort:
-            *restrictions |= kNoDiv | kNoMinMax | kNoStringCharAt;
+            *restrictions |= kNoDiv | kNoStringCharAt;
             return TrySetVectorLength(8);
           case Primitive::kPrimInt:
-            *restrictions |= kNoDiv | kNoMinMax;
+            *restrictions |= kNoDiv;
             return TrySetVectorLength(4);
           case Primitive::kPrimLong:
-            *restrictions |= kNoDiv | kNoMinMax;
+            *restrictions |= kNoDiv;
             return TrySetVectorLength(2);
           case Primitive::kPrimFloat:
-            *restrictions |= kNoMinMax;
+            *restrictions |= kNoMinMax;  // min/max(x, NaN)
             return TrySetVectorLength(4);
           case Primitive::kPrimDouble:
-            *restrictions |= kNoMinMax;
+            *restrictions |= kNoMinMax;  // min/max(x, NaN)
             return TrySetVectorLength(2);
           default:
             break;
