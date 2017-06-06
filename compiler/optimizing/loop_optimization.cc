@@ -1302,9 +1302,10 @@ void HLoopOptimization::GenerateVecOp(HInstruction* org,
         // corresponding new scalar instructions in the loop. The instruction will get an
         // environment while being inserted from the instruction map in original program order.
         DCHECK(vector_mode_ == kSequential);
+        size_t num_args = invoke->GetNumberOfArguments();
         HInvokeStaticOrDirect* new_invoke = new (global_allocator_) HInvokeStaticOrDirect(
             global_allocator_,
-            invoke->GetNumberOfArguments(),
+            num_args,
             invoke->GetType(),
             invoke->GetDexPc(),
             invoke->GetDexMethodIndex(),
@@ -1314,8 +1315,14 @@ void HLoopOptimization::GenerateVecOp(HInstruction* org,
             invoke->GetTargetMethod(),
             invoke->GetClinitCheckRequirement());
         HInputsRef inputs = invoke->GetInputs();
-        for (size_t index = 0; index < inputs.size(); ++index) {
-          new_invoke->SetArgumentAt(index, vector_map_->Get(inputs[index]));
+        size_t num_inputs = inputs.size();
+        DCHECK_LE(num_args, num_inputs);
+        DCHECK_EQ(num_inputs, new_invoke->GetInputs().size());  // both invokes agree
+        for (size_t index = 0; index < num_inputs; ++index) {
+          HInstruction* new_input = index < num_args
+              ? vector_map_->Get(inputs[index])
+              : inputs[index];  // beyond arguments: just pass through
+          new_invoke->SetArgumentAt(index, new_input);
         }
         new_invoke->SetIntrinsic(invoke->GetIntrinsic(),
                                  kNeedsEnvironmentOrCache,
