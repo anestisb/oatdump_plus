@@ -610,7 +610,7 @@ if [ "$PREBUILD" = "y" ]; then
   if [ "$HOST" != "n" ]; then
     # Use SIGRTMIN+2 to try to dump threads.
     # Use -k 1m to SIGKILL it a minute later if it hasn't ended.
-    dex2oat_cmdline="timeout -k 1m -s SIGRTMIN+2 1m ${dex2oat_cmdline}"
+    dex2oat_cmdline="timeout -k 1m -s SIGRTMIN+2 90s ${dex2oat_cmdline} --watchdog-timeout=60000"
   fi
   if [ "$PROFILE" = "y" ] || [ "$RANDOM_PROFILE" = "y" ]; then
     vdex_cmdline="${dex2oat_cmdline} ${VDEX_FILTER} --input-vdex=$DEX_LOCATION/oat/$ISA/$TEST_NAME.vdex --output-vdex=$DEX_LOCATION/oat/$ISA/$TEST_NAME.vdex"
