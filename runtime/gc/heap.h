@@ -34,7 +34,6 @@
 #include "globals.h"
 #include "handle.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
 #include "offsets.h"
 #include "process_state.h"
 #include "safe_map.h"
@@ -43,6 +42,7 @@
 namespace art {
 
 class ConditionVariable;
+class IsMarkedVisitor;
 class Mutex;
 class RootVisitor;
 class StackVisitor;
@@ -50,6 +50,9 @@ class Thread;
 class ThreadPool;
 class TimingLogger;
 class VariableSizedHandleScope;
+
+// Same as in object_callbacks.h. Just avoid the include.
+typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
 
 namespace mirror {
   class Class;

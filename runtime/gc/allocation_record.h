@@ -22,12 +22,12 @@
 
 #include "base/mutex.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
 #include "gc_root.h"
 
 namespace art {
 
 class ArtMethod;
+class IsMarkedVisitor;
 class Thread;
 
 namespace mirror {

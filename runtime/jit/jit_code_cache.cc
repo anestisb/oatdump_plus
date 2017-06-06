@@ -35,6 +35,7 @@
 #include "mem_map.h"
 #include "oat_file-inl.h"
 #include "oat_quick_method_header.h"
+#include "object_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread_list.h"

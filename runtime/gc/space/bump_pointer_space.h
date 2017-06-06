@@ -17,10 +17,17 @@
 #ifndef ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_H_
 
-#include "object_callbacks.h"
 #include "space.h"
 
 namespace art {
+
+namespace mirror {
+class Object;
+}
+
+// Same as in object_callbacks.h. Just avoid the include.
+typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
+
 namespace gc {
 
 namespace collector {

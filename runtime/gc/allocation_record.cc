@@ -20,6 +20,7 @@
 #include "base/enums.h"
 #include "base/stl_util.h"
 #include "obj_ptr-inl.h"
+#include "object_callbacks.h"
 #include "stack.h"
 
 #ifdef ART_TARGET_ANDROID

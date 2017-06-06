@@ -20,11 +20,11 @@
 #include "base/mutex.h"
 #include "globals.h"
 #include "jni.h"
-#include "object_callbacks.h"
 #include "reference_queue.h"
 
 namespace art {
 
+class IsMarkedVisitor;
 class TimingLogger;
 
 namespace mirror {

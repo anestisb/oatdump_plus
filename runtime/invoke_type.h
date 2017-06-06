@@ -21,7 +21,7 @@
 
 namespace art {
 
-enum InvokeType {
+enum InvokeType : uint32_t {
   kStatic,     // <<static>>
   kDirect,     // <<direct>>
   kVirtual,    // <<virtual>>

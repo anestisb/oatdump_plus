@@ -27,6 +27,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string-inl.h"
+#include "object_callbacks.h"
 #include "thread.h"
 #include "utf.h"
 
