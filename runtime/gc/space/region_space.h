@@ -284,14 +284,16 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       return type_;
     }
 
-    void Clear() {
+    void Clear(bool zero_and_release_pages) {
       top_.StoreRelaxed(begin_);
       state_ = RegionState::kRegionStateFree;
       type_ = RegionType::kRegionTypeNone;
       objects_allocated_.StoreRelaxed(0);
       alloc_time_ = 0;
       live_bytes_ = static_cast<size_t>(-1);
-      ZeroAndReleasePages(begin_, end_ - begin_);
+      if (zero_and_release_pages) {
+        ZeroAndReleasePages(begin_, end_ - begin_);
+      }
       is_newly_allocated_ = false;
       is_a_tlab_ = false;
       thread_ = nullptr;
