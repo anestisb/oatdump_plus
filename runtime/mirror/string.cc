@@ -18,6 +18,7 @@
 
 #include "arch/memcmp16.h"
 #include "array.h"
+#include "base/array_ref.h"
 #include "class-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "handle_scope-inl.h"

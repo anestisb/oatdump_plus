@@ -33,6 +33,7 @@
 #include "base/enums.h"
 #include "base/length_prefixed_array.h"
 #include "base/macros.h"
+#include "class_table.h"
 #include "driver/compiler_driver.h"
 #include "image.h"
 #include "lock_word.h"
@@ -60,7 +61,6 @@ class ClassLoader;
 }  // namespace mirror
 
 class ClassLoaderVisitor;
-class ClassTable;
 class ImtConflictTable;
 
 static constexpr int kInvalidFd = -1;

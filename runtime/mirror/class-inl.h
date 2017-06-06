@@ -29,7 +29,7 @@
 #include "dex_file-inl.h"
 #include "gc/heap-inl.h"
 #include "iftable.h"
-#include "object_array-inl.h"
+#include "object_array.h"
 #include "object-inl.h"
 #include "read_barrier-inl.h"
 #include "reference-inl.h"

@@ -19,7 +19,9 @@
 
 #include "object-inl.h"
 
+#include "class_loader-inl.h"
 #include "class-refvisitor-inl.h"
+#include "dex_cache-inl.h"
 
 namespace art {
 namespace mirror {

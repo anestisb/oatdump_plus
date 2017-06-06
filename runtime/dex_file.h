@@ -28,7 +28,6 @@
 #include "invoke_type.h"
 #include "jni.h"
 #include "modifiers.h"
-#include "utf.h"
 
 namespace art {
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "class_table.h"
+#include "class_table-inl.h"
 
 #include "mirror/class-inl.h"
 #include "oat_file.h"
