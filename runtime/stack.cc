@@ -648,6 +648,12 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
     return;
   }
 
+  Runtime* runtime = Runtime::Current();
+  if (runtime->UseJitCompilation() &&
+      runtime->GetJit()->GetCodeCache()->ContainsPc(reinterpret_cast<const void*>(pc))) {
+    return;
+  }
+
   const void* code = method->GetEntryPointFromQuickCompiledCode();
   if (code == GetQuickInstrumentationEntryPoint() || code == GetInvokeObsoleteMethodStub()) {
     return;
@@ -659,9 +665,6 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
     return;
   }
 
-  // If we are the JIT then we may have just compiled the method after the
-  // IsQuickToInterpreterBridge check.
-  Runtime* runtime = Runtime::Current();
   if (runtime->UseJitCompilation() && runtime->GetJit()->GetCodeCache()->ContainsPc(code)) {
     return;
   }
