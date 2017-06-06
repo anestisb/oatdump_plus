@@ -42,6 +42,18 @@ static constexpr uint32_t kArm64LoadStringInternalLatency = 7;
 static constexpr uint32_t kArm64MulFloatingPointLatency = 6;
 static constexpr uint32_t kArm64MulIntegerLatency = 6;
 static constexpr uint32_t kArm64TypeConversionFloatingPointIntegerLatency = 5;
+static constexpr uint32_t kArm64BranchLatency = kArm64IntegerOpLatency;
+
+static constexpr uint32_t kArm64SIMDFloatingPointOpLatency = 10;
+static constexpr uint32_t kArm64SIMDIntegerOpLatency = 6;
+static constexpr uint32_t kArm64SIMDMemoryLoadLatency = 10;
+static constexpr uint32_t kArm64SIMDMemoryStoreLatency = 6;
+static constexpr uint32_t kArm64SIMDMulFloatingPointLatency = 12;
+static constexpr uint32_t kArm64SIMDMulIntegerLatency = 12;
+static constexpr uint32_t kArm64SIMDReplicateOpLatency = 16;
+static constexpr uint32_t kArm64SIMDDivDoubleLatency = 60;
+static constexpr uint32_t kArm64SIMDDivFloatLatency = 30;
+static constexpr uint32_t kArm64SIMDTypeConversionInt2FPLatency = 10;
 
 class SchedulingLatencyVisitorARM64 : public SchedulingLatencyVisitor {
  public:
@@ -52,29 +64,54 @@ class SchedulingLatencyVisitorARM64 : public SchedulingLatencyVisitor {
 
 // We add a second unused parameter to be able to use this macro like the others
 // defined in `nodes.h`.
-#define FOR_EACH_SCHEDULED_COMMON_INSTRUCTION(M) \
-  M(ArrayGet         , unused)                   \
-  M(ArrayLength      , unused)                   \
-  M(ArraySet         , unused)                   \
-  M(BinaryOperation  , unused)                   \
-  M(BoundsCheck      , unused)                   \
-  M(Div              , unused)                   \
-  M(InstanceFieldGet , unused)                   \
-  M(InstanceOf       , unused)                   \
-  M(Invoke           , unused)                   \
-  M(LoadString       , unused)                   \
-  M(Mul              , unused)                   \
-  M(NewArray         , unused)                   \
-  M(NewInstance      , unused)                   \
-  M(Rem              , unused)                   \
-  M(StaticFieldGet   , unused)                   \
-  M(SuspendCheck     , unused)                   \
-  M(TypeConversion   , unused)
+#define FOR_EACH_SCHEDULED_COMMON_INSTRUCTION(M)     \
+  M(ArrayGet             , unused)                   \
+  M(ArrayLength          , unused)                   \
+  M(ArraySet             , unused)                   \
+  M(BinaryOperation      , unused)                   \
+  M(BoundsCheck          , unused)                   \
+  M(Div                  , unused)                   \
+  M(InstanceFieldGet     , unused)                   \
+  M(InstanceOf           , unused)                   \
+  M(Invoke               , unused)                   \
+  M(LoadString           , unused)                   \
+  M(Mul                  , unused)                   \
+  M(NewArray             , unused)                   \
+  M(NewInstance          , unused)                   \
+  M(Rem                  , unused)                   \
+  M(StaticFieldGet       , unused)                   \
+  M(SuspendCheck         , unused)                   \
+  M(TypeConversion       , unused)                   \
+  M(VecReplicateScalar   , unused)                   \
+  M(VecSetScalars        , unused)                   \
+  M(VecSumReduce         , unused)                   \
+  M(VecCnv               , unused)                   \
+  M(VecNeg               , unused)                   \
+  M(VecAbs               , unused)                   \
+  M(VecNot               , unused)                   \
+  M(VecAdd               , unused)                   \
+  M(VecHalvingAdd        , unused)                   \
+  M(VecSub               , unused)                   \
+  M(VecMul               , unused)                   \
+  M(VecDiv               , unused)                   \
+  M(VecMin               , unused)                   \
+  M(VecMax               , unused)                   \
+  M(VecAnd               , unused)                   \
+  M(VecAndNot            , unused)                   \
+  M(VecOr                , unused)                   \
+  M(VecXor               , unused)                   \
+  M(VecShl               , unused)                   \
+  M(VecShr               , unused)                   \
+  M(VecUShr              , unused)                   \
+  M(VecMultiplyAccumulate, unused)                   \
+  M(VecLoad              , unused)                   \
+  M(VecStore             , unused)
 
 #define FOR_EACH_SCHEDULED_SHARED_INSTRUCTION(M) \
   M(BitwiseNegatedRight, unused)                 \
   M(MultiplyAccumulate, unused)                  \
   M(IntermediateAddress, unused)                 \
+  M(IntermediateAddressIndex, unused)            \
   M(DataProcWithShifterOp, unused)
 
 #define DECLARE_VISIT_INSTRUCTION(type, unused)  \
@@ -85,6 +122,10 @@ class SchedulingLatencyVisitorARM64 : public SchedulingLatencyVisitor {
   FOR_EACH_CONCRETE_INSTRUCTION_ARM64(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
+
+ private:
+  void HandleSimpleArithmeticSIMD(HVecOperation *instr);
+  void HandleVecAddress(HVecMemoryOperation* instruction, size_t size);
 };
 
 class HSchedulerARM64 : public HScheduler {
@@ -100,6 +141,8 @@ class HSchedulerARM64 : public HScheduler {
       FOR_EACH_SCHEDULED_SHARED_INSTRUCTION(CASE_INSTRUCTION_KIND)
         return true;
       FOR_EACH_CONCRETE_INSTRUCTION_ARM64(CASE_INSTRUCTION_KIND)
+        return true;
+      FOR_EACH_SCHEDULED_COMMON_INSTRUCTION(CASE_INSTRUCTION_KIND)
         return true;
       default:
         return HScheduler::IsSchedulable(instruction);

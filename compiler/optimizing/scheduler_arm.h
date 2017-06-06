@@ -103,6 +103,7 @@ class SchedulingLatencyVisitorARM : public SchedulingLatencyVisitor {
   M(BitwiseNegatedRight, unused)                 \
   M(MultiplyAccumulate, unused)                  \
   M(IntermediateAddress, unused)                 \
+  M(IntermediateAddressIndex, unused)            \
   M(DataProcWithShifterOp, unused)
 
 #define DECLARE_VISIT_INSTRUCTION(type, unused)  \
