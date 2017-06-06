@@ -20,7 +20,6 @@
 #include "class.h"
 #include "gc_root.h"
 #include "object.h"
-#include "object_callbacks.h"
 #include "read_barrier_option.h"
 #include "thread.h"
 

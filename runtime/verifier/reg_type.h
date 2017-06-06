@@ -30,7 +30,6 @@
 #include "gc_root.h"
 #include "handle_scope.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
 #include "primitive.h"
 
 namespace art {

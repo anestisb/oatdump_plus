@@ -29,7 +29,6 @@
 #include "modifiers.h"
 #include "object.h"
 #include "object_array.h"
-#include "object_callbacks.h"
 #include "primitive.h"
 #include "read_barrier_option.h"
 #include "stride_iterator.h"

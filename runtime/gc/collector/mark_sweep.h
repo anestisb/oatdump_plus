@@ -27,7 +27,6 @@
 #include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "immune_spaces.h"
-#include "object_callbacks.h"
 #include "offsets.h"
 
 namespace art {

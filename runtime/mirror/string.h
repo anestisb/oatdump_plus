@@ -20,7 +20,6 @@
 #include "gc_root.h"
 #include "gc/allocator_type.h"
 #include "object.h"
-#include "object_callbacks.h"
 
 namespace art {
 

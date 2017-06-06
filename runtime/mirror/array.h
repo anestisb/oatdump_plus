@@ -22,7 +22,6 @@
 #include "gc/allocator_type.h"
 #include "obj_ptr.h"
 #include "object.h"
-#include "object_callbacks.h"
 
 namespace art {
 

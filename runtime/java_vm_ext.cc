@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
+#include "java_vm_ext.h"
 
 #include <dlfcn.h>
 
@@ -30,11 +30,12 @@
 #include "fault_handler.h"
 #include "gc_root-inl.h"
 #include "indirect_reference_table-inl.h"
+#include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "nativebridge/native_bridge.h"
 #include "nativeloader/native_loader.h"
-#include "java_vm_ext.h"
+#include "object_callbacks.h"
 #include "parsed_options.h"
 #include "runtime-inl.h"
 #include "runtime_options.h"

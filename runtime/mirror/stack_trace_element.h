@@ -19,7 +19,6 @@
 
 #include "gc_root.h"
 #include "object.h"
-#include "object_callbacks.h"
 
 namespace art {
 

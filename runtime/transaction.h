@@ -22,7 +22,6 @@
 #include "base/value_object.h"
 #include "dex_file_types.h"
 #include "gc_root.h"
-#include "object_callbacks.h"
 #include "offsets.h"
 #include "primitive.h"
 #include "safe_map.h"

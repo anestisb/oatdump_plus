@@ -28,7 +28,6 @@
 #include "gc/accounting/heap_bitmap.h"
 #include "immune_spaces.h"
 #include "lock_word.h"
-#include "object_callbacks.h"
 #include "offsets.h"
 
 namespace art {

@@ -25,7 +25,6 @@
 
 #include "base/mutex.h"
 #include "globals.h"
-#include "object_callbacks.h"
 
 namespace art {
 

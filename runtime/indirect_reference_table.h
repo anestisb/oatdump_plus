@@ -28,7 +28,6 @@
 #include "base/mutex.h"
 #include "gc_root.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
 #include "offsets.h"
 #include "read_barrier_option.h"
 
