@@ -26,6 +26,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "runtime.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "utils.h"

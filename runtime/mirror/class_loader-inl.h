@@ -19,9 +19,7 @@
 
 #include "class_loader.h"
 
-#include "base/mutex-inl.h"
 #include "class_table-inl.h"
-#include "obj_ptr-inl.h"
 
 namespace art {
 namespace mirror {

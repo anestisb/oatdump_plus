@@ -23,6 +23,7 @@
 #include "intrinsics.h"
 #include "mirror/array-inl.h"
 #include "mirror/string.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "utils/mips64/assembler_mips64.h"
 #include "utils/mips64/constants_mips64.h"

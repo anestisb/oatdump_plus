@@ -109,6 +109,7 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "trace.h"
+#include "utf.h"
 #include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "verifier/method_verifier.h"
@@ -3979,6 +3980,12 @@ void ClassLinker::UpdateClassMethods(ObjPtr<mirror::Class> klass,
                                 klass->NumDeclaredVirtualMethods());
   // Need to mark the card so that the remembered sets and mod union tables get updated.
   Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(klass);
+}
+
+mirror::Class* ClassLinker::LookupClass(Thread* self,
+                           const char* descriptor,
+                           ObjPtr<mirror::ClassLoader> class_loader) {
+  return LookupClass(self, descriptor, ComputeModifiedUtf8Hash(descriptor), class_loader);
 }
 
 mirror::Class* ClassLinker::LookupClass(Thread* self,

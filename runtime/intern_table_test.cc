@@ -23,6 +23,7 @@
 #include "handle_scope-inl.h"
 #include "mirror/string.h"
 #include "scoped_thread_state_change-inl.h"
+#include "utf.h"
 
 namespace art {
 

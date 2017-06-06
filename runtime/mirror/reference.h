@@ -18,6 +18,8 @@
 #define ART_RUNTIME_MIRROR_REFERENCE_H_
 
 #include "base/enums.h"
+#include "base/macros.h"
+#include "base/mutex.h"
 #include "class.h"
 #include "gc_root.h"
 #include "obj_ptr.h"
@@ -97,10 +99,7 @@ class MANAGED Reference : public Object {
   }
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  static Class* GetJavaLangRefReference() REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(!java_lang_ref_Reference_.IsNull());
-    return java_lang_ref_Reference_.Read<kReadBarrierOption>();
-  }
+  static ALWAYS_INLINE Class* GetJavaLangRefReference() REQUIRES_SHARED(Locks::mutator_lock_);
   static void SetClass(ObjPtr<Class> klass);
   static void ResetClass();
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
