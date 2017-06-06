@@ -198,7 +198,7 @@ inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double 
                                                         kFractionalDigits)
      << "-" << FormatDuration(Percentile(per_1, data) * kAdjust, unit, kFractionalDigits) << " "
      << "Avg: " << FormatDuration(Mean() * kAdjust, unit, kFractionalDigits) << " Max: "
-     << FormatDuration(Max() * kAdjust, unit, kFractionalDigits) << "\n";
+     << FormatDuration(Max() * kAdjust, unit, kFractionalDigits) << std::endl;
 }
 
 template <class Value>

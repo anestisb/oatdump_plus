@@ -165,7 +165,7 @@ static void DumpUnattachedThread(std::ostream& os, pid_t tid, bool dump_native_s
   if (dump_native_stack) {
     DumpNativeStack(os, tid, nullptr, "  native: ");
   }
-  os << "\n";
+  os << std::endl;
 }
 
 void ThreadList::DumpUnattachedThreads(std::ostream& os, bool dump_native_stack) {
@@ -216,11 +216,10 @@ class DumpCheckpoint FINAL : public Closure {
       ScopedObjectAccess soa(self);
       thread->Dump(local_os, dump_native_stack_, backtrace_map_.get());
     }
-    local_os << "\n";
     {
       // Use the logging lock to ensure serialization when writing to the common ostream.
       MutexLock mu(self, *Locks::logging_lock_);
-      *os_ << local_os.str();
+      *os_ << local_os.str() << std::endl;
     }
     barrier_.Pass(self);
   }
