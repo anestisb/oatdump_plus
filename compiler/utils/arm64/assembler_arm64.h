@@ -98,6 +98,15 @@ class Arm64Assembler FINAL : public Assembler {
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
   void MaybeUnpoisonHeapReference(vixl::aarch64::Register reg);
 
+  // Emit code checking the status of the Marking Register, and aborting
+  // the program if MR does not match the value stored in the art::Thread
+  // object.
+  //
+  // Argument `temp` is used as a temporary register to generate code.
+  // Argument `code` is used to identify the different occurrences of
+  // MaybeGenerateMarkingRegisterCheck and is passed to the BRK instruction.
+  void GenerateMarkingRegisterCheck(vixl::aarch64::Register temp, int code = 0);
+
   void Bind(Label* label ATTRIBUTE_UNUSED) OVERRIDE {
     UNIMPLEMENTED(FATAL) << "Do not use Bind for ARM64";
   }

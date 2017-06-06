@@ -103,6 +103,40 @@ class TestCodeGeneratorARMVIXL : public arm::CodeGeneratorARMVIXL {
 };
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_arm64
+// Special ARM64 code generator for codegen testing in a limited code
+// generation environment (i.e. with no runtime support).
+//
+// Note: If we want to exercise certains HIR constructions
+// (e.g. reference field load in Baker read barrier configuration) in
+// codegen tests in the future, we should also:
+// - save the Thread Register (X19) and possibly the Marking Register
+//   (X20) before entering the generated function (both registers are
+//   callee-save in AAPCS64);
+// - set these registers to meaningful values before or upon entering
+//   the generated function (so that generated code using them is
+//   correct);
+// - restore their original values before leaving the generated
+//   function.
+class TestCodeGeneratorARM64 : public arm64::CodeGeneratorARM64 {
+ public:
+  TestCodeGeneratorARM64(HGraph* graph,
+                         const Arm64InstructionSetFeatures& isa_features,
+                         const CompilerOptions& compiler_options)
+      : arm64::CodeGeneratorARM64(graph, isa_features, compiler_options) {}
+
+  void MaybeGenerateMarkingRegisterCheck(int codem ATTRIBUTE_UNUSED,
+                                         Location temp_loc ATTRIBUTE_UNUSED) OVERRIDE {
+    // When turned on, the marking register checks in
+    // CodeGeneratorARM64::MaybeGenerateMarkingRegisterCheck expect the
+    // Thread Register and the Marking Register to be set to
+    // meaningful values. This is not the case in codegen testing, so
+    // just disable them entirely here (by doing nothing in this
+    // method).
+  }
+};
+#endif
+
 #ifdef ART_ENABLE_CODEGEN_x86
 class TestCodeGeneratorX86 : public x86::CodeGeneratorX86 {
  public:
@@ -263,7 +297,8 @@ static void RunCode(CodegenTargetConfig target_config,
                     bool has_result,
                     Expected expected) {
   CompilerOptions compiler_options;
-  std::unique_ptr<CodeGenerator> codegen(target_config.CreateCodeGenerator(graph, compiler_options));
+  std::unique_ptr<CodeGenerator> codegen(target_config.CreateCodeGenerator(graph,
+                                                                           compiler_options));
   RunCode(codegen.get(), graph, hook_before_codegen, has_result, expected);
 }
 
@@ -280,9 +315,8 @@ CodeGenerator* create_codegen_arm_vixl32(HGraph* graph, const CompilerOptions& c
 CodeGenerator* create_codegen_arm64(HGraph* graph, const CompilerOptions& compiler_options) {
   std::unique_ptr<const Arm64InstructionSetFeatures> features_arm64(
       Arm64InstructionSetFeatures::FromCppDefines());
-  return new (graph->GetArena()) arm64::CodeGeneratorARM64(graph,
-                                                           *features_arm64.get(),
-                                                           compiler_options);
+  return new (graph->GetArena())
+      TestCodeGeneratorARM64(graph, *features_arm64.get(), compiler_options);
 }
 #endif
 

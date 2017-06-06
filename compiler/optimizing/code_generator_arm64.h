@@ -687,6 +687,22 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                 bool needs_null_check,
                                 bool use_load_acquire);
 
+  // Emit code checking the status of the Marking Register, and
+  // aborting the program if MR does not match the value stored in the
+  // art::Thread object. Code is only emitted in debug mode and if
+  // CompilerOptions::EmitRunTimeChecksInDebugMode returns true.
+  //
+  // Argument `code` is used to identify the different occurrences of
+  // MaybeGenerateMarkingRegisterCheck in the code generator, and is
+  // passed to the BRK instruction.
+  //
+  // If `temp_loc` is a valid location, it is expected to be a
+  // register and will be used as a temporary to generate code;
+  // otherwise, a temporary will be fetched from the core register
+  // scratch pool.
+  virtual void MaybeGenerateMarkingRegisterCheck(int code,
+                                                 Location temp_loc = Location::NoLocation());
+
   // Generate a read barrier for a heap reference within `instruction`
   // using a slow path.
   //

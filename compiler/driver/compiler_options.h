@@ -161,6 +161,9 @@ class CompilerOptions FINAL {
     return generate_mini_debug_info_;
   }
 
+  // Should run-time checks be emitted in debug mode?
+  bool EmitRunTimeChecksInDebugMode() const;
+
   bool GetGenerateBuildId() const {
     return generate_build_id_;
   }
@@ -177,10 +180,19 @@ class CompilerOptions FINAL {
     return implicit_suspend_checks_;
   }
 
+  // Are we compiling a boot image?
   bool IsBootImage() const {
     return boot_image_;
   }
 
+  // Are we compiling a core image (small boot image only used for ART testing)?
+  bool IsCoreImage() const {
+    // Ensure that `core_image_` => `boot_image_`.
+    DCHECK(!core_image_ || boot_image_);
+    return core_image_;
+  }
+
+  // Are we compiling an app image?
   bool IsAppImage() const {
     return app_image_;
   }
@@ -266,6 +278,7 @@ class CompilerOptions FINAL {
   const std::vector<const DexFile*>* no_inline_from_;
 
   bool boot_image_;
+  bool core_image_;
   bool app_image_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
   double top_k_profile_threshold_;

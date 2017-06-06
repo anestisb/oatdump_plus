@@ -18,6 +18,8 @@
 
 #include <fstream>
 
+#include "runtime.h"
+
 namespace art {
 
 CompilerOptions::CompilerOptions()
@@ -30,6 +32,7 @@ CompilerOptions::CompilerOptions()
       inline_max_code_units_(kUnsetInlineMaxCodeUnits),
       no_inline_from_(nullptr),
       boot_image_(false),
+      core_image_(false),
       app_image_(false),
       top_k_profile_threshold_(kDefaultTopKProfileThreshold),
       debuggable_(false),
@@ -53,6 +56,19 @@ CompilerOptions::CompilerOptions()
 CompilerOptions::~CompilerOptions() {
   // The destructor looks empty but it destroys a PassManagerOptions object. We keep it here
   // because we don't want to include the PassManagerOptions definition from the header file.
+}
+
+bool CompilerOptions::EmitRunTimeChecksInDebugMode() const {
+  // Run-time checks (e.g. Marking Register checks) are only emitted
+  // in debug mode, and
+  // - when running on device; or
+  // - when running on host, but only
+  //   - when compiling the core image (which is used only for testing); or
+  //   - when JIT compiling (only relevant for non-native methods).
+  // This is to prevent these checks from being emitted into pre-opted
+  // boot image or apps, as these are compiled with dex2oatd.
+  return kIsDebugBuild &&
+      (kIsTargetBuild || IsCoreImage() || Runtime::Current()->UseJitCompilation());
 }
 
 void CompilerOptions::ParseHugeMethodMax(const StringPiece& option, UsageFn Usage) {
