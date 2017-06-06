@@ -477,6 +477,13 @@ class WatchDog {
                                        android::base::LogId::DEFAULT,
                                        LogSeverity::FATAL,
                                        message.c_str());
+    if (Runtime::Current() != nullptr) {
+      Runtime::Current()->AttachCurrentThread("Watchdog thread attached for dumping",
+                                              true,
+                                              nullptr,
+                                              false);
+      Runtime::Current()->DumpForSigQuit(std::cerr);
+    }
     exit(1);
   }
 
