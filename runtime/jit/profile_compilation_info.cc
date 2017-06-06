@@ -1375,7 +1375,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
         }
       }
     }
-    os << "\n\tmethods: ";
+    os << "\n\thot methods: ";
     for (const auto& method_it : dex_data->method_map) {
       if (dex_file != nullptr) {
         os << "\n\t\t" << dex_file->PrettyMethod(method_it.first, true);
@@ -1399,6 +1399,19 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
         os << "}";
       }
       os << "], ";
+    }
+    bool startup = true;
+    while (true) {
+      os << "\n\t" << (startup ? "startup methods: " : "post startup methods: ");
+      for (uint32_t method_idx = 0; method_idx < dex_data->num_method_ids; ++method_idx) {
+        if (dex_data->HasSampledMethod(startup, method_idx)) {
+          os << method_idx << ", ";
+        }
+      }
+      if (startup == false) {
+        break;
+      }
+      startup = false;
     }
     os << "\n\tclasses: ";
     for (const auto class_it : dex_data->class_set) {
