@@ -255,13 +255,28 @@ void RegionSpace::ClearFromSpace(uint64_t* cleared_bytes, uint64_t* cleared_obje
   MutexLock mu(Thread::Current(), region_lock_);
   VerifyNonFreeRegionLimit();
   size_t new_non_free_region_index_limit = 0;
+
+  // Combine zeroing and releasing pages to reduce how often madvise is called. This helps
+  // reduce contention on the mmap semaphore. b/62194020
+  // clear_region adds a region to the current block. If the region is not adjacent, the
+  // clear block is zeroed, released, and a new block begins.
+  uint8_t* clear_block_begin = nullptr;
+  uint8_t* clear_block_end = nullptr;
+  auto clear_region = [&clear_block_begin, &clear_block_end](Region* r) {
+    r->Clear(/*zero_and_release_pages*/false);
+    if (clear_block_end != r->Begin()) {
+      ZeroAndReleasePages(clear_block_begin, clear_block_end - clear_block_begin);
+      clear_block_begin = r->Begin();
+    }
+    clear_block_end = r->End();
+  };
   for (size_t i = 0; i < std::min(num_regions_, non_free_region_index_limit_); ++i) {
     Region* r = &regions_[i];
     if (r->IsInFromSpace()) {
       *cleared_bytes += r->BytesAllocated();
       *cleared_objects += r->ObjectsAllocated();
       --num_non_free_regions_;
-      r->Clear();
+      clear_region(r);
     } else if (r->IsInUnevacFromSpace()) {
       if (r->LiveBytes() == 0) {
         // Special case for 0 live bytes, this means all of the objects in the region are dead and
@@ -274,13 +289,13 @@ void RegionSpace::ClearFromSpace(uint64_t* cleared_bytes, uint64_t* cleared_obje
         // Also release RAM for large tails.
         while (i + free_regions < num_regions_ && regions_[i + free_regions].IsLargeTail()) {
           DCHECK(r->IsLarge());
-          regions_[i + free_regions].Clear();
+          clear_region(&regions_[i + free_regions]);
           ++free_regions;
         }
         *cleared_bytes += r->BytesAllocated();
         *cleared_objects += r->ObjectsAllocated();
         num_non_free_regions_ -= free_regions;
-        r->Clear();
+        clear_region(r);
         GetLiveBitmap()->ClearRange(
             reinterpret_cast<mirror::Object*>(r->Begin()),
             reinterpret_cast<mirror::Object*>(r->Begin() + free_regions * kRegionSize));
@@ -317,6 +332,8 @@ void RegionSpace::ClearFromSpace(uint64_t* cleared_bytes, uint64_t* cleared_obje
                                                  last_checked_region->Idx() + 1);
     }
   }
+  // Clear pages for the last block since clearing happens when a new block opens.
+  ZeroAndReleasePages(clear_block_begin, clear_block_end - clear_block_begin);
   // Update non_free_region_index_limit_.
   SetNonFreeRegionLimit(new_non_free_region_index_limit);
   evac_region_ = nullptr;
@@ -369,7 +386,7 @@ void RegionSpace::Clear() {
     if (!r->IsFree()) {
       --num_non_free_regions_;
     }
-    r->Clear();
+    r->Clear(/*zero_and_release_pages*/true);
   }
   SetNonFreeRegionLimit(0);
   current_region_ = &full_region_;
@@ -395,7 +412,7 @@ void RegionSpace::FreeLarge(mirror::Object* large_obj, size_t bytes_allocated) {
     } else {
       DCHECK(reg->IsLargeTail());
     }
-    reg->Clear();
+    reg->Clear(/*zero_and_release_pages*/true);
     --num_non_free_regions_;
   }
   if (end_addr < Limit()) {
