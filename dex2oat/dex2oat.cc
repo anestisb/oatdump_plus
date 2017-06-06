@@ -478,7 +478,10 @@ class WatchDog {
                                        android::base::LogId::DEFAULT,
                                        LogSeverity::FATAL,
                                        message.c_str());
-    if (Runtime::Current() != nullptr) {
+    // If we're on the host, try to dump all threads to get a sense of what's going on. This is
+    // restricted to the host as the dump may itself go bad.
+    // TODO: Use a double watchdog timeout, so we can enable this on-device.
+    if (!kIsTargetBuild && Runtime::Current() != nullptr) {
       Runtime::Current()->AttachCurrentThread("Watchdog thread attached for dumping",
                                               true,
                                               nullptr,
