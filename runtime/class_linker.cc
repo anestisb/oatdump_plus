@@ -4604,7 +4604,10 @@ void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod*
   DCHECK(out != nullptr);
   out->CopyFrom(proxy_constructor, image_pointer_size_);
   // Make this constructor public and fix the class to be our Proxy version
-  out->SetAccessFlags((out->GetAccessFlags() & ~kAccProtected) | kAccPublic);
+  // Mark kAccCompileDontBother so that we don't take JIT samples for the method. b/62349349
+  out->SetAccessFlags((out->GetAccessFlags() & ~kAccProtected) |
+                      kAccPublic |
+                      kAccCompileDontBother);
   out->SetDeclaringClass(klass.Get());
 }
 
@@ -4638,7 +4641,8 @@ void ClassLinker::CreateProxyMethod(Handle<mirror::Class> klass, ArtMethod* prot
   // preference to the invocation handler.
   const uint32_t kRemoveFlags = kAccAbstract | kAccDefault | kAccDefaultConflict;
   // Make the method final.
-  const uint32_t kAddFlags = kAccFinal;
+  // Mark kAccCompileDontBother so that we don't take JIT samples for the method. b/62349349
+  const uint32_t kAddFlags = kAccFinal | kAccCompileDontBother;
   out->SetAccessFlags((out->GetAccessFlags() & ~kRemoveFlags) | kAddFlags);
 
   // Clear the dex_code_item_offset_. It needs to be 0 since proxy methods have no CodeItems but the
