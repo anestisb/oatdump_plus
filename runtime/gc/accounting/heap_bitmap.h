@@ -19,7 +19,6 @@
 
 #include "base/allocator.h"
 #include "base/logging.h"
-#include "object_callbacks.h"
 #include "space_bitmap.h"
 
 namespace art {

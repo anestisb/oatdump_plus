@@ -23,7 +23,6 @@
 #include "gc_root.h"
 #include "object.h"
 #include "object_array.h"
-#include "object_callbacks.h"
 #include "string.h"
 
 namespace art {

@@ -32,6 +32,7 @@ namespace mirror {
 }  // namespace mirror
 
 class ArtMethod;
+class IsMarkedVisitor;
 class Libraries;
 class ParsedOptions;
 class Runtime;

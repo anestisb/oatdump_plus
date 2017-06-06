@@ -19,7 +19,6 @@
 
 #include "base/allocator.h"
 #include "globals.h"
-#include "object_callbacks.h"
 #include "safe_map.h"
 
 #include <set>

@@ -23,7 +23,6 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
 #include "gc_root.h"
 
 namespace art {

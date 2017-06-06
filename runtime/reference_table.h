@@ -26,7 +26,6 @@
 #include "base/mutex.h"
 #include "gc_root.h"
 #include "obj_ptr.h"
-#include "object_callbacks.h"
 
 namespace art {
 namespace mirror {
