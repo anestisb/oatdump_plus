@@ -56,7 +56,7 @@ static constexpr size_t kMaximumNumberOfInstructionsForSmallMethod = 3;
 
 // Limit the number of dex registers that we accumulate while inlining
 // to avoid creating large amount of nested environments.
-static constexpr size_t kMaximumNumberOfCumulatedDexRegisters = 64;
+static constexpr size_t kMaximumNumberOfCumulatedDexRegisters = 32;
 
 // Limit recursive call inlining, which do not benefit from too
 // much inlining compared to code locality.
