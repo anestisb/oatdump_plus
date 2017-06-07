@@ -4915,7 +4915,8 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS64::GetSupportedInvokeStati
   return desired_dispatch_info;
 }
 
-void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
+void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(
+    HInvokeStaticOrDirect* invoke, Location temp, SlowPathCode* slow_path) {
   // All registers are assumed to be correctly set up per the calling convention.
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   HInvokeStaticOrDirect::MethodLoadKind method_load_kind = invoke->GetMethodLoadKind();
@@ -4956,33 +4957,9 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       __ Ld(temp.AsRegister<GpuRegister>(), AT, /* placeholder */ 0x5678);
       break;
     }
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
-      GpuRegister reg = temp.AsRegister<GpuRegister>();
-      GpuRegister method_reg;
-      if (current_method.IsRegister()) {
-        method_reg = current_method.AsRegister<GpuRegister>();
-      } else {
-        // TODO: use the appropriate DCHECK() here if possible.
-        // DCHECK(invoke->GetLocations()->Intrinsified());
-        DCHECK(!current_method.IsValid());
-        method_reg = reg;
-        __ Ld(reg, SP, kCurrentMethodStackOffset);
-      }
-
-      // temp = temp->dex_cache_resolved_methods_;
-      __ LoadFromOffset(kLoadDoubleword,
-                        reg,
-                        method_reg,
-                        ArtMethod::DexCacheResolvedMethodsOffset(kMips64PointerSize).Int32Value());
-      // temp = temp[index_in_cache];
-      // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
-      uint32_t index_in_cache = invoke->GetDexMethodIndex();
-      __ LoadFromOffset(kLoadDoubleword,
-                        reg,
-                        reg,
-                        CodeGenerator::GetCachePointerOffset(index_in_cache));
-      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall: {
+      GenerateInvokeStaticOrDirectRuntimeCall(invoke, temp, slow_path);
+      return;  // No code pointer retrieval; the runtime performs the call directly.
     }
   }
 
@@ -5002,6 +4979,8 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       __ Nop();
       break;
   }
+  RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
+
   DCHECK(!IsLeafMethod());
 }
 
@@ -5019,10 +4998,10 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDi
                                        locations->HasTemps()
                                            ? locations->GetTemp(0)
                                            : Location::NoLocation());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
-void CodeGeneratorMIPS64::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_location) {
+void CodeGeneratorMIPS64::GenerateVirtualCall(
+    HInvokeVirtual* invoke, Location temp_location, SlowPathCode* slow_path) {
   // Use the calling convention instead of the location of the receiver, as
   // intrinsics may have put the receiver in a different register. In the intrinsics
   // slow path, the arguments have been moved to the right place, so here we are
@@ -5054,6 +5033,7 @@ void CodeGeneratorMIPS64::GenerateVirtualCall(HInvokeVirtual* invoke, Location t
   // T9();
   __ Jalr(T9);
   __ Nop();
+  RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
 }
 
 void InstructionCodeGeneratorMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
@@ -5063,7 +5043,6 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) 
 
   codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void LocationsBuilderMIPS64::VisitLoadClass(HLoadClass* cls) {

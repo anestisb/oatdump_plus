@@ -977,8 +977,8 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86_64::GetSupportedInvokeStati
   return desired_dispatch_info;
 }
 
-void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
-                                                     Location temp) {
+void CodeGeneratorX86_64::GenerateStaticOrDirectCall(
+    HInvokeStaticOrDirect* invoke, Location temp, SlowPathCode* slow_path) {
   // All registers are assumed to be correctly set up.
 
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
@@ -1010,27 +1010,9 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       __ Bind(NewPcRelativeDexCacheArrayPatch(invoke->GetDexFileForPcRelativeDexCache(), offset));
       break;
     }
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
-      Register method_reg;
-      CpuRegister reg = temp.AsRegister<CpuRegister>();
-      if (current_method.IsRegister()) {
-        method_reg = current_method.AsRegister<Register>();
-      } else {
-        DCHECK(invoke->GetLocations()->Intrinsified());
-        DCHECK(!current_method.IsValid());
-        method_reg = reg.AsRegister();
-        __ movq(reg, Address(CpuRegister(RSP), kCurrentMethodStackOffset));
-      }
-      // /* ArtMethod*[] */ temp = temp.ptr_sized_fields_->dex_cache_resolved_methods_;
-      __ movq(reg,
-              Address(CpuRegister(method_reg),
-                      ArtMethod::DexCacheResolvedMethodsOffset(kX86_64PointerSize).SizeValue()));
-      // temp = temp[index_in_cache];
-      // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
-      uint32_t index_in_cache = invoke->GetDexMethodIndex();
-      __ movq(reg, Address(reg, CodeGenerator::GetCachePointerOffset(index_in_cache)));
-      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall: {
+      GenerateInvokeStaticOrDirectRuntimeCall(invoke, temp, slow_path);
+      return;  // No code pointer retrieval; the runtime performs the call directly.
     }
   }
 
@@ -1045,11 +1027,13 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
                           kX86_64PointerSize).SizeValue()));
       break;
   }
+  RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
 
   DCHECK(!IsLeafMethod());
 }
 
-void CodeGeneratorX86_64::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_in) {
+void CodeGeneratorX86_64::GenerateVirtualCall(
+    HInvokeVirtual* invoke, Location temp_in, SlowPathCode* slow_path) {
   CpuRegister temp = temp_in.AsRegister<CpuRegister>();
   size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kX86_64PointerSize).SizeValue();
@@ -1078,6 +1062,7 @@ void CodeGeneratorX86_64::GenerateVirtualCall(HInvokeVirtual* invoke, Location t
   // call temp->GetEntryPoint();
   __ call(Address(temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
       kX86_64PointerSize).SizeValue()));
+  RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
 }
 
 void CodeGeneratorX86_64::RecordBootMethodPatch(HInvokeStaticOrDirect* invoke) {
@@ -2387,7 +2372,6 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDi
   LocationSummary* locations = invoke->GetLocations();
   codegen_->GenerateStaticOrDirectCall(
       invoke, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void LocationsBuilderX86_64::HandleInvoke(HInvoke* invoke) {
@@ -2411,7 +2395,6 @@ void InstructionCodeGeneratorX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) 
 
   codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void LocationsBuilderX86_64::VisitInvokeInterface(HInvokeInterface* invoke) {

@@ -796,7 +796,6 @@ static void InvokeOutOfLineIntrinsic(CodeGeneratorX86* codegen, HInvoke* invoke)
   DCHECK(invoke->IsInvokeStaticOrDirect());
   codegen->GenerateStaticOrDirectCall(invoke->AsInvokeStaticOrDirect(),
                                       Location::RegisterLocation(EAX));
-  codegen->RecordPcInfo(invoke, invoke->GetDexPc());
 
   // Copy the result back to the expected output.
   Location out = invoke->GetLocations()->Out();

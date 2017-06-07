@@ -408,9 +408,11 @@ class CodeGeneratorX86 : public CodeGenerator {
       HInvokeStaticOrDirect* invoke) OVERRIDE;
 
   // Generate a call to a static or direct method.
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
+  void GenerateStaticOrDirectCall(
+      HInvokeStaticOrDirect* invoke, Location temp, SlowPathCode* slow_path = nullptr) OVERRIDE;
   // Generate a call to a virtual method.
-  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
+  void GenerateVirtualCall(
+      HInvokeVirtual* invoke, Location temp, SlowPathCode* slow_path = nullptr) OVERRIDE;
 
   void RecordBootMethodPatch(HInvokeStaticOrDirect* invoke);
   void RecordBootTypePatch(HLoadClass* load_class);

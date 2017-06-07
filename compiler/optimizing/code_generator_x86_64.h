@@ -404,8 +404,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       HInvokeStaticOrDirect* invoke) OVERRIDE;
 
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
-  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
+  void GenerateStaticOrDirectCall(
+      HInvokeStaticOrDirect* invoke, Location temp, SlowPathCode* slow_path = nullptr) OVERRIDE;
+  void GenerateVirtualCall(
+      HInvokeVirtual* invoke, Location temp, SlowPathCode* slow_path = nullptr) OVERRIDE;
 
   void RecordBootMethodPatch(HInvokeStaticOrDirect* invoke);
   void RecordBootTypePatch(HLoadClass* load_class);

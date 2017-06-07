@@ -78,7 +78,6 @@ using helpers::VIXLRegCodeFromART;
 using helpers::WRegisterFrom;
 using helpers::XRegisterFrom;
 
-static constexpr int kCurrentMethodStackOffset = 0;
 // The compare/jump sequence will generate about (1.5 * num_entries + 3) instructions. While jump
 // table version generates 7 instructions and num_entries literals. Compare/jump sequence will
 // generates less code/data with a small num_entries.
@@ -4497,7 +4496,8 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM64::GetSupportedInvokeStatic
   return desired_dispatch_info;
 }
 
-void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
+void CodeGeneratorARM64::GenerateStaticOrDirectCall(
+    HInvokeStaticOrDirect* invoke, Location temp, SlowPathCode* slow_path) {
   // Make sure that ArtMethod* is passed in kArtMethodRegister as per the calling convention.
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
@@ -4538,34 +4538,22 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       EmitLdrOffsetPlaceholder(ldr_label, XRegisterFrom(temp), XRegisterFrom(temp));
       break;
     }
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
-      Register reg = XRegisterFrom(temp);
-      Register method_reg;
-      if (current_method.IsRegister()) {
-        method_reg = XRegisterFrom(current_method);
-      } else {
-        DCHECK(invoke->GetLocations()->Intrinsified());
-        DCHECK(!current_method.IsValid());
-        method_reg = reg;
-        __ Ldr(reg.X(), MemOperand(sp, kCurrentMethodStackOffset));
-      }
-
-      // /* ArtMethod*[] */ temp = temp.ptr_sized_fields_->dex_cache_resolved_methods_;
-      __ Ldr(reg.X(),
-             MemOperand(method_reg.X(),
-                        ArtMethod::DexCacheResolvedMethodsOffset(kArm64PointerSize).Int32Value()));
-      // temp = temp[index_in_cache];
-      // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
-      uint32_t index_in_cache = invoke->GetDexMethodIndex();
-    __ Ldr(reg.X(), MemOperand(reg.X(), GetCachePointerOffset(index_in_cache)));
-      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall: {
+      GenerateInvokeStaticOrDirectRuntimeCall(invoke, temp, slow_path);
+      return;  // No code pointer retrieval; the runtime performs the call directly.
     }
   }
 
   switch (invoke->GetCodePtrLocation()) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
-      __ Bl(&frame_entry_label_);
+      {
+        // Use a scope to help guarantee that `RecordPcInfo()` records the correct pc.
+        ExactAssemblyScope eas(GetVIXLAssembler(),
+                               kInstructionSize,
+                               CodeBufferCheckScope::kExactSize);
+        __ bl(&frame_entry_label_);
+        RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
+      }
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
       // LR = callee_method->entry_point_from_quick_compiled_code_;
@@ -4573,14 +4561,13 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
           XRegisterFrom(callee_method),
           ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize).Int32Value()));
       {
-        // To ensure that the pc position is recorded immediately after the `blr` instruction
-        // BLR must be the last instruction emitted in this function.
-        // Recording the pc will occur right after returning from this function.
+        // Use a scope to help guarantee that `RecordPcInfo()` records the correct pc.
         ExactAssemblyScope eas(GetVIXLAssembler(),
                                kInstructionSize,
                                CodeBufferCheckScope::kExactSize);
         // lr()
         __ blr(lr);
+        RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
       }
       break;
   }
@@ -4588,7 +4575,8 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   DCHECK(!IsLeafMethod());
 }
 
-void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_in) {
+void CodeGeneratorARM64::GenerateVirtualCall(
+    HInvokeVirtual* invoke, Location temp_in, SlowPathCode* slow_path) {
   // Use the calling convention instead of the location of the receiver, as
   // intrinsics may have put the receiver in a different register. In the intrinsics
   // slow path, the arguments have been moved to the right place, so here we are
@@ -4622,12 +4610,11 @@ void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location te
   // lr = temp->GetEntryPoint();
   __ Ldr(lr, MemOperand(temp, entry_point.SizeValue()));
   {
-    // To ensure that the pc position is recorded immediately after the `blr` instruction
-    // BLR should be the last instruction emitted in this function.
-    // Recording the pc will occur right after returning from this function.
+    // Use a scope to help guarantee that `RecordPcInfo()` records the correct pc.
     ExactAssemblyScope eas(GetVIXLAssembler(), kInstructionSize, CodeBufferCheckScope::kExactSize);
     // lr();
     __ blr(lr);
+    RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
   }
 }
 
@@ -4824,7 +4811,6 @@ void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDir
   LocationSummary* locations = invoke->GetLocations();
   codegen_->GenerateStaticOrDirectCall(
       invoke, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
@@ -4837,7 +4823,6 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   EmissionCheckScope guard(GetVIXLAssembler(), kInvokeCodeMarginSizeInBytes);
   codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 HLoadClass::LoadKind CodeGeneratorARM64::GetSupportedLoadClassKind(

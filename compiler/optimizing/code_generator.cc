@@ -337,7 +337,7 @@ void CodeGenerator::CreateCommonInvokeLocationSummary(
       case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
         locations->SetInAt(call->GetSpecialInputIndex(), visitor->GetMethodLocation());
         break;
-      case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod:
+      case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall:
         locations->AddTemp(visitor->GetMethodLocation());
         locations->SetInAt(call->GetSpecialInputIndex(), Location::RequiresRegister());
         break;
@@ -350,6 +350,34 @@ void CodeGenerator::CreateCommonInvokeLocationSummary(
   }
 }
 
+void CodeGenerator::GenerateInvokeStaticOrDirectRuntimeCall(
+    HInvokeStaticOrDirect* invoke, Location temp, SlowPathCode* slow_path) {
+  MoveConstant(temp, invoke->GetDexMethodIndex());
+
+  // The access check is unnecessary but we do not want to introduce
+  // extra entrypoints for the codegens that do not support some
+  // invoke type and fall back to the runtime call.
+
+  // Initialize to anything to silent compiler warnings.
+  QuickEntrypointEnum entrypoint = kQuickInvokeStaticTrampolineWithAccessCheck;
+  switch (invoke->GetInvokeType()) {
+    case kStatic:
+      entrypoint = kQuickInvokeStaticTrampolineWithAccessCheck;
+      break;
+    case kDirect:
+      entrypoint = kQuickInvokeDirectTrampolineWithAccessCheck;
+      break;
+    case kSuper:
+      entrypoint = kQuickInvokeSuperTrampolineWithAccessCheck;
+      break;
+    case kVirtual:
+    case kInterface:
+      LOG(FATAL) << "Unexpected invoke type: " << invoke->GetInvokeType();
+      UNREACHABLE();
+  }
+
+  InvokeRuntime(entrypoint, invoke, invoke->GetDexPc(), slow_path);
+}
 void CodeGenerator::GenerateInvokeUnresolvedRuntimeCall(HInvokeUnresolved* invoke) {
   MoveConstant(invoke->GetLocations()->GetTemp(0), invoke->GetDexMethodIndex());
 

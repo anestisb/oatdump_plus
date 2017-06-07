@@ -42,7 +42,7 @@ public class Main {
   }
 
   /// CHECK-START: int Main.testSimple(int) sharpening (before)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCacheViaMethod
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:RuntimeCall
 
   /// CHECK-START-ARM: int Main.testSimple(int) sharpening (after)
   /// CHECK-NOT:            ArmDexCacheArraysBase
@@ -78,7 +78,7 @@ public class Main {
   }
 
   /// CHECK-START: int Main.testDiamond(boolean, int) sharpening (before)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCacheViaMethod
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:RuntimeCall
 
   /// CHECK-START-ARM: int Main.testDiamond(boolean, int) sharpening (after)
   /// CHECK-NOT:            ArmDexCacheArraysBase

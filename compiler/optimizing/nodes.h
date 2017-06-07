@@ -4172,11 +4172,9 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     // and we know that we can access the dex cache arrays using a PC-relative load.
     kDexCachePcRelative,
 
-    // Use ArtMethod* from the resolved methods of the compiled method's own ArtMethod*.
-    // Used for JIT when we need to use the dex cache. This is also the last-resort-kind
-    // used when other kinds are unavailable (say, dex cache arrays are not PC-relative)
-    // or unimplemented or impractical (i.e. slow) on a particular architecture.
-    kDexCacheViaMethod,
+    // Make a runtime call to resolve and call the method. This is the last-resort-kind
+    // used when other kinds are unimplemented on a particular architecture.
+    kRuntimeCall,
   };
 
   // Determines the location of the code pointer.
@@ -4376,7 +4374,7 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
 
   // Does this method load kind need the current method as an input?
   static bool NeedsCurrentMethodInput(MethodLoadKind kind) {
-    return kind == MethodLoadKind::kRecursive || kind == MethodLoadKind::kDexCacheViaMethod;
+    return kind == MethodLoadKind::kRecursive || kind == MethodLoadKind::kRuntimeCall;
   }
 
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);

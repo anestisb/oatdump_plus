@@ -47,7 +47,6 @@ static bool ExpectedPairLayout(Location location) {
   return ((location.low() & 1) == 0) && (location.low() + 1 == location.high());
 }
 
-static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = R0;
 
 static constexpr Register kCoreAlwaysSpillRegister = R5;
@@ -3589,7 +3588,6 @@ void InstructionCodeGeneratorARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirec
   LocationSummary* locations = invoke->GetLocations();
   codegen_->GenerateStaticOrDirectCall(
       invoke, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
@@ -3613,7 +3611,6 @@ void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 
   codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void LocationsBuilderARM::VisitInvokeInterface(HInvokeInterface* invoke) {
@@ -8955,7 +8952,8 @@ Register CodeGeneratorARM::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOr
   return location.AsRegister<Register>();
 }
 
-void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
+void CodeGeneratorARM::GenerateStaticOrDirectCall(
+    HInvokeStaticOrDirect* invoke, Location temp, SlowPathCode* slow_path) {
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
     case HInvokeStaticOrDirect::MethodLoadKind::kStringInit: {
@@ -8992,28 +8990,9 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), base_reg, offset);
       break;
     }
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
-      Register method_reg;
-      Register reg = temp.AsRegister<Register>();
-      if (current_method.IsRegister()) {
-        method_reg = current_method.AsRegister<Register>();
-      } else {
-        DCHECK(invoke->GetLocations()->Intrinsified());
-        DCHECK(!current_method.IsValid());
-        method_reg = reg;
-        __ LoadFromOffset(kLoadWord, reg, SP, kCurrentMethodStackOffset);
-      }
-      // /* ArtMethod*[] */ temp = temp.ptr_sized_fields_->dex_cache_resolved_methods_;
-      __ LoadFromOffset(kLoadWord,
-                        reg,
-                        method_reg,
-                        ArtMethod::DexCacheResolvedMethodsOffset(kArmPointerSize).Int32Value());
-      // temp = temp[index_in_cache];
-      // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
-      uint32_t index_in_cache = invoke->GetDexMethodIndex();
-      __ LoadFromOffset(kLoadWord, reg, reg, CodeGenerator::GetCachePointerOffset(index_in_cache));
-      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall: {
+      GenerateInvokeStaticOrDirectRuntimeCall(invoke, temp, slow_path);
+      return;  // No code pointer retrieval; the runtime performs the call directly.
     }
   }
 
@@ -9030,11 +9009,13 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       __ blx(LR);
       break;
   }
+  RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
 
   DCHECK(!IsLeafMethod());
 }
 
-void CodeGeneratorARM::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_location) {
+void CodeGeneratorARM::GenerateVirtualCall(
+    HInvokeVirtual* invoke, Location temp_location, SlowPathCode* slow_path) {
   Register temp = temp_location.AsRegister<Register>();
   uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kArmPointerSize).Uint32Value();
@@ -9065,6 +9046,7 @@ void CodeGeneratorARM::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
   __ LoadFromOffset(kLoadWord, LR, temp, entry_point);
   // LR();
   __ blx(LR);
+  RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
 }
 
 CodeGeneratorARM::PcRelativePatchInfo* CodeGeneratorARM::NewPcRelativeMethodPatch(
