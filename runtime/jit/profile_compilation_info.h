@@ -343,7 +343,12 @@ class ProfileCompilationInfo {
           class_set(std::less<dex::TypeIndex>(), arena->Adapter(kArenaAllocProfile)),
           num_method_ids(num_methods),
           bitmap_storage(arena->Adapter(kArenaAllocProfile)) {
-      CreateBitmap();
+      const size_t num_bits = num_method_ids * kBitmapCount;
+      bitmap_storage.resize(RoundUp(num_bits, kBitsPerByte) / kBitsPerByte);
+      if (!bitmap_storage.empty()) {
+        method_bitmap =
+            BitMemoryRegion(MemoryRegion(&bitmap_storage[0], bitmap_storage.size()), 0, num_bits);
+      }
     }
 
     bool operator==(const DexFileData& other) const {
@@ -357,6 +362,13 @@ class ProfileCompilationInfo {
 
     bool HasSampledMethod(bool startup, size_t index) const {
       return method_bitmap.LoadBit(MethodBitIndex(startup, index));
+    }
+
+    void MergeBitmap(const DexFileData& other) {
+      DCHECK_EQ(bitmap_storage.size(), other.bitmap_storage.size());
+      for (size_t i = 0; i < bitmap_storage.size(); ++i) {
+        bitmap_storage[i] |= other.bitmap_storage[i];
+      }
     }
 
     // The arena used to allocate new inline cache maps.
@@ -380,28 +392,21 @@ class ProfileCompilationInfo {
     ArenaVector<uint8_t> bitmap_storage;
     BitMemoryRegion method_bitmap;
 
-    void CreateBitmap();
-
-    void MergeBitmap(const DexFileData& other) {
-      DCHECK_EQ(bitmap_storage.size(), other.bitmap_storage.size());
-      for (size_t i = 0; i < bitmap_storage.size(); ++i) {
-        bitmap_storage[i] |= other.bitmap_storage[i];
-      }
-    }
-
    private:
-    enum Bits {
-      kMethodBitStartup,
-      kMethodBitAfterStartup,
-      kMethodBitCount,
+    enum BitmapIndex {
+      kBitmapStartup,
+      kBitmapPostStartup,
+      kBitmapCount,
     };
 
     size_t MethodBitIndex(bool startup, size_t index) const {
       DCHECK_LT(index, num_method_ids);
-      if (!startup) {
-        index += num_method_ids;
-      }
-      return index;
+      // The format is [startup bitmap][post startup bitmap]
+      // This compresses better than ([startup bit][post statup bit])*
+
+      return index + (startup
+          ? kBitmapStartup * num_method_ids
+          : kBitmapPostStartup * num_method_ids);
     }
   };
 
