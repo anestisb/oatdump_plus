@@ -1232,6 +1232,25 @@ TEST_F(OatFileAssistantTest, DexOptStatusValues) {
   }
 }
 
+// Verify that when no compiler filter is passed the default one from OatFileAssistant is used.
+TEST_F(OatFileAssistantTest, DefaultMakeUpToDateFilter) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  Copy(GetDexSrc1(), dex_location);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);
+
+  const CompilerFilter::Filter default_filter =
+      OatFileAssistant::kDefaultCompilerFilterForDexLoading;
+  std::string error_msg;
+  EXPECT_EQ(OatFileAssistant::kUpdateSucceeded,
+      oat_file_assistant.MakeUpToDate(false, &error_msg)) << error_msg;
+  EXPECT_EQ(-OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(default_filter));
+  std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
+  EXPECT_NE(nullptr, oat_file.get());
+  EXPECT_EQ(default_filter, oat_file->GetCompilerFilter());
+}
+
 // TODO: More Tests:
 //  * Test class linker falls back to unquickened dex for DexNoOat
 //  * Test class linker falls back to unquickened dex for MultiDexNoOat
