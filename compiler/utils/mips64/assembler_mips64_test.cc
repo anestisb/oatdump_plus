@@ -2998,6 +2998,86 @@ TEST_F(AssemblerMIPS64Test, Aver_uD) {
             "aver_u.d");
 }
 
+TEST_F(AssemblerMIPS64Test, Max_sB) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Max_sB, "max_s.b ${reg1}, ${reg2}, ${reg3}"),
+            "max_s.b");
+}
+
+TEST_F(AssemblerMIPS64Test, Max_sH) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Max_sH, "max_s.h ${reg1}, ${reg2}, ${reg3}"),
+            "max_s.h");
+}
+
+TEST_F(AssemblerMIPS64Test, Max_sW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Max_sW, "max_s.w ${reg1}, ${reg2}, ${reg3}"),
+            "max_s.w");
+}
+
+TEST_F(AssemblerMIPS64Test, Max_sD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Max_sD, "max_s.d ${reg1}, ${reg2}, ${reg3}"),
+            "max_s.d");
+}
+
+TEST_F(AssemblerMIPS64Test, Max_uB) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Max_uB, "max_u.b ${reg1}, ${reg2}, ${reg3}"),
+            "max_u.b");
+}
+
+TEST_F(AssemblerMIPS64Test, Max_uH) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Max_uH, "max_u.h ${reg1}, ${reg2}, ${reg3}"),
+            "max_u.h");
+}
+
+TEST_F(AssemblerMIPS64Test, Max_uW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Max_uW, "max_u.w ${reg1}, ${reg2}, ${reg3}"),
+            "max_u.w");
+}
+
+TEST_F(AssemblerMIPS64Test, Max_uD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Max_uD, "max_u.d ${reg1}, ${reg2}, ${reg3}"),
+            "max_u.d");
+}
+
+TEST_F(AssemblerMIPS64Test, Min_sB) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Min_sB, "min_s.b ${reg1}, ${reg2}, ${reg3}"),
+            "min_s.b");
+}
+
+TEST_F(AssemblerMIPS64Test, Min_sH) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Min_sH, "min_s.h ${reg1}, ${reg2}, ${reg3}"),
+            "min_s.h");
+}
+
+TEST_F(AssemblerMIPS64Test, Min_sW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Min_sW, "min_s.w ${reg1}, ${reg2}, ${reg3}"),
+            "min_s.w");
+}
+
+TEST_F(AssemblerMIPS64Test, Min_sD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Min_sD, "min_s.d ${reg1}, ${reg2}, ${reg3}"),
+            "min_s.d");
+}
+
+TEST_F(AssemblerMIPS64Test, Min_uB) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Min_uB, "min_u.b ${reg1}, ${reg2}, ${reg3}"),
+            "min_u.b");
+}
+
+TEST_F(AssemblerMIPS64Test, Min_uH) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Min_uH, "min_u.h ${reg1}, ${reg2}, ${reg3}"),
+            "min_u.h");
+}
+
+TEST_F(AssemblerMIPS64Test, Min_uW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Min_uW, "min_u.w ${reg1}, ${reg2}, ${reg3}"),
+            "min_u.w");
+}
+
+TEST_F(AssemblerMIPS64Test, Min_uD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::Min_uD, "min_u.d ${reg1}, ${reg2}, ${reg3}"),
+            "min_u.d");
+}
+
 TEST_F(AssemblerMIPS64Test, FaddW) {
   DriverStr(RepeatVVV(&mips64::Mips64Assembler::FaddW, "fadd.w ${reg1}, ${reg2}, ${reg3}"),
             "fadd.w");
@@ -3036,6 +3116,26 @@ TEST_F(AssemblerMIPS64Test, FdivW) {
 TEST_F(AssemblerMIPS64Test, FdivD) {
   DriverStr(RepeatVVV(&mips64::Mips64Assembler::FdivD, "fdiv.d ${reg1}, ${reg2}, ${reg3}"),
             "fdiv.d");
+}
+
+TEST_F(AssemblerMIPS64Test, FmaxW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::FmaxW, "fmax.w ${reg1}, ${reg2}, ${reg3}"),
+            "fmax.w");
+}
+
+TEST_F(AssemblerMIPS64Test, FmaxD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::FmaxD, "fmax.d ${reg1}, ${reg2}, ${reg3}"),
+            "fmax.d");
+}
+
+TEST_F(AssemblerMIPS64Test, FminW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::FminW, "fmin.w ${reg1}, ${reg2}, ${reg3}"),
+            "fmin.w");
+}
+
+TEST_F(AssemblerMIPS64Test, FminD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::FminD, "fmin.d ${reg1}, ${reg2}, ${reg3}"),
+            "fmin.d");
 }
 
 TEST_F(AssemblerMIPS64Test, Ffint_sW) {

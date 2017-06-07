@@ -704,6 +704,22 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Aver_uH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void Aver_uW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void Aver_uD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Max_sB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Max_sH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Max_sW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Max_sD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Max_uB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Max_uH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Max_uW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Max_uD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Min_sB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Min_sH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Min_sW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Min_sD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Min_uB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Min_uH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Min_uW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void Min_uD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
 
   void FaddW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void FaddD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
@@ -713,6 +729,10 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void FmulD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void FdivW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void FdivD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void FmaxW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void FmaxD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void FminW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void FminD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
 
   void Ffint_sW(VectorRegister wd, VectorRegister ws);
   void Ffint_sD(VectorRegister wd, VectorRegister ws);
