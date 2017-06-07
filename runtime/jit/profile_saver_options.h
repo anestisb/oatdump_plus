@@ -22,8 +22,8 @@ struct ProfileSaverOptions {
  public:
   static constexpr uint32_t kMinSavePeriodMs = 40 * 1000;  // 40 seconds
   static constexpr uint32_t kSaveResolvedClassesDelayMs = 5 * 1000;  // 5 seconds
-  // Minimum number of JIT samples during launch to include a method into the profile.
-  static constexpr uint32_t kStartupMethodSamples = 1;
+  // Minimum number of JIT samples during launch to mark a method as hot in the profile.
+  static constexpr uint32_t kHotStartupMethodSamples = 1;
   static constexpr uint32_t kMinMethodsToSave = 10;
   static constexpr uint32_t kMinClassesToSave = 10;
   static constexpr uint32_t kMinNotificationBeforeWake = 10;
@@ -33,7 +33,7 @@ struct ProfileSaverOptions {
     enabled_(false),
     min_save_period_ms_(kMinSavePeriodMs),
     save_resolved_classes_delay_ms_(kSaveResolvedClassesDelayMs),
-    startup_method_samples_(kStartupMethodSamples),
+    hot_startup_method_samples_(kHotStartupMethodSamples),
     min_methods_to_save_(kMinMethodsToSave),
     min_classes_to_save_(kMinClassesToSave),
     min_notification_before_wake_(kMinNotificationBeforeWake),
@@ -44,7 +44,7 @@ struct ProfileSaverOptions {
       bool enabled,
       uint32_t min_save_period_ms,
       uint32_t save_resolved_classes_delay_ms,
-      uint32_t startup_method_samples,
+      uint32_t hot_startup_method_samples,
       uint32_t min_methods_to_save,
       uint32_t min_classes_to_save,
       uint32_t min_notification_before_wake,
@@ -53,7 +53,7 @@ struct ProfileSaverOptions {
     enabled_(enabled),
     min_save_period_ms_(min_save_period_ms),
     save_resolved_classes_delay_ms_(save_resolved_classes_delay_ms),
-    startup_method_samples_(startup_method_samples),
+    hot_startup_method_samples_(hot_startup_method_samples),
     min_methods_to_save_(min_methods_to_save),
     min_classes_to_save_(min_classes_to_save),
     min_notification_before_wake_(min_notification_before_wake),
@@ -73,8 +73,8 @@ struct ProfileSaverOptions {
   uint32_t GetSaveResolvedClassesDelayMs() const {
     return save_resolved_classes_delay_ms_;
   }
-  uint32_t GetStartupMethodSamples() const {
-    return startup_method_samples_;
+  uint32_t GetHotStartupMethodSamples() const {
+    return hot_startup_method_samples_;
   }
   uint32_t GetMinMethodsToSave() const {
     return min_methods_to_save_;
@@ -96,7 +96,7 @@ struct ProfileSaverOptions {
     os << "enabled_" << pso.enabled_
         << ", min_save_period_ms_" << pso.min_save_period_ms_
         << ", save_resolved_classes_delay_ms_" << pso.save_resolved_classes_delay_ms_
-        << ", startup_method_samples_" << pso.startup_method_samples_
+        << ", hot_startup_method_samples_" << pso.hot_startup_method_samples_
         << ", min_methods_to_save_" << pso.min_methods_to_save_
         << ", min_classes_to_save_" << pso.min_classes_to_save_
         << ", min_notification_before_wake_" << pso.min_notification_before_wake_
@@ -107,7 +107,7 @@ struct ProfileSaverOptions {
   bool enabled_;
   uint32_t min_save_period_ms_;
   uint32_t save_resolved_classes_delay_ms_;
-  uint32_t startup_method_samples_;
+  uint32_t hot_startup_method_samples_;
   uint32_t min_methods_to_save_;
   uint32_t min_classes_to_save_;
   uint32_t min_notification_before_wake_;

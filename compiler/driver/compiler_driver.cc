@@ -1000,8 +1000,9 @@ bool CompilerDriver::ShouldCompileBasedOnProfile(const MethodReference& method_r
   if (profile_compilation_info_ == nullptr) {
     return false;
   }
-  // TODO: Revisit compiling all startup methods. b/36457259
-  bool result = profile_compilation_info_->IsStartupOrHotMethod(method_ref);
+  // Compile only hot methods, it is the profile saver's job to decide what startup methods to mark
+  // as hot.
+  bool result = profile_compilation_info_->ContainsHotMethod(method_ref);
 
   if (kDebugProfileGuidedCompilation) {
     LOG(INFO) << "[ProfileGuidedCompilation] "

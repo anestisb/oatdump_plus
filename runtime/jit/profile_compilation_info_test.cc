@@ -298,7 +298,8 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
   {
     ScopedObjectAccess soa(self);
     for (ArtMethod* m : main_methods) {
-      ASSERT_TRUE(info1.ContainsMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+      ASSERT_TRUE(info1.ContainsHotMethod(
+          MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
     }
   }
 
@@ -314,10 +315,12 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
   {
     ScopedObjectAccess soa(self);
     for (ArtMethod* m : main_methods) {
-      ASSERT_TRUE(info2.ContainsMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+      ASSERT_TRUE(
+          info2.ContainsHotMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
     }
     for (ArtMethod* m : second_methods) {
-      ASSERT_TRUE(info2.ContainsMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+      ASSERT_TRUE(
+          info2.ContainsHotMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
     }
   }
 }
@@ -663,7 +666,8 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethodsWithInlineCaches) {
   {
     ScopedObjectAccess soa(self);
     for (ArtMethod* m : main_methods) {
-      ASSERT_TRUE(info.ContainsMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+      ASSERT_TRUE(
+          info.ContainsHotMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
       const ProfileMethodInfo& pmi = profile_methods_map.find(m)->second;
       std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> offline_pmi =
           info.GetMethod(m->GetDexFile()->GetLocation(),

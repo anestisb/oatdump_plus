@@ -709,7 +709,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");
   UsageMessage(stream, "  -Xps-min-save-period-ms:integervalue\n");
   UsageMessage(stream, "  -Xps-save-resolved-classes-delay-ms:integervalue\n");
-  UsageMessage(stream, "  -Xps-startup-method-samples:integervalue\n");
+  UsageMessage(stream, "  -Xps-hot-startup-method-samples:integervalue\n");
   UsageMessage(stream, "  -Xps-min-methods-to-save:integervalue\n");
   UsageMessage(stream, "  -Xps-min-classes-to-save:integervalue\n");
   UsageMessage(stream, "  -Xps-min-notification-before-wake:integervalue\n");
