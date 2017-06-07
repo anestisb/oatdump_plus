@@ -77,6 +77,29 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     ASSERT_TRUE(profile.GetFile()->ResetOffset());
   }
 
+  void SetupBasicProfile(const std::string& id,
+                         uint32_t checksum,
+                         uint16_t number_of_methods,
+                         const std::vector<uint32_t> hot_methods,
+                         const std::vector<uint32_t> startup_methods,
+                         const std::vector<uint32_t> post_startup_methods,
+                         const ScratchFile& profile,
+                         ProfileCompilationInfo* info) {
+    std::string dex_location = "location1" + id;
+    for (uint32_t idx : hot_methods) {
+      info->AddMethodIndex(dex_location, checksum, idx, number_of_methods);
+    }
+    for (uint32_t idx : startup_methods) {
+      info->AddSampledMethod(/*startup*/true, dex_location, checksum, idx, number_of_methods);
+    }
+    for (uint32_t idx : post_startup_methods) {
+      info->AddSampledMethod(/*startup*/false, dex_location, checksum, idx, number_of_methods);
+    }
+    ASSERT_TRUE(info->Save(GetFd(profile)));
+    ASSERT_EQ(0, profile.GetFile()->Flush());
+    ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  }
+
   // Creates an inline cache which will be destructed at the end of the test.
   ProfileCompilationInfo::InlineCacheMap* CreateInlineCacheMap() {
     used_inline_caches.emplace_back(new ProfileCompilationInfo::InlineCacheMap(
@@ -198,26 +221,40 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     return true;
   }
 
-  bool DumpClassesAndMethods(const std::string& filename, std::string* file_contents) {
-    ScratchFile class_names_file;
+  bool RunProfman(const std::string& filename,
+                  std::vector<std::string>& extra_args,
+                  std::string* output) {
+    ScratchFile output_file;
     std::string profman_cmd = GetProfmanCmd();
     std::vector<std::string> argv_str;
     argv_str.push_back(profman_cmd);
-    argv_str.push_back("--dump-classes-and-methods");
+    argv_str.insert(argv_str.end(), extra_args.begin(), extra_args.end());
     argv_str.push_back("--profile-file=" + filename);
     argv_str.push_back("--apk=" + GetLibCoreDexFileNames()[0]);
     argv_str.push_back("--dex-location=" + GetLibCoreDexFileNames()[0]);
-    argv_str.push_back("--dump-output-to-fd=" + std::to_string(GetFd(class_names_file)));
+    argv_str.push_back("--dump-output-to-fd=" + std::to_string(GetFd(output_file)));
     std::string error;
     EXPECT_EQ(ExecAndReturnCode(argv_str, &error), 0);
-    File* file = class_names_file.GetFile();
+    File* file = output_file.GetFile();
     EXPECT_EQ(0, file->Flush());
     EXPECT_TRUE(file->ResetOffset());
     int64_t length = file->GetLength();
     std::unique_ptr<char[]> buf(new char[length]);
     EXPECT_EQ(file->Read(buf.get(), length, 0), length);
-    *file_contents = std::string(buf.get(), length);
+    *output = std::string(buf.get(), length);
     return true;
+  }
+
+  bool DumpClassesAndMethods(const std::string& filename, std::string* file_contents) {
+    std::vector<std::string> extra_args;
+    extra_args.push_back("--dump-classes-and-methods");
+    return RunProfman(filename, extra_args, file_contents);
+  }
+
+  bool DumpOnly(const std::string& filename, std::string* file_contents) {
+    std::vector<std::string> extra_args;
+    extra_args.push_back("--dump-only");
+    return RunProfman(filename, extra_args, file_contents);
   }
 
   bool CreateAndDump(const std::string& input_file_contents,
@@ -828,6 +865,65 @@ TEST_F(ProfileAssistantTest, TestProfileCreateWithInvalidData) {
   ASSERT_EQ(2u, hot_methods.size());
   uint16_t invalid_method_index = std::numeric_limits<uint16_t>::max() - 1;
   ASSERT_TRUE(hot_methods.find(invalid_method_index) != hot_methods.end());
+}
+
+TEST_F(ProfileAssistantTest, DumpOnly) {
+  ScratchFile profile;
+
+  const uint32_t kNumberOfMethods = 64;
+  std::vector<uint32_t> hot_methods;
+  std::vector<uint32_t> startup_methods;
+  std::vector<uint32_t> post_startup_methods;
+  for (size_t i = 0; i < kNumberOfMethods; ++i) {
+    if (i % 2 == 0) {
+      hot_methods.push_back(i);
+    }
+    if (i % 3 == 1) {
+      startup_methods.push_back(i);
+    }
+    if (i % 4 == 2) {
+      post_startup_methods.push_back(i);
+    }
+  }
+  EXPECT_GT(hot_methods.size(), 0u);
+  EXPECT_GT(startup_methods.size(), 0u);
+  EXPECT_GT(post_startup_methods.size(), 0u);
+  ProfileCompilationInfo info1;
+  SetupBasicProfile("p1",
+                    1,
+                    kNumberOfMethods,
+                    hot_methods,
+                    startup_methods,
+                    post_startup_methods,
+                    profile,
+                    &info1);
+  std::string output;
+  DumpOnly(profile.GetFilename(), &output);
+  const size_t hot_offset = output.find("hot methods:");
+  const size_t startup_offset = output.find("startup methods:");
+  const size_t post_startup_offset = output.find("post startup methods:");
+  const size_t classes_offset = output.find("classes:");
+  ASSERT_NE(hot_offset, std::string::npos);
+  ASSERT_NE(startup_offset, std::string::npos);
+  ASSERT_NE(post_startup_offset, std::string::npos);
+  ASSERT_LT(hot_offset, startup_offset);
+  ASSERT_LT(startup_offset, post_startup_offset);
+  // Check the actual contents of the dump by looking at the offsets of the methods.
+  for (uint32_t m : hot_methods) {
+    const size_t pos = output.find(std::to_string(m) + "[],", hot_offset);
+    ASSERT_NE(pos, std::string::npos);
+    EXPECT_LT(pos, startup_offset);
+  }
+  for (uint32_t m : startup_methods) {
+    const size_t pos = output.find(std::to_string(m) + ",", startup_offset);
+    ASSERT_NE(pos, std::string::npos);
+    EXPECT_LT(pos, post_startup_offset);
+  }
+  for (uint32_t m : post_startup_methods) {
+    const size_t pos = output.find(std::to_string(m) + ",", post_startup_offset);
+    ASSERT_NE(pos, std::string::npos);
+    EXPECT_LT(pos, classes_offset);
+  }
 }
 
 }  // namespace art
