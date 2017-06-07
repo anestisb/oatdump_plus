@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_CLASS_H_
 #define ART_RUNTIME_MIRROR_CLASS_H_
 
+#include "base/bit_utils.h"
 #include "base/enums.h"
 #include "base/iteration_range.h"
 #include "dex_file.h"

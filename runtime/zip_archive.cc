@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "android-base/stringprintf.h"
+#include "base/bit_utils.h"
 #include "base/unix_file/fd_file.h"
 
 namespace art {

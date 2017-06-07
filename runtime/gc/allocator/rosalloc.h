@@ -707,6 +707,9 @@ class RosAlloc {
   // the end of the memory region that's ever managed by this allocator.
   size_t max_capacity_;
 
+  template<class Key, AllocatorTag kTag, class Compare = std::less<Key>>
+  using AllocationTrackingSet = std::set<Key, Compare, TrackingAllocator<Key, kTag>>;
+
   // The run sets that hold the runs whose slots are not all
   // full. non_full_runs_[i] is guarded by size_bracket_locks_[i].
   AllocationTrackingSet<Run*, kAllocatorTagRosAlloc> non_full_runs_[kNumOfSizeBrackets];
