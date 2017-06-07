@@ -952,6 +952,9 @@ void MemMap::TryReadable() {
 }
 
 void ZeroAndReleasePages(void* address, size_t length) {
+  if (length == 0) {
+    return;
+  }
   uint8_t* const mem_begin = reinterpret_cast<uint8_t*>(address);
   uint8_t* const mem_end = mem_begin + length;
   uint8_t* const page_begin = AlignUp(mem_begin, kPageSize);
