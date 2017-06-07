@@ -38,7 +38,12 @@ class Foo {
     array = new Object[10000];
     while (!Main.isJitCompiled(Foo.class, "hotMethod")) {
       Foo.hotMethod();
-      Thread.yield();
+      try {
+        // Sleep to give a chance for the JIT to compile `hotMethod`.
+        Thread.sleep(100);
+      } catch (Exception e) {
+        // Ignore
+      }
     }
   }
 
