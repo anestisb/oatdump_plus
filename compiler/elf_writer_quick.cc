@@ -80,7 +80,7 @@ class DebugInfoTask : public Task {
   const InstructionSetFeatures* instruction_set_features_;
   size_t rodata_section_size_;
   size_t text_section_size_;
-  const ArrayRef<const debug::MethodDebugInfo>& method_infos_;
+  const ArrayRef<const debug::MethodDebugInfo> method_infos_;
   std::vector<uint8_t> result_;
 };
 
