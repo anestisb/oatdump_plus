@@ -695,8 +695,8 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveOp(HLoopInform
                                  /*fetch*/ nullptr,
                                  type_);
         default:
-          CHECK(false) << op;
-          break;
+          LOG(FATAL) << op;
+          UNREACHABLE();
       }
     }
   }

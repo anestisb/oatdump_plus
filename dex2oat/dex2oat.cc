@@ -524,13 +524,14 @@ class WatchDog {
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_unlock, (&mutex_), reason);
   }
 
-  const int64_t timeout_in_milliseconds_;
-  bool shutting_down_;
   // TODO: Switch to Mutex when we can guarantee it won't prevent shutdown in error cases.
   pthread_mutex_t mutex_;
   pthread_cond_t cond_;
   pthread_attr_t attr_;
   pthread_t pthread_;
+
+  const int64_t timeout_in_milliseconds_;
+  bool shutting_down_;
 };
 
 class Dex2Oat FINAL {

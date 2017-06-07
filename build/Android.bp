@@ -145,6 +145,15 @@ art_global_defaults {
 
     tidy_checks: [
         "-google-default-arguments",
+        // We have local stores that are only used for debug checks.
+        "-clang-analyzer-deadcode.DeadStores",
+        // We are OK with some static globals and that they can, in theory, throw.
+        "-cert-err58-cpp",
+        // We have lots of C-style variadic functions, and are OK with them. JNI ensures
+        // that working around this warning would be extra-painful.
+        "-cert-dcl50-cpp",
+        // No exceptions.
+        "-misc-noexcept-move-constructor",
     ],
 }
 

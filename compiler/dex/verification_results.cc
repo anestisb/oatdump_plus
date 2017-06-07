@@ -110,12 +110,12 @@ void VerificationResults::CreateVerifiedMethodFor(MethodReference ref) {
   // This method should only be called for classes verified at compile time,
   // which have no verifier error, nor has methods that we know will throw
   // at runtime.
-  atomic_verified_methods_.Insert(
-      ref,
-      /*expected*/ nullptr,
-      new VerifiedMethod(/* encountered_error_types */ 0, /* has_runtime_throw */ false));
-  // We don't check the result of `Insert` as we could insert twice for the same
-  // MethodReference in the presence of duplicate methods.
+  std::unique_ptr<VerifiedMethod> verified_method = std::make_unique<VerifiedMethod>(
+      /* encountered_error_types */ 0, /* has_runtime_throw */ false);
+  if (atomic_verified_methods_.Insert(ref, /*expected*/ nullptr, verified_method.get()) ==
+          AtomicMap::InsertResult::kInsertResultSuccess) {
+    verified_method.release();
+  }
 }
 
 void VerificationResults::AddRejectedClass(ClassReference ref) {

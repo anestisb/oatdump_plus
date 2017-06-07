@@ -28,7 +28,6 @@
 
 namespace art {
 
-using android::base::StringAppendF;
 using android::base::StringPrintf;
 
 int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_msg) {
