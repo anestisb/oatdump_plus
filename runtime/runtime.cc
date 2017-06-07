@@ -57,6 +57,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "asm_support.h"
+#include "asm_support_check.h"
 #include "atomic.h"
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"

@@ -49,7 +49,6 @@
 #include "globals.h"
 #include "image.h"
 #include "imt_conflict_table.h"
-#include "intern_table.h"
 #include "jni_internal.h"
 #include "linear_alloc.h"
 #include "lock_word.h"

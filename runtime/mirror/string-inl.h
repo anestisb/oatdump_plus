@@ -26,7 +26,6 @@
 #include "common_throws.h"
 #include "gc/heap-inl.h"
 #include "globals.h"
-#include "intern_table.h"
 #include "runtime.h"
 #include "thread.h"
 #include "utf.h"
@@ -160,10 +159,6 @@ class SetStringCountAndValueVisitorFromString {
   Handle<String> src_string_;
   const int32_t offset_;
 };
-
-inline ObjPtr<String> String::Intern() {
-  return Runtime::Current()->GetInternTable()->InternWeak(this);
-}
 
 inline uint16_t String::CharAt(int32_t index) {
   int32_t count = GetLength();

@@ -20,9 +20,27 @@
 #include "base/callee_save_type.h"
 #include "common_runtime_test.h"
 #include "quick/quick_method_frame_info.h"
-// Common tests are declared next to the constants.
-#define ADD_TEST_EQ(x, y) EXPECT_EQ(x, y);
-#include "asm_support.h"
+
+
+// asm_support.h declares tests next to the #defines. We use asm_support_check.h to (safely)
+// generate CheckAsmSupportOffsetsAndSizes using gtest's EXPECT for the tests. We also use the
+// RETURN_TYPE, HEADER and FOOTER defines from asm_support_check.h to try to ensure that any
+// tests are actually generated.
+
+// Let CheckAsmSupportOffsetsAndSizes return a size_t (the count).
+#define ASM_SUPPORT_CHECK_RETURN_TYPE size_t
+
+// Declare the counter that will be updated per test.
+#define ASM_SUPPORT_CHECK_HEADER size_t count = 0;
+
+// Use EXPECT_EQ for tests, and increment the counter.
+#define ADD_TEST_EQ(x, y) EXPECT_EQ(x, y); count++;
+
+// Return the counter at the end of CheckAsmSupportOffsetsAndSizes.
+#define ASM_SUPPORT_CHECK_FOOTER return count;
+
+// Generate CheckAsmSupportOffsetsAndSizes().
+#include "asm_support_check.h"
 
 namespace art {
 
@@ -58,7 +76,8 @@ class ArchTest : public CommonRuntimeTest {
 };
 
 TEST_F(ArchTest, CheckCommonOffsetsAndSizes) {
-  CheckAsmSupportOffsetsAndSizes();
+  size_t test_count = CheckAsmSupportOffsetsAndSizes();
+  EXPECT_GT(test_count, 0u);
 }
 
 // Grab architecture specific constants.

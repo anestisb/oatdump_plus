@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "arch/arm64/asm_support_arm64.h"
+#include "base/bit_utils.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"

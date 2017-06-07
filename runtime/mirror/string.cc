@@ -421,5 +421,9 @@ std::string String::PrettyStringDescriptor() {
   return PrettyDescriptor(ToModifiedUtf8().c_str());
 }
 
+ObjPtr<String> String::Intern() {
+  return Runtime::Current()->GetInternTable()->InternWeak(this);
+}
+
 }  // namespace mirror
 }  // namespace art
