@@ -636,6 +636,8 @@ class DexFile {
   uint32_t FindCodeItemOffset(const DexFile::ClassDef& class_def,
                               uint32_t dex_method_idx) const;
 
+  static uint32_t GetCodeItemSize(const DexFile::CodeItem& disk_code_item);
+
   // Returns the declaring class descriptor string of a field id.
   const char* GetFieldDeclaringClassDescriptor(const FieldId& field_id) const {
     const DexFile::TypeId& type_id = GetTypeId(field_id.class_idx_);

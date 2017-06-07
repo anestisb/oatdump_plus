@@ -678,6 +678,32 @@ uint32_t DexFile::FindCodeItemOffset(const DexFile::ClassDef& class_def,
   UNREACHABLE();
 }
 
+uint32_t DexFile::GetCodeItemSize(const DexFile::CodeItem& code_item) {
+  uintptr_t code_item_start = reinterpret_cast<uintptr_t>(&code_item);
+  uint32_t insns_size = code_item.insns_size_in_code_units_;
+  uint32_t tries_size = code_item.tries_size_;
+  const uint8_t* handler_data = GetCatchHandlerData(code_item, 0);
+
+  if (tries_size == 0 || handler_data == nullptr) {
+    uintptr_t insns_end = reinterpret_cast<uintptr_t>(&code_item.insns_[insns_size]);
+    return insns_end - code_item_start;
+  } else {
+    // Get the start of the handler data.
+    uint32_t handlers_size = DecodeUnsignedLeb128(&handler_data);
+    // Manually read each handler.
+    for (uint32_t i = 0; i < handlers_size; ++i) {
+      int32_t uleb128_count = DecodeSignedLeb128(&handler_data) * 2;
+      if (uleb128_count <= 0) {
+        uleb128_count = -uleb128_count + 1;
+      }
+      for (int32_t j = 0; j < uleb128_count; ++j) {
+        DecodeUnsignedLeb128(&handler_data);
+      }
+    }
+    return reinterpret_cast<uintptr_t>(handler_data) - code_item_start;
+  }
+}
+
 const DexFile::FieldId* DexFile::FindFieldId(const DexFile::TypeId& declaring_klass,
                                              const DexFile::StringId& name,
                                              const DexFile::TypeId& type) const {
