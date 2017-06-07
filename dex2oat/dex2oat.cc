@@ -112,16 +112,11 @@ static std::string CommandLine() {
 static std::string StrippedCommandLine() {
   std::vector<std::string> command;
 
-  // Do a pre-pass to look for zip-fd and the compiler filter.
+  // Do a pre-pass to look for zip-fd.
   bool saw_zip_fd = false;
-  bool saw_compiler_filter = false;
   for (int i = 0; i < original_argc; ++i) {
     if (android::base::StartsWith(original_argv[i], "--zip-fd=")) {
       saw_zip_fd = true;
-      break;
-    }
-    if (android::base::StartsWith(original_argv[i], "--compiler-filter=")) {
-      saw_compiler_filter = true;
       break;
     }
   }
@@ -164,11 +159,6 @@ static std::string StrippedCommandLine() {
     }
 
     command.push_back(original_argv[i]);
-  }
-
-  if (!saw_compiler_filter) {
-    command.push_back("--compiler-filter=" +
-        CompilerFilter::NameOfFilter(CompilerFilter::kDefaultCompilerFilter));
   }
 
   // Construct the final output.
