@@ -20,6 +20,7 @@
 
 #include "arch/context.h"
 #include "art_method-inl.h"
+#include "art_field-inl.h"
 #include "atomic.h"
 #include "class_linker.h"
 #include "debugger.h"
@@ -31,6 +32,7 @@
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "jvalue-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
@@ -44,6 +46,30 @@ namespace art {
 namespace instrumentation {
 
 constexpr bool kVerboseInstrumentation = false;
+
+void InstrumentationListener::MethodExited(Thread* thread,
+                                           Handle<mirror::Object> this_object,
+                                           ArtMethod* method,
+                                           uint32_t dex_pc,
+                                           Handle<mirror::Object> return_value) {
+  DCHECK_EQ(method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetReturnTypePrimitive(),
+            Primitive::kPrimNot);
+  JValue v;
+  v.SetL(return_value.Get());
+  MethodExited(thread, this_object, method, dex_pc, v);
+}
+
+void InstrumentationListener::FieldWritten(Thread* thread,
+                                           Handle<mirror::Object> this_object,
+                                           ArtMethod* method,
+                                           uint32_t dex_pc,
+                                           ArtField* field,
+                                           Handle<mirror::Object> field_value) {
+  DCHECK(!field->IsPrimitiveType());
+  JValue v;
+  v.SetL(field_value.Get());
+  FieldWritten(thread, this_object, method, dex_pc, field, v);
+}
 
 // Instrumentation works on non-inlined frames by updating returned PCs
 // of compiled frames.
@@ -916,48 +942,75 @@ const void* Instrumentation::GetQuickCodeFor(ArtMethod* method, PointerSize poin
   return class_linker->GetQuickOatCodeFor(method);
 }
 
-void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
+void Instrumentation::MethodEnterEventImpl(Thread* thread,
+                                           ObjPtr<mirror::Object> this_object,
                                            ArtMethod* method,
                                            uint32_t dex_pc) const {
   if (HasMethodEntryListeners()) {
+    Thread* self = Thread::Current();
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Object> thiz(hs.NewHandle(this_object));
     for (InstrumentationListener* listener : method_entry_listeners_) {
       if (listener != nullptr) {
-        listener->MethodEntered(thread, this_object, method, dex_pc);
+        listener->MethodEntered(thread, thiz, method, dex_pc);
       }
     }
   }
 }
 
-void Instrumentation::MethodExitEventImpl(Thread* thread, mirror::Object* this_object,
+void Instrumentation::MethodExitEventImpl(Thread* thread,
+                                          ObjPtr<mirror::Object> this_object,
                                           ArtMethod* method,
-                                          uint32_t dex_pc, const JValue& return_value) const {
+                                          uint32_t dex_pc,
+                                          const JValue& return_value) const {
   if (HasMethodExitListeners()) {
-    for (InstrumentationListener* listener : method_exit_listeners_) {
-      if (listener != nullptr) {
-        listener->MethodExited(thread, this_object, method, dex_pc, return_value);
+    Thread* self = Thread::Current();
+    StackHandleScope<2> hs(self);
+    Handle<mirror::Object> thiz(hs.NewHandle(this_object));
+    if (method->GetInterfaceMethodIfProxy(kRuntimePointerSize)
+              ->GetReturnTypePrimitive() != Primitive::kPrimNot) {
+      for (InstrumentationListener* listener : method_exit_listeners_) {
+        if (listener != nullptr) {
+          listener->MethodExited(thread, thiz, method, dex_pc, return_value);
+        }
+      }
+    } else {
+      Handle<mirror::Object> ret(hs.NewHandle(return_value.GetL()));
+      for (InstrumentationListener* listener : method_exit_listeners_) {
+        if (listener != nullptr) {
+          listener->MethodExited(thread, thiz, method, dex_pc, ret);
+        }
       }
     }
   }
 }
 
-void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_object,
+void Instrumentation::MethodUnwindEvent(Thread* thread,
+                                        mirror::Object* this_object,
                                         ArtMethod* method,
                                         uint32_t dex_pc) const {
   if (HasMethodUnwindListeners()) {
+    Thread* self = Thread::Current();
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Object> thiz(hs.NewHandle(this_object));
     for (InstrumentationListener* listener : method_unwind_listeners_) {
       if (listener != nullptr) {
-        listener->MethodUnwind(thread, this_object, method, dex_pc);
+        listener->MethodUnwind(thread, thiz, method, dex_pc);
       }
     }
   }
 }
 
-void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
+void Instrumentation::DexPcMovedEventImpl(Thread* thread,
+                                          ObjPtr<mirror::Object> this_object,
                                           ArtMethod* method,
                                           uint32_t dex_pc) const {
+  Thread* self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> thiz(hs.NewHandle(this_object));
   for (InstrumentationListener* listener : dex_pc_listeners_) {
     if (listener != nullptr) {
-      listener->DexPcMoved(thread, this_object, method, dex_pc);
+      listener->DexPcMoved(thread, thiz, method, dex_pc);
     }
   }
 }
@@ -974,36 +1027,56 @@ void Instrumentation::BranchImpl(Thread* thread,
 }
 
 void Instrumentation::InvokeVirtualOrInterfaceImpl(Thread* thread,
-                                                   mirror::Object* this_object,
+                                                   ObjPtr<mirror::Object> this_object,
                                                    ArtMethod* caller,
                                                    uint32_t dex_pc,
                                                    ArtMethod* callee) const {
-  // We cannot have thread suspension since that would cause the this_object parameter to
-  // potentially become a dangling pointer. An alternative could be to put it in a handle instead.
-  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+  Thread* self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> thiz(hs.NewHandle(this_object));
   for (InstrumentationListener* listener : invoke_virtual_or_interface_listeners_) {
     if (listener != nullptr) {
-      listener->InvokeVirtualOrInterface(thread, this_object, caller, dex_pc, callee);
+      listener->InvokeVirtualOrInterface(thread, thiz, caller, dex_pc, callee);
     }
   }
 }
 
-void Instrumentation::FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
-                                         ArtMethod* method, uint32_t dex_pc,
+void Instrumentation::FieldReadEventImpl(Thread* thread,
+                                         ObjPtr<mirror::Object> this_object,
+                                         ArtMethod* method,
+                                         uint32_t dex_pc,
                                          ArtField* field) const {
+  Thread* self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> thiz(hs.NewHandle(this_object));
   for (InstrumentationListener* listener : field_read_listeners_) {
     if (listener != nullptr) {
-      listener->FieldRead(thread, this_object, method, dex_pc, field);
+      listener->FieldRead(thread, thiz, method, dex_pc, field);
     }
   }
 }
 
-void Instrumentation::FieldWriteEventImpl(Thread* thread, mirror::Object* this_object,
-                                         ArtMethod* method, uint32_t dex_pc,
-                                         ArtField* field, const JValue& field_value) const {
-  for (InstrumentationListener* listener : field_write_listeners_) {
-    if (listener != nullptr) {
-      listener->FieldWritten(thread, this_object, method, dex_pc, field, field_value);
+void Instrumentation::FieldWriteEventImpl(Thread* thread,
+                                          ObjPtr<mirror::Object> this_object,
+                                          ArtMethod* method,
+                                          uint32_t dex_pc,
+                                          ArtField* field,
+                                          const JValue& field_value) const {
+  Thread* self = Thread::Current();
+  StackHandleScope<2> hs(self);
+  Handle<mirror::Object> thiz(hs.NewHandle(this_object));
+  if (field->IsPrimitiveType()) {
+    for (InstrumentationListener* listener : field_write_listeners_) {
+      if (listener != nullptr) {
+        listener->FieldWritten(thread, thiz, method, dex_pc, field, field_value);
+      }
+    }
+  } else {
+    Handle<mirror::Object> val(hs.NewHandle(field_value.GetL()));
+    for (InstrumentationListener* listener : field_write_listeners_) {
+      if (listener != nullptr) {
+        listener->FieldWritten(thread, thiz, method, dex_pc, field, val);
+      }
     }
   }
 }
@@ -1018,7 +1091,7 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread,
     thread->ClearException();
     for (InstrumentationListener* listener : exception_caught_listeners_) {
       if (listener != nullptr) {
-        listener->ExceptionCaught(thread, h_exception.Get());
+        listener->ExceptionCaught(thread, h_exception);
       }
     }
     thread->SetException(h_exception.Get());

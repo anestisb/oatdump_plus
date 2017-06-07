@@ -149,7 +149,9 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   DebugInstrumentationListener() {}
   virtual ~DebugInstrumentationListener() {}
 
-  void MethodEntered(Thread* thread, mirror::Object* this_object, ArtMethod* method,
+  void MethodEntered(Thread* thread,
+                     Handle<mirror::Object> this_object,
+                     ArtMethod* method,
                      uint32_t dex_pc)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (method->IsNative()) {
@@ -171,12 +173,15 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
       // also group it with other events for this location like BREAKPOINT or SINGLE_STEP.
       thread->SetDebugMethodEntry();
     } else {
-      Dbg::UpdateDebugger(thread, this_object, method, 0, Dbg::kMethodEntry, nullptr);
+      Dbg::UpdateDebugger(thread, this_object.Get(), method, 0, Dbg::kMethodEntry, nullptr);
     }
   }
 
-  void MethodExited(Thread* thread, mirror::Object* this_object, ArtMethod* method,
-                    uint32_t dex_pc, const JValue& return_value)
+  void MethodExited(Thread* thread,
+                    Handle<mirror::Object> this_object,
+                    ArtMethod* method,
+                    uint32_t dex_pc,
+                    const JValue& return_value)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (method->IsNative()) {
       // TODO: post location events is a suspension point and native method entry stubs aren't.
@@ -189,18 +194,22 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
       events |= Dbg::kMethodEntry;
       thread->ClearDebugMethodEntry();
     }
-    Dbg::UpdateDebugger(thread, this_object, method, dex_pc, events, &return_value);
+    Dbg::UpdateDebugger(thread, this_object.Get(), method, dex_pc, events, &return_value);
   }
 
-  void MethodUnwind(Thread* thread ATTRIBUTE_UNUSED, mirror::Object* this_object ATTRIBUTE_UNUSED,
-                    ArtMethod* method, uint32_t dex_pc)
+  void MethodUnwind(Thread* thread ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+                    ArtMethod* method,
+                    uint32_t dex_pc)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     // We're not recorded to listen to this kind of event, so complain.
     LOG(ERROR) << "Unexpected method unwind event in debugger " << ArtMethod::PrettyMethod(method)
                << " " << dex_pc;
   }
 
-  void DexPcMoved(Thread* thread, mirror::Object* this_object, ArtMethod* method,
+  void DexPcMoved(Thread* thread,
+                  Handle<mirror::Object> this_object,
+                  ArtMethod* method,
                   uint32_t new_dex_pc)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (IsListeningToMethodExit() && IsReturn(method, new_dex_pc)) {
@@ -217,26 +226,33 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
         events = Dbg::kMethodEntry;
         thread->ClearDebugMethodEntry();
       }
-      Dbg::UpdateDebugger(thread, this_object, method, new_dex_pc, events, nullptr);
+      Dbg::UpdateDebugger(thread, this_object.Get(), method, new_dex_pc, events, nullptr);
     }
   }
 
-  void FieldRead(Thread* thread ATTRIBUTE_UNUSED, mirror::Object* this_object,
-                 ArtMethod* method, uint32_t dex_pc, ArtField* field)
+  void FieldRead(Thread* thread ATTRIBUTE_UNUSED,
+                 Handle<mirror::Object> this_object,
+                 ArtMethod* method,
+                 uint32_t dex_pc,
+                 ArtField* field)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    Dbg::PostFieldAccessEvent(method, dex_pc, this_object, field);
+    Dbg::PostFieldAccessEvent(method, dex_pc, this_object.Get(), field);
   }
 
-  void FieldWritten(Thread* thread ATTRIBUTE_UNUSED, mirror::Object* this_object,
-                    ArtMethod* method, uint32_t dex_pc, ArtField* field,
+  void FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
+                    Handle<mirror::Object> this_object,
+                    ArtMethod* method,
+                    uint32_t dex_pc,
+                    ArtField* field,
                     const JValue& field_value)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    Dbg::PostFieldModificationEvent(method, dex_pc, this_object, field, &field_value);
+    Dbg::PostFieldModificationEvent(method, dex_pc, this_object.Get(), field, &field_value);
   }
 
-  void ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED, mirror::Throwable* exception_object)
+  void ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED,
+                       Handle<mirror::Throwable> exception_object)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    Dbg::PostException(exception_object);
+    Dbg::PostException(exception_object.Get());
   }
 
   // We only care about branches in the Jit.
@@ -248,10 +264,10 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
 
   // We only care about invokes in the Jit.
   void InvokeVirtualOrInterface(Thread* thread ATTRIBUTE_UNUSED,
-                                mirror::Object*,
+                                Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                                 ArtMethod* method,
                                 uint32_t dex_pc,
-                                ArtMethod*)
+                                ArtMethod* target ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     LOG(ERROR) << "Unexpected invoke event in debugger " << ArtMethod::PrettyMethod(method)
                << " " << dex_pc;

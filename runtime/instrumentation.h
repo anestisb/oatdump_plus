@@ -36,6 +36,7 @@ namespace mirror {
 }  // namespace mirror
 class ArtField;
 class ArtMethod;
+template <typename T> class Handle;
 union JValue;
 class Thread;
 
@@ -62,37 +63,70 @@ struct InstrumentationListener {
   virtual ~InstrumentationListener() {}
 
   // Call-back for when a method is entered.
-  virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
+  virtual void MethodEntered(Thread* thread,
+                             Handle<mirror::Object> this_object,
                              ArtMethod* method,
                              uint32_t dex_pc) REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
-  // Call-back for when a method is exited.
-  virtual void MethodExited(Thread* thread, mirror::Object* this_object,
-                            ArtMethod* method, uint32_t dex_pc,
+  virtual void MethodExited(Thread* thread,
+                            Handle<mirror::Object> this_object,
+                            ArtMethod* method,
+                            uint32_t dex_pc,
+                            Handle<mirror::Object> return_value)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Call-back for when a method is exited. The implementor should either handler-ize the return
+  // value (if appropriate) or use the alternate MethodExited callback instead if they need to
+  // go through a suspend point.
+  virtual void MethodExited(Thread* thread,
+                            Handle<mirror::Object> this_object,
+                            ArtMethod* method,
+                            uint32_t dex_pc,
                             const JValue& return_value)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
   // Call-back for when a method is popped due to an exception throw. A method will either cause a
   // MethodExited call-back or a MethodUnwind call-back when its activation is removed.
-  virtual void MethodUnwind(Thread* thread, mirror::Object* this_object,
-                            ArtMethod* method, uint32_t dex_pc)
+  virtual void MethodUnwind(Thread* thread,
+                            Handle<mirror::Object> this_object,
+                            ArtMethod* method,
+                            uint32_t dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
   // Call-back for when the dex pc moves in a method.
-  virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
-                          ArtMethod* method, uint32_t new_dex_pc)
+  virtual void DexPcMoved(Thread* thread,
+                          Handle<mirror::Object> this_object,
+                          ArtMethod* method,
+                          uint32_t new_dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
   // Call-back for when we read from a field.
-  virtual void FieldRead(Thread* thread, mirror::Object* this_object, ArtMethod* method,
-                         uint32_t dex_pc, ArtField* field) = 0;
+  virtual void FieldRead(Thread* thread,
+                         Handle<mirror::Object> this_object,
+                         ArtMethod* method,
+                         uint32_t dex_pc,
+                         ArtField* field) = 0;
+
+  virtual void FieldWritten(Thread* thread,
+                            Handle<mirror::Object> this_object,
+                            ArtMethod* method,
+                            uint32_t dex_pc,
+                            ArtField* field,
+                            Handle<mirror::Object> field_value)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Call-back for when we write into a field.
-  virtual void FieldWritten(Thread* thread, mirror::Object* this_object, ArtMethod* method,
-                            uint32_t dex_pc, ArtField* field, const JValue& field_value) = 0;
+  virtual void FieldWritten(Thread* thread,
+                            Handle<mirror::Object> this_object,
+                            ArtMethod* method,
+                            uint32_t dex_pc,
+                            ArtField* field,
+                            const JValue& field_value)
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
   // Call-back when an exception is caught.
-  virtual void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
+  virtual void ExceptionCaught(Thread* thread,
+                               Handle<mirror::Throwable> exception_object)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
   // Call-back for when we execute a branch.
@@ -104,11 +138,10 @@ struct InstrumentationListener {
 
   // Call-back for when we get an invokevirtual or an invokeinterface.
   virtual void InvokeVirtualOrInterface(Thread* thread,
-                                        mirror::Object* this_object,
+                                        Handle<mirror::Object> this_object,
                                         ArtMethod* caller,
                                         uint32_t dex_pc,
                                         ArtMethod* callee)
-      REQUIRES(Roles::uninterruptible_)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 };
 
@@ -323,8 +356,10 @@ class Instrumentation {
   }
 
   // Inform listeners that a method has been exited.
-  void MethodExitEvent(Thread* thread, mirror::Object* this_object,
-                       ArtMethod* method, uint32_t dex_pc,
+  void MethodExitEvent(Thread* thread,
+                       mirror::Object* this_object,
+                       ArtMethod* method,
+                       uint32_t dex_pc,
                        const JValue& return_value) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     if (UNLIKELY(HasMethodExitListeners())) {
@@ -465,31 +500,42 @@ class Instrumentation {
   // exclusive access to mutator lock which you can't get if the runtime isn't started.
   void SetEntrypointsInstrumented(bool instrumented) NO_THREAD_SAFETY_ANALYSIS;
 
-  void MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
-                            ArtMethod* method, uint32_t dex_pc) const
+  void MethodEnterEventImpl(Thread* thread,
+                            ObjPtr<mirror::Object> this_object,
+                            ArtMethod* method,
+                            uint32_t dex_pc) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void MethodExitEventImpl(Thread* thread, mirror::Object* this_object,
+  void MethodExitEventImpl(Thread* thread,
+                           ObjPtr<mirror::Object> this_object,
                            ArtMethod* method,
-                           uint32_t dex_pc, const JValue& return_value) const
+                           uint32_t dex_pc,
+                           const JValue& return_value) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
-                           ArtMethod* method, uint32_t dex_pc) const
+  void DexPcMovedEventImpl(Thread* thread,
+                           ObjPtr<mirror::Object> this_object,
+                           ArtMethod* method,
+                           uint32_t dex_pc) const
       REQUIRES_SHARED(Locks::mutator_lock_);
   void BranchImpl(Thread* thread, ArtMethod* method, uint32_t dex_pc, int32_t offset) const
       REQUIRES_SHARED(Locks::mutator_lock_);
   void InvokeVirtualOrInterfaceImpl(Thread* thread,
-                                    mirror::Object* this_object,
+                                    ObjPtr<mirror::Object> this_object,
                                     ArtMethod* caller,
                                     uint32_t dex_pc,
                                     ArtMethod* callee) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
-                           ArtMethod* method, uint32_t dex_pc,
-                           ArtField* field) const
+  void FieldReadEventImpl(Thread* thread,
+                          ObjPtr<mirror::Object> this_object,
+                          ArtMethod* method,
+                          uint32_t dex_pc,
+                          ArtField* field) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void FieldWriteEventImpl(Thread* thread, mirror::Object* this_object,
-                           ArtMethod* method, uint32_t dex_pc,
-                           ArtField* field, const JValue& field_value) const
+  void FieldWriteEventImpl(Thread* thread,
+                           ObjPtr<mirror::Object> this_object,
+                           ArtMethod* method,
+                           uint32_t dex_pc,
+                           ArtField* field,
+                           const JValue& field_value) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Read barrier-aware utility functions for accessing deoptimized_methods_

@@ -307,6 +307,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
+          // Re-load since it might have moved during the MethodExitEvent.
+          result.SetL(shadow_frame.GetVRegReference(ref_idx));
         }
         if (interpret_one_instruction) {
           /* Signal mterp to return to caller */
