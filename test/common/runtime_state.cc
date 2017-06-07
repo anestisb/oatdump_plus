@@ -148,12 +148,24 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isAotCompiled(JNIEnv* env,
   CHECK(chars.c_str() != nullptr);
   ArtMethod* method = soa.Decode<mirror::Class>(cls)->FindDeclaredDirectMethodByName(
         chars.c_str(), kRuntimePointerSize);
-  const void* code = method->GetOatMethodQuickCode(kRuntimePointerSize);
-  jit::Jit* jit = Runtime::Current()->GetJit();
-  if (jit != nullptr && jit->GetCodeCache()->ContainsPc(code)) {
-    return true;
+  return method->GetOatMethodQuickCode(kRuntimePointerSize) != nullptr;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isJitCompiled(JNIEnv* env,
+                                                              jclass,
+                                                              jclass cls,
+                                                              jstring method_name) {
+  jit::Jit* jit = GetJitIfEnabled();
+  if (jit == nullptr) {
+    return false;
   }
-  return code != nullptr;
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  ScopedUtfChars chars(env, method_name);
+  CHECK(chars.c_str() != nullptr);
+  ArtMethod* method = soa.Decode<mirror::Class>(cls)->FindDeclaredDirectMethodByName(
+        chars.c_str(), kRuntimePointerSize);
+  return jit->GetCodeCache()->ContainsPc(method->GetEntryPointFromQuickCompiledCode());
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,

@@ -189,17 +189,11 @@ JitCompiler::~JitCompiler() {
 
 bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   DCHECK(!method->IsProxyMethod());
+  DCHECK(method->GetDeclaringClass()->IsResolved());
+
   TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
-  StackHandleScope<2> hs(self);
   self->AssertNoPendingException();
   Runtime* runtime = Runtime::Current();
-
-  // Ensure the class is initialized.
-  Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
-  if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-    VLOG(jit) << "JIT failed to initialize " << method->PrettyMethod();
-    return false;
-  }
 
   // Do the compilation.
   bool success = false;
