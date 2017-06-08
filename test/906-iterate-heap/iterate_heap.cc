@@ -408,5 +408,15 @@ extern "C" JNIEXPORT jstring JNICALL Java_art_Test906_iterateThroughHeapPrimitiv
   return env->NewStringUTF(ffc.data.c_str());
 }
 
+extern "C" JNIEXPORT jboolean JNICALL Java_art_Test906_checkInitialized(
+    JNIEnv* env, jclass, jclass c) {
+  jint status;
+  jvmtiError error = jvmti_env->GetClassStatus(c, &status);
+  if (JvmtiErrorToException(env, jvmti_env, error)) {
+    return false;
+  }
+  return (status & JVMTI_CLASS_STATUS_INITIALIZED) != 0;
+}
+
 }  // namespace Test906IterateHeap
 }  // namespace art

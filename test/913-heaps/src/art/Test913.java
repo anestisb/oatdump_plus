@@ -195,13 +195,33 @@ public class Test913 {
     System.out.println(getTag(FloatObject.class));
     setTag(FloatObject.class, 0);
 
+    boolean correctHeapValue = false;
     setTag(Inf1.class, 10000);
-    System.out.println(followReferencesPrimitiveFields(Inf1.class));
+    String heapTrace = followReferencesPrimitiveFields(Inf1.class);
+
+    if (!checkInitialized(Inf1.class)) {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=0) 0000000000000000");
+    } else {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=0) 0000000000000001");
+    }
+
+    if (!correctHeapValue)
+      System.out.println("Heap Trace for Inf1 is not as expected:\n" + heapTrace);
+
     System.out.println(getTag(Inf1.class));
     setTag(Inf1.class, 0);
 
     setTag(Inf2.class, 10000);
-    System.out.println(followReferencesPrimitiveFields(Inf2.class));
+    heapTrace = followReferencesPrimitiveFields(Inf2.class);
+
+    if (!checkInitialized(Inf2.class)) {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=1) 0000000000000000");
+    } else {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=1) 0000000000000001");
+    }
+
+    if (!correctHeapValue)
+      System.out.println("Heap Trace for Inf2 is not as expected:\n" + heapTrace);
     System.out.println(getTag(Inf2.class));
     setTag(Inf2.class, 0);
   }
@@ -712,6 +732,7 @@ public class Test913 {
     return Main.getTag(o);
   }
 
+  private static native boolean checkInitialized(Class<?> klass);
   private static native void setupGcCallback();
   private static native void enableGcTracking(boolean enable);
   private static native int getGcStarts();
