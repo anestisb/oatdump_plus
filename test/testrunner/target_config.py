@@ -316,6 +316,23 @@ target_config = {
         }
     },
 
+   # ASAN (host) configurations.
+
+   'art-gtest-asan': {
+        'make' : 'test-art-host-gtest',
+        'env': {
+            'SANITIZE_HOST' : 'address'
+        }
+   },
+   'art-run-test-asan': {
+        'run-test' : ['--interpreter',
+                      '--optimizing',
+                      '--jit'],
+        'env': {
+            'SANITIZE_HOST' : 'address'
+        }
+   },
+
    # ART Golem build targets used by go/lem (continuous ART benchmarking),
    # (art-opt-cc is used by default since it mimics the default preopt config),
    #
