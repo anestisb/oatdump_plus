@@ -57,31 +57,6 @@ static void GetLocalsCb(void* context, const DexFile::LocalInfo& entry) {
                     entry.reg_)));
 }
 
-static uint32_t GetCodeItemSize(const DexFile::CodeItem& disk_code_item) {
-  uintptr_t code_item_start = reinterpret_cast<uintptr_t>(&disk_code_item);
-  uint32_t insns_size = disk_code_item.insns_size_in_code_units_;
-  uint32_t tries_size = disk_code_item.tries_size_;
-  if (tries_size == 0) {
-    uintptr_t insns_end = reinterpret_cast<uintptr_t>(&disk_code_item.insns_[insns_size]);
-    return insns_end - code_item_start;
-  } else {
-    // Get the start of the handler data.
-    const uint8_t* handler_data = DexFile::GetCatchHandlerData(disk_code_item, 0);
-    uint32_t handlers_size = DecodeUnsignedLeb128(&handler_data);
-    // Manually read each handler.
-    for (uint32_t i = 0; i < handlers_size; ++i) {
-      int32_t uleb128_count = DecodeSignedLeb128(&handler_data) * 2;
-      if (uleb128_count <= 0) {
-        uleb128_count = -uleb128_count + 1;
-      }
-      for (int32_t j = 0; j < uleb128_count; ++j) {
-        DecodeUnsignedLeb128(&handler_data);
-      }
-    }
-    return reinterpret_cast<uintptr_t>(handler_data) - code_item_start;
-  }
-}
-
 static uint32_t GetDebugInfoStreamSize(const uint8_t* debug_info_stream) {
   const uint8_t* stream = debug_info_stream;
   DecodeUnsignedLeb128(&stream);  // line_start
@@ -686,7 +661,7 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
     }
   }
 
-  uint32_t size = GetCodeItemSize(disk_code_item);
+  uint32_t size = DexFile::GetCodeItemSize(disk_code_item);
   CodeItem* code_item = new CodeItem(
       registers_size, ins_size, outs_size, debug_info, insns_size, insns, tries, handler_list);
   code_item->SetSize(size);
