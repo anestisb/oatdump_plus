@@ -41,6 +41,8 @@
 #include "code_generator_mips64.h"
 #endif
 
+#include "base/bit_utils.h"
+#include "base/bit_utils_iterator.h"
 #include "bytecode_utils.h"
 #include "class_linker.h"
 #include "compiled_method.h"

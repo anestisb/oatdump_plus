@@ -24,7 +24,6 @@
 #include "base/arena_allocator.h"
 #include "base/macros.h"
 #include "base/scoped_arena_containers.h"
-#include "base/stl_util.h"
 #include "base/value_object.h"
 #include "dex_file.h"
 #include "dex_file_types.h"

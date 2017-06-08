@@ -25,7 +25,7 @@
 #include "base/bit_utils.h"
 #include "base/enums.h"
 #include "base/logging.h"
-#include "base/stl_util.h"
+#include "base/stl_util_identity.h"
 #include "base/value_object.h"
 #include "constants_arm.h"
 #include "utils/arm/assembler_arm_shared.h"

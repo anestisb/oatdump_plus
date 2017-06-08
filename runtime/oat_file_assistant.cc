@@ -24,6 +24,7 @@
 #include "android-base/strings.h"
 
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "compiler_filter.h"
 #include "class_linker.h"
 #include "exec_utils.h"

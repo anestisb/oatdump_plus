@@ -25,6 +25,7 @@
 
 #include "art_method-inl.h"
 #include "base/enums.h"
+#include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
 #include "compiler_filter.h"

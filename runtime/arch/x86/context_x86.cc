@@ -17,6 +17,7 @@
 #include "context_x86.h"
 
 #include "base/bit_utils.h"
+#include "base/bit_utils_iterator.h"
 #include "base/memory_tool.h"
 #include "quick/quick_method_frame_info.h"
 

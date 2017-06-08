@@ -25,6 +25,7 @@
 #include "base/arena_containers.h"
 #include "base/enums.h"
 #include "base/macros.h"
+#include "base/stl_util_identity.h"
 #include "constants_mips64.h"
 #include "globals.h"
 #include "managed_register_mips64.h"

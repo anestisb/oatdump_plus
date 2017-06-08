@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "bit_utils.h"
+#include "bit_utils_iterator.h"
 
 #include "gtest/gtest.h"
 

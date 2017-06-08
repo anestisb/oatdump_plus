@@ -19,6 +19,7 @@
 #include "arch/instruction_set_features.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
