@@ -26,7 +26,6 @@
 #include "android-base/stringprintf.h"
 
 #include "art_method-inl.h"
-#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "compiler_callbacks.h"
@@ -291,9 +290,9 @@ inline void CompilationHelper::Compile(CompilerDriver* driver,
 
       if (kIsVdexEnabled) {
         for (size_t i = 0, size = vdex_files.size(); i != size; ++i) {
-          std::unique_ptr<BufferedOutputStream> vdex_out(
-              MakeUnique<BufferedOutputStream>(
-                  MakeUnique<FileOutputStream>(vdex_files[i].GetFile())));
+          std::unique_ptr<BufferedOutputStream> vdex_out =
+              std::make_unique<BufferedOutputStream>(
+                  std::make_unique<FileOutputStream>(vdex_files[i].GetFile()));
           oat_writers[i]->WriteVerifierDeps(vdex_out.get(), nullptr);
           oat_writers[i]->WriteChecksumsAndVdexHeader(vdex_out.get());
         }

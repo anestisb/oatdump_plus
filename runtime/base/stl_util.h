@@ -25,13 +25,6 @@
 
 namespace art {
 
-// Sort and remove duplicates of an STL vector or deque.
-template<class T>
-void STLSortAndRemoveDuplicates(T* v) {
-  std::sort(v->begin(), v->end());
-  v->erase(std::unique(v->begin(), v->end()), v->end());
-}
-
 // STLDeleteContainerPointers()
 //  For a range within a container of pointers, calls delete
 //  (non-array version) on these pointers.
@@ -83,20 +76,6 @@ void STLDeleteValues(T *v) {
   }
 }
 
-template <class T>
-std::string ToString(const T& v) {
-  std::ostringstream os;
-  os << "[";
-  for (size_t i = 0; i < v.size(); ++i) {
-    os << v[i];
-    if (i < v.size() - 1) {
-      os << ", ";
-    }
-  }
-  os << "]";
-  return os.str();
-}
-
 // Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
 struct FreeDelete {
   // NOTE: Deleting a const object is valid but free() takes a non-const pointer.
@@ -108,13 +87,6 @@ struct FreeDelete {
 // Alias for std::unique_ptr<> that uses the C function free() to delete objects.
 template <typename T>
 using UniqueCPtr = std::unique_ptr<T, FreeDelete>;
-
-// C++14 from-the-future import (std::make_unique)
-// Invoke the constructor of 'T' with the provided args, and wrap the result in a unique ptr.
-template <typename T, typename ... Args>
-std::unique_ptr<T> MakeUnique(Args&& ... args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
 
 // Find index of the first element with the specified value known to be in the container.
 template <typename Container, typename T>
@@ -149,13 +121,6 @@ bool ContainsElement(const Container& container, const T& value, size_t start_po
   auto it = std::find(start, container.end(), value);
   return it != container.end();
 }
-
-// const char* compare function suitable for std::map or std::set.
-struct CStringLess {
-  bool operator()(const char* lhs, const char* rhs) const {
-    return strcmp(lhs, rhs) < 0;
-  }
-};
 
 // 32-bit FNV-1a hash function suitable for std::unordered_map.
 // It can be used with any container which works with range-based for loop.

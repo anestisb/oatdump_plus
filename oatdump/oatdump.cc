@@ -130,8 +130,8 @@ class OatSymbolizer FINAL {
     if (elf_file == nullptr) {
       return false;
     }
-    std::unique_ptr<BufferedOutputStream> output_stream(
-        MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file.get())));
+    std::unique_ptr<BufferedOutputStream> output_stream =
+        std::make_unique<BufferedOutputStream>(std::make_unique<FileOutputStream>(elf_file.get()));
     builder_.reset(new ElfBuilder<ElfTypes>(isa, features.get(), output_stream.get()));
 
     builder_->Start();
