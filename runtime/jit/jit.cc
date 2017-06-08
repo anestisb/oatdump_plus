@@ -637,26 +637,31 @@ void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count, bool with_
     count *= priority_thread_weight_;
   }
   int32_t new_count = starting_count + count;   // int32 here to avoid wrap-around;
-  if (starting_count < warm_method_threshold_) {
-    if ((new_count >= warm_method_threshold_) &&
-        (method->GetProfilingInfo(kRuntimePointerSize) == nullptr)) {
-      bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
-      if (success) {
-        VLOG(jit) << "Start profiling " << method->PrettyMethod();
-      }
 
-      if (thread_pool_ == nullptr) {
-        // Calling ProfilingInfo::Create might put us in a suspended state, which could
-        // lead to the thread pool being deleted when we are shutting down.
-        DCHECK(Runtime::Current()->IsShuttingDown(self));
-        return;
-      }
+  // Check whether we've passed the warmup threshold and we don't have a
+  // profiling info. This can often happen in kIsDebugBuild mode, where the warmup
+  // threshold is the same as the value we reset to after a code cache collection
+  // (see jit_code_cache.cc::ClearMethodCounter).
+  // Note that we don't look at whether the 'starting_count' is above the warmup
+  // threshold, as we need a profiling info to JIT compile anyway.
+  if ((new_count >= warm_method_threshold_) &&
+      (method->GetProfilingInfo(kRuntimePointerSize) == nullptr)) {
+    bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
+    if (success) {
+      VLOG(jit) << "Start profiling " << method->PrettyMethod();
+    }
 
-      if (!success) {
-        // We failed allocating. Instead of doing the collection on the Java thread, we push
-        // an allocation to a compiler thread, that will do the collection.
-        thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kAllocateProfile));
-      }
+    if (thread_pool_ == nullptr) {
+      // Calling ProfilingInfo::Create might put us in a suspended state, which could
+      // lead to the thread pool being deleted when we are shutting down.
+      DCHECK(Runtime::Current()->IsShuttingDown(self));
+      return;
+    }
+
+    if (!success) {
+      // We failed allocating. Instead of doing the collection on the Java thread, we push
+      // an allocation to a compiler thread, that will do the collection.
+      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kAllocateProfile));
     }
     // Avoid jumping more than one state at a time.
     new_count = std::min(new_count, hot_method_threshold_ - 1);
