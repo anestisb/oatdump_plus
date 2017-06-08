@@ -39,8 +39,21 @@ public abstract class Mutation {
     this.mutatableCode = mutatableCode;
     this.mutatableCodeIdx = mutatableCode.mutatableCodeIdx;
   }
-
+  /**
+   * Serializes the field(s) of the mutation to string format.
+   * The fields are separated by a space.
+   * @return the serialized string representation of the field(s) of the mutation.
+   */
   public abstract String getString();
 
+  /**
+   * Deserializes the strings back to the field(s) of the mutation,
+   * given a string array as its argument. The string array
+   * contains the individual elements which were previously constructed by
+   * getstring() method. elements[0] stores the class name and elements[1]
+   * stores the mutable code index which are predefined in MutationSerializer.java.
+   * Users can deserialize the string representation in elements[2] and so forth.
+   * @param elements string array with serialized representations of the field(s) of the mutation.
+   */
   public abstract void parseString(String[] elements);
 }
