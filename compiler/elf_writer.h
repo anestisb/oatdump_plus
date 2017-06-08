@@ -55,6 +55,7 @@ class ElfWriter {
   virtual void PrepareDynamicSection(size_t rodata_size,
                                      size_t text_size,
                                      size_t bss_size,
+                                     size_t bss_methods_offset,
                                      size_t bss_roots_offset) = 0;
   virtual void PrepareDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) = 0;
   virtual OutputStream* StartRoData() = 0;

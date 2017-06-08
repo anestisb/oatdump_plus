@@ -234,8 +234,8 @@ public class Main {
   /// CHECK-START-ARM: void Main.$opt$noinline$testAnd(long, long) disassembly (after)
   /// CHECK:                            and lsl
   /// CHECK:                            sbfx
-  /// CHECK:                            asr
-  /// CHECK:                            and
+  /// CHECK:                            asr{{s?}}
+  /// CHECK:                            and{{s?}}
 
   /// CHECK-START-ARM64: void Main.$opt$noinline$testAnd(long, long) instruction_simplifier_arm64 (after)
   /// CHECK:                            DataProcWithShifterOp
@@ -259,7 +259,7 @@ public class Main {
   /// CHECK-START-ARM: void Main.$opt$noinline$testOr(int, int) disassembly (after)
   /// CHECK:                            orr asr
   /// CHECK:                            ubfx
-  /// CHECK:                            orr
+  /// CHECK:                            orr{{s?}}
 
   /// CHECK-START-ARM64: void Main.$opt$noinline$testOr(int, int) instruction_simplifier_arm64 (after)
   /// CHECK:                            DataProcWithShifterOp
@@ -282,9 +282,8 @@ public class Main {
 
   /// CHECK-START-ARM: void Main.$opt$noinline$testXor(long, long) disassembly (after)
   /// CHECK:                            eor lsr
-  /// CHECK:                            mov
-  /// CHECK:                            asr
-  /// CHECK:                            eor
+  /// CHECK:                            asr{{s?}}
+  /// CHECK:                            eor{{s?}}
 
   /// CHECK-START-ARM64: void Main.$opt$noinline$testXor(long, long) instruction_simplifier_arm64 (after)
   /// CHECK:                            DataProcWithShifterOp

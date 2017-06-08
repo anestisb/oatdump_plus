@@ -60,11 +60,6 @@ namespace verifier {
 
 // OatHeader         variable length with count of D OatDexFiles
 //
-// OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatClasses
-// OatDexFile[1]
-// ...
-// OatDexFile[D]
-//
 // TypeLookupTable[0] one descriptor to class def index hash table for each OatDexFile.
 // TypeLookupTable[1]
 // ...
@@ -80,20 +75,25 @@ namespace verifier {
 // ...
 // OatClass[C]
 //
-// GcMap             one variable sized blob with GC map.
-// GcMap             GC maps are deduplicated.
+// MethodBssMapping  one variable sized MethodBssMapping for each dex file, optional.
+// MethodBssMapping
 // ...
-// GcMap
+// MethodBssMapping
 //
-// VmapTable         one variable sized VmapTable blob (quick compiler only).
+// VmapTable         one variable sized VmapTable blob (CodeInfo or QuickeningInfo).
 // VmapTable         VmapTables are deduplicated.
 // ...
 // VmapTable
 //
-// MappingTable      one variable sized blob with MappingTable (quick compiler only).
-// MappingTable      MappingTables are deduplicated.
+// MethodInfo        one variable sized blob with MethodInfo.
+// MethodInfo        MethodInfos are deduplicated.
 // ...
-// MappingTable
+// MethodInfo
+//
+// OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatClasses
+// OatDexFile[1]
+// ...
+// OatDexFile[D]
 //
 // padding           if necessary so that the following code will be page aligned
 //
@@ -217,6 +217,10 @@ class OatWriter {
     return bss_size_;
   }
 
+  size_t GetBssMethodsOffset() const {
+    return bss_methods_offset_;
+  }
+
   size_t GetBssRootsOffset() const {
     return bss_roots_offset_;
   }
@@ -251,6 +255,7 @@ class OatWriter {
   // to actually write it.
   class DexMethodVisitor;
   class OatDexMethodVisitor;
+  class InitBssLayoutMethodVisitor;
   class InitOatClassesMethodVisitor;
   class InitCodeMethodVisitor;
   class InitMapMethodVisitor;
@@ -295,26 +300,30 @@ class OatWriter {
                        const InstructionSetFeatures* instruction_set_features,
                        uint32_t num_dex_files,
                        SafeMap<std::string, std::string>* key_value_store);
-  size_t InitOatDexFiles(size_t offset);
+  size_t InitClassOffsets(size_t offset);
   size_t InitOatClasses(size_t offset);
   size_t InitOatMaps(size_t offset);
+  size_t InitMethodBssMappings(size_t offset);
+  size_t InitOatDexFiles(size_t offset);
   size_t InitOatCode(size_t offset);
   size_t InitOatCodeDexFiles(size_t offset);
   void InitBssLayout(InstructionSet instruction_set);
 
-  bool WriteClassOffsets(OutputStream* out);
-  bool WriteClasses(OutputStream* out);
-  size_t WriteMaps(OutputStream* out, const size_t file_offset, size_t relative_offset);
-  size_t WriteCode(OutputStream* out, const size_t file_offset, size_t relative_offset);
-  size_t WriteCodeDexFiles(OutputStream* out, const size_t file_offset, size_t relative_offset);
+  size_t WriteClassOffsets(OutputStream* out, size_t file_offset, size_t relative_offset);
+  size_t WriteClasses(OutputStream* out, size_t file_offset, size_t relative_offset);
+  size_t WriteMaps(OutputStream* out, size_t file_offset, size_t relative_offset);
+  size_t WriteMethodBssMappings(OutputStream* out, size_t file_offset, size_t relative_offset);
+  size_t WriteOatDexFiles(OutputStream* out, size_t file_offset, size_t relative_offset);
+  size_t WriteCode(OutputStream* out, size_t file_offset, size_t relative_offset);
+  size_t WriteCodeDexFiles(OutputStream* out, size_t file_offset, size_t relative_offset);
 
   bool RecordOatDataOffset(OutputStream* out);
   bool ReadDexFileHeader(File* oat_file, OatDexFile* oat_dex_file);
   bool ValidateDexFileHeader(const uint8_t* raw_header, const char* location);
-  bool WriteOatDexFiles(OutputStream* oat_rodata);
   bool WriteTypeLookupTables(OutputStream* oat_rodata,
                              const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files);
   bool WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delta);
+  bool WriteUpTo16BytesAlignment(OutputStream* out, uint32_t size, uint32_t* stat);
   void SetMultiOatRelativePatcherAdjustment();
   void CloseSources();
 
@@ -368,8 +377,19 @@ class OatWriter {
   // The size of the required .bss section holding the DexCache data and GC roots.
   size_t bss_size_;
 
+  // The offset of the methods in .bss section.
+  size_t bss_methods_offset_;
+
   // The offset of the GC roots in .bss section.
   size_t bss_roots_offset_;
+
+  // Map for recording references to ArtMethod entries in .bss.
+  SafeMap<const DexFile*, BitVector> bss_method_entry_references_;
+
+  // Map for allocating ArtMethod entries in .bss. Indexed by MethodReference for the target
+  // method in the dex file with the "method reference value comparator" for deduplication.
+  // The value is the target offset for patching, starting at `bss_start_ + bss_methods_offset_`.
+  SafeMap<MethodReference, size_t, MethodReferenceValueComparator> bss_method_entries_;
 
   // Map for allocating Class entries in .bss. Indexed by TypeReference for the source
   // type in the dex file with the "type value comparator" for deduplication. The value
@@ -380,10 +400,6 @@ class OatWriter {
   // string in the dex file with the "string value comparator" for deduplication. The value
   // is the target offset for patching, starting at `bss_start_ + bss_roots_offset_`.
   SafeMap<StringReference, size_t, StringReferenceValueComparator> bss_string_entries_;
-
-  // Offsets of the dex cache arrays for each app dex file. For the
-  // boot image, this information is provided by the ImageWriter.
-  SafeMap<const DexFile*, size_t> dex_cache_arrays_offsets_;  // DexFiles not owned.
 
   // Offset of the oat data from the start of the mmapped region of the elf file.
   size_t oat_data_offset_;
@@ -434,6 +450,7 @@ class OatWriter {
   uint32_t size_oat_dex_file_offset_;
   uint32_t size_oat_dex_file_class_offsets_offset_;
   uint32_t size_oat_dex_file_lookup_table_offset_;
+  uint32_t size_oat_dex_file_method_bss_mapping_offset_;
   uint32_t size_oat_lookup_table_alignment_;
   uint32_t size_oat_lookup_table_;
   uint32_t size_oat_class_offsets_alignment_;
@@ -442,6 +459,7 @@ class OatWriter {
   uint32_t size_oat_class_status_;
   uint32_t size_oat_class_method_bitmaps_;
   uint32_t size_oat_class_method_offsets_;
+  uint32_t size_method_bss_mappings_;
 
   // The helper for processing relative patches is external so that we can patch across oat files.
   linker::MultiOatRelativePatcher* relative_patcher_;

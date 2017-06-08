@@ -45,28 +45,27 @@ public class Main {
   /// CHECK:                InvokeStaticOrDirect method_load_kind:RuntimeCall
 
   /// CHECK-START-ARM: int Main.testSimple(int) sharpening (after)
-  /// CHECK-NOT:            ArmDexCacheArraysBase
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-ARM64: int Main.testSimple(int) sharpening (after)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-MIPS: int Main.testSimple(int) sharpening (after)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-MIPS64: int Main.testSimple(int) sharpening (after)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-X86: int Main.testSimple(int) sharpening (after)
   /// CHECK-NOT:            X86ComputeBaseMethodAddress
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-X86_64: int Main.testSimple(int) sharpening (after)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
-  /// CHECK-START-ARM: int Main.testSimple(int) dex_cache_array_fixups_arm (after)
-  /// CHECK:                ArmDexCacheArraysBase
-  /// CHECK-NOT:            ArmDexCacheArraysBase
+  /// CHECK-START-MIPS: int Main.testSimple(int) pc_relative_fixups_mips (after)
+  /// CHECK:                MipsComputeBaseMethodAddress
+  /// CHECK-NOT:            MipsComputeBaseMethodAddress
 
   /// CHECK-START-X86: int Main.testSimple(int) pc_relative_fixups_x86 (after)
   /// CHECK:                X86ComputeBaseMethodAddress
@@ -81,37 +80,36 @@ public class Main {
   /// CHECK:                InvokeStaticOrDirect method_load_kind:RuntimeCall
 
   /// CHECK-START-ARM: int Main.testDiamond(boolean, int) sharpening (after)
-  /// CHECK-NOT:            ArmDexCacheArraysBase
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-ARM64: int Main.testDiamond(boolean, int) sharpening (after)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) sharpening (after)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-MIPS64: int Main.testDiamond(boolean, int) sharpening (after)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-X86: int Main.testDiamond(boolean, int) sharpening (after)
   /// CHECK-NOT:            X86ComputeBaseMethodAddress
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-X86_64: int Main.testDiamond(boolean, int) sharpening (after)
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
-  /// CHECK-START-ARM: int Main.testDiamond(boolean, int) dex_cache_array_fixups_arm (after)
-  /// CHECK:                ArmDexCacheArraysBase
-  /// CHECK-NOT:            ArmDexCacheArraysBase
+  /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) pc_relative_fixups_mips (after)
+  /// CHECK:                MipsComputeBaseMethodAddress
+  /// CHECK-NOT:            MipsComputeBaseMethodAddress
 
-  /// CHECK-START-ARM: int Main.testDiamond(boolean, int) dex_cache_array_fixups_arm (after)
-  /// CHECK:                ArmDexCacheArraysBase
+  /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) pc_relative_fixups_mips (after)
+  /// CHECK:                MipsComputeBaseMethodAddress
   /// CHECK-NEXT:           If
 
   /// CHECK-START-X86: int Main.testDiamond(boolean, int) pc_relative_fixups_x86 (after)
@@ -123,14 +121,32 @@ public class Main {
   /// CHECK-NEXT:           If
 
   public static int testDiamond(boolean negate, int x) {
-    // These calls should use PC-relative dex cache array loads to retrieve the target method.
-    // PC-relative bases used by ARM, MIPS and X86 should be pulled before the If.
+    // These calls should use PC-relative loads to retrieve the target method.
+    // PC-relative bases used by MIPS and X86 should be pulled before the If.
     if (negate) {
       return $noinline$foo(-x);
     } else {
       return $noinline$foo(x);
     }
   }
+
+  /// CHECK-START-MIPS: int Main.testLoop(int[], int) pc_relative_fixups_mips (before)
+  /// CHECK-NOT:            MipsComputeBaseMethodAddress
+
+  /// CHECK-START-MIPS: int Main.testLoop(int[], int) pc_relative_fixups_mips (after)
+  /// CHECK:                MipsComputeBaseMethodAddress
+  /// CHECK-NOT:            MipsComputeBaseMethodAddress
+
+  /// CHECK-START-MIPS: int Main.testLoop(int[], int) pc_relative_fixups_mips (after)
+  /// CHECK:                InvokeStaticOrDirect
+  /// CHECK-NOT:            InvokeStaticOrDirect
+
+  /// CHECK-START-MIPS: int Main.testLoop(int[], int) pc_relative_fixups_mips (after)
+  /// CHECK:                ArrayLength
+  /// CHECK-NEXT:           MipsComputeBaseMethodAddress
+  /// CHECK-NEXT:           Goto
+  /// CHECK:                begin_block
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   /// CHECK-START-X86: int Main.testLoop(int[], int) pc_relative_fixups_x86 (before)
   /// CHECK-NOT:            X86ComputeBaseMethodAddress
@@ -148,33 +164,25 @@ public class Main {
   /// CHECK-NEXT:           X86ComputeBaseMethodAddress
   /// CHECK-NEXT:           Goto
   /// CHECK:                begin_block
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
-
-  /// CHECK-START-ARM: int Main.testLoop(int[], int) dex_cache_array_fixups_arm (before)
-  /// CHECK-NOT:            ArmDexCacheArraysBase
-
-  /// CHECK-START-ARM: int Main.testLoop(int[], int) dex_cache_array_fixups_arm (after)
-  /// CHECK:                ArmDexCacheArraysBase
-  /// CHECK-NOT:            ArmDexCacheArraysBase
-
-  /// CHECK-START-ARM: int Main.testLoop(int[], int) dex_cache_array_fixups_arm (after)
-  /// CHECK:                InvokeStaticOrDirect
-  /// CHECK-NOT:            InvokeStaticOrDirect
-
-  /// CHECK-START-ARM: int Main.testLoop(int[], int) dex_cache_array_fixups_arm (after)
-  /// CHECK:                ArrayLength
-  /// CHECK-NEXT:           ArmDexCacheArraysBase
-  /// CHECK-NEXT:           Goto
-  /// CHECK:                begin_block
-  /// CHECK:                InvokeStaticOrDirect method_load_kind:DexCachePcRelative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:BssEntry
 
   public static int testLoop(int[] array, int x) {
-    // PC-relative bases used by ARM, MIPS and X86 should be pulled before the loop.
+    // PC-relative bases used by MIPS and X86 should be pulled before the loop.
     for (int i : array) {
       x += $noinline$foo(i);
     }
     return x;
   }
+
+  /// CHECK-START-MIPS: int Main.testLoopWithDiamond(int[], boolean, int) pc_relative_fixups_mips (before)
+  /// CHECK-NOT:            MipsComputeBaseMethodAddress
+
+  /// CHECK-START-MIPS: int Main.testLoopWithDiamond(int[], boolean, int) pc_relative_fixups_mips (after)
+  /// CHECK:                If
+  /// CHECK:                begin_block
+  /// CHECK:                ArrayLength
+  /// CHECK-NEXT:           MipsComputeBaseMethodAddress
+  /// CHECK-NEXT:           Goto
 
   /// CHECK-START-X86: int Main.testLoopWithDiamond(int[], boolean, int) pc_relative_fixups_x86 (before)
   /// CHECK-NOT:            X86ComputeBaseMethodAddress
@@ -186,18 +194,8 @@ public class Main {
   /// CHECK-NEXT:           X86ComputeBaseMethodAddress
   /// CHECK-NEXT:           Goto
 
-  /// CHECK-START-ARM: int Main.testLoopWithDiamond(int[], boolean, int) dex_cache_array_fixups_arm (before)
-  /// CHECK-NOT:            ArmDexCacheArraysBase
-
-  /// CHECK-START-ARM: int Main.testLoopWithDiamond(int[], boolean, int) dex_cache_array_fixups_arm (after)
-  /// CHECK:                If
-  /// CHECK:                begin_block
-  /// CHECK:                ArrayLength
-  /// CHECK-NEXT:           ArmDexCacheArraysBase
-  /// CHECK-NEXT:           Goto
-
   public static int testLoopWithDiamond(int[] array, boolean negate, int x) {
-    // PC-relative bases used by ARM, MIPS and X86 should be pulled before the loop
+    // PC-relative bases used by MIPS and X86 should be pulled before the loop
     // but not outside the if.
     if (array != null) {
       for (int i : array) {

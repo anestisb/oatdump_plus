@@ -415,13 +415,12 @@ class CodeGeneratorX86 : public CodeGenerator {
       HInvokeVirtual* invoke, Location temp, SlowPathCode* slow_path = nullptr) OVERRIDE;
 
   void RecordBootMethodPatch(HInvokeStaticOrDirect* invoke);
+  Label* NewMethodBssEntryPatch(HX86ComputeBaseMethodAddress* method_address,
+                                MethodReference target_method);
   void RecordBootTypePatch(HLoadClass* load_class);
   Label* NewTypeBssEntryPatch(HLoadClass* load_class);
   void RecordBootStringPatch(HLoadString* load_string);
   Label* NewStringBssEntryPatch(HLoadString* load_string);
-  Label* NewPcRelativeDexCacheArrayPatch(HX86ComputeBaseMethodAddress* method_address,
-                                         const DexFile& dex_file,
-                                         uint32_t element_offset);
   Label* NewJitRootStringPatch(const DexFile& dex_file,
                                dex::StringIndex dex_index,
                                Handle<mirror::String> handle);
@@ -633,10 +632,10 @@ class CodeGeneratorX86 : public CodeGenerator {
   X86Assembler assembler_;
   const X86InstructionSetFeatures& isa_features_;
 
-  // PC-relative DexCache access info.
-  ArenaDeque<X86PcRelativePatchInfo> pc_relative_dex_cache_patches_;
   // PC-relative method patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<X86PcRelativePatchInfo> boot_image_method_patches_;
+  // PC-relative method patch info for kBssEntry.
+  ArenaDeque<X86PcRelativePatchInfo> method_bss_entry_patches_;
   // PC-relative type patch info for kBootImageLinkTimePcRelative.
   ArenaDeque<X86PcRelativePatchInfo> boot_image_type_patches_;
   // Type patch locations for kBssEntry.

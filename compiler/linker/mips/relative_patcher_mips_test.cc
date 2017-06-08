@@ -61,7 +61,6 @@ void MipsRelativePatcherTest::CheckPcRelativePatch(const ArrayRef<const LinkerPa
   ASSERT_TRUE(result.first);
 
   uint32_t diff = target_offset - (result.second + kAnchorOffset);
-  CHECK_NE(patches[0].GetType(), LinkerPatch::Type::kDexCacheArray);
   diff += (diff & 0x8000) << 1;  // Account for sign extension in addiu.
 
   const uint8_t expected_code[] = {

@@ -26,6 +26,7 @@
 #include "base/stringpiece.h"
 #include "compiler_filter.h"
 #include "dex_file.h"
+#include "method_bss_mapping.h"
 #include "mirror/class.h"
 #include "oat.h"
 #include "os.h"
@@ -257,8 +258,14 @@ class OatFile {
     return BssEnd() - BssBegin();
   }
 
+  size_t BssMethodsOffset() const {
+    // Note: This is used only for symbolizer and needs to return a valid .bss offset.
+    return (bss_methods_ != nullptr) ? bss_methods_ - BssBegin() : BssRootsOffset();
+  }
+
   size_t BssRootsOffset() const {
-    return bss_roots_ - BssBegin();
+    // Note: This is used only for symbolizer and needs to return a valid .bss offset.
+    return (bss_roots_ != nullptr) ? bss_roots_ - BssBegin() : BssSize();
   }
 
   size_t DexSize() const {
@@ -274,6 +281,7 @@ class OatFile {
   const uint8_t* DexBegin() const;
   const uint8_t* DexEnd() const;
 
+  ArrayRef<ArtMethod*> GetBssMethods() const;
   ArrayRef<GcRoot<mirror::Object>> GetBssGcRoots() const;
 
   // Returns the absolute dex location for the encoded relative dex location.
@@ -324,6 +332,9 @@ class OatFile {
 
   // Pointer to the end of the .bss section, if present, otherwise null.
   uint8_t* bss_end_;
+
+  // Pointer to the beginning of the ArtMethod*s in .bss section, if present, otherwise null.
+  uint8_t* bss_methods_;
 
   // Pointer to the beginning of the GC roots in .bss section, if present, otherwise null.
   uint8_t* bss_roots_;
@@ -422,6 +433,10 @@ class OatDexFile FINAL {
     return lookup_table_data_;
   }
 
+  const MethodBssMapping* GetMethodBssMapping() const {
+    return method_bss_mapping_;
+  }
+
   const uint8_t* GetDexFilePointer() const {
     return dex_file_pointer_;
   }
@@ -448,6 +463,7 @@ class OatDexFile FINAL {
              uint32_t dex_file_checksum,
              const uint8_t* dex_file_pointer,
              const uint8_t* lookup_table_data,
+             const MethodBssMapping* method_bss_mapping,
              const uint32_t* oat_class_offsets_pointer,
              uint8_t* dex_cache_arrays);
 
@@ -458,7 +474,8 @@ class OatDexFile FINAL {
   const std::string canonical_dex_file_location_;
   const uint32_t dex_file_location_checksum_ = 0u;
   const uint8_t* const dex_file_pointer_ = nullptr;
-  const uint8_t* lookup_table_data_ = nullptr;
+  const uint8_t* const lookup_table_data_ = nullptr;
+  const MethodBssMapping* const method_bss_mapping_ = nullptr;
   const uint32_t* const oat_class_offsets_pointer_ = 0u;
   uint8_t* const dex_cache_arrays_ = nullptr;
   mutable std::unique_ptr<TypeLookupTable> lookup_table_;

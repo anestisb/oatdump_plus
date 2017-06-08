@@ -1002,12 +1002,12 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
       Load64BitValue(temp.AsRegister<CpuRegister>(), invoke->GetMethodAddress());
       break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
+    case HInvokeStaticOrDirect::MethodLoadKind::kBssEntry: {
       __ movq(temp.AsRegister<CpuRegister>(),
               Address::Absolute(kDummy32BitOffset, /* no_rip */ false));
       // Bind a new fixup label at the end of the "movl" insn.
-      uint32_t offset = invoke->GetDexCacheArrayOffset();
-      __ Bind(NewPcRelativeDexCacheArrayPatch(invoke->GetDexFileForPcRelativeDexCache(), offset));
+      __ Bind(NewMethodBssEntryPatch(
+          MethodReference(&GetGraph()->GetDexFile(), invoke->GetDexMethodIndex())));
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kRuntimeCall: {
@@ -1071,6 +1071,12 @@ void CodeGeneratorX86_64::RecordBootMethodPatch(HInvokeStaticOrDirect* invoke) {
   __ Bind(&boot_image_method_patches_.back().label);
 }
 
+Label* CodeGeneratorX86_64::NewMethodBssEntryPatch(MethodReference target_method) {
+  // Add a patch entry and return the label.
+  method_bss_entry_patches_.emplace_back(*target_method.dex_file, target_method.dex_method_index);
+  return &method_bss_entry_patches_.back().label;
+}
+
 void CodeGeneratorX86_64::RecordBootTypePatch(HLoadClass* load_class) {
   boot_image_type_patches_.emplace_back(load_class->GetDexFile(),
                                         load_class->GetTypeIndex().index_);
@@ -1094,13 +1100,6 @@ Label* CodeGeneratorX86_64::NewStringBssEntryPatch(HLoadString* load_string) {
   return &string_patches_.back().label;
 }
 
-Label* CodeGeneratorX86_64::NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
-                                                            uint32_t element_offset) {
-  // Add a patch entry and return the label.
-  pc_relative_dex_cache_patches_.emplace_back(dex_file, element_offset);
-  return &pc_relative_dex_cache_patches_.back().label;
-}
-
 // The label points to the end of the "movl" or another instruction but the literal offset
 // for method patch needs to point to the embedded constant which occupies the last 4 bytes.
 constexpr uint32_t kLabelPositionToLiteralOffsetAdjustment = 4u;
@@ -1119,14 +1118,12 @@ inline void CodeGeneratorX86_64::EmitPcRelativeLinkerPatches(
 void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
-      pc_relative_dex_cache_patches_.size() +
       boot_image_method_patches_.size() +
+      method_bss_entry_patches_.size() +
       boot_image_type_patches_.size() +
       type_bss_entry_patches_.size() +
       string_patches_.size();
   linker_patches->reserve(size);
-  EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
-                                                               linker_patches);
   if (GetCompilerOptions().IsBootImage()) {
     EmitPcRelativeLinkerPatches<LinkerPatch::RelativeMethodPatch>(boot_image_method_patches_,
                                                                   linker_patches);
@@ -1138,6 +1135,8 @@ void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
     DCHECK(boot_image_type_patches_.empty());
     EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(string_patches_, linker_patches);
   }
+  EmitPcRelativeLinkerPatches<LinkerPatch::MethodBssEntryPatch>(method_bss_entry_patches_,
+                                                                linker_patches);
   EmitPcRelativeLinkerPatches<LinkerPatch::TypeBssEntryPatch>(type_bss_entry_patches_,
                                                               linker_patches);
   DCHECK_EQ(size, linker_patches->size());
@@ -1226,8 +1225,8 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         assembler_(graph->GetArena()),
         isa_features_(isa_features),
         constant_area_start_(0),
-        pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         boot_image_method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+        method_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         boot_image_type_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         type_bss_entry_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         string_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),

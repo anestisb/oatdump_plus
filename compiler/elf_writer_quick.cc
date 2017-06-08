@@ -97,6 +97,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
   void PrepareDynamicSection(size_t rodata_size,
                              size_t text_size,
                              size_t bss_size,
+                             size_t bss_methods_offset,
                              size_t bss_roots_offset) OVERRIDE;
   void PrepareDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) OVERRIDE;
   OutputStream* StartRoData() OVERRIDE;
@@ -178,6 +179,7 @@ template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::PrepareDynamicSection(size_t rodata_size,
                                                      size_t text_size,
                                                      size_t bss_size,
+                                                     size_t bss_methods_offset,
                                                      size_t bss_roots_offset) {
   DCHECK_EQ(rodata_size_, 0u);
   rodata_size_ = rodata_size;
@@ -189,6 +191,7 @@ void ElfWriterQuick<ElfTypes>::PrepareDynamicSection(size_t rodata_size,
                                   rodata_size_,
                                   text_size_,
                                   bss_size_,
+                                  bss_methods_offset,
                                   bss_roots_offset);
 }
 

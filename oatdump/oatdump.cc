@@ -171,6 +171,7 @@ class OatSymbolizer FINAL {
                                     rodata_size,
                                     text_size,
                                     oat_file_->BssSize(),
+                                    oat_file_->BssMethodsOffset(),
                                     oat_file_->BssRootsOffset());
     builder_->WriteDynamicSection();
 

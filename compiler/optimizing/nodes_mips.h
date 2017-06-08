@@ -34,38 +34,6 @@ class HMipsComputeBaseMethodAddress : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HMipsComputeBaseMethodAddress);
 };
 
-class HMipsDexCacheArraysBase : public HExpression<0> {
- public:
-  explicit HMipsDexCacheArraysBase(const DexFile& dex_file)
-      : HExpression(Primitive::kPrimInt, SideEffects::None(), kNoDexPc),
-        dex_file_(&dex_file),
-        element_offset_(static_cast<size_t>(-1)) { }
-
-  bool CanBeMoved() const OVERRIDE { return true; }
-
-  void UpdateElementOffset(size_t element_offset) {
-    // We'll maximize the range of a single load instruction for dex cache array accesses
-    // by aligning offset -32768 with the offset of the first used element.
-    element_offset_ = std::min(element_offset_, element_offset);
-  }
-
-  const DexFile& GetDexFile() const {
-    return *dex_file_;
-  }
-
-  size_t GetElementOffset() const {
-    return element_offset_;
-  }
-
-  DECLARE_INSTRUCTION(MipsDexCacheArraysBase);
-
- private:
-  const DexFile* dex_file_;
-  size_t element_offset_;
-
-  DISALLOW_COPY_AND_ASSIGN(HMipsDexCacheArraysBase);
-};
-
 // Mips version of HPackedSwitch that holds a pointer to the base method address.
 class HMipsPackedSwitch FINAL : public HTemplateInstruction<2> {
  public:

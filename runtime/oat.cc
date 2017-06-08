@@ -71,6 +71,7 @@ OatHeader::OatHeader(InstructionSet instruction_set,
       instruction_set_(instruction_set),
       instruction_set_features_bitmap_(instruction_set_features->AsBitmap()),
       dex_file_count_(dex_file_count),
+      oat_dex_files_offset_(0),
       executable_offset_(0),
       interpreter_to_interpreter_bridge_offset_(0),
       interpreter_to_compiled_code_bridge_offset_(0),
@@ -201,6 +202,20 @@ InstructionSet OatHeader::GetInstructionSet() const {
 uint32_t OatHeader::GetInstructionSetFeaturesBitmap() const {
   CHECK(IsValid());
   return instruction_set_features_bitmap_;
+}
+
+uint32_t OatHeader::GetOatDexFilesOffset() const {
+  DCHECK(IsValid());
+  DCHECK_GT(oat_dex_files_offset_, sizeof(OatHeader));
+  return oat_dex_files_offset_;
+}
+
+void OatHeader::SetOatDexFilesOffset(uint32_t oat_dex_files_offset) {
+  DCHECK_GT(oat_dex_files_offset, sizeof(OatHeader));
+  DCHECK(IsValid());
+  DCHECK_EQ(oat_dex_files_offset_, 0u);
+
+  oat_dex_files_offset_ = oat_dex_files_offset;
 }
 
 uint32_t OatHeader::GetExecutableOffset() const {

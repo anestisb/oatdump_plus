@@ -28,6 +28,7 @@
 #include "imtable-inl.h"
 #include "interpreter/interpreter.h"
 #include "linear_alloc.h"
+#include "method_bss_mapping.h"
 #include "method_handles.h"
 #include "method_reference.h"
 #include "mirror/class-inl.h"
@@ -36,6 +37,7 @@
 #include "mirror/method_handle_impl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "oat_file.h"
 #include "oat_quick_method_header.h"
 #include "quick_exception_handler.h"
 #include "runtime.h"
@@ -1105,6 +1107,32 @@ extern "C" const void* artQuickResolutionTrampoline(
     DCHECK_EQ(caller->GetDexFile(), called_method.dex_file);
     called = linker->ResolveMethod<ClassLinker::kForceICCECheck>(
         self, called_method.dex_method_index, caller, invoke_type);
+
+    // Update .bss entry in oat file if any.
+    if (called != nullptr && called_method.dex_file->GetOatDexFile() != nullptr) {
+      const MethodBssMapping* mapping =
+          called_method.dex_file->GetOatDexFile()->GetMethodBssMapping();
+      if (mapping != nullptr) {
+        auto pp = std::partition_point(
+            mapping->begin(),
+            mapping->end(),
+            [called_method](const MethodBssMappingEntry& entry) {
+              return entry.method_index < called_method.dex_method_index;
+            });
+        if (pp != mapping->end() && pp->CoversIndex(called_method.dex_method_index)) {
+          size_t bss_offset = pp->GetBssOffset(called_method.dex_method_index,
+                                               static_cast<size_t>(kRuntimePointerSize));
+          DCHECK_ALIGNED(bss_offset, static_cast<size_t>(kRuntimePointerSize));
+          const OatFile* oat_file = called_method.dex_file->GetOatDexFile()->GetOatFile();
+          ArtMethod** method_entry = reinterpret_cast<ArtMethod**>(const_cast<uint8_t*>(
+              oat_file->BssBegin() + bss_offset));
+          DCHECK_GE(method_entry, oat_file->GetBssMethods().data());
+          DCHECK_LT(method_entry,
+                    oat_file->GetBssMethods().data() + oat_file->GetBssMethods().size());
+          *method_entry = called;
+        }
+      }
+    }
   }
   const void* code = nullptr;
   if (LIKELY(!self->IsExceptionPending())) {

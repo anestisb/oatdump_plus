@@ -3417,8 +3417,11 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   // Example dex_cache location is SettingsProvider.apk and
   // dex file location is /system/priv-app/SettingsProvider/SettingsProvider.apk
   CHECK_EQ(dex_cache_location, dex_file_suffix);
-  // Clean up pass to remove null dex caches.
+  const OatFile* oat_file =
+      (dex_file.GetOatDexFile() != nullptr) ? dex_file.GetOatDexFile()->GetOatFile() : nullptr;
+  // Clean up pass to remove null dex caches. Also check if we need to initialize OatFile .bss.
   // Null dex caches can occur due to class unloading and we are lazily removing null entries.
+  bool initialize_oat_file_bss = (oat_file != nullptr);
   JavaVMExt* const vm = self->GetJniEnv()->vm;
   for (auto it = dex_caches_.begin(); it != dex_caches_.end(); ) {
     DexCacheData data = *it;
@@ -3426,7 +3429,19 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
       vm->DeleteWeakGlobalRef(self, data.weak_root);
       it = dex_caches_.erase(it);
     } else {
+      if (initialize_oat_file_bss &&
+          it->dex_file->GetOatDexFile() != nullptr &&
+          it->dex_file->GetOatDexFile()->GetOatFile() == oat_file) {
+        initialize_oat_file_bss = false;  // Already initialized.
+      }
       ++it;
+    }
+  }
+  if (initialize_oat_file_bss) {
+    // TODO: Pre-initialize from boot/app image?
+    ArtMethod* resolution_method = Runtime::Current()->GetResolutionMethod();
+    for (ArtMethod*& entry : oat_file->GetBssMethods()) {
+      entry = resolution_method;
     }
   }
   jweak dex_cache_jweak = vm->AddWeakGlobalRef(self, dex_cache);

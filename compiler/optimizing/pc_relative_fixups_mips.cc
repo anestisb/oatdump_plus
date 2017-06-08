@@ -59,10 +59,9 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
   }
 
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
-    // If this is an invoke with PC-relative pointer to a method,
+    // If this is an invoke with PC-relative load kind,
     // we need to add the base as the special input.
-    if (invoke->GetMethodLoadKind() ==
-            HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative &&
+    if (invoke->HasPcRelativeMethodLoadKind() &&
         !IsCallFreeIntrinsic<IntrinsicLocationsBuilderMIPS>(invoke, codegen_)) {
       InitializePCRelativeBasePointer();
       // Add the special argument base to the method.

@@ -220,6 +220,7 @@ class OatTest : public CommonCompilerTest {
     elf_writer->PrepareDynamicSection(rodata_size,
                                       text_size,
                                       oat_writer.GetBssSize(),
+                                      oat_writer.GetBssMethodsOffset(),
                                       oat_writer.GetBssRootsOffset());
 
     if (kIsVdexEnabled) {
@@ -483,7 +484,7 @@ TEST_F(OatTest, WriteRead) {
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
-  EXPECT_EQ(72U, sizeof(OatHeader));
+  EXPECT_EQ(76U, sizeof(OatHeader));
   EXPECT_EQ(4U, sizeof(OatMethodOffsets));
   EXPECT_EQ(24U, sizeof(OatQuickMethodHeader));
   EXPECT_EQ(161 * static_cast<size_t>(GetInstructionSetPointerSize(kRuntimeISA)),

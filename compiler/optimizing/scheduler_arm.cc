@@ -818,10 +818,5 @@ void SchedulingLatencyVisitorARM::VisitTypeConversion(HTypeConversion* instr) {
   }
 }
 
-void SchedulingLatencyVisitorARM::VisitArmDexCacheArraysBase(art::HArmDexCacheArraysBase*) {
-  last_visited_internal_latency_ = kArmIntegerOpLatency;
-  last_visited_latency_ = kArmIntegerOpLatency;
-}
-
 }  // namespace arm
 }  // namespace art
