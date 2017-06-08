@@ -147,18 +147,6 @@ bool ProfileCompilationInfo::AddSampledMethod(bool startup,
   return true;
 }
 
-bool ProfileCompilationInfo::AddSampledMethods(bool startup,
-                                               std::vector<MethodReference>& methods) {
-  for (const MethodReference& ref : methods) {
-    DexFileData* data = GetOrAddDexFileData(ref.dex_file);
-    if (data == nullptr) {
-      return false;
-    }
-    data->AddSampledMethod(startup, ref.dex_method_index);
-  }
-  return true;
-}
-
 bool ProfileCompilationInfo::AddMethodsAndClasses(
     const std::vector<ProfileMethodInfo>& methods,
     const std::set<DexCacheResolvedClasses>& resolved_classes) {
