@@ -706,5 +706,10 @@
         "variant": "host",
         "env_vars": {"SANITIZE_HOST": "address"},
         "bug": "b/62350406"
+    },
+    {
+        "tests": "655-jit-clinit",
+        "description": [ "Currently broken in debug mode"],
+        "variant": "debug"
     }
 ]
