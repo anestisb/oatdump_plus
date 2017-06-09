@@ -197,6 +197,10 @@ class ProfileCompilationInfo {
   bool AddMethodsAndClasses(const std::vector<ProfileMethodInfo>& methods,
                             const std::set<DexCacheResolvedClasses>& resolved_classes);
 
+  // Iterator is type for ids not class defs.
+  template <class Iterator>
+  bool AddClassesForDex(const DexFile* dex_file, Iterator index_begin, Iterator index_end);
+
   // Add a method index to the profile (without inline caches).
   bool AddMethodIndex(const std::string& dex_location,
                       uint32_t checksum,
@@ -207,13 +211,24 @@ class ProfileCompilationInfo {
   bool AddMethod(const ProfileMethodInfo& pmi);
 
   // Add methods that have samples but are are not necessarily hot. These are partitioned into two
-  // possibly interesecting sets startup and post startup.
-  bool AddSampledMethods(bool startup, std::vector<MethodReference>& methods);
+  // possibly intersecting sets startup and post startup.
   bool AddSampledMethod(bool startup,
                         const std::string& dex_location,
                         uint32_t checksum,
                         uint16_t method_idx,
                         uint32_t num_method_ids);
+  // Bulk add sampled methods for a single dex, fast since it only has one GetOrAddDexFileData call.
+  template <class Iterator>
+  bool AddSampledMethodsForDex(bool startup,
+                               const DexFile* dex_file,
+                               Iterator index_begin,
+                               Iterator index_end);
+
+  // Bulk add hot methods for a single dex, fast since it only has one GetOrAddDexFileData call.
+  template <class Iterator>
+  bool AddHotMethodsForDex(const DexFile* dex_file,
+                           Iterator index_begin,
+                           Iterator index_end);
 
   // Load profile information from the given file descriptor.
   // If the current profile is non-empty the load will fail.
