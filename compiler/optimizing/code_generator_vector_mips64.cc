@@ -495,7 +495,60 @@ void LocationsBuilderMIPS64::VisitVecMin(HVecMin* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS64::VisitVecMin(HVecMin* instruction) {
-  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  LocationSummary* locations = instruction->GetLocations();
+  VectorRegister lhs = VectorRegisterFrom(locations->InAt(0));
+  VectorRegister rhs = VectorRegisterFrom(locations->InAt(1));
+  VectorRegister dst = VectorRegisterFrom(locations->Out());
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Min_uB(dst, lhs, rhs);
+      } else {
+        __ Min_sB(dst, lhs, rhs);
+      }
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Min_uH(dst, lhs, rhs);
+      } else {
+        __ Min_sH(dst, lhs, rhs);
+      }
+      break;
+    case Primitive::kPrimInt:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Min_uW(dst, lhs, rhs);
+      } else {
+        __ Min_sW(dst, lhs, rhs);
+      }
+      break;
+    case Primitive::kPrimLong:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Min_uD(dst, lhs, rhs);
+      } else {
+        __ Min_sD(dst, lhs, rhs);
+      }
+      break;
+    // When one of arguments is NaN, fmin.df returns other argument, but Java expects a NaN value.
+    // TODO: Fix min(x, NaN) cases for float and double.
+    case Primitive::kPrimFloat:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ FminW(dst, lhs, rhs);
+      break;
+    case Primitive::kPrimDouble:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ FminD(dst, lhs, rhs);
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderMIPS64::VisitVecMax(HVecMax* instruction) {
@@ -503,7 +556,60 @@ void LocationsBuilderMIPS64::VisitVecMax(HVecMax* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS64::VisitVecMax(HVecMax* instruction) {
-  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  LocationSummary* locations = instruction->GetLocations();
+  VectorRegister lhs = VectorRegisterFrom(locations->InAt(0));
+  VectorRegister rhs = VectorRegisterFrom(locations->InAt(1));
+  VectorRegister dst = VectorRegisterFrom(locations->Out());
+  switch (instruction->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(16u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Max_uB(dst, lhs, rhs);
+      } else {
+        __ Max_sB(dst, lhs, rhs);
+      }
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(8u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Max_uH(dst, lhs, rhs);
+      } else {
+        __ Max_sH(dst, lhs, rhs);
+      }
+      break;
+    case Primitive::kPrimInt:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Max_uW(dst, lhs, rhs);
+      } else {
+        __ Max_sW(dst, lhs, rhs);
+      }
+      break;
+    case Primitive::kPrimLong:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      if (instruction->IsUnsigned()) {
+        __ Max_uD(dst, lhs, rhs);
+      } else {
+        __ Max_sD(dst, lhs, rhs);
+      }
+      break;
+    // When one of arguments is NaN, fmax.df returns other argument, but Java expects a NaN value.
+    // TODO: Fix max(x, NaN) cases for float and double.
+    case Primitive::kPrimFloat:
+      DCHECK_EQ(4u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ FmaxW(dst, lhs, rhs);
+      break;
+    case Primitive::kPrimDouble:
+      DCHECK_EQ(2u, instruction->GetVectorLength());
+      DCHECK(!instruction->IsUnsigned());
+      __ FmaxD(dst, lhs, rhs);
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderMIPS64::VisitVecAnd(HVecAnd* instruction) {
