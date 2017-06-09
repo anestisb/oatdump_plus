@@ -31,6 +31,7 @@
 #include "nth_caller_visitor.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack_reference.h"
+#include "ScopedLocalRef.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -668,7 +669,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   // Wrap any exception with "Ljava/lang/reflect/InvocationTargetException;" and return early.
   if (soa.Self()->IsExceptionPending()) {
     // If we get another exception when we are trying to wrap, then just use that instead.
-    jthrowable th = soa.Env()->ExceptionOccurred();
+    ScopedLocalRef<jthrowable> th(soa.Env(), soa.Env()->ExceptionOccurred());
     soa.Self()->ClearException();
     jclass exception_class = soa.Env()->FindClass("java/lang/reflect/InvocationTargetException");
     if (exception_class == nullptr) {
@@ -677,7 +678,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
     }
     jmethodID mid = soa.Env()->GetMethodID(exception_class, "<init>", "(Ljava/lang/Throwable;)V");
     CHECK(mid != nullptr);
-    jobject exception_instance = soa.Env()->NewObject(exception_class, mid, th);
+    jobject exception_instance = soa.Env()->NewObject(exception_class, mid, th.get());
     if (exception_instance == nullptr) {
       soa.Self()->AssertPendingException();
       return nullptr;
