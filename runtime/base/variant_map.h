@@ -22,7 +22,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "base/stl_util.h"
+#include "base/stl_util_identity.h"
 
 namespace art {
 

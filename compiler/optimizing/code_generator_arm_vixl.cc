@@ -19,6 +19,8 @@
 #include "arch/arm/asm_support_arm.h"
 #include "arch/arm/instruction_set_features_arm.h"
 #include "art_method.h"
+#include "base/bit_utils.h"
+#include "base/bit_utils_iterator.h"
 #include "code_generator_utils.h"
 #include "common_arm.h"
 #include "compiled_method.h"

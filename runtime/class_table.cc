@@ -16,6 +16,7 @@
 
 #include "class_table-inl.h"
 
+#include "base/stl_util.h"
 #include "mirror/class-inl.h"
 #include "oat_file.h"
 

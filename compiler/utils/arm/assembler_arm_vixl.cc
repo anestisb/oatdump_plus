@@ -18,6 +18,8 @@
 #include <type_traits>
 
 #include "assembler_arm_vixl.h"
+#include "base/bit_utils.h"
+#include "base/bit_utils_iterator.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "thread.h"
 

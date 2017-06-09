@@ -16,6 +16,7 @@
 
 #include "linker/arm/relative_patcher_arm_base.h"
 
+#include "base/stl_util.h"
 #include "compiled_method.h"
 #include "linker/output_stream.h"
 #include "oat.h"

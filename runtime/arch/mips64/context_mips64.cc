@@ -17,6 +17,7 @@
 #include "context_mips64.h"
 
 #include "base/bit_utils.h"
+#include "base/bit_utils_iterator.h"
 #include "quick/quick_method_frame_info.h"
 
 namespace art {

@@ -23,6 +23,7 @@
 #include <vector>
 #include <stdint.h>
 
+#include "base/stl_util.h"
 #include "dex_file-inl.h"
 #include "leb128.h"
 #include "utf.h"

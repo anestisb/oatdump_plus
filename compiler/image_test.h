@@ -26,6 +26,7 @@
 #include "android-base/stringprintf.h"
 
 #include "art_method-inl.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "compiler_callbacks.h"

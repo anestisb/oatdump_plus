@@ -17,13 +17,11 @@
 #ifndef ART_RUNTIME_BASE_BIT_UTILS_H_
 #define ART_RUNTIME_BASE_BIT_UTILS_H_
 
-#include <iterator>
 #include <limits>
 #include <type_traits>
 
-#include "base/iteration_range.h"
 #include "base/logging.h"
-#include "base/stl_util.h"
+#include "base/stl_util_identity.h"
 
 namespace art {
 
@@ -310,85 +308,6 @@ constexpr T MinInt(size_t bits) {
       : std::is_signed<T>::value
           ? ((bits == 1u) ? -1 : static_cast<T>(-1) - MaxInt<T>(bits))
           : static_cast<T>(0);
-}
-
-// Using the Curiously Recurring Template Pattern to implement everything shared
-// by LowToHighBitIterator and HighToLowBitIterator, i.e. everything but operator*().
-template <typename T, typename Iter>
-class BitIteratorBase
-    : public std::iterator<std::forward_iterator_tag, uint32_t, ptrdiff_t, void, void> {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  static_assert(std::is_unsigned<T>::value, "T must be unsigned");
-
-  static_assert(sizeof(T) == sizeof(uint32_t) || sizeof(T) == sizeof(uint64_t), "Unsupported size");
-
- public:
-  BitIteratorBase() : bits_(0u) { }
-  explicit BitIteratorBase(T bits) : bits_(bits) { }
-
-  Iter& operator++() {
-    DCHECK_NE(bits_, 0u);
-    uint32_t bit = *static_cast<Iter&>(*this);
-    bits_ &= ~(static_cast<T>(1u) << bit);
-    return static_cast<Iter&>(*this);
-  }
-
-  Iter& operator++(int) {
-    Iter tmp(static_cast<Iter&>(*this));
-    ++*this;
-    return tmp;
-  }
-
- protected:
-  T bits_;
-
-  template <typename U, typename I>
-  friend bool operator==(const BitIteratorBase<U, I>& lhs, const BitIteratorBase<U, I>& rhs);
-};
-
-template <typename T, typename Iter>
-bool operator==(const BitIteratorBase<T, Iter>& lhs, const BitIteratorBase<T, Iter>& rhs) {
-  return lhs.bits_ == rhs.bits_;
-}
-
-template <typename T, typename Iter>
-bool operator!=(const BitIteratorBase<T, Iter>& lhs, const BitIteratorBase<T, Iter>& rhs) {
-  return !(lhs == rhs);
-}
-
-template <typename T>
-class LowToHighBitIterator : public BitIteratorBase<T, LowToHighBitIterator<T>> {
- public:
-  using BitIteratorBase<T, LowToHighBitIterator<T>>::BitIteratorBase;
-
-  uint32_t operator*() const {
-    DCHECK_NE(this->bits_, 0u);
-    return CTZ(this->bits_);
-  }
-};
-
-template <typename T>
-class HighToLowBitIterator : public BitIteratorBase<T, HighToLowBitIterator<T>> {
- public:
-  using BitIteratorBase<T, HighToLowBitIterator<T>>::BitIteratorBase;
-
-  uint32_t operator*() const {
-    DCHECK_NE(this->bits_, 0u);
-    static_assert(std::numeric_limits<T>::radix == 2, "Unexpected radix!");
-    return std::numeric_limits<T>::digits - 1u - CLZ(this->bits_);
-  }
-};
-
-template <typename T>
-IterationRange<LowToHighBitIterator<T>> LowToHighBits(T bits) {
-  return IterationRange<LowToHighBitIterator<T>>(
-      LowToHighBitIterator<T>(bits), LowToHighBitIterator<T>());
-}
-
-template <typename T>
-IterationRange<HighToLowBitIterator<T>> HighToLowBits(T bits) {
-  return IterationRange<HighToLowBitIterator<T>>(
-      HighToLowBitIterator<T>(bits), HighToLowBitIterator<T>());
 }
 
 // Returns value with bit set in lowest one-bit position or 0 if 0.  (java.lang.X.lowestOneBit).
