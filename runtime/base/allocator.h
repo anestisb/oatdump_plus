@@ -17,12 +17,7 @@
 #ifndef ART_RUNTIME_BASE_ALLOCATOR_H_
 #define ART_RUNTIME_BASE_ALLOCATOR_H_
 
-#include <map>
-#include <set>
-#include <unordered_map>
-
 #include "atomic.h"
-#include "base/hash_map.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/type_static_if.h"
@@ -156,29 +151,6 @@ using TrackingAllocator = typename TypeStaticIf<kEnableTrackingAllocator,
                                                 TrackingAllocatorImpl<T, kTag>,
                                                 std::allocator<T>>::type;
 
-template<class Key, class T, AllocatorTag kTag, class Compare = std::less<Key>>
-using AllocationTrackingMultiMap = std::multimap<
-    Key, T, Compare, TrackingAllocator<std::pair<const Key, T>, kTag>>;
-
-template<class Key, AllocatorTag kTag, class Compare = std::less<Key>>
-using AllocationTrackingSet = std::set<Key, Compare, TrackingAllocator<Key, kTag>>;
-
-template<class Key,
-         class T,
-         AllocatorTag kTag,
-         class Hash = std::hash<Key>,
-         class Pred = std::equal_to<Key>>
-using AllocationTrackingUnorderedMap = std::unordered_map<
-    Key, T, Hash, Pred, TrackingAllocator<std::pair<const Key, T>, kTag>>;
-
-template<class Key,
-         class T,
-         class EmptyFn,
-         AllocatorTag kTag,
-         class Hash = std::hash<Key>,
-         class Pred = std::equal_to<Key>>
-using AllocationTrackingHashMap = HashMap<
-    Key, T, EmptyFn, Hash, Pred, TrackingAllocator<std::pair<Key, T>, kTag>>;
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_ALLOCATOR_H_

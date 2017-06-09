@@ -27,6 +27,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/callee_save_type.h"
 #include "base/enums.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
@@ -714,13 +715,13 @@ class ImageSpaceLoader {
                image_header->GetImageMethod(ImageHeader::kImtConflictMethod));
       CHECK_EQ(runtime->GetImtUnimplementedMethod(),
                image_header->GetImageMethod(ImageHeader::kImtUnimplementedMethod));
-      CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves),
+      CHECK_EQ(runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveAllCalleeSaves),
                image_header->GetImageMethod(ImageHeader::kSaveAllCalleeSavesMethod));
-      CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveRefsOnly),
+      CHECK_EQ(runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsOnly),
                image_header->GetImageMethod(ImageHeader::kSaveRefsOnlyMethod));
-      CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs),
+      CHECK_EQ(runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs),
                image_header->GetImageMethod(ImageHeader::kSaveRefsAndArgsMethod));
-      CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveEverything),
+      CHECK_EQ(runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveEverything),
                image_header->GetImageMethod(ImageHeader::kSaveEverythingMethod));
     } else if (!runtime->HasResolutionMethod()) {
       runtime->SetInstructionSet(space->oat_file_non_owned_->GetOatHeader().GetInstructionSet());
@@ -730,14 +731,16 @@ class ImageSpaceLoader {
           image_header->GetImageMethod(ImageHeader::kImtUnimplementedMethod));
       runtime->SetCalleeSaveMethod(
           image_header->GetImageMethod(ImageHeader::kSaveAllCalleeSavesMethod),
-          Runtime::kSaveAllCalleeSaves);
+          CalleeSaveType::kSaveAllCalleeSaves);
       runtime->SetCalleeSaveMethod(
-          image_header->GetImageMethod(ImageHeader::kSaveRefsOnlyMethod), Runtime::kSaveRefsOnly);
+          image_header->GetImageMethod(ImageHeader::kSaveRefsOnlyMethod),
+          CalleeSaveType::kSaveRefsOnly);
       runtime->SetCalleeSaveMethod(
           image_header->GetImageMethod(ImageHeader::kSaveRefsAndArgsMethod),
-          Runtime::kSaveRefsAndArgs);
+          CalleeSaveType::kSaveRefsAndArgs);
       runtime->SetCalleeSaveMethod(
-          image_header->GetImageMethod(ImageHeader::kSaveEverythingMethod), Runtime::kSaveEverything);
+          image_header->GetImageMethod(ImageHeader::kSaveEverythingMethod),
+          CalleeSaveType::kSaveEverything);
     }
 
     VLOG(image) << "ImageSpace::Init exiting " << *space.get();

@@ -18,10 +18,10 @@
 #define ART_RUNTIME_ENTRYPOINTS_QUICK_CALLEE_SAVE_FRAME_H_
 
 #include "arch/instruction_set.h"
+#include "base/callee_save_type.h"
 #include "base/enums.h"
 #include "base/mutex.h"
-#include "runtime.h"
-#include "thread.h"
+#include "thread-inl.h"
 
 // Specific frame size code is in architecture-specific files. We include this to compile-time
 // specialize the code.
@@ -67,7 +67,7 @@ class ScopedQuickEntrypointChecks {
   bool exit_check_;
 };
 
-static constexpr size_t GetCalleeSaveFrameSize(InstructionSet isa, Runtime::CalleeSaveType type) {
+static constexpr size_t GetCalleeSaveFrameSize(InstructionSet isa, CalleeSaveType type) {
   // constexpr must be a return statement.
   return (isa == kArm || isa == kThumb2) ? arm::ArmCalleeSaveFrameSize(type) :
          isa == kArm64 ? arm64::Arm64CalleeSaveFrameSize(type) :
@@ -93,8 +93,7 @@ static constexpr PointerSize GetConstExprPointerSize(InstructionSet isa) {
 }
 
 // Note: this specialized statement is sanity-checked in the quick-trampoline gtest.
-static constexpr size_t GetCalleeSaveReturnPcOffset(InstructionSet isa,
-                                                    Runtime::CalleeSaveType type) {
+static constexpr size_t GetCalleeSaveReturnPcOffset(InstructionSet isa, CalleeSaveType type) {
   return GetCalleeSaveFrameSize(isa, type) - static_cast<size_t>(GetConstExprPointerSize(isa));
 }
 

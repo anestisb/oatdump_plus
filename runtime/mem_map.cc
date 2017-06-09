@@ -23,6 +23,7 @@
 #include <sys/resource.h>
 #endif
 
+#include <map>
 #include <memory>
 #include <sstream>
 
@@ -32,6 +33,7 @@
 #include "cutils/ashmem.h"
 
 #include "base/allocator.h"
+#include "base/bit_utils.h"
 #include "base/memory_tool.h"
 #include "globals.h"
 #include "utils.h"
@@ -45,6 +47,10 @@ namespace art {
 
 using android::base::StringPrintf;
 using android::base::unique_fd;
+
+template<class Key, class T, AllocatorTag kTag, class Compare = std::less<Key>>
+using AllocationTrackingMultiMap =
+    std::multimap<Key, T, Compare, TrackingAllocator<std::pair<const Key, T>, kTag>>;
 
 using Maps = AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps>;
 

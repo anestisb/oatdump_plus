@@ -27,6 +27,8 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/callee_save_type.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
@@ -1572,13 +1574,13 @@ void ImageWriter::CalculateNewObjectOffsets() {
   image_methods_[ImageHeader::kImtConflictMethod] = runtime->GetImtConflictMethod();
   image_methods_[ImageHeader::kImtUnimplementedMethod] = runtime->GetImtUnimplementedMethod();
   image_methods_[ImageHeader::kSaveAllCalleeSavesMethod] =
-      runtime->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves);
+      runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveAllCalleeSaves);
   image_methods_[ImageHeader::kSaveRefsOnlyMethod] =
-      runtime->GetCalleeSaveMethod(Runtime::kSaveRefsOnly);
+      runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsOnly);
   image_methods_[ImageHeader::kSaveRefsAndArgsMethod] =
-      runtime->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs);
+      runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs);
   image_methods_[ImageHeader::kSaveEverythingMethod] =
-      runtime->GetCalleeSaveMethod(Runtime::kSaveEverything);
+      runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveEverything);
   // Visit image methods first to have the main runtime methods in the first image.
   for (auto* m : image_methods_) {
     CHECK(m != nullptr);
@@ -2482,8 +2484,8 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
           GetOatAddress(kOatAddressQuickResolutionTrampoline), target_ptr_size_);
     } else {
       bool found_one = false;
-      for (size_t i = 0; i < static_cast<size_t>(Runtime::kLastCalleeSaveType); ++i) {
-        auto idx = static_cast<Runtime::CalleeSaveType>(i);
+      for (size_t i = 0; i < static_cast<size_t>(CalleeSaveType::kLastCalleeSaveType); ++i) {
+        auto idx = static_cast<CalleeSaveType>(i);
         if (runtime->HasCalleeSaveMethod(idx) && runtime->GetCalleeSaveMethod(idx) == orig) {
           found_one = true;
           break;

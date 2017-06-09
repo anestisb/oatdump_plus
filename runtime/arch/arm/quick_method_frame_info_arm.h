@@ -17,10 +17,12 @@
 #ifndef ART_RUNTIME_ARCH_ARM_QUICK_METHOD_FRAME_INFO_ARM_H_
 #define ART_RUNTIME_ARCH_ARM_QUICK_METHOD_FRAME_INFO_ARM_H_
 
+#include "arch/instruction_set.h"
 #include "base/bit_utils.h"
+#include "base/callee_save_type.h"
+#include "base/enums.h"
 #include "quick/quick_method_frame_info.h"
 #include "registers_arm.h"
-#include "runtime.h"  // for Runtime::CalleeSaveType.
 
 namespace art {
 namespace arm {
@@ -53,44 +55,44 @@ static constexpr uint32_t kArmCalleeSaveFpAllSpills =
 static constexpr uint32_t kArmCalleeSaveFpEverythingSpills =
     kArmCalleeSaveFpArgSpills | kArmCalleeSaveFpAllSpills;
 
-constexpr uint32_t ArmCalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
+constexpr uint32_t ArmCalleeSaveCoreSpills(CalleeSaveType type) {
   return kArmCalleeSaveAlwaysSpills | kArmCalleeSaveRefSpills |
-      (type == Runtime::kSaveRefsAndArgs ? kArmCalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveAllCalleeSaves ? kArmCalleeSaveAllSpills : 0) |
-      (type == Runtime::kSaveEverything ? kArmCalleeSaveEverythingSpills : 0);
+      (type == CalleeSaveType::kSaveRefsAndArgs ? kArmCalleeSaveArgSpills : 0) |
+      (type == CalleeSaveType::kSaveAllCalleeSaves ? kArmCalleeSaveAllSpills : 0) |
+      (type == CalleeSaveType::kSaveEverything ? kArmCalleeSaveEverythingSpills : 0);
 }
 
-constexpr uint32_t ArmCalleeSaveFpSpills(Runtime::CalleeSaveType type) {
+constexpr uint32_t ArmCalleeSaveFpSpills(CalleeSaveType type) {
   return kArmCalleeSaveFpAlwaysSpills | kArmCalleeSaveFpRefSpills |
-      (type == Runtime::kSaveRefsAndArgs ? kArmCalleeSaveFpArgSpills : 0) |
-      (type == Runtime::kSaveAllCalleeSaves ? kArmCalleeSaveFpAllSpills : 0) |
-      (type == Runtime::kSaveEverything ? kArmCalleeSaveFpEverythingSpills : 0);
+      (type == CalleeSaveType::kSaveRefsAndArgs ? kArmCalleeSaveFpArgSpills : 0) |
+      (type == CalleeSaveType::kSaveAllCalleeSaves ? kArmCalleeSaveFpAllSpills : 0) |
+      (type == CalleeSaveType::kSaveEverything ? kArmCalleeSaveFpEverythingSpills : 0);
 }
 
-constexpr uint32_t ArmCalleeSaveFrameSize(Runtime::CalleeSaveType type) {
+constexpr uint32_t ArmCalleeSaveFrameSize(CalleeSaveType type) {
   return RoundUp((POPCOUNT(ArmCalleeSaveCoreSpills(type)) /* gprs */ +
                   POPCOUNT(ArmCalleeSaveFpSpills(type)) /* fprs */ +
                   1 /* Method* */) * static_cast<size_t>(kArmPointerSize), kStackAlignment);
 }
 
-constexpr QuickMethodFrameInfo ArmCalleeSaveMethodFrameInfo(Runtime::CalleeSaveType type) {
+constexpr QuickMethodFrameInfo ArmCalleeSaveMethodFrameInfo(CalleeSaveType type) {
   return QuickMethodFrameInfo(ArmCalleeSaveFrameSize(type),
                               ArmCalleeSaveCoreSpills(type),
                               ArmCalleeSaveFpSpills(type));
 }
 
-constexpr size_t ArmCalleeSaveFpr1Offset(Runtime::CalleeSaveType type) {
+constexpr size_t ArmCalleeSaveFpr1Offset(CalleeSaveType type) {
   return ArmCalleeSaveFrameSize(type) -
          (POPCOUNT(ArmCalleeSaveCoreSpills(type)) +
           POPCOUNT(ArmCalleeSaveFpSpills(type))) * static_cast<size_t>(kArmPointerSize);
 }
 
-constexpr size_t ArmCalleeSaveGpr1Offset(Runtime::CalleeSaveType type) {
+constexpr size_t ArmCalleeSaveGpr1Offset(CalleeSaveType type) {
   return ArmCalleeSaveFrameSize(type) -
          POPCOUNT(ArmCalleeSaveCoreSpills(type)) * static_cast<size_t>(kArmPointerSize);
 }
 
-constexpr size_t ArmCalleeSaveLrOffset(Runtime::CalleeSaveType type) {
+constexpr size_t ArmCalleeSaveLrOffset(CalleeSaveType type) {
   return ArmCalleeSaveFrameSize(type) -
       POPCOUNT(ArmCalleeSaveCoreSpills(type) & (-(1 << LR))) * static_cast<size_t>(kArmPointerSize);
 }

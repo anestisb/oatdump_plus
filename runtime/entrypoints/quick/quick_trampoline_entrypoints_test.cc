@@ -17,6 +17,7 @@
 #include <stdint.h>
 
 #include "art_method-inl.h"
+#include "base/callee_save_type.h"
 #include "callee_save_frame.h"
 #include "common_runtime_test.h"
 #include "quick/quick_method_frame_info.h"
@@ -38,7 +39,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
     ASSERT_EQ(InstructionSet::kX86_64, Runtime::Current()->GetInstructionSet());
   }
 
-  static ArtMethod* CreateCalleeSaveMethod(InstructionSet isa, Runtime::CalleeSaveType type)
+  static ArtMethod* CreateCalleeSaveMethod(InstructionSet isa, CalleeSaveType type)
       NO_THREAD_SAFETY_ANALYSIS {
     Runtime* r = Runtime::Current();
 
@@ -53,7 +54,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
     return save_method;
   }
 
-  static void CheckFrameSize(InstructionSet isa, Runtime::CalleeSaveType type, uint32_t save_size)
+  static void CheckFrameSize(InstructionSet isa, CalleeSaveType type, uint32_t save_size)
       NO_THREAD_SAFETY_ANALYSIS {
     ArtMethod* save_method = CreateCalleeSaveMethod(isa, type);
     QuickMethodFrameInfo frame_info = Runtime::Current()->GetRuntimeMethodFrameInfo(save_method);
@@ -62,7 +63,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
         << frame_info.FpSpillMask() << std::dec << " ISA " << isa;
   }
 
-  static void CheckPCOffset(InstructionSet isa, Runtime::CalleeSaveType type, size_t pc_offset)
+  static void CheckPCOffset(InstructionSet isa, CalleeSaveType type, size_t pc_offset)
       NO_THREAD_SAFETY_ANALYSIS {
     ArtMethod* save_method = CreateCalleeSaveMethod(isa, type);
     QuickMethodFrameInfo frame_info = Runtime::Current()->GetRuntimeMethodFrameInfo(save_method);
@@ -80,16 +81,16 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
 // This test ensures that kQuickCalleeSaveFrame_RefAndArgs_FrameSize is correct.
 TEST_F(QuickTrampolineEntrypointsTest, FrameSize) {
   // We have to use a define here as the callee_save_frame.h functions are constexpr.
-#define CHECK_FRAME_SIZE(isa)                                                 \
-  CheckFrameSize(isa,                                                         \
-                 Runtime::kSaveRefsAndArgs,                                   \
-                 GetCalleeSaveFrameSize(isa, Runtime::kSaveRefsAndArgs));     \
-  CheckFrameSize(isa,                                                         \
-                 Runtime::kSaveRefsOnly,                                      \
-                 GetCalleeSaveFrameSize(isa, Runtime::kSaveRefsOnly));        \
-  CheckFrameSize(isa,                                                         \
-                 Runtime::kSaveAllCalleeSaves,                                \
-                 GetCalleeSaveFrameSize(isa, Runtime::kSaveAllCalleeSaves))
+#define CHECK_FRAME_SIZE(isa)                                                        \
+  CheckFrameSize(isa,                                                                \
+                 CalleeSaveType::kSaveRefsAndArgs,                                   \
+                 GetCalleeSaveFrameSize(isa, CalleeSaveType::kSaveRefsAndArgs));     \
+  CheckFrameSize(isa,                                                                \
+                 CalleeSaveType::kSaveRefsOnly,                                      \
+                 GetCalleeSaveFrameSize(isa, CalleeSaveType::kSaveRefsOnly));        \
+  CheckFrameSize(isa,                                                                \
+                 CalleeSaveType::kSaveAllCalleeSaves,                                \
+                 GetCalleeSaveFrameSize(isa, CalleeSaveType::kSaveAllCalleeSaves))
 
   CHECK_FRAME_SIZE(kArm);
   CHECK_FRAME_SIZE(kArm64);
@@ -116,12 +117,12 @@ TEST_F(QuickTrampolineEntrypointsTest, ReturnPC) {
   // Ensure that the computation in callee_save_frame.h correct.
   // Note: we can only check against the kRuntimeISA, because the ArtMethod computation uses
   // sizeof(void*), which is wrong when the target bitwidth is not the same as the host's.
-  CheckPCOffset(kRuntimeISA, Runtime::kSaveRefsAndArgs,
-                GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kSaveRefsAndArgs));
-  CheckPCOffset(kRuntimeISA, Runtime::kSaveRefsOnly,
-                GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kSaveRefsOnly));
-  CheckPCOffset(kRuntimeISA, Runtime::kSaveAllCalleeSaves,
-                GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kSaveAllCalleeSaves));
+  CheckPCOffset(kRuntimeISA, CalleeSaveType::kSaveRefsAndArgs,
+                GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveRefsAndArgs));
+  CheckPCOffset(kRuntimeISA, CalleeSaveType::kSaveRefsOnly,
+                GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveRefsOnly));
+  CheckPCOffset(kRuntimeISA, CalleeSaveType::kSaveAllCalleeSaves,
+                GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveAllCalleeSaves));
 }
 
 }  // namespace art

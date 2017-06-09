@@ -177,7 +177,7 @@ bool FillArrayData(ObjPtr<mirror::Object> obj, const Instruction::ArrayDataPaylo
 }
 
 static inline std::pair<ArtMethod*, uintptr_t> DoGetCalleeSaveMethodOuterCallerAndPc(
-    ArtMethod** sp, Runtime::CalleeSaveType type) REQUIRES_SHARED(Locks::mutator_lock_) {
+    ArtMethod** sp, CalleeSaveType type) REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(type));
 
   const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
@@ -232,9 +232,7 @@ static inline ArtMethod* DoGetCalleeSaveMethodCaller(ArtMethod* outer_method,
   return caller;
 }
 
-ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
-                                     Runtime::CalleeSaveType type,
-                                     bool do_caller_check)
+ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp, CalleeSaveType type, bool do_caller_check)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   auto outer_caller_and_pc = DoGetCalleeSaveMethodOuterCallerAndPc(sp, type);
@@ -244,8 +242,7 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
   return caller;
 }
 
-CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self,
-                                                             Runtime::CalleeSaveType type) {
+CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self, CalleeSaveType type) {
   CallerAndOuterMethod result;
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   ArtMethod** sp = self->GetManagedStack()->GetTopQuickFrame();
@@ -257,7 +254,7 @@ CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self,
   return result;
 }
 
-ArtMethod* GetCalleeSaveOuterMethod(Thread* self, Runtime::CalleeSaveType type) {
+ArtMethod* GetCalleeSaveOuterMethod(Thread* self, CalleeSaveType type) {
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   ArtMethod** sp = self->GetManagedStack()->GetTopQuickFrame();
   return DoGetCalleeSaveMethodOuterCallerAndPc(sp, type).first;

@@ -21,6 +21,7 @@
 #include "interpreter/interpreter.h"
 #include "obj_ptr-inl.h"  // TODO: Find the other include that isn't complete, and clean this up.
 #include "quick_exception_handler.h"
+#include "runtime.h"
 #include "thread.h"
 
 namespace art {

@@ -20,6 +20,7 @@
 
 #include "arch/context.h"
 #include "art_method-inl.h"
+#include "base/callee_save_type.h"
 #include "base/enums.h"
 #include "base/hex_dump.h"
 #include "entrypoints/entrypoint_utils-inl.h"
@@ -734,7 +735,7 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
   Runtime* runtime = Runtime::Current();
 
   if (method->IsAbstract()) {
-    return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kSaveRefsAndArgs);
+    return runtime->GetCalleeSaveMethodFrameInfo(CalleeSaveType::kSaveRefsAndArgs);
   }
 
   // This goes before IsProxyMethod since runtime methods have a null declaring class.
@@ -748,7 +749,7 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
     // compiled method without any stubs. Therefore the method must have a OatQuickMethodHeader.
     DCHECK(!method->IsDirect() && !method->IsConstructor())
         << "Constructors of proxy classes must have a OatQuickMethodHeader";
-    return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kSaveRefsAndArgs);
+    return runtime->GetCalleeSaveMethodFrameInfo(CalleeSaveType::kSaveRefsAndArgs);
   }
 
   // The only remaining case is if the method is native and uses the generic JNI stub.
@@ -761,7 +762,7 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
   uint32_t handle_refs = GetNumberOfReferenceArgsWithoutReceiver(method) + 1;
   size_t scope_size = HandleScope::SizeOf(handle_refs);
   QuickMethodFrameInfo callee_info =
-      runtime->GetCalleeSaveMethodFrameInfo(Runtime::kSaveRefsAndArgs);
+      runtime->GetCalleeSaveMethodFrameInfo(CalleeSaveType::kSaveRefsAndArgs);
 
   // Callee saves + handle scope + method ref + alignment
   // Note: -sizeof(void*) since callee-save frame stores a whole method pointer.
@@ -844,11 +845,11 @@ void StackVisitor::WalkStack(bool include_transitions) {
                 thread_->GetInstrumentationStack()->at(instrumentation_stack_depth);
             instrumentation_stack_depth++;
             if (GetMethod() ==
-                Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves)) {
+                Runtime::Current()->GetCalleeSaveMethod(CalleeSaveType::kSaveAllCalleeSaves)) {
               // Skip runtime save all callee frames which are used to deliver exceptions.
             } else if (instrumentation_frame.interpreter_entry_) {
               ArtMethod* callee =
-                  Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs);
+                  Runtime::Current()->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs);
               CHECK_EQ(GetMethod(), callee) << "Expected: " << ArtMethod::PrettyMethod(callee)
                                             << " Found: " << ArtMethod::PrettyMethod(GetMethod());
             } else {

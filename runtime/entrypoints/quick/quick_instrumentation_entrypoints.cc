@@ -15,6 +15,7 @@
  */
 
 #include "art_method.h"
+#include "base/callee_save_type.h"
 #include "base/enums.h"
 #include "callee_save_frame.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
@@ -56,7 +57,7 @@ extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self, ArtM
   CHECK(!self->IsExceptionPending()) << "Enter instrumentation exit stub with pending exception "
                                      << self->GetException()->Dump();
   // Compute address of return PC and sanity check that it currently holds 0.
-  size_t return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kSaveRefsOnly);
+  size_t return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveRefsOnly);
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) +
                                                       return_pc_offset);
   CHECK_EQ(*return_pc, 0U);

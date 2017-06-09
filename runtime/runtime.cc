@@ -217,6 +217,7 @@ Runtime::Runtime()
       intern_table_(nullptr),
       class_linker_(nullptr),
       signal_catcher_(nullptr),
+      use_tombstoned_traces_(false),
       java_vm_(nullptr),
       fault_message_lock_("Fault message lock"),
       fault_message_(""),
@@ -259,6 +260,9 @@ Runtime::Runtime()
       process_state_(kProcessStateJankPerceptible),
       zygote_no_threads_(false),
       cha_(nullptr) {
+  static_assert(Runtime::kCalleeSaveSize ==
+                    static_cast<uint32_t>(CalleeSaveType::kLastCalleeSaveType), "Unexpected size");
+
   CheckAsmSupportOffsetsAndSizes();
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
   interpreter::CheckInterpreterAsmConstants();
@@ -1331,8 +1335,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
     // TODO: Should we move the following to InitWithoutImage?
     SetInstructionSet(instruction_set_);
-    for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-      Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
+    for (uint32_t i = 0; i < kCalleeSaveSize; i++) {
+      CalleeSaveType type = CalleeSaveType(i);
       if (!HasCalleeSaveMethod(type)) {
         SetCalleeSaveMethod(CreateCalleeSaveMethod(), type);
       }
@@ -1797,7 +1801,7 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   if (imt_unimplemented_method_ != nullptr) {
     imt_unimplemented_method_->VisitRoots(buffered_visitor, pointer_size);
   }
-  for (size_t i = 0; i < kLastCalleeSaveType; ++i) {
+  for (uint32_t i = 0; i < kCalleeSaveSize; ++i) {
     auto* m = reinterpret_cast<ArtMethod*>(callee_save_methods_[i]);
     if (m != nullptr) {
       m->VisitRoots(buffered_visitor, pointer_size);
@@ -1973,32 +1977,32 @@ void Runtime::BroadcastForNewSystemWeaks(bool broadcast_for_checkpoint) {
 void Runtime::SetInstructionSet(InstructionSet instruction_set) {
   instruction_set_ = instruction_set;
   if ((instruction_set_ == kThumb2) || (instruction_set_ == kArm)) {
-    for (int i = 0; i != kLastCalleeSaveType; ++i) {
+    for (int i = 0; i != kCalleeSaveSize; ++i) {
       CalleeSaveType type = static_cast<CalleeSaveType>(i);
       callee_save_method_frame_infos_[i] = arm::ArmCalleeSaveMethodFrameInfo(type);
     }
   } else if (instruction_set_ == kMips) {
-    for (int i = 0; i != kLastCalleeSaveType; ++i) {
+    for (int i = 0; i != kCalleeSaveSize; ++i) {
       CalleeSaveType type = static_cast<CalleeSaveType>(i);
       callee_save_method_frame_infos_[i] = mips::MipsCalleeSaveMethodFrameInfo(type);
     }
   } else if (instruction_set_ == kMips64) {
-    for (int i = 0; i != kLastCalleeSaveType; ++i) {
+    for (int i = 0; i != kCalleeSaveSize; ++i) {
       CalleeSaveType type = static_cast<CalleeSaveType>(i);
       callee_save_method_frame_infos_[i] = mips64::Mips64CalleeSaveMethodFrameInfo(type);
     }
   } else if (instruction_set_ == kX86) {
-    for (int i = 0; i != kLastCalleeSaveType; ++i) {
+    for (int i = 0; i != kCalleeSaveSize; ++i) {
       CalleeSaveType type = static_cast<CalleeSaveType>(i);
       callee_save_method_frame_infos_[i] = x86::X86CalleeSaveMethodFrameInfo(type);
     }
   } else if (instruction_set_ == kX86_64) {
-    for (int i = 0; i != kLastCalleeSaveType; ++i) {
+    for (int i = 0; i != kCalleeSaveSize; ++i) {
       CalleeSaveType type = static_cast<CalleeSaveType>(i);
       callee_save_method_frame_infos_[i] = x86_64::X86_64CalleeSaveMethodFrameInfo(type);
     }
   } else if (instruction_set_ == kArm64) {
-    for (int i = 0; i != kLastCalleeSaveType; ++i) {
+    for (int i = 0; i != kCalleeSaveSize; ++i) {
       CalleeSaveType type = static_cast<CalleeSaveType>(i);
       callee_save_method_frame_infos_[i] = arm64::Arm64CalleeSaveMethodFrameInfo(type);
     }
@@ -2012,15 +2016,14 @@ void Runtime::ClearInstructionSet() {
 }
 
 void Runtime::SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type) {
-  DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
+  DCHECK_LT(static_cast<uint32_t>(type), kCalleeSaveSize);
   CHECK(method != nullptr);
-  callee_save_methods_[type] = reinterpret_cast<uintptr_t>(method);
+  callee_save_methods_[static_cast<size_t>(type)] = reinterpret_cast<uintptr_t>(method);
 }
 
 void Runtime::ClearCalleeSaveMethods() {
-  for (size_t i = 0; i < static_cast<size_t>(kLastCalleeSaveType); ++i) {
-    CalleeSaveType type = static_cast<CalleeSaveType>(i);
-    callee_save_methods_[type] = reinterpret_cast<uintptr_t>(nullptr);
+  for (size_t i = 0; i < kCalleeSaveSize; ++i) {
+    callee_save_methods_[i] = reinterpret_cast<uintptr_t>(nullptr);
   }
 }
 
