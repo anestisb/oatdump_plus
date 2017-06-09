@@ -59,10 +59,8 @@ art_global_defaults {
         "-Wunreachable-code-break",
         "-Wunreachable-code-return",
 
-        // Bug: http://b/29823425  Disable -Wconstant-conversion and
-        // -Wundefined-var-template for Clang update to r271374
+        // Bug: http://b/29823425  Disable -Wconstant-conversion for Clang update to r271374
         "-Wno-constant-conversion",
-        "-Wno-undefined-var-template",
 
         // Enable thread annotations for std::mutex, etc.
         "-D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS",

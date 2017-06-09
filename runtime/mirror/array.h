@@ -188,6 +188,16 @@ class MANAGED PrimitiveArray : public Array {
   DISALLOW_IMPLICIT_CONSTRUCTORS(PrimitiveArray);
 };
 
+// Declare the different primitive arrays. Instantiations will be in array.cc.
+extern template class PrimitiveArray<uint8_t>;   // BooleanArray
+extern template class PrimitiveArray<int8_t>;    // ByteArray
+extern template class PrimitiveArray<uint16_t>;  // CharArray
+extern template class PrimitiveArray<double>;    // DoubleArray
+extern template class PrimitiveArray<float>;     // FloatArray
+extern template class PrimitiveArray<int32_t>;   // IntArray
+extern template class PrimitiveArray<int64_t>;   // LongArray
+extern template class PrimitiveArray<int16_t>;   // ShortArray
+
 // Either an IntArray or a LongArray.
 class PointerArray : public Array {
  public:
