@@ -16,7 +16,11 @@
 
 class Main {
   static class Inner {
-    public static int abc = 0;
+    final public static int abc = 10;
+  }
+
+  static class Nested {
+
   }
 
   public static void main(String[] args) {
@@ -26,8 +30,44 @@ class Main {
     } else if (!checkAppImageContains(Inner.class)) {
       System.out.println("App image does not contain Inner!");
     }
+
+    if (!checkInitialized(Inner.class))
+      System.out.println("Inner class is not initialized!");
+
+    if (!checkInitialized(Nested.class))
+      System.out.println("Nested class is not initialized!");
+
+    if (!checkInitialized(StaticFields.class))
+      System.out.println("StaticFields class is not initialized!");
+
+    if (!checkInitialized(StaticFieldsInitSub.class))
+      System.out.println("StaticFieldsInitSub class is not initialized!");
+
+    if (!checkInitialized(StaticFieldsInit.class))
+      System.out.println("StaticFieldsInit class is not initialized!");
+
+    if (checkInitialized(StaticInternString.class))
+      System.out.println("StaticInternString class is initialized!");
   }
 
   public static native boolean checkAppImageLoaded();
   public static native boolean checkAppImageContains(Class<?> klass);
+  public static native boolean checkInitialized(Class<?> klass);
 }
+
+class StaticFields{
+  public static int abc;
+}
+
+class StaticFieldsInitSub extends StaticFieldsInit {
+  final public static int def = 10;
+}
+
+class StaticFieldsInit{
+  final public static int abc = 10;
+}
+
+class StaticInternString {
+  final public static String intern = "java.abc.Action";
+}
+

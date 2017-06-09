@@ -18,14 +18,14 @@
 2
 1@0 (32, 2xD '0000000000000000000000000000f03f')
 2
+doTestPrimitiveFieldsClasses
 10000@0 (static, int, index=3) 0000000000000000
 10001
 10000@0 (static, int, index=11) 0000000000000000
 10001
-10000@0 (static, int, index=0) 0000000000000000
 10001
-10000@0 (static, int, index=1) 0000000000000000
 10001
+doTestPrimitiveFieldsIntegral
 10000@0 (instance, int, index=2) 0000000000000000
 10001@0 (instance, byte, index=4) 0000000000000001
 10002@0 (instance, char, index=5) 0000000000000061
@@ -33,6 +33,7 @@
 10004@0 (instance, long, index=7) 0000000000000004
 10005@0 (instance, short, index=9) 0000000000000002
 10006
+doTestPrimitiveFieldsFloat
 10000@0 (instance, int, index=3) 0000000000000000
 10001@0 (instance, byte, index=5) 0000000000000001
 10002@0 (instance, char, index=6) 0000000000000061
