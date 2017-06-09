@@ -33,23 +33,28 @@ using android::base::StringPrintf;
 
 static constexpr const char* x86_known_variants[] = {
     "atom",
+    "sandybridge",
     "silvermont",
 };
 
 static constexpr const char* x86_variants_with_ssse3[] = {
     "atom",
+    "sandybridge",
     "silvermont",
 };
 
 static constexpr const char* x86_variants_with_sse4_1[] = {
+    "sandybridge",
     "silvermont",
 };
 
 static constexpr const char* x86_variants_with_sse4_2[] = {
+    "sandybridge",
     "silvermont",
 };
 
 static constexpr const char* x86_variants_with_popcnt[] = {
+    "sandybridge",
     "silvermont",
 };
 
