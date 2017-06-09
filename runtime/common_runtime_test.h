@@ -258,12 +258,4 @@ class CheckJniAbortCatcher {
 
 }  // namespace art
 
-namespace std {
-
-// TODO: isn't gtest supposed to be able to print STL types for itself?
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& rhs);
-
-}  // namespace std
-
 #endif  // ART_RUNTIME_COMMON_RUNTIME_TEST_H_

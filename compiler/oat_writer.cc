@@ -515,8 +515,8 @@ bool OatWriter::WriteAndOpenDexFiles(
   ChecksumUpdatingOutputStream checksum_updating_rodata(oat_rodata, oat_header_.get());
 
   if (kIsVdexEnabled) {
-    std::unique_ptr<BufferedOutputStream> vdex_out(
-        MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(vdex_file)));
+    std::unique_ptr<BufferedOutputStream> vdex_out =
+        std::make_unique<BufferedOutputStream>(std::make_unique<FileOutputStream>(vdex_file));
     // Write DEX files into VDEX, mmap and open them.
     if (!WriteDexFiles(vdex_out.get(), vdex_file, update_input_vdex) ||
         !OpenDexFiles(vdex_file, verify, &dex_files_map, &dex_files)) {

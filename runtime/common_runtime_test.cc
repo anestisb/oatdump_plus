@@ -728,13 +728,3 @@ void CheckJniAbortCatcher::Hook(void* data, const std::string& reason) {
 }
 
 }  // namespace art
-
-namespace std {
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& rhs) {
-os << ::art::ToString(rhs);
-return os;
-}
-
-}  // namespace std

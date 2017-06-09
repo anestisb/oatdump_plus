@@ -225,8 +225,8 @@ class OatTest : public CommonCompilerTest {
                                       oat_writer.GetBssRootsOffset());
 
     if (kIsVdexEnabled) {
-      std::unique_ptr<BufferedOutputStream> vdex_out(
-            MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(vdex_file)));
+      std::unique_ptr<BufferedOutputStream> vdex_out =
+            std::make_unique<BufferedOutputStream>(std::make_unique<FileOutputStream>(vdex_file));
       if (!oat_writer.WriteVerifierDeps(vdex_out.get(), nullptr)) {
         return false;
       }
