@@ -19,6 +19,7 @@
 #include <sys/ucontext.h>
 
 #include "art_method.h"
+#include "base/callee_save_type.h"
 #include "base/hex_dump.h"
 #include "base/logging.h"
 #include "base/macros.h"
@@ -82,7 +83,7 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
 
   // Decrement $sp by the frame size of the kSaveEverything method and store
   // the fault address in the padding right after the ArtMethod*.
-  sc->sc_regs[mips64::SP] -= mips64::Mips64CalleeSaveFrameSize(Runtime::kSaveEverything);
+  sc->sc_regs[mips64::SP] -= mips64::Mips64CalleeSaveFrameSize(CalleeSaveType::kSaveEverything);
   uintptr_t* padding = reinterpret_cast<uintptr_t*>(sc->sc_regs[mips64::SP]) + /* ArtMethod* */ 1;
   *padding = reinterpret_cast<uintptr_t>(info->si_addr);
 
