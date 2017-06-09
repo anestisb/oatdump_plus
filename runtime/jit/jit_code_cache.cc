@@ -535,7 +535,10 @@ static void ClearMethodCounter(ArtMethod* method, bool was_warm) {
   }
   // We reset the counter to 1 so that the profile knows that the method was executed at least once.
   // This is required for layout purposes.
-  method->SetCounter(1);
+  // We also need to make sure we'll pass the warmup threshold again, so we set to 0 if
+  // the warmup threshold is 1.
+  uint16_t jit_warmup_threshold = Runtime::Current()->GetJITOptions()->GetWarmupThreshold();
+  method->SetCounter(std::min(jit_warmup_threshold - 1, 1));
 }
 
 uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,

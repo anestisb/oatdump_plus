@@ -708,11 +708,6 @@
         "bug": "b/62350406"
     },
     {
-        "tests": "655-jit-clinit",
-        "description": [ "Currently broken in debug mode"],
-        "variant": "debug"
-    },
-    {
         "tests": ["137-cfi", "629-vdex-speed"],
         "description": [ "Tests require speed compilation which is no longer the default for",
                           "no-prebuild configs."],
