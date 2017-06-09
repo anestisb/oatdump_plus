@@ -500,8 +500,8 @@ static bool ModsMatch(JdwpEvent* pEvent, const ModBasket& basket)
       }
       break;
     case MK_CONDITIONAL:
-      CHECK(false);  // should not be getting these
-      break;
+      LOG(FATAL) << "Unexpected MK_CONDITIONAL";  // should not be getting these
+      UNREACHABLE();
     case MK_THREAD_ONLY:
       if (!Dbg::MatchThread(pMod->threadOnly.threadId, basket.thread)) {
         return false;

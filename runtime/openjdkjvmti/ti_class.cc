@@ -103,7 +103,8 @@ static std::unique_ptr<const art::DexFile> MakeSingleDexFile(art::Thread* self,
     return nullptr;
   }
   uint32_t checksum = reinterpret_cast<const art::DexFile::Header*>(map->Begin())->checksum_;
-  std::unique_ptr<const art::DexFile> dex_file(art::DexFile::Open(map->GetName(),
+  std::string map_name = map->GetName();
+  std::unique_ptr<const art::DexFile> dex_file(art::DexFile::Open(map_name,
                                                                   checksum,
                                                                   std::move(map),
                                                                   /*verify*/true,

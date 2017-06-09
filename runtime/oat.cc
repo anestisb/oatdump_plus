@@ -23,6 +23,7 @@
 
 #include "arch/instruction_set_features.h"
 #include "base/bit_utils.h"
+#include "base/strlcpy.h"
 
 namespace art {
 
@@ -520,9 +521,9 @@ void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store
     SafeMap<std::string, std::string>::const_iterator it = key_value_store->begin();
     SafeMap<std::string, std::string>::const_iterator end = key_value_store->end();
     for ( ; it != end; ++it) {
-      strcpy(data_ptr, it->first.c_str());
+      strlcpy(data_ptr, it->first.c_str(), it->first.length() + 1);
       data_ptr += it->first.length() + 1;
-      strcpy(data_ptr, it->second.c_str());
+      strlcpy(data_ptr, it->second.c_str(), it->second.length() + 1);
       data_ptr += it->second.length() + 1;
     }
   }

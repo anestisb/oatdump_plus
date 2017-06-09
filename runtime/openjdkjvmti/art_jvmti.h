@@ -41,6 +41,7 @@
 #include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/strlcpy.h"
 #include "events.h"
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
@@ -187,7 +188,7 @@ static inline JvmtiUniquePtr<char[]> CopyString(jvmtiEnv* env, const char* src, 
   size_t len = strlen(src) + 1;
   JvmtiUniquePtr<char[]> ret = AllocJvmtiUniquePtr<char[]>(env, len, error);
   if (ret != nullptr) {
-    strcpy(ret.get(), src);
+    strlcpy(ret.get(), src, len);
   }
   return ret;
 }

@@ -90,8 +90,6 @@ namespace art {
 
 namespace gc {
 
-using android::base::StringPrintf;
-
 static constexpr size_t kCollectorTransitionStressIterations = 0;
 static constexpr size_t kCollectorTransitionStressWait = 10 * 1000;  // Microseconds
 // Minimum amount of remaining bytes before a concurrent GC is triggered.

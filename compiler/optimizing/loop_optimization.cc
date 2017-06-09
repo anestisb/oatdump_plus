@@ -499,6 +499,7 @@ void HLoopOptimization::OptimizeInnerLoop(LoopNode* node) {
       body = it.Current();
     }
   }
+  CHECK(body != nullptr);
   // Ensure there is only a single exit point.
   if (header->GetSuccessors().size() != 2) {
     return;

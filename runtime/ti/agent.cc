@@ -18,6 +18,7 @@
 
 #include "android-base/stringprintf.h"
 
+#include "base/strlcpy.h"
 #include "java_vm_ext.h"
 #include "runtime.h"
 
@@ -57,7 +58,7 @@ Agent::LoadError Agent::DoLoadHelper(bool attaching,
   }
   // Need to let the function fiddle with the array.
   std::unique_ptr<char[]> copied_args(new char[args_.size() + 1]);
-  strcpy(copied_args.get(), args_.c_str());
+  strlcpy(copied_args.get(), args_.c_str(), args_.size() + 1);
   // TODO Need to do some checks that we are at a good spot etc.
   *call_res = callback(Runtime::Current()->GetJavaVM(),
                        copied_args.get(),
