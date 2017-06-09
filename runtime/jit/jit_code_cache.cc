@@ -29,6 +29,7 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/bitmap-inl.h"
 #include "gc/scoped_gc_critical_section.h"
+#include "intern_table.h"
 #include "jit/jit.h"
 #include "jit/profiling_info.h"
 #include "linear_alloc.h"

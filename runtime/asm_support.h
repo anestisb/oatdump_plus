@@ -17,24 +17,6 @@
 #ifndef ART_RUNTIME_ASM_SUPPORT_H_
 #define ART_RUNTIME_ASM_SUPPORT_H_
 
-#if defined(__cplusplus)
-#include "art_method.h"
-#include "base/bit_utils.h"
-#include "base/callee_save_type.h"
-#include "gc/accounting/card_table.h"
-#include "gc/allocator/rosalloc.h"
-#include "gc/heap.h"
-#include "jit/jit.h"
-#include "lock_word.h"
-#include "mirror/class.h"
-#include "mirror/dex_cache.h"
-#include "mirror/string.h"
-#include "utils/dex_cache_arrays_layout.h"
-#include "runtime.h"
-#include "stack.h"
-#include "thread.h"
-#endif
-
 #include "read_barrier_c.h"
 
 #if defined(__arm__) || defined(__mips__)
@@ -51,14 +33,10 @@
 #define SUSPEND_CHECK_INTERVAL 96
 #endif
 
-#if defined(__cplusplus)
-
+// To generate tests related to the constants in this header, either define ADD_TEST_EQ before
+// including, or use asm_support_check.h.
 #ifndef ADD_TEST_EQ  // Allow #include-r to replace with their own.
-#define ADD_TEST_EQ(x, y) CHECK_EQ(x, y);
-#endif
-
-static inline void CheckAsmSupportOffsetsAndSizes() {
-#else
+#define DEFINED_ADD_TEST_EQ 1
 #define ADD_TEST_EQ(x, y)
 #endif
 
@@ -76,6 +54,7 @@ ADD_TEST_EQ(static_cast<size_t>(1U << POINTER_SIZE_SHIFT),
 // Export new defines (for assembly use) by editing cpp-define-generator def files.
 #define DEFINE_CHECK_EQ ADD_TEST_EQ
 #include "asm_support_gen.h"
+#undef DEFINE_CHECK_EQ
 
 // Offset of field Thread::tlsPtr_.exception.
 #define THREAD_EXCEPTION_OFFSET (THREAD_CARD_TABLE_OFFSET + __SIZEOF_POINTER__)
@@ -252,8 +231,9 @@ ADD_TEST_EQ(MIRROR_STRING_VALUE_OFFSET, art::mirror::String::ValueOffset().Int32
 #define STRING_COMPRESSION_FEATURE 1
 ADD_TEST_EQ(STRING_COMPRESSION_FEATURE, art::mirror::kUseStringCompression);
 
-#if defined(__cplusplus)
-}  // End of CheckAsmSupportOffsets.
+#ifdef DEFINED_ADD_TEST_EQ
+#undef ADD_TEST_EQ
+#undef DEFINED_ADD_TEST_EQ
 #endif
 
 #endif  // ART_RUNTIME_ASM_SUPPORT_H_

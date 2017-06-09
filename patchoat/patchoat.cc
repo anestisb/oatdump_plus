@@ -40,6 +40,7 @@
 #include "elf_file_impl.h"
 #include "gc/space/image_space.h"
 #include "image-inl.h"
+#include "intern_table.h"
 #include "mirror/dex_cache.h"
 #include "mirror/executable.h"
 #include "mirror/object-inl.h"

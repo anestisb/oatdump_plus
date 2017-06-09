@@ -36,6 +36,7 @@
 #include "class_table.h"
 #include "driver/compiler_driver.h"
 #include "image.h"
+#include "intern_table.h"
 #include "lock_word.h"
 #include "mem_map.h"
 #include "mirror/dex_cache.h"
