@@ -2851,7 +2851,7 @@ TEST_F(AssemblerMIPSTest, LongBranchReorder) {
   // Account for 5 extra instructions: ori, addu, lw, jalr, addiu.
   uint32_t offset_forward = (kAdduCount1 + 5) * sizeof(uint32_t);
   // Account for 5 extra instructions: subu, addiu, sw, nal, lui.
-  uint32_t offset_back = -(kAdduCount1 + 5) * sizeof(uint32_t);
+  uint32_t offset_back = static_cast<uint32_t>(-(kAdduCount1 + 5) * sizeof(uint32_t));
 
   std::ostringstream oss;
   oss <<
