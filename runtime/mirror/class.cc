@@ -1143,9 +1143,7 @@ uint32_t Class::Depth() {
 dex::TypeIndex Class::FindTypeIndexInOtherDexFile(const DexFile& dex_file) {
   std::string temp;
   const DexFile::TypeId* type_id = dex_file.FindTypeId(GetDescriptor(&temp));
-  return (type_id == nullptr)
-      ? dex::TypeIndex(DexFile::kDexNoIndex)
-      : dex_file.GetIndexForTypeId(*type_id);
+  return (type_id == nullptr) ? dex::TypeIndex() : dex_file.GetIndexForTypeId(*type_id);
 }
 
 template <PointerSize kPointerSize, bool kTransactionActive>
