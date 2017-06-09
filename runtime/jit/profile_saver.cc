@@ -251,7 +251,8 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
   MethodReferenceCollection hot_methods(allocator.Adapter(), allocator.Adapter());
   MethodReferenceCollection startup_methods(allocator.Adapter(), allocator.Adapter());
   TypeReferenceCollection resolved_classes(allocator.Adapter(), allocator.Adapter());
-  const size_t hot_threshold = options_.GetHotStartupMethodSamples();
+  const bool is_low_ram = Runtime::Current()->GetHeap()->IsLowMemoryMode();
+  const size_t hot_threshold = options_.GetHotStartupMethodSamples(is_low_ram);
   {
     ScopedObjectAccess soa(self);
     gc::ScopedGCCriticalSection sgcs(self,
