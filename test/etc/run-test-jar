@@ -63,6 +63,8 @@ TEST_VDEX="n"
 TEST_IS_NDEBUG="n"
 APP_IMAGE="y"
 JVMTI_STRESS="n"
+JVMTI_TRACE_STRESS="n"
+JVMTI_REDEFINE_STRESS="n"
 VDEX_FILTER=""
 PROFILE="n"
 RANDOM_PROFILE="n"
@@ -151,10 +153,15 @@ while true; do
     elif [ "x$1" = "x--prebuild" ]; then
         PREBUILD="y"
         shift
-    elif [ "x$1" = "x--jvmti-stress" ]; then
-        # APP_IMAGE doesn't really work with jvmti-torture
+    elif [ "x$1" = "x--jvmti-redefine-stress" ]; then
+        # APP_IMAGE doesn't really work with jvmti redefine stress
         APP_IMAGE="n"
         JVMTI_STRESS="y"
+        JVMTI_REDEFINE_STRESS="y"
+        shift
+    elif [ "x$1" = "x--jvmti-trace-stress" ]; then
+        JVMTI_STRESS="y"
+        JVMTI_TRACE_STRESS="y"
         shift
     elif [ "x$1" = "x--no-app-image" ]; then
         APP_IMAGE="n"
@@ -397,13 +404,25 @@ if [[ "$JVMTI_STRESS" = "y" ]]; then
     plugin=libopenjdkjvmti.so
   fi
 
-  file_1=$(mktemp --tmpdir=${DEX_LOCATION})
-  file_2=$(mktemp --tmpdir=${DEX_LOCATION})
+  # Just give it a default start so we can always add ',' to it.
+  agent_args="jvmti-stress"
+  if [[ "$JVMTI_REDEFINE_STRESS" = "y" ]]; then
+    # We really cannot do this on RI so don't both passing it in that case.
+    if [[ "$USE_JVM" = "n" ]]; then
+      file_1=$(mktemp --tmpdir=${DEX_LOCATION})
+      file_2=$(mktemp --tmpdir=${DEX_LOCATION})
+      # TODO Remove need for DEXTER_BINARY!
+      agent_args="${agent_args},redefine,${DEXTER_BINARY},${file_1},${file_2}"
+    fi
+  fi
+  if [[ "$JVMTI_TRACE_STRESS" = "y" ]]; then
+    agent_args="${agent_args},trace"
+  fi
+  # In the future add onto this;
   if [[ "$USE_JVM" = "y" ]]; then
-    FLAGS="${FLAGS} -agentpath:${ANDROID_HOST_OUT}/nativetest64/${agent}=/bin/false,${file_1},${file_2}"
+    FLAGS="${FLAGS} -agentpath:${ANDROID_HOST_OUT}/nativetest64/${agent}=${agent_args}"
   else
-    # TODO Remove need for DEXTER_BINARY!
-    FLAGS="${FLAGS} -agentpath:${agent}=${DEXTER_BINARY},${file_1},${file_2}"
+    FLAGS="${FLAGS} -agentpath:${agent}=${agent_args}"
     if [ "$IS_JVMTI_TEST" = "n" ]; then
       FLAGS="${FLAGS} -Xplugin:${plugin}"
       FLAGS="${FLAGS} -Xcompiler-option --debuggable"

@@ -1123,25 +1123,40 @@ static void CheckStackDepth(Thread* self, const InstrumentationStackFrame& instr
 void Instrumentation::PushInstrumentationStackFrame(Thread* self, mirror::Object* this_object,
                                                     ArtMethod* method,
                                                     uintptr_t lr, bool interpreter_entry) {
-  // We have a callee-save frame meaning this value is guaranteed to never be 0.
-  size_t frame_id = StackVisitor::ComputeNumFrames(self, kInstrumentationStackWalk);
+  DCHECK(!self->IsExceptionPending());
   std::deque<instrumentation::InstrumentationStackFrame>* stack = self->GetInstrumentationStack();
   if (kVerboseInstrumentation) {
     LOG(INFO) << "Entering " << ArtMethod::PrettyMethod(method) << " from PC "
               << reinterpret_cast<void*>(lr);
   }
-  instrumentation::InstrumentationStackFrame instrumentation_frame(this_object, method, lr,
+
+  // We send the enter event before pushing the instrumentation frame to make cleanup easier. If the
+  // event causes an exception we can simply send the unwind event and return.
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> h_this(hs.NewHandle(this_object));
+  if (!interpreter_entry) {
+    MethodEnterEvent(self, h_this.Get(), method, 0);
+    if (self->IsExceptionPending()) {
+      MethodUnwindEvent(self, h_this.Get(), method, 0);
+      return;
+    }
+  }
+
+  // We have a callee-save frame meaning this value is guaranteed to never be 0.
+  DCHECK(!self->IsExceptionPending());
+  size_t frame_id = StackVisitor::ComputeNumFrames(self, kInstrumentationStackWalk);
+
+  instrumentation::InstrumentationStackFrame instrumentation_frame(h_this.Get(), method, lr,
                                                                    frame_id, interpreter_entry);
   stack->push_front(instrumentation_frame);
-
-  if (!interpreter_entry) {
-    MethodEnterEvent(self, this_object, method, 0);
-  }
 }
 
-TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintptr_t* return_pc,
-                                                            uint64_t gpr_result,
-                                                            uint64_t fpr_result) {
+TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self,
+                                                            uintptr_t* return_pc,
+                                                            uint64_t* gpr_result,
+                                                            uint64_t* fpr_result) {
+  DCHECK(gpr_result != nullptr);
+  DCHECK(fpr_result != nullptr);
   // Do the pop.
   std::deque<instrumentation::InstrumentationStackFrame>* stack = self->GetInstrumentationStack();
   CHECK_GT(stack->size(), 0U);
@@ -1157,13 +1172,20 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   uint32_t length;
   const PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   char return_shorty = method->GetInterfaceMethodIfProxy(pointer_size)->GetShorty(&length)[0];
+  bool is_ref = return_shorty == '[' || return_shorty == 'L';
+  StackHandleScope<1> hs(self);
+  MutableHandle<mirror::Object> res(hs.NewHandle<mirror::Object>(nullptr));
   JValue return_value;
   if (return_shorty == 'V') {
     return_value.SetJ(0);
   } else if (return_shorty == 'F' || return_shorty == 'D') {
-    return_value.SetJ(fpr_result);
+    return_value.SetJ(*fpr_result);
   } else {
-    return_value.SetJ(gpr_result);
+    return_value.SetJ(*gpr_result);
+  }
+  if (is_ref) {
+    // Take a handle to the return value so we won't lose it if we suspend.
+    res.Assign(return_value.GetL());
   }
   // TODO: improve the dex pc information here, requires knowledge of current PC as opposed to
   //       return_pc.
@@ -1180,6 +1202,10 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   bool deoptimize = (visitor.caller != nullptr) &&
                     (interpreter_stubs_installed_ || IsDeoptimized(visitor.caller) ||
                     Dbg::IsForcedInterpreterNeededForUpcall(self, visitor.caller));
+  if (is_ref) {
+    // Restore the return value if it's a reference since it might have moved.
+    *reinterpret_cast<mirror::Object**>(gpr_result) = res.Get();
+  }
   if (deoptimize && Runtime::Current()->IsAsyncDeoptimizeable(*return_pc)) {
     if (kVerboseInstrumentation) {
       LOG(INFO) << "Deoptimizing "
@@ -1214,9 +1240,8 @@ uintptr_t Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimizati
   // Do the pop.
   std::deque<instrumentation::InstrumentationStackFrame>* stack = self->GetInstrumentationStack();
   CHECK_GT(stack->size(), 0U);
+  size_t idx = stack->size();
   InstrumentationStackFrame instrumentation_frame = stack->front();
-  // TODO: bring back CheckStackDepth(self, instrumentation_frame, 2);
-  stack->pop_front();
 
   ArtMethod* method = instrumentation_frame.method_;
   if (is_deoptimization) {
@@ -1234,6 +1259,10 @@ uintptr_t Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimizati
     uint32_t dex_pc = DexFile::kDexNoIndex;
     MethodUnwindEvent(self, instrumentation_frame.this_object_, method, dex_pc);
   }
+  // TODO: bring back CheckStackDepth(self, instrumentation_frame, 2);
+  CHECK_EQ(stack->size(), idx);
+  DCHECK(instrumentation_frame.method_ == stack->front().method_);
+  stack->pop_front();
   return instrumentation_frame.return_pc_;
 }
 

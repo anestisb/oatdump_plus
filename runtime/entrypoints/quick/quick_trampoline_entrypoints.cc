@@ -28,6 +28,7 @@
 #include "imt_conflict_table.h"
 #include "imtable-inl.h"
 #include "interpreter/interpreter.h"
+#include "instrumentation.h"
 #include "linear_alloc.h"
 #include "method_bss_mapping.h"
 #include "method_handles.h"
@@ -895,7 +896,6 @@ void BuildQuickArgumentVisitor::FixupReferences() {
     soa_->Env()->DeleteLocalRef(pair.first);
   }
 }
-
 // Handler for invocation on proxy methods. On entry a frame will exist for the proxy object method
 // which is responsible for recording callee save registers. We explicitly place into jobjects the
 // incoming reference arguments (so they survive GC). We invoke the invocation handler, which is a
@@ -986,6 +986,77 @@ void RememberForGcArgumentVisitor::FixupReferences() {
     pair.second->Assign(soa_->Decode<mirror::Object>(pair.first));
     soa_->Env()->DeleteLocalRef(pair.first);
   }
+}
+
+extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
+                                                             mirror::Object* this_object,
+                                                             Thread* self,
+                                                             ArtMethod** sp)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  const void* result;
+  // Instrumentation changes the stack. Thus, when exiting, the stack cannot be verified, so skip
+  // that part.
+  ScopedQuickEntrypointChecks sqec(self, kIsDebugBuild, false);
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (instrumentation->IsDeoptimized(method)) {
+    result = GetQuickToInterpreterBridge();
+  } else {
+    result = instrumentation->GetQuickCodeFor(method, kRuntimePointerSize);
+    DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result));
+  }
+
+  bool interpreter_entry = (result == GetQuickToInterpreterBridge());
+  bool is_static = method->IsStatic();
+  uint32_t shorty_len;
+  const char* shorty =
+      method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(&shorty_len);
+
+  ScopedObjectAccessUnchecked soa(self);
+  RememberForGcArgumentVisitor visitor(sp, is_static, shorty, shorty_len, &soa);
+  visitor.VisitArguments();
+
+  instrumentation->PushInstrumentationStackFrame(self,
+                                                 is_static ? nullptr : this_object,
+                                                 method,
+                                                 QuickArgumentVisitor::GetCallingPc(sp),
+                                                 interpreter_entry);
+
+  visitor.FixupReferences();
+  if (UNLIKELY(self->IsExceptionPending())) {
+    return nullptr;
+  }
+  CHECK(result != nullptr) << method->PrettyMethod();
+  return result;
+}
+
+extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self,
+                                                              ArtMethod** sp,
+                                                              uint64_t* gpr_result,
+                                                              uint64_t* fpr_result)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK_EQ(reinterpret_cast<uintptr_t>(self), reinterpret_cast<uintptr_t>(Thread::Current()));
+  CHECK(gpr_result != nullptr);
+  CHECK(fpr_result != nullptr);
+  // Instrumentation exit stub must not be entered with a pending exception.
+  CHECK(!self->IsExceptionPending()) << "Enter instrumentation exit stub with pending exception "
+                                     << self->GetException()->Dump();
+  // Compute address of return PC and sanity check that it currently holds 0.
+  size_t return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveRefsOnly);
+  uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) +
+                                                      return_pc_offset);
+  CHECK_EQ(*return_pc, 0U);
+
+  // Pop the frame filling in the return pc. The low half of the return value is 0 when
+  // deoptimization shouldn't be performed with the high-half having the return address. When
+  // deoptimization should be performed the low half is zero and the high-half the address of the
+  // deoptimization entry point.
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  TwoWordReturn return_or_deoptimize_pc = instrumentation->PopInstrumentationStackFrame(
+      self, return_pc, gpr_result, fpr_result);
+  if (self->IsExceptionPending()) {
+    return GetTwoWordFailureValue();
+  }
+  return return_or_deoptimize_pc;
 }
 
 // Lazily resolve a method for quick. Called by stub code.

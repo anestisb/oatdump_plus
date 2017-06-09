@@ -432,9 +432,13 @@ class Instrumentation {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Called when an instrumented method is exited. Removes the pushed instrumentation frame
-  // returning the intended link register. Generates method exit events.
+  // returning the intended link register. Generates method exit events. The gpr_result and
+  // fpr_result pointers are pointers to the locations where the integer/pointer and floating point
+  // result values of the function are stored. Both pointers must always be valid but the values
+  // held there will only be meaningful if interpreted as the appropriate type given the function
+  // being returned from.
   TwoWordReturn PopInstrumentationStackFrame(Thread* self, uintptr_t* return_pc,
-                                             uint64_t gpr_result, uint64_t fpr_result)
+                                             uint64_t* gpr_result, uint64_t* fpr_result)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!deoptimized_methods_lock_);
 
   // Pops an instrumentation frame from the current thread and generate an unwind event.
