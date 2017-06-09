@@ -728,8 +728,8 @@ export TEST_NAME=`basename ${test_dir}`
 # Checker when compiled with Optimizing on host.
 if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   if [ "$runtime" = "art" -a "$image_suffix" = "" -a "$USE_JACK" = "true" ]; then
-    # In no-prebuild mode, the compiler only quickens so disable the checker.
-    if [ "$prebuild_mode" = "yes" ]; then
+    # In no-prebuild or no-image mode, the compiler only quickens so disable the checker.
+    if [ "$prebuild_mode" = "yes" -a "$have_image" = "yes" ]; then
       run_checker="yes"
 
       if [ "$target_mode" = "no" ]; then
