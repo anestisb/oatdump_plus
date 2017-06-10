@@ -194,21 +194,24 @@ class GetClassesAndMethodsVisitor : public ClassVisitor {
   GetClassesAndMethodsVisitor(MethodReferenceCollection* hot_methods,
                               MethodReferenceCollection* sampled_methods,
                               TypeReferenceCollection* resolved_classes,
-                              uint32_t hot_method_sample_threshold)
+                              uint32_t hot_method_sample_threshold,
+                              bool profile_boot_class_path)
     : hot_methods_(hot_methods),
       sampled_methods_(sampled_methods),
       resolved_classes_(resolved_classes),
-      hot_method_sample_threshold_(hot_method_sample_threshold) {}
+      hot_method_sample_threshold_(hot_method_sample_threshold),
+      profile_boot_class_path_(profile_boot_class_path) {}
 
   virtual bool operator()(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (klass->IsProxyClass() ||
         klass->IsArrayClass() ||
+        klass->IsPrimitive() ||
         !klass->IsResolved() ||
         klass->IsErroneousResolved() ||
-        klass->GetClassLoader() == nullptr) {
+        (!profile_boot_class_path_ && klass->GetClassLoader() == nullptr)) {
       return true;
     }
-    DCHECK(klass->GetDexCache() != nullptr) << klass->PrettyClass();
+    CHECK(klass->GetDexCache() != nullptr) << klass->PrettyClass();
     resolved_classes_->AddReference(&klass->GetDexFile(), klass->GetDexTypeIndex());
     for (ArtMethod& method : klass->GetMethods(kRuntimePointerSize)) {
       if (!method.IsNative()) {
@@ -235,6 +238,7 @@ class GetClassesAndMethodsVisitor : public ClassVisitor {
   MethodReferenceCollection* const sampled_methods_;
   TypeReferenceCollection* const resolved_classes_;
   uint32_t hot_method_sample_threshold_;
+  const bool profile_boot_class_path_;
 };
 
 void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
@@ -263,7 +267,8 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
       GetClassesAndMethodsVisitor visitor(&hot_methods,
                                           &startup_methods,
                                           &resolved_classes,
-                                          hot_threshold);
+                                          hot_threshold,
+                                          options_.GetProfileBootClassPath());
       runtime->GetClassLinker()->VisitClasses(&visitor);
     }
   }
@@ -469,16 +474,42 @@ void ProfileSaver::Start(const ProfileSaverOptions& options,
                          const std::string& output_filename,
                          jit::JitCodeCache* jit_code_cache,
                          const std::vector<std::string>& code_paths) {
+  Runtime* const runtime = Runtime::Current();
   DCHECK(options.IsEnabled());
-  DCHECK(Runtime::Current()->GetJit() != nullptr);
+  DCHECK(runtime->GetJit() != nullptr);
   DCHECK(!output_filename.empty());
   DCHECK(jit_code_cache != nullptr);
 
   std::vector<std::string> code_paths_to_profile;
-
   for (const std::string& location : code_paths) {
     if (ShouldProfileLocation(location))  {
       code_paths_to_profile.push_back(location);
+    }
+  }
+
+  MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+  // Support getting profile samples for the boot class path. This will be used to generate the boot
+  // image profile. The intention is to use this code to generate to boot image but not use it in
+  // production. b/37966211
+  if (options.GetProfileBootClassPath()) {
+    std::set<std::string> code_paths_keys;
+    for (const std::string& location : code_paths) {
+      code_paths_keys.insert(ProfileCompilationInfo::GetProfileDexFileKey(location));
+    }
+    for (const DexFile* dex_file : runtime->GetClassLinker()->GetBootClassPath()) {
+      // Don't check ShouldProfileLocation since the boot class path may be speed compiled.
+      const std::string& location = dex_file->GetLocation();
+      const std::string key = ProfileCompilationInfo::GetProfileDexFileKey(location);
+      VLOG(profiler) << "Registering boot dex file " << location;
+      if (code_paths_keys.find(key) != code_paths_keys.end()) {
+        LOG(WARNING) << "Boot class path location key conflicts with code path " << location;
+      } else if (instance_ == nullptr) {
+        // Only add the boot class path once since Start may be called multiple times for secondary
+        // dexes.
+        // We still do the collision check above. This handles any secondary dexes that conflict
+        // with the boot class path dex files.
+        code_paths_to_profile.push_back(location);
+      }
     }
   }
   if (code_paths_to_profile.empty()) {
@@ -486,7 +517,6 @@ void ProfileSaver::Start(const ProfileSaverOptions& options,
     return;
   }
 
-  MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
   if (instance_ != nullptr) {
     // If we already have an instance, make sure it uses the same jit_code_cache.
     // This may be called multiple times via Runtime::registerAppInfo (e.g. for

@@ -31,11 +31,17 @@ public class Main {
       VMRuntime.registerAppInfo(file.getPath(),
                                 new String[] {codePath});
 
-      int methodIdx = $opt$noinline$testProfile();
-      ensureProfileProcessing();
-      if (!presentInProfile(file.getPath(), methodIdx)) {
-        throw new RuntimeException("Method with index " + methodIdx + " not in the profile");
+      // Test that the profile saves an app method with a profiling info.
+      Method appMethod = Main.class.getDeclaredMethod("testAddMethodToProfile",
+          File.class, Method.class);
+      testAddMethodToProfile(file, appMethod);
+
+      // Test that the profile saves a boot class path method with a profiling info.
+      Method bootMethod = File.class.getDeclaredMethod("delete");
+      if (bootMethod.getDeclaringClass().getClassLoader() != Object.class.getClassLoader()) {
+        System.out.println("Class loader does not match boot class");
       }
+      testAddMethodToProfile(file, bootMethod);
     } finally {
       if (file != null) {
         file.delete();
@@ -43,20 +49,24 @@ public class Main {
     }
   }
 
-  public static int $opt$noinline$testProfile() {
-    if (doThrow) throw new Error();
+  static void testAddMethodToProfile(File file, Method m) {
     // Make sure we have a profile info for this method without the need to loop.
-    return ensureProfilingInfo("$opt$noinline$testProfile");
+    ensureProfilingInfo(m);
+    // Make sure the profile gets saved.
+    ensureProfileProcessing();
+    // Verify that the profile was saved and contains the method.
+    if (!presentInProfile(file.getPath(), m)) {
+      throw new RuntimeException("Method with index " + m + " not in the profile");
+    }
   }
 
-  // Return the dex method index.
-  public static native int ensureProfilingInfo(String methodName);
+  // Ensure a method has a profiling info.
+  public static native void ensureProfilingInfo(Method method);
   // Ensures the profile saver does its usual processing.
   public static native void ensureProfileProcessing();
   // Checks if the profiles saver knows about the method.
-  public static native boolean presentInProfile(String profile, int methodIdx);
+  public static native boolean presentInProfile(String profile, Method method);
 
-  public static boolean doThrow = false;
   private static final String TEMP_FILE_NAME_PREFIX = "dummy";
   private static final String TEMP_FILE_NAME_SUFFIX = "-file";
 

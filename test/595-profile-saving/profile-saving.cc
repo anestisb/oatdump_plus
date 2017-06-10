@@ -22,63 +22,41 @@
 #include "jni.h"
 #include "method_reference.h"
 #include "mirror/class-inl.h"
+#include "mirror/executable.h"
 #include "oat_file_assistant.h"
 #include "oat_file_manager.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
-#include "stack.h"
 #include "thread.h"
 
 namespace art {
 namespace {
 
-class CreateProfilingInfoVisitor : public StackVisitor {
- public:
-  explicit CreateProfilingInfoVisitor(Thread* thread, const char* method_name)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
-        method_name_(method_name) {}
-
-  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
-    ArtMethod* m = GetMethod();
-    std::string m_name(m->GetName());
-
-    if (m_name.compare(method_name_) == 0) {
-      ProfilingInfo::Create(Thread::Current(), m, /* retry_allocation */ true);
-      method_index_ = m->GetDexMethodIndex();
-      return false;
-    }
-    return true;
-  }
-
-  int method_index_ = -1;
-  const char* const method_name_;
-};
-
-extern "C" JNIEXPORT jint JNICALL Java_Main_ensureProfilingInfo(JNIEnv* env,
+extern "C" JNIEXPORT void JNICALL Java_Main_ensureProfilingInfo(JNIEnv* env,
                                                                 jclass,
-                                                                jstring method_name) {
-  ScopedUtfChars chars(env, method_name);
-  CHECK(chars.c_str() != nullptr);
-  ScopedObjectAccess soa(Thread::Current());
-  CreateProfilingInfoVisitor visitor(soa.Self(), chars.c_str());
-  visitor.WalkStack();
-  return visitor.method_index_;
+                                                                jobject method) {
+  CHECK(method != nullptr);
+  ScopedObjectAccess soa(env);
+  ObjPtr<mirror::Executable> exec = soa.Decode<mirror::Executable>(method);
+  ProfilingInfo::Create(soa.Self(), exec->GetArtMethod(), /* retry_allocation */ true);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureProfileProcessing(JNIEnv*, jclass) {
   ProfileSaver::ForceProcessProfiles();
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_presentInProfile(
-      JNIEnv* env, jclass cls, jstring filename, jint method_index) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_presentInProfile(JNIEnv* env,
+                                                                 jclass,
+                                                                 jstring filename,
+                                                                 jobject method) {
   ScopedUtfChars filename_chars(env, filename);
   CHECK(filename_chars.c_str() != nullptr);
-  ScopedObjectAccess soa(Thread::Current());
-  const DexFile* dex_file = soa.Decode<mirror::Class>(cls)->GetDexCache()->GetDexFile();
+  ScopedObjectAccess soa(env);
+  ObjPtr<mirror::Executable> exec = soa.Decode<mirror::Executable>(method);
+  ArtMethod* art_method = exec->GetArtMethod();
   return ProfileSaver::HasSeenMethod(std::string(filename_chars.c_str()),
-                                     dex_file,
-                                     static_cast<uint16_t>(method_index));
+                                     art_method->GetDexFile(),
+                                     art_method->GetDexMethodIndex());
 }
 
 }  // namespace

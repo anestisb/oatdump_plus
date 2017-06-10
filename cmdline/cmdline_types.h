@@ -712,6 +712,11 @@ struct CmdlineType<ProfileSaverOptions> : CmdlineTypeParser<ProfileSaverOptions>
       return Result::SuccessNoValue();
     }
 
+    if (option == "profile-boot-class-path") {
+      existing.profile_boot_class_path_ = true;
+      return Result::SuccessNoValue();
+    }
+
     // The rest of these options are always the wildcard from '-Xps-*'
     std::string suffix = RemovePrefix(option);
 
