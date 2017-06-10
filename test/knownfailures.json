@@ -715,7 +715,7 @@
     {
         "tests": ["137-cfi", "629-vdex-speed"],
         "description": [ "Tests require speed compilation which is no longer the default for",
-                          "no-prebuild configs."],
-        "variant": "no-prebuild"
+                          "no-prebuild or no-image configs."],
+        "variant": "no-prebuild | no-image"
     }
 ]
