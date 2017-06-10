@@ -25,7 +25,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "handle_scope-inl.h"
-#include "jit/profile_compilation_info.h"
+#include "jit/profile_compilation_info-inl.h"
 #include "linear_alloc.h"
 #include "scoped_thread_state_change-inl.h"
 #include "type_reference.h"
@@ -891,6 +891,49 @@ TEST_F(ProfileCompilationInfoTest, SampledMethodsTest) {
     test_info.MergeWith(merge_info);
   }
   EXPECT_TRUE(test_info.IsStartupOrHotMethod(kDex1, kChecksum1, 11));
+
+  // Test bulk adding.
+  {
+    std::unique_ptr<const DexFile> dex(OpenTestDexFile("ManyMethods"));
+    ProfileCompilationInfo info;
+    std::vector<uint16_t> hot_methods = {1, 3, 5};
+    std::vector<uint16_t> startup_methods = {1, 2};
+    std::vector<uint16_t> post_methods = {0, 2, 6};
+    ASSERT_GE(dex->NumMethodIds(), 7u);
+    info.AddMethodsForDex(/*startup*/true,
+                          /*hot*/true,
+                          dex.get(),
+                          hot_methods.begin(),
+                          hot_methods.end());
+    info.AddMethodsForDex(/*startup*/true,
+                          /*hot*/false,
+                          dex.get(),
+                          startup_methods.begin(),
+                          startup_methods.end());
+    info.AddMethodsForDex(/*startup*/false,
+                          /*hot*/false,
+                          dex.get(),
+                          post_methods.begin(),
+                          post_methods.end());
+    for (uint16_t id : hot_methods) {
+      EXPECT_TRUE(info.ContainsHotMethod(MethodReference(dex.get(), id)));
+      EXPECT_TRUE(info.ContainsSampledMethod(/*startup*/true, MethodReference(dex.get(), id)));
+    }
+    for (uint16_t id : startup_methods) {
+      EXPECT_TRUE(info.ContainsSampledMethod(/*startup*/true, MethodReference(dex.get(), id)));
+    }
+    for (uint16_t id : post_methods) {
+      EXPECT_TRUE(info.ContainsSampledMethod(/*startup*/false, MethodReference(dex.get(), id)));
+    }
+    EXPECT_TRUE(info.ContainsSampledMethod(/*startup*/false, MethodReference(dex.get(), 6)));
+    // Check that methods that shouldn't have been touched are OK.
+    EXPECT_FALSE(info.ContainsHotMethod(MethodReference(dex.get(), 0)));
+    EXPECT_FALSE(info.ContainsHotMethod(MethodReference(dex.get(), 2)));
+    EXPECT_FALSE(info.ContainsHotMethod(MethodReference(dex.get(), 4)));
+    EXPECT_FALSE(info.ContainsSampledMethod(/*startup*/false, MethodReference(dex.get(), 1)));
+    EXPECT_FALSE(info.ContainsSampledMethod(/*startup*/true, MethodReference(dex.get(), 4)));
+    EXPECT_FALSE(info.ContainsSampledMethod(/*startup*/true, MethodReference(dex.get(), 6)));
+  }
 }
 
 }  // namespace art

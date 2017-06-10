@@ -211,24 +211,22 @@ class ProfileCompilationInfo {
   bool AddMethod(const ProfileMethodInfo& pmi);
 
   // Add methods that have samples but are are not necessarily hot. These are partitioned into two
-  // possibly intersecting sets startup and post startup.
+  // possibly intersecting sets startup and post startup. Sampled methods are used for layout but
+  // not necessarily determining what gets compiled.
   bool AddSampledMethod(bool startup,
                         const std::string& dex_location,
                         uint32_t checksum,
                         uint16_t method_idx,
                         uint32_t num_method_ids);
-  // Bulk add sampled methods for a single dex, fast since it only has one GetOrAddDexFileData call.
-  template <class Iterator>
-  bool AddSampledMethodsForDex(bool startup,
-                               const DexFile* dex_file,
-                               Iterator index_begin,
-                               Iterator index_end);
 
-  // Bulk add hot methods for a single dex, fast since it only has one GetOrAddDexFileData call.
+  // Bulk add sampled methods and/or hot methods for a single dex, fast since it only has one
+  // GetOrAddDexFileData call.
   template <class Iterator>
-  bool AddHotMethodsForDex(const DexFile* dex_file,
-                           Iterator index_begin,
-                           Iterator index_end);
+  ALWAYS_INLINE bool AddMethodsForDex(bool startup,
+                                      bool hot,
+                                      const DexFile* dex_file,
+                                      Iterator index_begin,
+                                      Iterator index_end);
 
   // Load profile information from the given file descriptor.
   // If the current profile is non-empty the load will fail.
@@ -263,6 +261,10 @@ class ProfileCompilationInfo {
 
   // Return true if the method reference iS present and hot in the profiling info.
   bool ContainsHotMethod(const MethodReference& method_ref) const;
+
+
+  // Return true if the profile contains a startup or post startup method.
+  bool ContainsSampledMethod(bool startup, const MethodReference& method_ref) const;
 
   // Return true if the class's type is present in the profiling info.
   bool ContainsClass(const DexFile& dex_file, dex::TypeIndex type_idx) const;
@@ -358,7 +360,7 @@ class ProfileCompilationInfo {
           class_set(std::less<dex::TypeIndex>(), arena->Adapter(kArenaAllocProfile)),
           num_method_ids(num_methods),
           bitmap_storage(arena->Adapter(kArenaAllocProfile)) {
-      const size_t num_bits = num_method_ids * kBitmapCount;
+      const size_t num_bits = num_method_ids * kBitmapIndexCount;
       bitmap_storage.resize(RoundUp(num_bits, kBitsPerByte) / kBitsPerByte);
       if (!bitmap_storage.empty()) {
         method_bitmap =
@@ -409,9 +411,9 @@ class ProfileCompilationInfo {
 
    private:
     enum BitmapIndex {
-      kBitmapStartup,
-      kBitmapPostStartup,
-      kBitmapCount,
+      kBitmapIndexStartup,
+      kBitmapIndexPostStartup,
+      kBitmapIndexCount,
     };
 
     size_t MethodBitIndex(bool startup, size_t index) const {
@@ -420,8 +422,8 @@ class ProfileCompilationInfo {
       // This compresses better than ([startup bit][post statup bit])*
 
       return index + (startup
-          ? kBitmapStartup * num_method_ids
-          : kBitmapPostStartup * num_method_ids);
+          ? kBitmapIndexStartup * num_method_ids
+          : kBitmapIndexPostStartup * num_method_ids);
     }
   };
 
@@ -467,6 +469,10 @@ class ProfileCompilationInfo {
   // Return the dex data associated with the given profile key or null if the profile
   // doesn't contain the key.
   const DexFileData* FindDexData(const std::string& profile_key) const;
+
+  // Return the dex data associated with the given dex file or null if the profile doesn't contain
+  // the key or the checksum mismatches.
+  const DexFileData* FindDexData(const DexFile* dex_file) const;
 
   // Checks if the profile is empty.
   bool IsEmpty() const;

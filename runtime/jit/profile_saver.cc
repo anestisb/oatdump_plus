@@ -283,21 +283,23 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
     for (const auto& pair : hot_methods.GetMap()) {
       const DexFile* const dex_file = pair.first;
       if (locations.find(dex_file->GetBaseLocation()) != locations.end()) {
-        cached_info->AddSampledMethodsForDex(/*startup*/ true,
-                                             dex_file,
-                                             pair.second.begin(),
-                                             pair.second.end());
-        // Adding hot methods is a bit slow, TODO: optimize.
-        cached_info->AddHotMethodsForDex(dex_file, pair.second.begin(), pair.second.end());
+        const MethodReferenceCollection::IndexVector& indices = pair.second;
+        cached_info->AddMethodsForDex(/*startup*/ true,
+                                      /*hot*/ true,
+                                      dex_file,
+                                      indices.begin(),
+                                      indices.end());
       }
     }
     for (const auto& pair : startup_methods.GetMap()) {
       const DexFile* const dex_file = pair.first;
       if (locations.find(dex_file->GetBaseLocation()) != locations.end()) {
-        cached_info->AddSampledMethodsForDex(/*startup*/ true,
-                                             dex_file,
-                                             pair.second.begin(),
-                                             pair.second.end());
+        const MethodReferenceCollection::IndexVector& indices = pair.second;
+        cached_info->AddMethodsForDex(/*startup*/ true,
+                                      /*hot*/ false,
+                                      dex_file,
+                                      indices.begin(),
+                                      indices.end());
       }
     }
     for (const auto& pair : resolved_classes.GetMap()) {

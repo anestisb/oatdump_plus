@@ -132,8 +132,7 @@ class CommonRuntimeTestImpl {
 
   std::vector<std::unique_ptr<const DexFile>> OpenTestDexFiles(const char* name);
 
-  std::unique_ptr<const DexFile> OpenTestDexFile(const char* name)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::unique_ptr<const DexFile> OpenTestDexFile(const char* name);
 
   jobject LoadDex(const char* dex_name) REQUIRES_SHARED(Locks::mutator_lock_);
   jobject LoadMultiDex(const char* first_dex_name, const char* second_dex_name)

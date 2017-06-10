@@ -22,10 +22,11 @@
 namespace art {
 
 template <class Iterator>
-inline bool ProfileCompilationInfo::AddSampledMethodsForDex(bool startup,
-                                                            const DexFile* dex_file,
-                                                            Iterator index_begin,
-                                                            Iterator index_end) {
+inline bool ProfileCompilationInfo::AddMethodsForDex(bool startup,
+                                                     bool hot,
+                                                     const DexFile* dex_file,
+                                                     Iterator index_begin,
+                                                     Iterator index_end) {
   DexFileData* data = GetOrAddDexFileData(dex_file);
   if (data == nullptr) {
     return false;
@@ -33,21 +34,9 @@ inline bool ProfileCompilationInfo::AddSampledMethodsForDex(bool startup,
   for (auto it = index_begin; it != index_end; ++it) {
     DCHECK_LT(*it, data->num_method_ids);
     data->AddSampledMethod(startup, *it);
-  }
-  return true;
-}
-
-template <class Iterator>
-inline bool ProfileCompilationInfo::AddHotMethodsForDex(const DexFile* dex_file,
-                                                        Iterator index_begin,
-                                                        Iterator index_end) {
-  DexFileData* data = GetOrAddDexFileData(dex_file);
-  if (data == nullptr) {
-    return false;
-  }
-  for (auto it = index_begin; it != index_end; ++it) {
-    DCHECK_LT(*it, data->num_method_ids);
-    data->FindOrAddMethod(*it);
+    if (hot) {
+      data->FindOrAddMethod(*it);
+    }
   }
   return true;
 }

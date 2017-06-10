@@ -1223,6 +1223,15 @@ bool ProfileCompilationInfo::IsStartupOrHotMethod(const MethodReference& method_
                               method_ref.dex_method_index);
 }
 
+const ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::FindDexData(
+    const DexFile* dex_file) const {
+  const DexFileData* dex_data = FindDexData(GetProfileDexFileKey(dex_file->GetLocation()));
+  if (dex_data == nullptr || !ChecksumMatch(*dex_file, dex_data->checksum)) {
+    return nullptr;
+  }
+  return dex_data;
+}
+
 bool ProfileCompilationInfo::IsStartupOrHotMethod(const std::string& dex_location,
                                                   uint32_t dex_checksum,
                                                   uint16_t dex_method_index) const {
@@ -1236,6 +1245,15 @@ bool ProfileCompilationInfo::IsStartupOrHotMethod(const std::string& dex_locatio
   const MethodMap& methods = dex_data->method_map;
   const auto method_it = methods.find(dex_method_index);
   return method_it != methods.end();
+}
+
+bool ProfileCompilationInfo::ContainsSampledMethod(bool startup,
+                                                   const MethodReference& method_ref) const {
+  const DexFileData* dex_data = FindDexData(method_ref.dex_file);
+  if (dex_data == nullptr) {
+    return false;
+  }
+  return dex_data->HasSampledMethod(startup, method_ref.dex_method_index);
 }
 
 bool ProfileCompilationInfo::ContainsHotMethod(const MethodReference& method_ref) const {
