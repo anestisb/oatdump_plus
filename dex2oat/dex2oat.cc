@@ -118,11 +118,9 @@ static std::string StrippedCommandLine() {
   for (int i = 0; i < original_argc; ++i) {
     if (android::base::StartsWith(original_argv[i], "--zip-fd=")) {
       saw_zip_fd = true;
-      break;
     }
     if (android::base::StartsWith(original_argv[i], "--compiler-filter=")) {
       saw_compiler_filter = true;
-      break;
     }
   }
 
