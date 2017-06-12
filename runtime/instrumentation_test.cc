@@ -16,6 +16,7 @@
 
 #include "instrumentation.h"
 
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "common_runtime_test.h"
 #include "common_throws.h"
@@ -484,10 +485,11 @@ TEST_F(InstrumentationTest, MethodExitObjectEvent) {
   Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
-  ArtMethod* method = klass->FindDeclaredDirectMethod("returnReference",
-                                                      "()Ljava/lang/Object;",
-                                                      kRuntimePointerSize);
+  ArtMethod* method =
+      klass->FindClassMethod("returnReference", "()Ljava/lang/Object;", kRuntimePointerSize);
   ASSERT_TRUE(method != nullptr);
+  ASSERT_TRUE(method->IsDirect());
+  ASSERT_TRUE(method->GetDeclaringClass() == klass);
   TestEvent(instrumentation::Instrumentation::kMethodExited,
             /*event_method*/ method,
             /*event_field*/ nullptr,
@@ -503,10 +505,10 @@ TEST_F(InstrumentationTest, MethodExitPrimEvent) {
   Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
-  ArtMethod* method = klass->FindDeclaredDirectMethod("returnPrimitive",
-                                                      "()I",
-                                                      kRuntimePointerSize);
+  ArtMethod* method = klass->FindClassMethod("returnPrimitive", "()I", kRuntimePointerSize);
   ASSERT_TRUE(method != nullptr);
+  ASSERT_TRUE(method->IsDirect());
+  ASSERT_TRUE(method->GetDeclaringClass() == klass);
   TestEvent(instrumentation::Instrumentation::kMethodExited,
             /*event_method*/ method,
             /*event_field*/ nullptr,
@@ -583,9 +585,11 @@ TEST_F(InstrumentationTest, DeoptimizeDirectMethod) {
   Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
-  ArtMethod* method_to_deoptimize = klass->FindDeclaredDirectMethod("instanceMethod", "()V",
-                                                                    kRuntimePointerSize);
+  ArtMethod* method_to_deoptimize =
+      klass->FindClassMethod("instanceMethod", "()V", kRuntimePointerSize);
   ASSERT_TRUE(method_to_deoptimize != nullptr);
+  ASSERT_TRUE(method_to_deoptimize->IsDirect());
+  ASSERT_TRUE(method_to_deoptimize->GetDeclaringClass() == klass);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize));
@@ -630,9 +634,11 @@ TEST_F(InstrumentationTest, MixedDeoptimization) {
   Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
-  ArtMethod* method_to_deoptimize = klass->FindDeclaredDirectMethod("instanceMethod", "()V",
-                                                                    kRuntimePointerSize);
+  ArtMethod* method_to_deoptimize =
+      klass->FindClassMethod("instanceMethod", "()V", kRuntimePointerSize);
   ASSERT_TRUE(method_to_deoptimize != nullptr);
+  ASSERT_TRUE(method_to_deoptimize->IsDirect());
+  ASSERT_TRUE(method_to_deoptimize->GetDeclaringClass() == klass);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize));

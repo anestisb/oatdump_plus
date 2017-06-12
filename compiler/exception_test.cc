@@ -102,12 +102,14 @@ class ExceptionTest : public CommonRuntimeTest {
       CHECK_ALIGNED(stack_maps_offset, 2);
     }
 
-    method_f_ = my_klass_->FindVirtualMethod("f", "()I", kRuntimePointerSize);
+    method_f_ = my_klass_->FindClassMethod("f", "()I", kRuntimePointerSize);
     ASSERT_TRUE(method_f_ != nullptr);
+    ASSERT_FALSE(method_f_->IsDirect());
     method_f_->SetEntryPointFromQuickCompiledCode(code_ptr);
 
-    method_g_ = my_klass_->FindVirtualMethod("g", "(I)V", kRuntimePointerSize);
+    method_g_ = my_klass_->FindClassMethod("g", "(I)V", kRuntimePointerSize);
     ASSERT_TRUE(method_g_ != nullptr);
+    ASSERT_FALSE(method_g_->IsDirect());
     method_g_->SetEntryPointFromQuickCompiledCode(code_ptr);
   }
 

@@ -105,17 +105,21 @@ static void Update() REQUIRES_SHARED(art::Locks::mutator_lock_) {
   }
 
   art::ArtMethod* get_property =
-      properties_class->FindDeclaredVirtualMethod(
+      properties_class->FindClassMethod(
           "getProperty",
           "(Ljava/lang/String;)Ljava/lang/String;",
           art::kRuntimePointerSize);
   DCHECK(get_property != nullptr);
+  DCHECK(!get_property->IsDirect());
+  DCHECK(get_property->GetDeclaringClass() == properties_class);
   art::ArtMethod* set_property =
-      properties_class->FindDeclaredVirtualMethod(
+      properties_class->FindClassMethod(
           "setProperty",
           "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;",
           art::kRuntimePointerSize);
   DCHECK(set_property != nullptr);
+  DCHECK(!set_property->IsDirect());
+  DCHECK(set_property->GetDeclaringClass() == properties_class);
 
   // This is an allocation. Do this late to avoid the need for handles.
   ScopedLocalRef<jobject> cp_jobj(self->GetJniEnv(), nullptr);

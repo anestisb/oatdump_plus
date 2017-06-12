@@ -2780,7 +2780,7 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
     }
   }
   ArtMethod* exception_init_method =
-      exception_class->FindDeclaredDirectMethod("<init>", signature, cl->GetImagePointerSize());
+      exception_class->FindConstructor(signature, cl->GetImagePointerSize());
 
   CHECK(exception_init_method != nullptr) << "No <init>" << signature << " in "
       << PrettyDescriptor(exception_class_descriptor);

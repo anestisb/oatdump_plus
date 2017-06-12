@@ -1143,11 +1143,13 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
         // in the copied method should be the same as in the origin
         // method.
         mirror::Class* declaring_class = method.GetDeclaringClass();
-        ArtMethod* origin = declaring_class->FindDeclaredVirtualMethod(
+        ArtMethod* origin = declaring_class->FindClassMethod(
             declaring_class->GetDexCache(),
             method.GetDexMethodIndex(),
             pointer_size_);
         CHECK(origin != nullptr);
+        CHECK(!origin->IsDirect());
+        CHECK(origin->GetDeclaringClass() == declaring_class);
         if (IsInOatFile(&declaring_class->GetDexFile())) {
           const void* code_ptr =
               origin->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size_);
@@ -1189,7 +1191,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     if (writer_->HasBootImage()) {
       const InvokeType invoke_type = it.GetMethodInvokeType(
           dex_file_->GetClassDef(class_def_index_));
-      method = class_linker_->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+      method = class_linker_->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
           *dex_file_,
           it.GetMemberIndex(),
           dex_cache,

@@ -113,9 +113,9 @@ TEST_F(ImageTest, TestDefaultMethods) {
   mirror::Class* iface_klass = class_linker_->LookupClass(
       self, "LIface;", ObjPtr<mirror::ClassLoader>());
   ASSERT_NE(nullptr, iface_klass);
-  ArtMethod* origin = iface_klass->FindDeclaredVirtualMethod(
-      "defaultMethod", "()V", pointer_size);
+  ArtMethod* origin = iface_klass->FindInterfaceMethod("defaultMethod", "()V", pointer_size);
   ASSERT_NE(nullptr, origin);
+  ASSERT_TRUE(origin->GetDeclaringClass() == iface_klass);
   const void* code = origin->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
   // The origin method should have a pointer to quick code
   ASSERT_NE(nullptr, code);
@@ -134,9 +134,11 @@ TEST_F(ImageTest, TestDefaultMethods) {
   mirror::Class* iterable_klass = class_linker_->LookupClass(
       self, "Ljava/lang/Iterable;", ObjPtr<mirror::ClassLoader>());
   ASSERT_NE(nullptr, iterable_klass);
-  origin = iterable_klass->FindDeclaredVirtualMethod(
+  origin = iterable_klass->FindClassMethod(
       "forEach", "(Ljava/util/function/Consumer;)V", pointer_size);
   ASSERT_NE(nullptr, origin);
+  ASSERT_FALSE(origin->IsDirect());
+  ASSERT_TRUE(origin->GetDeclaringClass() == iterable_klass);
   code = origin->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
   // the origin method should have a pointer to quick code
   ASSERT_NE(nullptr, code);

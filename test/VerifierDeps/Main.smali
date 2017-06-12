@@ -405,12 +405,6 @@
   return-void
 .end method
 
-.method public static InvokeVirtual_ActuallyDirect(LMyThread;)V
-  .registers 1
-  invoke-virtual {p0}, LMyThread;->activeCount()I
-  return-void
-.end method
-
 .method public static InvokeInterface_Resolved_DeclaredInReferenced(LMyThread;)V
   .registers 1
   invoke-interface {p0}, Ljava/lang/Runnable;->run()V
@@ -420,7 +414,9 @@
 .method public static InvokeInterface_Resolved_DeclaredInSuperclass(LMyThread;)V
   .registers 1
   # Method join() is declared in the superclass of MyThread. As such, it should
-  # be called with invoke-virtual and will not be resolved here.
+  # be called with invoke-virtual. However, the lookup type does not depend
+  # on the invoke type, so it shall be resolved here anyway.
+  # TODO: Maybe we should not record dependency if the invoke type does not match the lookup type.
   invoke-interface {p0}, LMyThread;->join()V
   return-void
 .end method
@@ -428,6 +424,8 @@
 .method public static InvokeInterface_Resolved_DeclaredInSuperinterface1(LMyThreadSet;)V
   .registers 1
   # Verification will fail because the referring class is not an interface.
+  # However, the lookup type does not depend on the invoke type, so it shall be resolved here anyway.
+  # TODO: Maybe we should not record dependency if the invoke type does not match the lookup type.
   invoke-interface {p0}, LMyThreadSet;->run()V
   return-void
 .end method

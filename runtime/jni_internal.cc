@@ -233,17 +233,10 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
   }
   ArtMethod* method = nullptr;
   auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-  if (is_static) {
-    method = c->FindDirectMethod(name, sig, pointer_size);
-  } else if (c->IsInterface()) {
+  if (c->IsInterface()) {
     method = c->FindInterfaceMethod(name, sig, pointer_size);
   } else {
-    method = c->FindVirtualMethod(name, sig, pointer_size);
-    if (method == nullptr) {
-      // No virtual method matching the signature.  Search declared
-      // private methods and constructors.
-      method = c->FindDeclaredDirectMethod(name, sig, pointer_size);
-    }
+    method = c->FindClassMethod(name, sig, pointer_size);
   }
   if (method == nullptr || method->IsStatic() != is_static) {
     ThrowNoSuchMethodError(soa, c, name, sig, is_static ? "static" : "non-static");

@@ -281,10 +281,10 @@ class ClassLinker {
       REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
 
   // Determine whether a dex cache result should be trusted, or an IncompatibleClassChangeError
-  // check should be performed even after a hit.
-  enum ResolveMode {  // private.
-    kNoICCECheckForCache,
-    kForceICCECheck
+  // check and IllegalAccessError check should be performed even after a hit.
+  enum class ResolveMode {  // private.
+    kNoChecks,
+    kCheckICCEAndIAE
   };
 
   // Resolve a method with a given ID from the DexFile, storing the
@@ -302,17 +302,10 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
 
+  template <InvokeType type, ResolveMode kResolveMode>
   ArtMethod* GetResolvedMethod(uint32_t method_idx, ArtMethod* referrer)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // This returns the class referred to by GetMethodId(method_idx).class_idx_. This might be
-  // different then the declaring class of the resolved method due to copied
-  // miranda/default/conflict methods.
-  mirror::Class* ResolveReferencedClassOfMethod(uint32_t method_idx,
-                                                Handle<mirror::DexCache> dex_cache,
-                                                Handle<mirror::ClassLoader> class_loader)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
   template <ResolveMode kResolveMode>
   ArtMethod* ResolveMethod(Thread* self, uint32_t method_idx, ArtMethod* referrer, InvokeType type)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -1204,6 +1197,23 @@ class ClassLinker {
                              ArtMethod* imt_conflict_method,
                              bool* new_conflict,
                              ArtMethod** imt) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Check invoke type against the referenced class. Throws IncompatibleClassChangeError
+  // (if `kThrowOnError`) and returns true on mismatch (kInterface on a non-interface class,
+  // kVirtual on interface, kDefault on interface for dex files not supporting default methods),
+  // otherwise returns false.
+  template <bool kThrowOnError, typename ClassGetter>
+  static bool CheckInvokeClassMismatch(ObjPtr<mirror::DexCache> dex_cache,
+                                       InvokeType type,
+                                       ClassGetter class_getter)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Helper that feeds the above function with `ClassGetter` doing `LookupResolvedType()`.
+  template <bool kThrow>
+  bool CheckInvokeClassMismatch(ObjPtr<mirror::DexCache> dex_cache,
+                                InvokeType type,
+                                uint32_t method_idx,
+                                ObjPtr<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   std::vector<const DexFile*> boot_class_path_;
   std::vector<std::unique_ptr<const DexFile>> boot_dex_files_;

@@ -90,33 +90,105 @@ inline mirror::Class* ClassLinker::ResolveType(dex::TypeIndex type_idx, ArtMetho
   return resolved_type.Ptr();
 }
 
+template <bool kThrowOnError, typename ClassGetter>
+inline bool ClassLinker::CheckInvokeClassMismatch(ObjPtr<mirror::DexCache> dex_cache,
+                                                  InvokeType type,
+                                                  ClassGetter class_getter) {
+  switch (type) {
+    case kStatic:
+    case kSuper:
+      break;
+    case kInterface: {
+      // We have to check whether the method id really belongs to an interface (dex static bytecode
+      // constraints A15, A16). Otherwise you must not invoke-interface on it.
+      ObjPtr<mirror::Class> klass = class_getter();
+      if (UNLIKELY(!klass->IsInterface())) {
+        if (kThrowOnError) {
+          ThrowIncompatibleClassChangeError(klass,
+                                            "Found class %s, but interface was expected",
+                                            klass->PrettyDescriptor().c_str());
+        }
+        return true;
+      }
+      break;
+    }
+    case kDirect:
+      if (dex_cache->GetDexFile()->GetVersion() >= DexFile::kDefaultMethodsVersion) {
+        break;
+      }
+      FALLTHROUGH_INTENDED;
+    case kVirtual: {
+      // Similarly, invoke-virtual (and invoke-direct without default methods) must reference
+      // a non-interface class (dex static bytecode constraint A24, A25).
+      ObjPtr<mirror::Class> klass = class_getter();
+      if (UNLIKELY(klass->IsInterface())) {
+        if (kThrowOnError) {
+          ThrowIncompatibleClassChangeError(klass,
+                                            "Found interface %s, but class was expected",
+                                            klass->PrettyDescriptor().c_str());
+        }
+        return true;
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unreachable - invocation type: " << type;
+      UNREACHABLE();
+  }
+  return false;
+}
+
+template <bool kThrow>
+inline bool ClassLinker::CheckInvokeClassMismatch(ObjPtr<mirror::DexCache> dex_cache,
+                                                  InvokeType type,
+                                                  uint32_t method_idx,
+                                                  ObjPtr<mirror::ClassLoader> class_loader) {
+  return CheckInvokeClassMismatch<kThrow>(
+      dex_cache,
+      type,
+      [this, dex_cache, method_idx, class_loader]() REQUIRES_SHARED(Locks::mutator_lock_) {
+        const DexFile& dex_file = *dex_cache->GetDexFile();
+        const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
+        ObjPtr<mirror::Class> klass =
+            LookupResolvedType(dex_file, method_id.class_idx_, dex_cache, class_loader);
+        DCHECK(klass != nullptr);
+        return klass;
+      });
+}
+
+template <InvokeType type, ClassLinker::ResolveMode kResolveMode>
 inline ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx, ArtMethod* referrer) {
+  DCHECK(referrer != nullptr);
+  // Note: The referrer can be a Proxy constructor. In that case, we need to do the
+  // lookup in the context of the original method from where it steals the code.
+  // However, we delay the GetInterfaceMethodIfProxy() until needed.
+  DCHECK(!referrer->IsProxyMethod() || referrer->IsConstructor());
   ArtMethod* resolved_method = referrer->GetDexCacheResolvedMethod(method_idx, image_pointer_size_);
   if (resolved_method == nullptr || resolved_method->IsRuntimeMethod()) {
     return nullptr;
   }
-  return resolved_method;
-}
-
-inline mirror::Class* ClassLinker::ResolveReferencedClassOfMethod(
-    uint32_t method_idx,
-    Handle<mirror::DexCache> dex_cache,
-    Handle<mirror::ClassLoader> class_loader) {
-  // NB: We cannot simply use `GetResolvedMethod(method_idx, ...)->GetDeclaringClass()`. This is
-  // because if we did so than an invoke-super could be incorrectly dispatched in cases where
-  // GetMethodId(method_idx).class_idx_ refers to a non-interface, non-direct-superclass
-  // (super*-class?) of the referrer and the direct superclass of the referrer contains a concrete
-  // implementation of the method. If this class's implementation of the method is copied from an
-  // interface (either miranda, default or conflict) we would incorrectly assume that is what we
-  // want to invoke on, instead of the 'concrete' implementation that the direct superclass
-  // contains.
-  const DexFile* dex_file = dex_cache->GetDexFile();
-  const DexFile::MethodId& method = dex_file->GetMethodId(method_idx);
-  ObjPtr<mirror::Class> resolved_type = dex_cache->GetResolvedType(method.class_idx_);
-  if (UNLIKELY(resolved_type == nullptr)) {
-    resolved_type = ResolveType(*dex_file, method.class_idx_, dex_cache, class_loader);
+  if (kResolveMode == ResolveMode::kCheckICCEAndIAE) {
+    referrer = referrer->GetInterfaceMethodIfProxy(image_pointer_size_);
+    // Check if the invoke type matches the class type.
+    ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
+    ObjPtr<mirror::ClassLoader> class_loader = referrer->GetClassLoader();
+    if (CheckInvokeClassMismatch</* kThrow */ false>(dex_cache, type, method_idx, class_loader)) {
+      return nullptr;
+    }
+    // Check access.
+    ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
+    if (!referring_class->CanAccessResolvedMethod(resolved_method->GetDeclaringClass(),
+                                                  resolved_method,
+                                                  dex_cache,
+                                                  method_idx)) {
+      return nullptr;
+    }
+    // Check if the invoke type matches the method type.
+    if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(type))) {
+      return nullptr;
+    }
   }
-  return resolved_type.Ptr();
+  return resolved_method;
 }
 
 template <ClassLinker::ResolveMode kResolveMode>
@@ -124,9 +196,15 @@ inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
                                              uint32_t method_idx,
                                              ArtMethod* referrer,
                                              InvokeType type) {
-  ArtMethod* resolved_method = GetResolvedMethod(method_idx, referrer);
+  DCHECK(referrer != nullptr);
+  // Note: The referrer can be a Proxy constructor. In that case, we need to do the
+  // lookup in the context of the original method from where it steals the code.
+  // However, we delay the GetInterfaceMethodIfProxy() until needed.
+  DCHECK(!referrer->IsProxyMethod() || referrer->IsConstructor());
   Thread::PoisonObjectPointersIfDebug();
-  if (UNLIKELY(resolved_method == nullptr)) {
+  ArtMethod* resolved_method = referrer->GetDexCacheResolvedMethod(method_idx, image_pointer_size_);
+  if (UNLIKELY(resolved_method == nullptr || resolved_method->IsRuntimeMethod())) {
+    referrer = referrer->GetInterfaceMethodIfProxy(image_pointer_size_);
     ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
     StackHandleScope<2> hs(self);
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(referrer->GetDexCache()));
@@ -138,6 +216,33 @@ inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
                                                   h_class_loader,
                                                   referrer,
                                                   type);
+  } else if (kResolveMode == ResolveMode::kCheckICCEAndIAE) {
+    referrer = referrer->GetInterfaceMethodIfProxy(image_pointer_size_);
+    // Check if the invoke type matches the class type.
+    ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
+    ObjPtr<mirror::ClassLoader> class_loader = referrer->GetClassLoader();
+    if (CheckInvokeClassMismatch</* kThrow */ true>(dex_cache, type, method_idx, class_loader)) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return nullptr;
+    }
+    // Check access.
+    ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
+    if (!referring_class->CheckResolvedMethodAccess(resolved_method->GetDeclaringClass(),
+                                                    resolved_method,
+                                                    dex_cache,
+                                                    method_idx,
+                                                    type)) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return nullptr;
+    }
+    // Check if the invoke type matches the method type.
+    if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(type))) {
+      ThrowIncompatibleClassChangeError(type,
+                                        resolved_method->GetInvokeType(),
+                                        resolved_method,
+                                        referrer);
+      return nullptr;
+    }
   }
   // Note: We cannot check here to see whether we added the method to the cache. It
   //       might be an erroneous class, which results in it being hidden from us.

@@ -192,18 +192,21 @@ TEST_F(UtilsTest, JniShortName_JniLongName) {
   ASSERT_TRUE(c != nullptr);
   ArtMethod* m;
 
-  m = c->FindVirtualMethod("charAt", "(I)C", kRuntimePointerSize);
+  m = c->FindClassMethod("charAt", "(I)C", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
+  ASSERT_FALSE(m->IsDirect());
   EXPECT_EQ("Java_java_lang_String_charAt", m->JniShortName());
   EXPECT_EQ("Java_java_lang_String_charAt__I", m->JniLongName());
 
-  m = c->FindVirtualMethod("indexOf", "(Ljava/lang/String;I)I", kRuntimePointerSize);
+  m = c->FindClassMethod("indexOf", "(Ljava/lang/String;I)I", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
+  ASSERT_FALSE(m->IsDirect());
   EXPECT_EQ("Java_java_lang_String_indexOf", m->JniShortName());
   EXPECT_EQ("Java_java_lang_String_indexOf__Ljava_lang_String_2I", m->JniLongName());
 
-  m = c->FindDirectMethod("copyValueOf", "([CII)Ljava/lang/String;", kRuntimePointerSize);
+  m = c->FindClassMethod("copyValueOf", "([CII)Ljava/lang/String;", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
+  ASSERT_TRUE(m->IsStatic());
   EXPECT_EQ("Java_java_lang_String_copyValueOf", m->JniShortName());
   EXPECT_EQ("Java_java_lang_String_copyValueOf___3CII", m->JniLongName());
 }

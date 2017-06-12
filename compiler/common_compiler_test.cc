@@ -265,8 +265,8 @@ void CommonCompilerTest::CompileDirectMethod(Handle<mirror::ClassLoader> class_l
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
   auto pointer_size = class_linker_->GetImagePointerSize();
-  ArtMethod* method = klass->FindDirectMethod(method_name, signature, pointer_size);
-  CHECK(method != nullptr) << "Direct method not found: "
+  ArtMethod* method = klass->FindClassMethod(method_name, signature, pointer_size);
+  CHECK(method != nullptr && method->IsDirect()) << "Direct method not found: "
       << class_name << "." << method_name << signature;
   CompileMethod(method);
 }
@@ -279,8 +279,8 @@ void CommonCompilerTest::CompileVirtualMethod(Handle<mirror::ClassLoader> class_
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
   auto pointer_size = class_linker_->GetImagePointerSize();
-  ArtMethod* method = klass->FindVirtualMethod(method_name, signature, pointer_size);
-  CHECK(method != nullptr) << "Virtual method not found: "
+  ArtMethod* method = klass->FindClassMethod(method_name, signature, pointer_size);
+  CHECK(method != nullptr && !method->IsDirect()) << "Virtual method not found: "
       << class_name << "." << method_name << signature;
   CompileMethod(method);
 }

@@ -128,14 +128,18 @@ TEST_F(DexCacheMethodHandlesTest, TestResolvedMethodTypes) {
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LMethodTypes;", class_loader)));
   class_linker_->EnsureInitialized(soa.Self(), method_types, true, true);
 
-  ArtMethod* method1 = method_types->FindVirtualMethod(
+  ArtMethod* method1 = method_types->FindClassMethod(
       "method1",
       "(Ljava/lang/String;)Ljava/lang/String;",
       kRuntimePointerSize);
-  ArtMethod* method2 = method_types->FindVirtualMethod(
+  ASSERT_TRUE(method1 != nullptr);
+  ASSERT_FALSE(method1->IsDirect());
+  ArtMethod* method2 = method_types->FindClassMethod(
       "method2",
       "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
       kRuntimePointerSize);
+  ASSERT_TRUE(method2 != nullptr);
+  ASSERT_FALSE(method2->IsDirect());
 
   const DexFile& dex_file = *(method1->GetDexFile());
   Handle<mirror::DexCache> dex_cache = hs.NewHandle(
