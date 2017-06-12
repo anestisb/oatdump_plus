@@ -1936,8 +1936,9 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
 #endif  // __APPLE__
 END_FUNCTION art_quick_instrumentation_entry
 
-DEFINE_FUNCTION art_quick_instrumentation_exit
+DEFINE_FUNCTION_CUSTOM_CFA art_quick_instrumentation_exit, 0
     pushq LITERAL(0)          // Push a fake return PC as there will be none on the stack.
+    CFI_ADJUST_CFA_OFFSET(8)
 
     SETUP_SAVE_REFS_ONLY_FRAME
 
