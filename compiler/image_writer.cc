@@ -46,7 +46,9 @@
 #include "gc/heap.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
+#include "gc/verification.h"
 #include "globals.h"
+#include "handle_scope-inl.h"
 #include "image.h"
 #include "imt_conflict_table.h"
 #include "jni_internal.h"
@@ -69,7 +71,6 @@
 #include "oat_file_manager.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
-#include "handle_scope-inl.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 
 using ::art::mirror::Class;
@@ -1094,8 +1095,8 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
     if (!image_writer->KeepClass(klass)) {
       image_writer->DumpImageClasses();
       std::string temp;
-      CHECK(image_writer->KeepClass(klass)) << klass->GetDescriptor(&temp)
-                                            << " " << klass->PrettyDescriptor();
+      CHECK(image_writer->KeepClass(klass))
+          << Runtime::Current()->GetHeap()->GetVerification()->FirstPathFromRootSet(klass);
     }
   }
 }

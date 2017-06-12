@@ -21,6 +21,7 @@
 
 #include "art_field-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 
 namespace art {
 namespace gc {
@@ -136,6 +137,93 @@ bool Verification::IsValidClass(const void* addr) const {
     return false;
   }
   return k1 == k2;
+}
+
+using ObjectSet = std::set<mirror::Object*>;
+using WorkQueue = std::deque<std::pair<mirror::Object*, std::string>>;
+
+// Use for visiting the GcRoots held live by ArtFields, ArtMethods, and ClassLoaders.
+class Verification::BFSFindReachable {
+ public:
+  explicit BFSFindReachable(ObjectSet* visited) : visited_(visited) {}
+
+  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    ArtField* field = obj->FindFieldByOffset(offset);
+    Visit(obj->GetFieldObject<mirror::Object>(offset),
+          field != nullptr ? field->GetName() : "");
+  }
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    Visit(root->AsMirrorPtr(), "!nativeRoot");
+  }
+
+  void Visit(mirror::Object* ref, const std::string& field_name) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (ref != nullptr && visited_->insert(ref).second) {
+      new_visited_.emplace_back(ref, field_name);
+    }
+  }
+
+  const WorkQueue& NewlyVisited() const {
+    return new_visited_;
+  }
+
+ private:
+  ObjectSet* visited_;
+  mutable WorkQueue new_visited_;
+};
+
+class Verification::CollectRootVisitor : public SingleRootVisitor {
+ public:
+  CollectRootVisitor(ObjectSet* visited, WorkQueue* work) : visited_(visited), work_(work) {}
+
+  void VisitRoot(mirror::Object* obj, const RootInfo& info)
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (obj != nullptr && visited_->insert(obj).second) {
+      std::ostringstream oss;
+      oss << info.ToString() << " = " << obj << "(" << obj->PrettyTypeOf() << ")";
+      work_->emplace_back(obj, oss.str());
+    }
+  }
+
+ private:
+  ObjectSet* const visited_;
+  WorkQueue* const work_;
+};
+
+std::string Verification::FirstPathFromRootSet(ObjPtr<mirror::Object> target) const {
+  Runtime* const runtime =  Runtime::Current();
+  std::set<mirror::Object*> visited;
+  std::deque<std::pair<mirror::Object*, std::string>> work;
+  {
+    CollectRootVisitor root_visitor(&visited, &work);
+    runtime->VisitRoots(&root_visitor, kVisitRootFlagAllRoots);
+  }
+  while (!work.empty()) {
+    auto pair = work.front();
+    work.pop_front();
+    if (pair.first == target) {
+      return pair.second;
+    }
+    BFSFindReachable visitor(&visited);
+    pair.first->VisitReferences(visitor, VoidFunctor());
+    for (auto&& pair2 : visitor.NewlyVisited()) {
+      std::ostringstream oss;
+      mirror::Object* obj = pair2.first;
+      oss << pair.second << " -> " << obj << "(" << obj->PrettyTypeOf() << ")." << pair2.second;
+      work.emplace_back(obj, oss.str());
+    }
+  }
+  return "<no path found>";
 }
 
 }  // namespace gc

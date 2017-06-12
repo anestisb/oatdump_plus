@@ -141,5 +141,24 @@ TEST_F(VerificationTest, LogHeapCorruption) {
   v->LogHeapCorruption(nullptr, MemberOffset(0), arr.Get(), false);
 }
 
+TEST_F(VerificationTest, FindPathFromRootSet) {
+  TEST_DISABLED_FOR_MEMORY_TOOL();
+  ScopedLogSeverity sls(LogSeverity::INFO);
+  ScopedObjectAccess soa(Thread::Current());
+  Runtime* const runtime = Runtime::Current();
+  VariableSizedHandleScope hs(soa.Self());
+  Handle<mirror::ObjectArray<mirror::Object>> arr(
+      hs.NewHandle(AllocObjectArray<mirror::Object>(soa.Self(), 256)));
+  ObjPtr<mirror::String> str = mirror::String::AllocFromModifiedUtf8(soa.Self(), "obj");
+  arr->Set(0, str);
+  const Verification* const v = runtime->GetHeap()->GetVerification();
+  std::string path = v->FirstPathFromRootSet(str);
+  EXPECT_GT(path.length(), 0u);
+  std::ostringstream oss;
+  oss << arr.Get();
+  EXPECT_NE(path.find(oss.str()), std::string::npos);
+  LOG(INFO) << path;
+}
+
 }  // namespace gc
 }  // namespace art

@@ -57,8 +57,16 @@ class Verification {
   bool IsValidHeapObjectAddress(const void* addr, space::Space** out_space = nullptr) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Find the first path to the target from the root set. Should be called while paused since
+  // visiting roots is not safe otherwise.
+  std::string FirstPathFromRootSet(ObjPtr<mirror::Object> target) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   gc::Heap* const heap_;
+
+  class BFSFindReachable;
+  class CollectRootVisitor;
 };
 
 }  // namespace gc
