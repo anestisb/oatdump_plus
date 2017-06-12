@@ -23,19 +23,38 @@
 
 namespace art {
 
-struct IFLTestValue {
+struct IFLTestValue : public IntrusiveForwardListNode<IFLTestValue> {
   // Deliberately not explicit.
-  IFLTestValue(int v) : hook(), value(v) { }  // NOLINT(runtime/explicit)
+  IFLTestValue(int v) : value(v) { }  // NOLINT(runtime/explicit)
 
-  IntrusiveForwardListHook hook;
   int value;
 };
+using IFLTestValueList = IntrusiveForwardList<IFLTestValue>;
+using ConstIFLTestValueList = IntrusiveForwardList<const IFLTestValue>;
 
 bool operator==(const IFLTestValue& lhs, const IFLTestValue& rhs) {
   return lhs.value == rhs.value;
 }
 
 bool operator<(const IFLTestValue& lhs, const IFLTestValue& rhs) {
+  return lhs.value < rhs.value;
+}
+
+struct IFLTestValue2 {
+  // Deliberately not explicit.
+  IFLTestValue2(int v) : hook(), value(v) { }  // NOLINT(runtime/explicit)
+
+  IntrusiveForwardListHook hook;
+  int value;
+};
+using IFLTestValue2List =
+    IntrusiveForwardList<IFLTestValue2, IntrusiveForwardListMemberHookTraits<IFLTestValue2>>;
+
+bool operator==(const IFLTestValue2& lhs, const IFLTestValue2& rhs) {
+  return lhs.value == rhs.value;
+}
+
+bool operator<(const IFLTestValue2& lhs, const IFLTestValue2& rhs) {
   return lhs.value < rhs.value;
 }
 
@@ -47,16 +66,82 @@ bool operator<(const IFLTestValue& lhs, const IFLTestValue& rhs) {
     ASSERT_TRUE(std::equal((expected).begin(), (expected).end(), (value).begin())); \
   } while (false)
 
-TEST(IntrusiveForwardList, IteratorToConstIterator) {
-  IntrusiveForwardList<IFLTestValue> ifl;
-  IntrusiveForwardList<IFLTestValue>::iterator begin = ifl.begin();
-  IntrusiveForwardList<IFLTestValue>::const_iterator cbegin = ifl.cbegin();
-  IntrusiveForwardList<IFLTestValue>::const_iterator converted_begin = begin;
+class IntrusiveForwardListTest : public testing::Test {
+ public:
+  template <typename ListType>
+  void IteratorToConstIterator();
+
+  template <typename ListType>
+  void IteratorOperators();
+
+  template <typename ListType>
+  void ConstructRange();
+
+  template <typename ListType>
+  void Assign();
+
+  template <typename ListType>
+  void PushPop();
+
+  template <typename ListType>
+  void InsertAfter1();
+
+  template <typename ListType>
+  void InsertAfter2();
+
+  template <typename ListType>
+  void EraseAfter1();
+
+  template <typename ListType>
+  void EraseAfter2();
+
+  template <typename ListType>
+  void SwapClear();
+
+  template <typename ListType>
+  void SpliceAfter();
+
+  template <typename ListType>
+  void Remove();
+
+  template <typename ListType>
+  void Unique();
+
+  template <typename ListType>
+  void Merge();
+
+  template <typename ListType>
+  void Sort1();
+
+  template <typename ListType>
+  void Sort2();
+
+  template <typename ListType>
+  void Reverse();
+
+  template <typename ListType>
+  void ModifyValue();
+};
+
+template <typename ListType>
+void IntrusiveForwardListTest::IteratorToConstIterator() {
+  ListType ifl;
+  typename ListType::iterator begin = ifl.begin();
+  typename ListType::const_iterator cbegin = ifl.cbegin();
+  typename ListType::const_iterator converted_begin = begin;
   ASSERT_TRUE(converted_begin == cbegin);
 }
 
-TEST(IntrusiveForwardList, IteratorOperators) {
-  IntrusiveForwardList<IFLTestValue> ifl;
+TEST_F(IntrusiveForwardListTest, IteratorToConstIterator) {
+  IteratorToConstIterator<IFLTestValueList>();
+  IteratorToConstIterator<ConstIFLTestValueList>();
+  IteratorToConstIterator<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::IteratorOperators() {
+  using ValueType = typename ListType::value_type;
+  ListType ifl;
   ASSERT_TRUE(ifl.begin() == ifl.cbegin());
   ASSERT_FALSE(ifl.begin() != ifl.cbegin());
   ASSERT_TRUE(ifl.end() == ifl.cend());
@@ -65,37 +150,61 @@ TEST(IntrusiveForwardList, IteratorOperators) {
   ASSERT_TRUE(ifl.begin() == ifl.end());  // Empty.
   ASSERT_FALSE(ifl.begin() != ifl.end());  // Empty.
 
-  IFLTestValue value(1);
+  ValueType value(1);
   ifl.insert_after(ifl.cbefore_begin(), value);
 
   ASSERT_FALSE(ifl.begin() == ifl.end());  // Not empty.
   ASSERT_TRUE(ifl.begin() != ifl.end());  // Not empty.
 }
 
-TEST(IntrusiveForwardList, ConstructRange) {
+TEST_F(IntrusiveForwardListTest, IteratorOperators) {
+  IteratorOperators<IFLTestValueList>();
+  IteratorOperators<ConstIFLTestValueList>();
+  IteratorOperators<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::ConstructRange() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref({ 1, 2, 7 });
-  std::vector<IFLTestValue> storage(ref.begin(), ref.end());
-  IntrusiveForwardList<IFLTestValue> ifl(storage.begin(), storage.end());
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
 }
 
-TEST(IntrusiveForwardList, Assign) {
+TEST_F(IntrusiveForwardListTest, ConstructRange) {
+  ConstructRange<IFLTestValueList>();
+  ConstructRange<ConstIFLTestValueList>();
+  ConstructRange<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::Assign() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref1({ 2, 8, 5 });
-  std::vector<IFLTestValue> storage1(ref1.begin(), ref1.end());
-  IntrusiveForwardList<IFLTestValue> ifl;
+  std::vector<ValueType> storage1(ref1.begin(), ref1.end());
+  ListType ifl;
   ifl.assign(storage1.begin(), storage1.end());
   ASSERT_LISTS_EQUAL(ref1, ifl);
   std::forward_list<int> ref2({ 7, 1, 3 });
-  std::vector<IFLTestValue> storage2(ref2.begin(), ref2.end());
+  std::vector<ValueType> storage2(ref2.begin(), ref2.end());
   ifl.assign(storage2.begin(), storage2.end());
   ASSERT_LISTS_EQUAL(ref2, ifl);
 }
 
-TEST(IntrusiveForwardList, PushPop) {
-  IFLTestValue value3(3);
-  IFLTestValue value7(7);
+TEST_F(IntrusiveForwardListTest, Assign) {
+  Assign<IFLTestValueList>();
+  Assign<ConstIFLTestValueList>();
+  Assign<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::PushPop() {
+  using ValueType = typename ListType::value_type;
+  ValueType value3(3);
+  ValueType value7(7);
   std::forward_list<int> ref;
-  IntrusiveForwardList<IFLTestValue> ifl;
+  ListType ifl;
   ASSERT_LISTS_EQUAL(ref, ifl);
   ref.push_front(3);
   ifl.push_front(value3);
@@ -114,13 +223,21 @@ TEST(IntrusiveForwardList, PushPop) {
   ASSERT_LISTS_EQUAL(ref, ifl);
 }
 
-TEST(IntrusiveForwardList, InsertAfter1) {
-  IFLTestValue value4(4);
-  IFLTestValue value8(8);
-  IFLTestValue value5(5);
-  IFLTestValue value3(3);
+TEST_F(IntrusiveForwardListTest, PushPop) {
+  PushPop<IFLTestValueList>();
+  PushPop<ConstIFLTestValueList>();
+  PushPop<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::InsertAfter1() {
+  using ValueType = typename ListType::value_type;
+  ValueType value4(4);
+  ValueType value8(8);
+  ValueType value5(5);
+  ValueType value3(3);
   std::forward_list<int> ref;
-  IntrusiveForwardList<IFLTestValue> ifl;
+  ListType ifl;
 
   auto ref_it = ref.insert_after(ref.before_begin(), 4);
   auto ifl_it = ifl.insert_after(ifl.before_begin(), value4);
@@ -149,23 +266,31 @@ TEST(IntrusiveForwardList, InsertAfter1) {
   ASSERT_EQ(*ref_it, *ifl_it);
 }
 
-TEST(IntrusiveForwardList, InsertAfter2) {
+TEST_F(IntrusiveForwardListTest, InsertAfter1) {
+  InsertAfter1<IFLTestValueList>();
+  InsertAfter1<ConstIFLTestValueList>();
+  InsertAfter1<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::InsertAfter2() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref;
-  IntrusiveForwardList<IFLTestValue> ifl;
+  ListType ifl;
 
   auto ref_it = ref.insert_after(ref.before_begin(), { 2, 8, 5 });
-  std::vector<IFLTestValue> storage1({ { 2 }, { 8 }, { 5 } });
+  std::vector<ValueType> storage1({ { 2 }, { 8 }, { 5 } });
   auto ifl_it = ifl.insert_after(ifl.before_begin(), storage1.begin(), storage1.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
   ASSERT_EQ(*ref_it, *ifl_it);
 
-  std::vector<IFLTestValue> storage2({ { 7 }, { 2 } });
+  std::vector<ValueType> storage2({ { 7 }, { 2 } });
   ref_it = ref.insert_after(ref.begin(), { 7, 2 });
   ifl_it = ifl.insert_after(ifl.begin(), storage2.begin(), storage2.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
   ASSERT_EQ(*ref_it, *ifl_it);
 
-  std::vector<IFLTestValue> storage3({ { 1 }, { 3 }, { 4 }, { 9 } });
+  std::vector<ValueType> storage3({ { 1 }, { 3 }, { 4 }, { 9 } });
   ref_it = ref.begin();
   ifl_it = ifl.begin();
   std::advance(ref_it, std::distance(ref.begin(), ref.end()) - 1);
@@ -175,10 +300,18 @@ TEST(IntrusiveForwardList, InsertAfter2) {
   ASSERT_LISTS_EQUAL(ref, ifl);
 }
 
-TEST(IntrusiveForwardList, EraseAfter1) {
+TEST_F(IntrusiveForwardListTest, InsertAfter2) {
+  InsertAfter2<IFLTestValueList>();
+  InsertAfter2<ConstIFLTestValueList>();
+  InsertAfter2<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::EraseAfter1() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref({ 1, 2, 7, 4, 5 });
-  std::vector<IFLTestValue> storage(ref.begin(), ref.end());
-  IntrusiveForwardList<IFLTestValue> ifl(storage.begin(), storage.end());
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
   CHECK_EQ(std::distance(ref.begin(), ref.end()), 5);
 
@@ -230,10 +363,18 @@ TEST(IntrusiveForwardList, EraseAfter1) {
   ASSERT_TRUE(ifl_it == ifl.begin());
 }
 
-TEST(IntrusiveForwardList, EraseAfter2) {
+TEST_F(IntrusiveForwardListTest, EraseAfter1) {
+  EraseAfter1<IFLTestValueList>();
+  EraseAfter1<ConstIFLTestValueList>();
+  EraseAfter1<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::EraseAfter2() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref({ 1, 2, 7, 4, 5, 3, 2, 8, 9 });
-  std::vector<IFLTestValue> storage(ref.begin(), ref.end());
-  IntrusiveForwardList<IFLTestValue> ifl(storage.begin(), storage.end());
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
   CHECK_EQ(std::distance(ref.begin(), ref.end()), 9);
 
@@ -262,13 +403,21 @@ TEST(IntrusiveForwardList, EraseAfter2) {
   CHECK_EQ(std::distance(ref.begin(), ref.end()), 0);
 }
 
-TEST(IntrusiveForwardList, SwapClear) {
+TEST_F(IntrusiveForwardListTest, EraseAfter2) {
+  EraseAfter2<IFLTestValueList>();
+  EraseAfter2<ConstIFLTestValueList>();
+  EraseAfter2<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::SwapClear() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref1({ 1, 2, 7 });
-  std::vector<IFLTestValue> storage1(ref1.begin(), ref1.end());
-  IntrusiveForwardList<IFLTestValue> ifl1(storage1.begin(), storage1.end());
+  std::vector<ValueType> storage1(ref1.begin(), ref1.end());
+  ListType ifl1(storage1.begin(), storage1.end());
   std::forward_list<int> ref2({ 3, 8, 6 });
-  std::vector<IFLTestValue> storage2(ref2.begin(), ref2.end());
-  IntrusiveForwardList<IFLTestValue> ifl2(storage2.begin(), storage2.end());
+  std::vector<ValueType> storage2(ref2.begin(), ref2.end());
+  ListType ifl2(storage2.begin(), storage2.end());
   ASSERT_LISTS_EQUAL(ref1, ifl1);
   ASSERT_LISTS_EQUAL(ref2, ifl2);
   ref1.swap(ref2);
@@ -289,12 +438,20 @@ TEST(IntrusiveForwardList, SwapClear) {
   ASSERT_LISTS_EQUAL(ref2, ifl2);
 }
 
-TEST(IntrusiveForwardList, SpliceAfter) {
+TEST_F(IntrusiveForwardListTest, SwapClear) {
+  SwapClear<IFLTestValueList>();
+  SwapClear<ConstIFLTestValueList>();
+  SwapClear<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::SpliceAfter() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref1({ 3, 1, 2, 7, 4, 5, 4, 8, 7 });
   std::forward_list<int> ref2;
-  std::vector<IFLTestValue> storage(ref1.begin(), ref1.end());
-  IntrusiveForwardList<IFLTestValue> ifl1(storage.begin(), storage.end());
-  IntrusiveForwardList<IFLTestValue> ifl2;
+  std::vector<ValueType> storage(ref1.begin(), ref1.end());
+  ListType ifl1(storage.begin(), storage.end());
+  ListType ifl2;
   ASSERT_LISTS_EQUAL(ref1, ifl1);
   ASSERT_LISTS_EQUAL(ref2, ifl2);
 
@@ -398,10 +555,18 @@ TEST(IntrusiveForwardList, SpliceAfter) {
   ASSERT_LISTS_EQUAL(check, ifl2);
 }
 
-TEST(IntrusiveForwardList, Remove) {
+TEST_F(IntrusiveForwardListTest, SpliceAfter) {
+  SpliceAfter<IFLTestValueList>();
+  SpliceAfter<ConstIFLTestValueList>();
+  SpliceAfter<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::Remove() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref({ 3, 1, 2, 7, 4, 5, 4, 8, 7 });
-  std::vector<IFLTestValue> storage(ref.begin(), ref.end());
-  IntrusiveForwardList<IFLTestValue> ifl(storage.begin(), storage.end());
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
   ref.remove(1);
   ifl.remove(1);
@@ -409,20 +574,28 @@ TEST(IntrusiveForwardList, Remove) {
   ref.remove(4);
   ifl.remove(4);
   ASSERT_LISTS_EQUAL(ref, ifl);
-  auto odd = [](IFLTestValue value) { return (value.value & 1) != 0; };  // NOLINT(readability/braces)
+  auto odd = [](ValueType value) { return (value.value & 1) != 0; };  // NOLINT(readability/braces)
   ref.remove_if(odd);
   ifl.remove_if(odd);
   ASSERT_LISTS_EQUAL(ref, ifl);
-  auto all = [](IFLTestValue value ATTRIBUTE_UNUSED) { return true; };  // NOLINT(readability/braces)
+  auto all = [](ValueType value ATTRIBUTE_UNUSED) { return true; };  // NOLINT(readability/braces)
   ref.remove_if(all);
   ifl.remove_if(all);
   ASSERT_LISTS_EQUAL(ref, ifl);
 }
 
-TEST(IntrusiveForwardList, Unique) {
+TEST_F(IntrusiveForwardListTest, Remove) {
+  Remove<IFLTestValueList>();
+  Remove<ConstIFLTestValueList>();
+  Remove<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::Unique() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref({ 3, 1, 1, 2, 3, 3, 7, 7, 4, 4, 5, 7 });
-  std::vector<IFLTestValue> storage(ref.begin(), ref.end());
-  IntrusiveForwardList<IFLTestValue> ifl(storage.begin(), storage.end());
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
   ref.unique();
   ifl.unique();
@@ -430,7 +603,7 @@ TEST(IntrusiveForwardList, Unique) {
   std::forward_list<int> check({ 3, 1, 2, 3, 7, 4, 5, 7 });
   ASSERT_LISTS_EQUAL(check, ifl);
 
-  auto bin_pred = [](IFLTestValue lhs, IFLTestValue rhs) {
+  auto bin_pred = [](const ValueType& lhs, const ValueType& rhs) {
     return (lhs.value & ~1) == (rhs.value & ~1);
   };
   ref.unique(bin_pred);
@@ -440,13 +613,21 @@ TEST(IntrusiveForwardList, Unique) {
   ASSERT_LISTS_EQUAL(check, ifl);
 }
 
-TEST(IntrusiveForwardList, Merge) {
+TEST_F(IntrusiveForwardListTest, Unique) {
+  Unique<IFLTestValueList>();
+  Unique<ConstIFLTestValueList>();
+  Unique<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::Merge() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref1({ 1, 4, 8, 8, 12 });
-  std::vector<IFLTestValue> storage1(ref1.begin(), ref1.end());
-  IntrusiveForwardList<IFLTestValue> ifl1(storage1.begin(), storage1.end());
+  std::vector<ValueType> storage1(ref1.begin(), ref1.end());
+  ListType ifl1(storage1.begin(), storage1.end());
   std::forward_list<int> ref2({ 3, 5, 6, 7, 9 });
-  std::vector<IFLTestValue> storage2(ref2.begin(), ref2.end());
-  IntrusiveForwardList<IFLTestValue> ifl2(storage2.begin(), storage2.end());
+  std::vector<ValueType> storage2(ref2.begin(), ref2.end());
+  ListType ifl2(storage2.begin(), storage2.end());
   ASSERT_LISTS_EQUAL(ref1, ifl1);
   ASSERT_LISTS_EQUAL(ref2, ifl2);
   CHECK(std::is_sorted(ref1.begin(), ref1.end()));
@@ -460,10 +641,18 @@ TEST(IntrusiveForwardList, Merge) {
   ASSERT_LISTS_EQUAL(check, ifl1);
 }
 
-TEST(IntrusiveForwardList, Sort1) {
+TEST_F(IntrusiveForwardListTest, Merge) {
+  Merge<IFLTestValueList>();
+  Merge<ConstIFLTestValueList>();
+  Merge<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::Sort1() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref({ 2, 9, 8, 3, 7, 4, 1, 5, 3, 0 });
-  std::vector<IFLTestValue> storage(ref.begin(), ref.end());
-  IntrusiveForwardList<IFLTestValue> ifl(storage.begin(), storage.end());
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
   CHECK(!std::is_sorted(ref.begin(), ref.end()));
   ref.sort();
@@ -473,12 +662,20 @@ TEST(IntrusiveForwardList, Sort1) {
   ASSERT_LISTS_EQUAL(check, ifl);
 }
 
-TEST(IntrusiveForwardList, Sort2) {
+TEST_F(IntrusiveForwardListTest, Sort1) {
+  Sort1<IFLTestValueList>();
+  Sort1<ConstIFLTestValueList>();
+  Sort1<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::Sort2() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref({ 2, 9, 8, 3, 7, 4, 1, 5, 3, 0 });
-  std::vector<IFLTestValue> storage(ref.begin(), ref.end());
-  IntrusiveForwardList<IFLTestValue> ifl(storage.begin(), storage.end());
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
-  auto cmp = [](IFLTestValue lhs, IFLTestValue rhs) {
+  auto cmp = [](const ValueType& lhs, const ValueType& rhs) {
     return (lhs.value & ~1) < (rhs.value & ~1);
   };
   CHECK(!std::is_sorted(ref.begin(), ref.end(), cmp));
@@ -489,10 +686,18 @@ TEST(IntrusiveForwardList, Sort2) {
   ASSERT_LISTS_EQUAL(check, ifl);
 }
 
-TEST(IntrusiveForwardList, Reverse) {
+TEST_F(IntrusiveForwardListTest, Sort2) {
+  Sort2<IFLTestValueList>();
+  Sort2<ConstIFLTestValueList>();
+  Sort2<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::Reverse() {
+  using ValueType = typename ListType::value_type;
   std::forward_list<int> ref({ 8, 3, 5, 4, 1, 3 });
-  std::vector<IFLTestValue> storage(ref.begin(), ref.end());
-  IntrusiveForwardList<IFLTestValue> ifl(storage.begin(), storage.end());
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
   ASSERT_LISTS_EQUAL(ref, ifl);
   CHECK(!std::is_sorted(ref.begin(), ref.end()));
   ref.reverse();
@@ -500,6 +705,75 @@ TEST(IntrusiveForwardList, Reverse) {
   ASSERT_LISTS_EQUAL(ref, ifl);
   std::forward_list<int> check({ 3, 1, 4, 5, 3, 8 });
   ASSERT_LISTS_EQUAL(check, ifl);
+}
+
+TEST_F(IntrusiveForwardListTest, Reverse) {
+  Reverse<IFLTestValueList>();
+  Reverse<ConstIFLTestValueList>();
+  Reverse<IFLTestValue2List>();
+}
+
+template <typename ListType>
+void IntrusiveForwardListTest::ModifyValue() {
+  using ValueType = typename ListType::value_type;
+  std::forward_list<int> ref({ 3, 7, 42 });
+  std::vector<ValueType> storage(ref.begin(), ref.end());
+  ListType ifl(storage.begin(), storage.end());
+  ASSERT_LISTS_EQUAL(ref, ifl);
+
+  auto add1 = [](const ValueType& value) { return value.value + 1; };  // NOLINT [readability/braces]
+  std::transform(ref.begin(), ref.end(), ref.begin(), add1);
+  std::transform(ifl.begin(), ifl.end(), ifl.begin(), add1);
+  ASSERT_LISTS_EQUAL(ref, ifl);
+}
+
+TEST_F(IntrusiveForwardListTest, ModifyValue) {
+  ModifyValue<IFLTestValueList>();
+  // Does not compile with ConstIFLTestValueList because LHS of the assignment is const.
+  // ModifyValue<ConstIFLTestValueList>();
+  static_assert(std::is_const<ConstIFLTestValueList::iterator::value_type>::value, "Const check.");
+  ModifyValue<IFLTestValue2List>();
+}
+
+struct Tag1;
+struct Tag2;
+struct TwoListsValue : public IntrusiveForwardListNode<TwoListsValue, Tag1>,
+                       public IntrusiveForwardListNode<TwoListsValue, Tag2> {
+  // Deliberately not explicit.
+  TwoListsValue(int v) : value(v) { }  // NOLINT(runtime/explicit)
+
+  int value;
+};
+using FirstList =
+    IntrusiveForwardList<TwoListsValue, IntrusiveForwardListBaseHookTraits<TwoListsValue, Tag1>>;
+using SecondList =
+    IntrusiveForwardList<TwoListsValue, IntrusiveForwardListBaseHookTraits<TwoListsValue, Tag2>>;
+
+bool operator==(const TwoListsValue& lhs, const TwoListsValue& rhs) {
+  return lhs.value == rhs.value;
+}
+
+TEST_F(IntrusiveForwardListTest, TwoLists) {
+  // Test that a value can be in two lists at the same time and the hooks do not interfere.
+  std::vector<TwoListsValue> storage({ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 });  // storage[i] = i
+
+  std::vector<int> order1({ 3, 1, 7, 2, 8, 9, 4, 0, 6, 5 });
+  FirstList list1;
+  auto pos1 = list1.before_begin();
+  for (size_t idx : order1) {
+    pos1 = list1.insert_after(pos1, storage[idx]);
+  }
+
+  std::vector<int> order2({ 8, 5, 1, 6, 7, 2, 9, 3, 0, 4 });
+  SecondList list2;
+  auto pos2 = list2.before_begin();
+  for (size_t idx : order2) {
+    pos2 = list2.insert_after(pos2, storage[idx]);
+  }
+
+  // Using `storage[i] = i`, we can easily compare that nodes of each list are in the right order.
+  ASSERT_LISTS_EQUAL(order1, list1);
+  ASSERT_LISTS_EQUAL(order2, list2);
 }
 
 }  // namespace art

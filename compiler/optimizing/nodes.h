@@ -1479,7 +1479,8 @@ FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
   H##type* As##type() { return this; }
 
 template <typename T>
-class HUseListNode : public ArenaObject<kArenaAllocUseListNode> {
+class HUseListNode : public ArenaObject<kArenaAllocUseListNode>,
+                     public IntrusiveForwardListNode<HUseListNode<T>> {
  public:
   // Get the instruction which has this use as one of the inputs.
   T GetUser() const { return user_; }
@@ -1487,10 +1488,6 @@ class HUseListNode : public ArenaObject<kArenaAllocUseListNode> {
   size_t GetIndex() const { return index_; }
   // Set the position of the input record that this use corresponds to.
   void SetIndex(size_t index) { index_ = index; }
-
-  // Hook for the IntrusiveForwardList<>.
-  // TODO: Hide this better.
-  IntrusiveForwardListHook hook;
 
  private:
   HUseListNode(T user, size_t index)

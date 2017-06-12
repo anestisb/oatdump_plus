@@ -356,14 +356,16 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
     }
   }
 
-  UsePosition* use = first_use_;
   size_t start = GetStart();
   size_t end = GetEnd();
-  while (use != nullptr && use->GetPosition() <= end) {
-    size_t use_position = use->GetPosition();
-    if (use_position >= start && !use->IsSynthesized()) {
-      HInstruction* user = use->GetUser();
-      size_t input_index = use->GetInputIndex();
+  for (const UsePosition& use : GetUses()) {
+    size_t use_position = use.GetPosition();
+    if (use_position > end) {
+      break;
+    }
+    if (use_position >= start && !use.IsSynthesized()) {
+      HInstruction* user = use.GetUser();
+      size_t input_index = use.GetInputIndex();
       if (user->IsPhi()) {
         // If the phi has a register, try to use the same.
         Location phi_location = user->GetLiveInterval()->ToLocation();
@@ -395,7 +397,7 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
       } else {
         // If the instruction is expected in a register, try to use it.
         LocationSummary* locations = user->GetLocations();
-        Location expected = locations->InAt(use->GetInputIndex());
+        Location expected = locations->InAt(use.GetInputIndex());
         // We use the user's lifetime position - 1 (and not `use_position`) because the
         // register is blocked at the beginning of the user.
         size_t position = user->GetLifetimePosition() - 1;
@@ -408,7 +410,6 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
         }
       }
     }
-    use = use->GetNext();
   }
 
   return kNoRegister;

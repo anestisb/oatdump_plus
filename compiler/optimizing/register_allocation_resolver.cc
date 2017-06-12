@@ -308,8 +308,10 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
     }
     InsertMoveAfter(interval->GetDefinedBy(), interval->ToLocation(), loc);
   }
-  UsePosition* use = current->GetFirstUse();
-  EnvUsePosition* env_use = current->GetFirstEnvironmentUse();
+  UsePositionList::const_iterator use_it = current->GetUses().begin();
+  const UsePositionList::const_iterator use_end = current->GetUses().end();
+  EnvUsePositionList::const_iterator env_use_it = current->GetEnvironmentUses().begin();
+  const EnvUsePositionList::const_iterator env_use_end = current->GetEnvironmentUses().end();
 
   // Walk over all siblings, updating locations of use positions, and
   // connecting them when they are adjacent.
@@ -321,43 +323,47 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
 
     LiveRange* range = current->GetFirstRange();
     while (range != nullptr) {
-      while (use != nullptr && use->GetPosition() < range->GetStart()) {
-        DCHECK(use->IsSynthesized());
-        use = use->GetNext();
-      }
-      while (use != nullptr && use->GetPosition() <= range->GetEnd()) {
-        DCHECK(current->CoversSlow(use->GetPosition()) || (use->GetPosition() == range->GetEnd()));
-        if (!use->IsSynthesized()) {
-          LocationSummary* locations = use->GetUser()->GetLocations();
-          Location expected_location = locations->InAt(use->GetInputIndex());
+      // Process uses in the closed interval [range->GetStart(), range->GetEnd()].
+      // FindMatchingUseRange() expects a half-open interval, so pass `range->GetEnd() + 1u`.
+      size_t range_begin = range->GetStart();
+      size_t range_end = range->GetEnd() + 1u;
+      auto matching_use_range =
+          FindMatchingUseRange(use_it, use_end, range_begin, range_end);
+      DCHECK(std::all_of(use_it,
+                         matching_use_range.begin(),
+                         [](const UsePosition& pos) { return pos.IsSynthesized(); }));
+      for (const UsePosition& use : matching_use_range) {
+        DCHECK(current->CoversSlow(use.GetPosition()) || (use.GetPosition() == range->GetEnd()));
+        if (!use.IsSynthesized()) {
+          LocationSummary* locations = use.GetUser()->GetLocations();
+          Location expected_location = locations->InAt(use.GetInputIndex());
           // The expected (actual) location may be invalid in case the input is unused. Currently
           // this only happens for intrinsics.
           if (expected_location.IsValid()) {
             if (expected_location.IsUnallocated()) {
-              locations->SetInAt(use->GetInputIndex(), source);
+              locations->SetInAt(use.GetInputIndex(), source);
             } else if (!expected_location.IsConstant()) {
-              AddInputMoveFor(interval->GetDefinedBy(), use->GetUser(), source, expected_location);
+              AddInputMoveFor(
+                  interval->GetDefinedBy(), use.GetUser(), source, expected_location);
             }
           } else {
-            DCHECK(use->GetUser()->IsInvoke());
-            DCHECK(use->GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
+            DCHECK(use.GetUser()->IsInvoke());
+            DCHECK(use.GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
           }
         }
-        use = use->GetNext();
       }
+      use_it = matching_use_range.end();
 
       // Walk over the environment uses, and update their locations.
-      while (env_use != nullptr && env_use->GetPosition() < range->GetStart()) {
-        env_use = env_use->GetNext();
+      auto matching_env_use_range =
+          FindMatchingUseRange(env_use_it, env_use_end, range_begin, range_end);
+      for (const EnvUsePosition& env_use : matching_env_use_range) {
+        DCHECK(current->CoversSlow(env_use.GetPosition())
+               || (env_use.GetPosition() == range->GetEnd()));
+        HEnvironment* environment = env_use.GetEnvironment();
+        environment->SetLocationAt(env_use.GetInputIndex(), source);
       }
-
-      while (env_use != nullptr && env_use->GetPosition() <= range->GetEnd()) {
-        DCHECK(current->CoversSlow(env_use->GetPosition())
-               || (env_use->GetPosition() == range->GetEnd()));
-        HEnvironment* environment = env_use->GetEnvironment();
-        environment->SetLocationAt(env_use->GetInputIndex(), source);
-        env_use = env_use->GetNext();
-      }
+      env_use_it = matching_env_use_range.end();
 
       range = range->GetNext();
     }
@@ -395,13 +401,8 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
     current = next_sibling;
   } while (current != nullptr);
 
-  if (kIsDebugBuild) {
-    // Following uses can only be synthesized uses.
-    while (use != nullptr) {
-      DCHECK(use->IsSynthesized());
-      use = use->GetNext();
-    }
-  }
+  // Following uses can only be synthesized uses.
+  DCHECK(std::all_of(use_it, use_end, [](const UsePosition& pos) { return pos.IsSynthesized(); }));
 }
 
 static bool IsMaterializableEntryBlockInstructionOfGraphWithIrreducibleLoop(

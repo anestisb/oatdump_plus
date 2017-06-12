@@ -178,18 +178,17 @@ static float ComputeSpillWeight(LiveInterval* interval, const SsaLivenessAnalysi
     use_weight += CostForMoveAt(interval->GetStart() + 1, liveness);
   }
 
-  UsePosition* use = interval->GetFirstUse();
-  while (use != nullptr && use->GetPosition() <= interval->GetStart()) {
-    // Skip uses before the start of this live interval.
-    use = use->GetNext();
-  }
-
-  while (use != nullptr && use->GetPosition() <= interval->GetEnd()) {
-    if (use->GetUser() != nullptr && use->RequiresRegister()) {
+  // Process uses in the range (interval->GetStart(), interval->GetEnd()], i.e.
+  // [interval->GetStart() + 1, interval->GetEnd() + 1)
+  auto matching_use_range = FindMatchingUseRange(interval->GetUses().begin(),
+                                                 interval->GetUses().end(),
+                                                 interval->GetStart() + 1u,
+                                                 interval->GetEnd() + 1u);
+  for (const UsePosition& use : matching_use_range) {
+    if (use.GetUser() != nullptr && use.RequiresRegister()) {
       // Cost for spilling at a register use point.
-      use_weight += CostForMoveAt(use->GetUser()->GetLifetimePosition() - 1, liveness);
+      use_weight += CostForMoveAt(use.GetUser()->GetLifetimePosition() - 1, liveness);
     }
-    use = use->GetNext();
   }
 
   // We divide by the length of the interval because we want to prioritize
@@ -989,16 +988,16 @@ void RegisterAllocatorGraphColor::SplitAtRegisterUses(LiveInterval* interval) {
     interval = TrySplit(interval, interval->GetStart() + 1);
   }
 
-  UsePosition* use = interval->GetFirstUse();
-  while (use != nullptr && use->GetPosition() < interval->GetStart()) {
-    use = use->GetNext();
-  }
-
+  // Process uses in the range [interval->GetStart(), interval->GetEnd()], i.e.
+  // [interval->GetStart(), interval->GetEnd() + 1)
+  auto matching_use_range = FindMatchingUseRange(interval->GetUses().begin(),
+                                                 interval->GetUses().end(),
+                                                 interval->GetStart(),
+                                                 interval->GetEnd() + 1u);
   // Split around register uses.
-  size_t end = interval->GetEnd();
-  while (use != nullptr && use->GetPosition() <= end) {
-    if (use->RequiresRegister()) {
-      size_t position = use->GetPosition();
+  for (const UsePosition& use : matching_use_range) {
+    if (use.RequiresRegister()) {
+      size_t position = use.GetPosition();
       interval = TrySplit(interval, position - 1);
       if (liveness_.GetInstructionFromPosition(position / 2)->IsControlFlow()) {
         // If we are at the very end of a basic block, we cannot split right
@@ -1008,7 +1007,6 @@ void RegisterAllocatorGraphColor::SplitAtRegisterUses(LiveInterval* interval) {
         interval = TrySplit(interval, position);
       }
     }
-    use = use->GetNext();
   }
 }
 
@@ -1398,18 +1396,20 @@ void ColoringIteration::FindCoalesceOpportunities() {
     }
 
     // Try to prevent moves into fixed input locations.
-    UsePosition* use = interval->GetFirstUse();
-    for (; use != nullptr && use->GetPosition() <= interval->GetStart(); use = use->GetNext()) {
-      // Skip past uses before the start of this interval.
-    }
-    for (; use != nullptr && use->GetPosition() <= interval->GetEnd(); use = use->GetNext()) {
-      HInstruction* user = use->GetUser();
+    // Process uses in the range (interval->GetStart(), interval->GetEnd()], i.e.
+    // [interval->GetStart() + 1, interval->GetEnd() + 1)
+    auto matching_use_range = FindMatchingUseRange(interval->GetUses().begin(),
+                                                   interval->GetUses().end(),
+                                                   interval->GetStart() + 1u,
+                                                   interval->GetEnd() + 1u);
+    for (const UsePosition& use : matching_use_range) {
+      HInstruction* user = use.GetUser();
       if (user == nullptr) {
         // User may be null for certain intervals, such as temp intervals.
         continue;
       }
       LocationSummary* locations = user->GetLocations();
-      Location input = locations->InAt(use->GetInputIndex());
+      Location input = locations->InAt(use.GetInputIndex());
       if (input.IsRegister() || input.IsFpuRegister()) {
         // TODO: Could try to handle pair interval too, but coalescing with fixed pair nodes
         //       is currently not supported.
