@@ -209,5 +209,12 @@
   modes: [device],
   names: ["libcore.java.lang.ProcessBuilderTest#testRedirectInherit",
           "libcore.java.lang.ProcessBuilderTest#testRedirect_nullStreams"]
+},
+{
+  description: "Test is timing sensitive",
+  result: EXEC_FAILED,
+  bug: 62528691,
+  modes: [device],
+  names: ["libcore.java.util.TimeZoneTest#testSetDefaultRace"]
 }
 ]
