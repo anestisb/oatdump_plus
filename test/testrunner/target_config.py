@@ -42,6 +42,12 @@ target_config = {
     # ART run-test configurations
     # (calls testrunner which builds and then runs the test targets)
 
+    'art-ndebug' : {
+        'run-test' : ['--ndebug'],
+        'env' : {
+            'ART_USE_READ_BARRIER' : 'true'
+        }
+    },
     'art-interpreter' : {
         'run-test' : ['--interpreter'],
         'env' : {
