@@ -89,7 +89,11 @@ public class Test988 {
       Class<?> klass = val.getClass();
       if ((new Object[0]).getClass().isAssignableFrom(klass)) {
         return Arrays.toString(
-            Arrays.stream((Object[])val).map(Test988::genericToString).toArray());
+            Arrays.stream((Object[])val).map(new Function<Object, String>() {
+              public String apply(Object o) {
+                return Test988.genericToString(o);
+              }
+            }).toArray());
       } else if ((new byte[0]).getClass().isAssignableFrom(klass)) {
         return Arrays.toString((byte[])val);
       } else if ((new char[0]).getClass().isAssignableFrom(klass)) {

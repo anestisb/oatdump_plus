@@ -142,10 +142,10 @@ fibonacci(5)=5
 ......=> private static native java.lang.Object java.lang.Throwable.nativeFillInStackTrace()
 ......<= private static native java.lang.Object java.lang.Throwable.nativeFillInStackTrace() -> <class [Ljava.lang.Object;: <non-deterministic>>
 .....<= public synchronized java.lang.Throwable java.lang.Throwable.fillInStackTrace() -> <class java.lang.Error: java.lang.Error: Bad argument: -19 < 0
-	at art.Test988.iter_fibonacci(Test988.java:203)
-	at art.Test988$IterOp.applyAsInt(Test988.java:198)
-	at art.Test988.doFibTest(Test988.java:291)
-	at art.Test988.run(Test988.java:261)
+	at art.Test988.iter_fibonacci(Test988.java:207)
+	at art.Test988$IterOp.applyAsInt(Test988.java:202)
+	at art.Test988.doFibTest(Test988.java:295)
+	at art.Test988.run(Test988.java:265)
 	at Main.main(Main.java:19)
 >
 ....<= public java.lang.Throwable(java.lang.String) -> <null: null>
@@ -162,10 +162,10 @@ fibonacci(5)=5
 ...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
-	at art.Test988.iter_fibonacci(Test988.java:203)
-	at art.Test988$IterOp.applyAsInt(Test988.java:198)
-	at art.Test988.doFibTest(Test988.java:291)
-	at art.Test988.run(Test988.java:261)
+	at art.Test988.iter_fibonacci(Test988.java:207)
+	at art.Test988$IterOp.applyAsInt(Test988.java:202)
+	at art.Test988.doFibTest(Test988.java:295)
+	at art.Test988.run(Test988.java:265)
 	at Main.main(Main.java:19)
 
 .<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
@@ -243,10 +243,10 @@ fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 ......=> private static native java.lang.Object java.lang.Throwable.nativeFillInStackTrace()
 ......<= private static native java.lang.Object java.lang.Throwable.nativeFillInStackTrace() -> <class [Ljava.lang.Object;: <non-deterministic>>
 .....<= public synchronized java.lang.Throwable java.lang.Throwable.fillInStackTrace() -> <class java.lang.Error: java.lang.Error: Bad argument: -19 < 0
-	at art.Test988.fibonacci(Test988.java:225)
-	at art.Test988$RecurOp.applyAsInt(Test988.java:220)
-	at art.Test988.doFibTest(Test988.java:291)
-	at art.Test988.run(Test988.java:262)
+	at art.Test988.fibonacci(Test988.java:229)
+	at art.Test988$RecurOp.applyAsInt(Test988.java:224)
+	at art.Test988.doFibTest(Test988.java:295)
+	at art.Test988.run(Test988.java:266)
 	at Main.main(Main.java:19)
 >
 ....<= public java.lang.Throwable(java.lang.String) -> <null: null>
@@ -263,10 +263,10 @@ fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 ...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
-	at art.Test988.fibonacci(Test988.java:225)
-	at art.Test988$RecurOp.applyAsInt(Test988.java:220)
-	at art.Test988.doFibTest(Test988.java:291)
-	at art.Test988.run(Test988.java:262)
+	at art.Test988.fibonacci(Test988.java:229)
+	at art.Test988$RecurOp.applyAsInt(Test988.java:224)
+	at art.Test988.doFibTest(Test988.java:295)
+	at art.Test988.run(Test988.java:266)
 	at Main.main(Main.java:19)
 
 .<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
