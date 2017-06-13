@@ -608,5 +608,11 @@
             "Tests that have verify-at-runtime classes, but being compiled when using vdex."
         ],
         "variant": "speed-profile"
+    },
+    {
+        "tests": ["137-cfi", "629-vdex-speed"],
+        "description": [ "Tests require speed compilation which is no longer the default for",
+                          "no-prebuild configs."],
+        "variant": "no-prebuild"
     }
 ]
