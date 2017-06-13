@@ -63,12 +63,13 @@ class DexReferenceCollection {
 
  private:
   DexFileMap map_;
-  // Optimize for adding to same vector in succession.
   const DexFile* current_dex_file_ = nullptr;
   IndexVector* current_vector_ = nullptr;
   VectorAllocator vector_allocator_;
 
   ALWAYS_INLINE IndexVector* GetOrInsertVector(const DexFile* dex) {
+    // Optimize for adding to same vector in succession, the cached dex file and vector aims to
+    // prevent map lookups.
     if (UNLIKELY(current_dex_file_ != dex)) {
       // There is an assumption that constructing an empty vector wont do any allocations. If this
       // incorrect, this might leak for the arena case.
