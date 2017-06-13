@@ -2273,6 +2273,7 @@ class InitializeClassVisitor : public CompilationVisitor {
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<3> hs(soa.Self());
     const bool is_boot_image = manager_->GetCompiler()->GetCompilerOptions().IsBootImage();
+    const bool is_app_image = manager_->GetCompiler()->GetCompilerOptions().IsAppImage();
 
     mirror::Class::Status old_status = klass->GetStatus();;
     // Only try to initialize classes that were successfully verified.
@@ -2299,6 +2300,7 @@ class InitializeClassVisitor : public CompilationVisitor {
         // If the class was not initialized, we can proceed to see if we can initialize static
         // fields.
         if (!klass->IsInitialized() &&
+            (is_app_image || is_boot_image) &&
             manager_->GetCompiler()->IsImageClass(descriptor)) {
           bool can_init_static_fields = false;
           if (is_boot_image) {
@@ -2307,12 +2309,12 @@ class InitializeClassVisitor : public CompilationVisitor {
             // early).
             can_init_static_fields = !StringPiece(descriptor).ends_with("$NoPreloadHolder;");
           } else {
+            CHECK(is_app_image);
             // The boot image case doesn't need to recursively initialize the dependencies with
             // special logic since the class linker already does this.
             bool is_superclass_initialized =
                 InitializeDependencies(klass, class_loader, soa.Self());
             can_init_static_fields =
-                manager_->GetCompiler()->GetCompilerOptions().IsAppImage() &&
                 !soa.Self()->IsExceptionPending() &&
                 is_superclass_initialized &&
                 NoClinitInDependency(klass, soa.Self(), &class_loader);
