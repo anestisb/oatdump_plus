@@ -23,10 +23,24 @@ if [ -z "$ANDROID_HOST_OUT" ] ; then
   ANDROID_HOST_OUT=${OUT_DIR-$ANDROID_BUILD_TOP/out}/host/linux-x86
 fi
 
-# Jar containing all the tests.
-test_jack=${ANDROID_HOST_OUT}/../common/obj/JAVA_LIBRARIES/apache-harmony-jdwp-tests-hostdex_intermediates/classes.jack
+using_jack=true
+if [[ $ANDROID_COMPILE_WITH_JACK == false ]]; then
+  using_jack=false
+fi
 
-if [ ! -f $test_jack ]; then
+function jlib_suffix {
+  local str=$1
+  local suffix="jar"
+  if $using_jack; then
+    suffix="jack"
+  fi
+  echo "$str.$suffix"
+}
+
+# Jar containing all the tests.
+test_jar=$(jlib_suffix "${ANDROID_HOST_OUT}/../common/obj/JAVA_LIBRARIES/apache-harmony-jdwp-tests-hostdex_intermediates/classes")
+
+if [ ! -f $test_jar ]; then
   echo "Before running, you must build jdwp tests and vogar:" \
        "make apache-harmony-jdwp-tests-hostdex vogar"
   exit 1
@@ -147,6 +161,12 @@ if [[ $verbose == "yes" ]]; then
   art_debugee="$art_debugee -verbose:jdwp"
 fi
 
+if $using_jack; then
+  toolchain_args="--toolchain jack --language JN --jack-arg -g"
+else
+  toolchain_args="--toolchain jdk --language CUR"
+fi
+
 # Run the tests using vogar.
 vogar $vm_command \
       $vm_args \
@@ -160,10 +180,9 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.waitingTime=$jdwp_test_timeout \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="$art_debugee $image $debuggee_args" \
-      --classpath $test_jack \
-      --toolchain jack --language JN \
+      --classpath "$test_jar" \
+      $toolchain_args \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
-      --jack-arg -g \
       $test
 
 vogar_exit_status=$?

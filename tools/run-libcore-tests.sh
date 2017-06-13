@@ -25,10 +25,26 @@ else
   JAVA_LIBRARIES=${ANDROID_PRODUCT_OUT}/../../common/obj/JAVA_LIBRARIES
 fi
 
+using_jack=true
+if [[ $ANDROID_COMPILE_WITH_JACK == false ]]; then
+  using_jack=false
+fi
+
+function classes_jar_path {
+  local var="$1"
+  local suffix="jar"
+
+  if $using_jack; then
+    suffix="jack"
+  fi
+
+  echo "${JAVA_LIBRARIES}/${var}_intermediates/classes.${suffix}"
+}
+
 function cparg {
   for var
   do
-    printf -- "--classpath ${JAVA_LIBRARIES}/${var}_intermediates/classes.jack ";
+    printf -- "--classpath $(classes_jar_path "$var") ";
   done
 }
 
@@ -36,7 +52,7 @@ DEPS="core-tests jsr166-tests mockito-target"
 
 for lib in $DEPS
 do
-  if [ ! -f "${JAVA_LIBRARIES}/${lib}_intermediates/classes.jack" ]; then
+  if [[ ! -f "$(classes_jar_path "$lib")" ]]; then
     echo "${lib} is missing. Before running, you must run art/tools/buildbot-build.sh"
     exit 1
   fi
@@ -122,8 +138,12 @@ done
 # the default timeout.
 vogar_args="$vogar_args --timeout 480"
 
-# Use Jack with "1.8" configuration.
-vogar_args="$vogar_args --toolchain jack --language JO"
+# Switch between using jack or javac+desugar+dx
+if $using_jack; then
+  vogar_args="$vogar_args --toolchain jack --language JO"
+else
+  vogar_args="$vogar_args --toolchain jdk --language CUR"
+fi
 
 # JIT settings.
 if $use_jit; then
