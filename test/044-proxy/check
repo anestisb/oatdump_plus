@@ -1,0 +1,33 @@
+#!/bin/bash
+#
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+expected="$1"
+output="$2"
+
+# Jack inserts a synthetic default method for interface methods with covariant return types.
+# Javac does not do this, so we must fiddle with the expected.txt to get the different behavior.
+
+expected_jack_line='Invocation of public default java[.]lang[.]Object NarrowingTest\$I2[.]foo[(][)]'
+replaced_javac_line='Invocation of public abstract java.lang.Object NarrowingTest\$I1.foo()'
+
+expected_replaced="$expected"
+
+if [[ $USE_JACK == false ]]; then
+  expected_replaced="$output.tmp"
+  sed "s:$expected_jack_line:$replaced_javac_line:g" "$expected" > "$expected_replaced"
+fi
+
+diff --strip-trailing-cr -q "$expected_replaced" "$output" >/dev/null
