@@ -178,6 +178,33 @@ static jvmtiError TranslateFrameVector(const std::vector<jvmtiFrameInfo>& frames
   return ERR(NONE);
 }
 
+struct GetStackTraceDirectClosure : public art::Closure {
+ public:
+  GetStackTraceDirectClosure(jvmtiFrameInfo* frame_buffer_, size_t start, size_t stop)
+      : frame_buffer(frame_buffer_),
+        start_input(start),
+        stop_input(stop),
+        index(0) {
+    DCHECK_GE(start_input, 0u);
+  }
+
+  void Run(art::Thread* self) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    auto frames_fn = [&](jvmtiFrameInfo info) {
+      frame_buffer[index] = info;
+      ++index;
+    };
+    auto visitor = MakeStackTraceVisitor(self, start_input, stop_input, frames_fn);
+    visitor.WalkStack(/* include_transitions */ false);
+  }
+
+  jvmtiFrameInfo* frame_buffer;
+
+  const size_t start_input;
+  const size_t stop_input;
+
+  size_t index = 0;
+};
+
 static jvmtiError GetThread(JNIEnv* env, jthread java_thread, art::Thread** thread) {
   if (java_thread == nullptr) {
     *thread = art::Thread::Current();
@@ -235,8 +262,20 @@ jvmtiError StackUtil::GetStackTrace(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED,
     return ERR(NONE);
   }
 
-  GetStackTraceVectorClosure closure(start_depth >= 0 ? static_cast<size_t>(start_depth) : 0,
-                                     start_depth >= 0 ? static_cast<size_t>(max_frame_count) : 0);
+  if (start_depth >= 0) {
+    // Fast path: Regular order of stack trace. Fill into the frame_buffer directly.
+    GetStackTraceDirectClosure closure(frame_buffer,
+                                       static_cast<size_t>(start_depth),
+                                       static_cast<size_t>(max_frame_count));
+    thread->RequestSynchronousCheckpoint(&closure);
+    *count_ptr = static_cast<jint>(closure.index);
+    if (closure.index < static_cast<size_t>(start_depth)) {
+      return ERR(ILLEGAL_ARGUMENT);
+    }
+    return ERR(NONE);
+  }
+
+  GetStackTraceVectorClosure closure(0, 0);
   thread->RequestSynchronousCheckpoint(&closure);
 
   return TranslateFrameVector(closure.frames,
