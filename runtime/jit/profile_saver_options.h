@@ -40,7 +40,8 @@ struct ProfileSaverOptions {
     min_classes_to_save_(kMinClassesToSave),
     min_notification_before_wake_(kMinNotificationBeforeWake),
     max_notification_before_wake_(kMaxNotificationBeforeWake),
-    profile_path_("") {}
+    profile_path_(""),
+    profile_boot_class_path_(false) {}
 
   ProfileSaverOptions(
       bool enabled,
@@ -51,8 +52,9 @@ struct ProfileSaverOptions {
       uint32_t min_classes_to_save,
       uint32_t min_notification_before_wake,
       uint32_t max_notification_before_wake,
-      const std::string& profile_path):
-    enabled_(enabled),
+      const std::string& profile_path,
+      bool profile_boot_class_path)
+  : enabled_(enabled),
     min_save_period_ms_(min_save_period_ms),
     save_resolved_classes_delay_ms_(save_resolved_classes_delay_ms),
     hot_startup_method_samples_(hot_startup_method_samples),
@@ -60,7 +62,8 @@ struct ProfileSaverOptions {
     min_classes_to_save_(min_classes_to_save),
     min_notification_before_wake_(min_notification_before_wake),
     max_notification_before_wake_(max_notification_before_wake),
-    profile_path_(profile_path) {}
+    profile_path_(profile_path),
+    profile_boot_class_path_(profile_boot_class_path) {}
 
   bool IsEnabled() const {
     return enabled_;
@@ -97,6 +100,9 @@ struct ProfileSaverOptions {
   std::string GetProfilePath() const {
     return profile_path_;
   }
+  bool GetProfileBootClassPath() const {
+    return profile_boot_class_path_;
+  }
 
   friend std::ostream & operator<<(std::ostream &os, const ProfileSaverOptions& pso) {
     os << "enabled_" << pso.enabled_
@@ -106,7 +112,8 @@ struct ProfileSaverOptions {
         << ", min_methods_to_save_" << pso.min_methods_to_save_
         << ", min_classes_to_save_" << pso.min_classes_to_save_
         << ", min_notification_before_wake_" << pso.min_notification_before_wake_
-        << ", max_notification_before_wake_" << pso.max_notification_before_wake_;
+        << ", max_notification_before_wake_" << pso.max_notification_before_wake_
+        << ", profile_boot_class_path_" << pso.profile_boot_class_path_;
     return os;
   }
 
@@ -121,6 +128,7 @@ struct ProfileSaverOptions {
   uint32_t min_notification_before_wake_;
   uint32_t max_notification_before_wake_;
   std::string profile_path_;
+  bool profile_boot_class_path_;
 };
 
 }  // namespace art
