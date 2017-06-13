@@ -2272,6 +2272,7 @@ class InitializeClassVisitor : public CompilationVisitor {
     const char* descriptor = dex_file.StringDataByIdx(class_type_id.descriptor_idx_);
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<3> hs(soa.Self());
+    const bool is_boot_image = manager_->GetCompiler()->GetCompilerOptions().IsBootImage();
 
     mirror::Class::Status old_status = klass->GetStatus();;
     // Only try to initialize classes that were successfully verified.
@@ -2293,32 +2294,27 @@ class InitializeClassVisitor : public CompilationVisitor {
         ObjectLock<mirror::Class> lock(soa.Self(), h_klass);
         // Attempt to initialize allowing initialization of parent classes but still not static
         // fields.
-        bool is_superclass_initialized = true;
-        if (!manager_->GetCompiler()->GetCompilerOptions().IsAppImage()) {
-          // If not an app image case, the compiler won't initialize too much things and do a fast
-          // fail, don't check dependencies.
-          manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
-        } else {
-          // For app images, do the initialization recursively and resolve types encountered to make
-          // sure the compiler runs without error.
-          is_superclass_initialized = InitializeDependencies(klass, class_loader, soa.Self());
-          if (is_superclass_initialized) {
-            manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
-          }
-        }
+        manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
         old_status = klass->GetStatus();
-        // If superclass cannot be initialized, no need to proceed.
+        // If the class was not initialized, we can proceed to see if we can initialize static
+        // fields.
         if (!klass->IsInitialized() &&
-            is_superclass_initialized &&
             manager_->GetCompiler()->IsImageClass(descriptor)) {
           bool can_init_static_fields = false;
-          if (manager_->GetCompiler()->GetCompilerOptions().IsBootImage()) {
+          if (is_boot_image) {
             // We need to initialize static fields, we only do this for image classes that aren't
-            // marked with the $NoPreloadHolder (which implies this should not be initialized early).
+            // marked with the $NoPreloadHolder (which implies this should not be initialized
+            // early).
             can_init_static_fields = !StringPiece(descriptor).ends_with("$NoPreloadHolder;");
           } else {
-            can_init_static_fields = manager_->GetCompiler()->GetCompilerOptions().IsAppImage() &&
+            // The boot image case doesn't need to recursively initialize the dependencies with
+            // special logic since the class linker already does this.
+            bool is_superclass_initialized =
+                InitializeDependencies(klass, class_loader, soa.Self());
+            can_init_static_fields =
+                manager_->GetCompiler()->GetCompilerOptions().IsAppImage() &&
                 !soa.Self()->IsExceptionPending() &&
+                is_superclass_initialized &&
                 NoClinitInDependency(klass, soa.Self(), &class_loader);
             // TODO The checking for clinit can be removed since it's already
             // checked when init superclass. Currently keep it because it contains
@@ -2361,6 +2357,10 @@ class InitializeClassVisitor : public CompilationVisitor {
                 soa.Self()->ClearException();
                 transaction.Rollback();
                 CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
+              } else if (is_boot_image) {
+                // For boot image, we want to put the updated status in the oat class since we can't
+                // reject the image anyways.
+                old_status = klass->GetStatus();
               }
             }
 
@@ -2370,6 +2370,8 @@ class InitializeClassVisitor : public CompilationVisitor {
               // above as we will allocate strings, so must be allowed to suspend.
               if (&klass->GetDexFile() == manager_->GetDexFile()) {
                 InternStrings(klass, class_loader);
+              } else {
+                DCHECK(!is_boot_image) << "Boot image must have equal dex files";
               }
             }
           }
