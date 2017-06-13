@@ -330,7 +330,7 @@ target_config = {
             'SANITIZE_HOST' : 'address'
         }
    },
-   'art-run-test-asan': {
+   'art-asan': {
         'run-test' : ['--interpreter',
                       '--optimizing',
                       '--jit'],
