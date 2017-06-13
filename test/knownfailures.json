@@ -706,13 +706,6 @@
         "description": "Test disabled due to redefine-stress disabling intrinsics which changes the trace output slightly."
     },
     {
-        "tests": "137-cfi",
-        "description": [ "ASan is reporting out-of-bounds reads in libunwind."],
-        "variant": "host",
-        "env_vars": {"SANITIZE_HOST": "address"},
-        "bug": "b/62350406"
-    },
-    {
         "tests": ["137-cfi", "629-vdex-speed"],
         "description": [ "Tests require speed compilation which is no longer the default for",
                           "no-prebuild or no-image configs."],
