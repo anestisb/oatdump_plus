@@ -174,7 +174,7 @@ class Dumper {
                       ProfileCompilationInfo* profile_info) {
     if (profile_info != nullptr) {
       uint32_t method_idx = method->GetMethodId()->GetIndex();
-      if (!profile_info->ContainsHotMethod(MethodReference(dex_file, method_idx))) {
+      if (!profile_info->GetMethodHotness(MethodReference(dex_file, method_idx)).IsHot()) {
         return;
       }
     }

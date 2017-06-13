@@ -239,14 +239,10 @@ class CompilerDriverProfileTest : public CompilerDriverTest {
 
     ProfileCompilationInfo info;
     for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
-      profile_info_.AddMethodIndex(dex_file->GetLocation(),
-                                   dex_file->GetLocationChecksum(),
-                                   1,
-                                   dex_file->NumMethodIds());
-      profile_info_.AddMethodIndex(dex_file->GetLocation(),
-                                   dex_file->GetLocationChecksum(),
-                                   2,
-                                   dex_file->NumMethodIds());
+      profile_info_.AddMethodIndex(ProfileCompilationInfo::MethodHotness::kFlagHot,
+                                   MethodReference(dex_file.get(), 1));
+      profile_info_.AddMethodIndex(ProfileCompilationInfo::MethodHotness::kFlagHot,
+                                   MethodReference(dex_file.get(), 2));
     }
     return &profile_info_;
   }

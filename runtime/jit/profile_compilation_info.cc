@@ -68,6 +68,10 @@ static_assert(InlineCache::kIndividualCacheSize < kIsMegamorphicEncoding,
 static_assert(InlineCache::kIndividualCacheSize < kIsMissingTypesEncoding,
               "InlineCache::kIndividualCacheSize is larger than expected");
 
+static bool ChecksumMatch(uint32_t dex_file_checksum, uint32_t checksum) {
+  return kDebugIgnoreChecksum || dex_file_checksum == checksum;
+}
+
 ProfileCompilationInfo::ProfileCompilationInfo(ArenaPool* custom_arena_pool)
     : default_arena_pool_(),
       arena_(custom_arena_pool),
@@ -132,29 +136,40 @@ std::string ProfileCompilationInfo::GetProfileDexFileKey(const std::string& dex_
   }
 }
 
-bool ProfileCompilationInfo::AddSampledMethod(bool startup,
-                                              const std::string& dex_location,
-                                              uint32_t checksum,
-                                              uint16_t method_idx,
-                                              uint32_t num_method_ids) {
+bool ProfileCompilationInfo::AddMethodIndex(MethodHotness::Flag flags, const MethodReference& ref) {
+  DexFileData* data = GetOrAddDexFileData(ref.dex_file);
+  if (data == nullptr) {
+    return false;
+  }
+  data->AddMethod(flags, ref.dex_method_index);
+  return true;
+}
+
+bool ProfileCompilationInfo::AddMethodIndex(MethodHotness::Flag flags,
+                                            const std::string& dex_location,
+                                            uint32_t checksum,
+                                            uint16_t method_idx,
+                                            uint32_t num_method_ids) {
   DexFileData* data = GetOrAddDexFileData(GetProfileDexFileKey(dex_location),
                                           checksum,
                                           num_method_ids);
   if (data == nullptr) {
     return false;
   }
-  data->AddSampledMethod(startup, method_idx);
+  data->AddMethod(flags, method_idx);
   return true;
 }
 
-bool ProfileCompilationInfo::AddMethodsAndClasses(
-    const std::vector<ProfileMethodInfo>& methods,
-    const std::set<DexCacheResolvedClasses>& resolved_classes) {
+bool ProfileCompilationInfo::AddMethods(const std::vector<ProfileMethodInfo>& methods) {
   for (const ProfileMethodInfo& method : methods) {
     if (!AddMethod(method)) {
       return false;
     }
   }
+  return true;
+}
+
+bool ProfileCompilationInfo::AddClasses(const std::set<DexCacheResolvedClasses>& resolved_classes) {
   for (const DexCacheResolvedClasses& dex_cache : resolved_classes) {
     if (!AddResolvedClasses(dex_cache)) {
       return false;
@@ -533,8 +548,7 @@ ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::GetOrAddDexFileData
   DCHECK_EQ(num_method_ids, result->num_method_ids);
 
   // Check that the checksum matches.
-  // This may different if for example the dex file was updated and
-  // we had a record of the old one.
+  // This may different if for example the dex file was updated and we had a record of the old one.
   if (result->checksum != checksum) {
     LOG(WARNING) << "Checksum mismatch for dex " << profile_key;
     return nullptr;
@@ -543,7 +557,9 @@ ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::GetOrAddDexFileData
 }
 
 const ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::FindDexData(
-      const std::string& profile_key) const {
+      const std::string& profile_key,
+      uint32_t checksum,
+      bool verify_checksum) const {
   const auto profile_index_it = profile_key_map_.find(profile_key);
   if (profile_index_it == profile_key_map_.end()) {
     return nullptr;
@@ -551,6 +567,9 @@ const ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::FindDexData(
 
   uint8_t profile_index = profile_index_it->second;
   const DexFileData* result = info_[profile_index];
+  if (verify_checksum && !ChecksumMatch(result->checksum, checksum)) {
+    return nullptr;
+  }
   DCHECK_EQ(profile_key, result->profile_key);
   DCHECK_EQ(profile_index, result->profile_index);
   return result;
@@ -565,17 +584,6 @@ bool ProfileCompilationInfo::AddResolvedClasses(const DexCacheResolvedClasses& c
   }
   data->class_set.insert(classes.GetClasses().begin(), classes.GetClasses().end());
   return true;
-}
-
-bool ProfileCompilationInfo::AddMethodIndex(const std::string& dex_location,
-                                            uint32_t dex_checksum,
-                                            uint16_t method_index,
-                                            uint32_t num_method_ids) {
-  return AddMethod(dex_location,
-                   dex_checksum,
-                   method_index,
-                   num_method_ids,
-                   OfflineProfileMethodInfo(nullptr));
 }
 
 bool ProfileCompilationInfo::AddMethod(const std::string& dex_location,
@@ -630,11 +638,11 @@ bool ProfileCompilationInfo::AddMethod(const std::string& dex_location,
 }
 
 bool ProfileCompilationInfo::AddMethod(const ProfileMethodInfo& pmi) {
-  DexFileData* const data = GetOrAddDexFileData(pmi.dex_file);
+  DexFileData* const data = GetOrAddDexFileData(pmi.ref.dex_file);
   if (data == nullptr) {  // checksum mismatch
     return false;
   }
-  InlineCacheMap* inline_cache = data->FindOrAddMethod(pmi.dex_method_index);
+  InlineCacheMap* inline_cache = data->FindOrAddMethod(pmi.ref.dex_method_index);
 
   for (const ProfileMethodInfo::ProfileInlineCache& cache : pmi.inline_caches) {
     if (cache.is_missing_types) {
@@ -1143,7 +1151,9 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
   // Note that the number of elements should be very small, so this should not
   // be a performance issue.
   for (const DexFileData* other_dex_data : other.info_) {
-    const DexFileData* dex_data = FindDexData(other_dex_data->profile_key);
+    const DexFileData* dex_data = FindDexData(other_dex_data->profile_key,
+                                              0u,
+                                              /* verify_checksum */ false);
     if ((dex_data != nullptr) && (dex_data->checksum != other_dex_data->checksum)) {
       LOG(WARNING) << "Checksum mismatch for dex " << other_dex_data->profile_key;
       return false;
@@ -1174,7 +1184,8 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
 
   // Merge the actual profile data.
   for (const DexFileData* other_dex_data : other.info_) {
-    DexFileData* dex_data = const_cast<DexFileData*>(FindDexData(other_dex_data->profile_key));
+    DexFileData* dex_data = const_cast<DexFileData*>(FindDexData(other_dex_data->profile_key,
+                                                                 other_dex_data->checksum));
     DCHECK(dex_data != nullptr);
 
     // Merge the classes.
@@ -1203,86 +1214,41 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
       }
     }
 
-    // Merge the bitmaps.
+    // Merge the method bitmaps.
     dex_data->MergeBitmap(*other_dex_data);
   }
   return true;
 }
 
-static bool ChecksumMatch(uint32_t dex_file_checksum, uint32_t checksum) {
-  return kDebugIgnoreChecksum || dex_file_checksum == checksum;
-}
-
-static bool ChecksumMatch(const DexFile& dex_file, uint32_t checksum) {
-  return ChecksumMatch(dex_file.GetLocationChecksum(), checksum);
-}
-
-bool ProfileCompilationInfo::IsStartupOrHotMethod(const MethodReference& method_ref) const {
-  return IsStartupOrHotMethod(method_ref.dex_file->GetLocation(),
-                              method_ref.dex_file->GetLocationChecksum(),
-                              method_ref.dex_method_index);
-}
-
 const ProfileCompilationInfo::DexFileData* ProfileCompilationInfo::FindDexData(
     const DexFile* dex_file) const {
-  const DexFileData* dex_data = FindDexData(GetProfileDexFileKey(dex_file->GetLocation()));
-  if (dex_data == nullptr || !ChecksumMatch(*dex_file, dex_data->checksum)) {
-    return nullptr;
-  }
-  return dex_data;
+  return FindDexData(GetProfileDexFileKey(dex_file->GetLocation()),
+                     dex_file->GetLocationChecksum());
 }
 
-bool ProfileCompilationInfo::IsStartupOrHotMethod(const std::string& dex_location,
-                                                  uint32_t dex_checksum,
-                                                  uint16_t dex_method_index) const {
-  const DexFileData* dex_data = FindDexData(GetProfileDexFileKey(dex_location));
-  if (dex_data == nullptr || !ChecksumMatch(dex_checksum, dex_data->checksum)) {
-    return false;
-  }
-  if (dex_data->HasSampledMethod(/*startup*/ true, dex_method_index)) {
-    return true;
-  }
-  const MethodMap& methods = dex_data->method_map;
-  const auto method_it = methods.find(dex_method_index);
-  return method_it != methods.end();
-}
-
-bool ProfileCompilationInfo::ContainsSampledMethod(bool startup,
-                                                   const MethodReference& method_ref) const {
+ProfileCompilationInfo::MethodHotness ProfileCompilationInfo::GetMethodHotness(
+    const MethodReference& method_ref) const {
   const DexFileData* dex_data = FindDexData(method_ref.dex_file);
-  if (dex_data == nullptr) {
-    return false;
-  }
-  return dex_data->HasSampledMethod(startup, method_ref.dex_method_index);
+  return dex_data != nullptr
+      ? dex_data->GetHotnessInfo(method_ref.dex_method_index)
+      : MethodHotness();
 }
 
-bool ProfileCompilationInfo::ContainsHotMethod(const MethodReference& method_ref) const {
-  return FindMethod(method_ref.dex_file->GetLocation(),
-                    method_ref.dex_file->GetLocationChecksum(),
-                    method_ref.dex_method_index) != nullptr;
+ProfileCompilationInfo::MethodHotness ProfileCompilationInfo::GetMethodHotness(
+    const std::string& dex_location,
+    uint32_t dex_checksum,
+    uint16_t dex_method_index) const {
+  const DexFileData* dex_data = FindDexData(GetProfileDexFileKey(dex_location), dex_checksum);
+  return dex_data != nullptr ? dex_data->GetHotnessInfo(dex_method_index) : MethodHotness();
 }
 
-const ProfileCompilationInfo::InlineCacheMap*
-ProfileCompilationInfo::FindMethod(const std::string& dex_location,
-                                   uint32_t dex_checksum,
-                                   uint16_t dex_method_index) const {
-  const DexFileData* dex_data = FindDexData(GetProfileDexFileKey(dex_location));
-  if (dex_data != nullptr) {
-    if (!ChecksumMatch(dex_checksum, dex_data->checksum)) {
-      return nullptr;
-    }
-    const MethodMap& methods = dex_data->method_map;
-    const auto method_it = methods.find(dex_method_index);
-    return method_it == methods.end() ? nullptr : &(method_it->second);
-  }
-  return nullptr;
-}
 
 std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> ProfileCompilationInfo::GetMethod(
-      const std::string& dex_location,
-      uint32_t dex_checksum,
-      uint16_t dex_method_index) const {
-  const InlineCacheMap* inline_caches = FindMethod(dex_location, dex_checksum, dex_method_index);
+    const std::string& dex_location,
+    uint32_t dex_checksum,
+    uint16_t dex_method_index) const {
+  MethodHotness hotness(GetMethodHotness(dex_location, dex_checksum, dex_method_index));
+  const InlineCacheMap* inline_caches = hotness.GetInlineCacheMap();
   if (inline_caches == nullptr) {
     return nullptr;
   }
@@ -1301,11 +1267,8 @@ std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> ProfileCompila
 
 
 bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, dex::TypeIndex type_idx) const {
-  const DexFileData* dex_data = FindDexData(GetProfileDexFileKey(dex_file.GetLocation()));
+  const DexFileData* dex_data = FindDexData(&dex_file);
   if (dex_data != nullptr) {
-    if (!ChecksumMatch(dex_file, dex_data->checksum)) {
-      return false;
-    }
     const ArenaSet<dex::TypeIndex>& classes = dex_data->class_set;
     return classes.find(type_idx) != classes.end();
   }
@@ -1404,7 +1367,8 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
     while (true) {
       os << "\n\t" << (startup ? "startup methods: " : "post startup methods: ");
       for (uint32_t method_idx = 0; method_idx < dex_data->num_method_ids; ++method_idx) {
-        if (dex_data->HasSampledMethod(startup, method_idx)) {
+        MethodHotness hotness_info(dex_data->GetHotnessInfo(method_idx));
+        if (startup ? hotness_info.IsStartup() : hotness_info.IsPostStartup()) {
           os << method_idx << ", ";
         }
       }
@@ -1432,19 +1396,19 @@ bool ProfileCompilationInfo::GetClassesAndMethods(
     /*out*/std::set<uint16_t>* startup_method_set,
     /*out*/std::set<uint16_t>* post_startup_method_method_set) const {
   std::set<std::string> ret;
-  std::string profile_key = GetProfileDexFileKey(dex_file.GetLocation());
-  const DexFileData* dex_data = FindDexData(profile_key);
-  if (dex_data == nullptr || dex_data->checksum != dex_file.GetLocationChecksum()) {
+  const DexFileData* dex_data = FindDexData(&dex_file);
+  if (dex_data == nullptr) {
     return false;
   }
   for (const auto& it : dex_data->method_map) {
     hot_method_set->insert(it.first);
   }
   for (uint32_t method_idx = 0; method_idx < dex_data->num_method_ids; ++method_idx) {
-    if (dex_data->HasSampledMethod(/*startup*/ true, method_idx)) {
+    MethodHotness hotness = dex_data->GetHotnessInfo(method_idx);
+    if (hotness.IsStartup()) {
       startup_method_set->insert(method_idx);
     }
-    if (dex_data->HasSampledMethod(/*startup*/ false, method_idx)) {
+    if (hotness.IsPostStartup()) {
       post_startup_method_method_set->insert(method_idx);
     }
   }
@@ -1529,7 +1493,11 @@ bool ProfileCompilationInfo::GenerateTestProfile(int fd,
       if (m < (number_of_methods / kFavorSplit)) {
         method_idx %= kFavorFirstN;
       }
-      info.AddMethodIndex(profile_key, 0, method_idx, max_method);
+      info.AddMethodIndex(MethodHotness::kFlagHot,
+                          profile_key,
+                          /*method_idx*/ 0,
+                          method_idx,
+                          max_method);
     }
 
     for (uint16_t c = 0; c < number_of_classes; c++) {
@@ -1558,14 +1526,14 @@ bool ProfileCompilationInfo::GenerateTestProfile(
       if (std::rand() % 2 != 0) {
         info.AddClassIndex(location,
                            checksum,
-                           dex::TypeIndex(dex_file->GetClassDef(i).class_idx_),
+                           dex_file->GetClassDef(i).class_idx_,
                            dex_file->NumMethodIds());
       }
     }
     for (uint32_t i = 0; i < dex_file->NumMethodIds(); ++i) {
       // Randomly add a method from the dex file (with 50% chance).
       if (std::rand() % 2 != 0) {
-        info.AddMethodIndex(location, checksum, i, dex_file->NumMethodIds());
+        info.AddMethodIndex(MethodHotness::kFlagHot, MethodReference(dex_file.get(), i));
       }
     }
   }

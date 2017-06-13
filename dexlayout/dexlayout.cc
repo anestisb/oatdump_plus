@@ -1557,7 +1557,7 @@ void DexLayout::LayoutStringData(const DexFile* dex_file) {
             (method->GetAccessFlags() & kAccConstructor) != 0 &&
             (method->GetAccessFlags() & kAccStatic) != 0;
         const bool method_executed = is_clinit ||
-            info_->IsStartupOrHotMethod(MethodReference(dex_file, method_id->GetIndex()));
+            info_->GetMethodHotness(MethodReference(dex_file, method_id->GetIndex())).HasAnyFlags();
         if (!method_executed) {
           continue;
         }
@@ -1699,7 +1699,7 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
             (method->GetAccessFlags() & kAccConstructor) != 0 &&
             (method->GetAccessFlags() & kAccStatic) != 0;
         const bool is_method_executed =
-            info_->IsStartupOrHotMethod(MethodReference(dex_file, method_id->GetIndex()));
+            info_->GetMethodHotness(MethodReference(dex_file, method_id->GetIndex())).HasAnyFlags();
         CodeItemKind code_item_kind = CodeItemKind::kMethodNotExecuted;
         if (is_clinit) {
           code_item_kind = CodeItemKind::kMethodClinit;

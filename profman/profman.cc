@@ -779,13 +779,15 @@ class ProfMan FINAL {
             if (it.GetMethodCodeItemOffset() != 0) {
               // Add all of the methods that have code to the profile.
               const uint32_t method_idx = it.GetMemberIndex();
-              methods.push_back(ProfileMethodInfo(dex_file, method_idx));
+              methods.push_back(ProfileMethodInfo(MethodReference(dex_file, method_idx)));
             }
             it.Next();
           }
         }
       }
-      profile->AddMethodsAndClasses(methods, resolved_class_set);
+      // TODO: Check return values?
+      profile->AddMethods(methods);
+      profile->AddClasses(resolved_class_set);
       return true;
     }
 
@@ -833,28 +835,23 @@ class ProfMan FINAL {
       }
       inline_caches.emplace_back(dex_pc, is_missing_types, classes);
     }
-    ProfileMethodInfo pmi(class_ref.dex_file, method_index, inline_caches);
+    MethodReference ref(class_ref.dex_file, method_index);
     if (is_hot) {
-      profile->AddMethod(pmi);
+      profile->AddMethod(ProfileMethodInfo(ref, inline_caches));
     }
+    uint32_t flags = 0;
+    using Hotness = ProfileCompilationInfo::MethodHotness;
     if (is_startup) {
-      if (!profile->AddSampledMethod(/*is_startup*/ true,
-                                     pmi.dex_file->GetLocation(),
-                                     pmi.dex_file->GetLocationChecksum(),
-                                     method_index,
-                                     pmi.dex_file->NumMethodIds())) {
-        return false;
-      }
-      DCHECK(profile->IsStartupOrHotMethod(MethodReference(pmi.dex_file, method_index)));
+      flags |= Hotness::kFlagStartup;
     }
     if (is_post_startup) {
-      if (!profile->AddSampledMethod(/*is_startup*/ false,
-                                     pmi.dex_file->GetLocation(),
-                                     pmi.dex_file->GetLocationChecksum(),
-                                     method_index,
-                                     pmi.dex_file->NumMethodIds())) {
+      flags |= Hotness::kFlagPostStartup;
+    }
+    if (flags != 0) {
+      if (!profile->AddMethodIndex(static_cast<Hotness::Flag>(flags), ref)) {
         return false;
       }
+      DCHECK(profile->GetMethodHotness(ref).HasAnyFlags());
     }
     return true;
   }

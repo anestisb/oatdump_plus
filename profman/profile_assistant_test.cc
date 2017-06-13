@@ -86,14 +86,19 @@ class ProfileAssistantTest : public CommonRuntimeTest {
                          const ScratchFile& profile,
                          ProfileCompilationInfo* info) {
     std::string dex_location = "location1" + id;
+    using Hotness = ProfileCompilationInfo::MethodHotness;
     for (uint32_t idx : hot_methods) {
-      info->AddMethodIndex(dex_location, checksum, idx, number_of_methods);
+      info->AddMethodIndex(Hotness::kFlagHot, dex_location, checksum, idx, number_of_methods);
     }
     for (uint32_t idx : startup_methods) {
-      info->AddSampledMethod(/*startup*/true, dex_location, checksum, idx, number_of_methods);
+      info->AddMethodIndex(Hotness::kFlagStartup, dex_location, checksum, idx, number_of_methods);
     }
     for (uint32_t idx : post_startup_methods) {
-      info->AddSampledMethod(/*startup*/false, dex_location, checksum, idx, number_of_methods);
+      info->AddMethodIndex(Hotness::kFlagPostStartup,
+                           dex_location,
+                           checksum,
+                           idx,
+                           number_of_methods);
     }
     ASSERT_TRUE(info->Save(GetFd(profile)));
     ASSERT_EQ(0, profile.GetFile()->Flush());
@@ -609,7 +614,7 @@ TEST_F(ProfileAssistantTest, TestProfileCreationGenerateMethods) {
           info.GetMethod(method.GetDexFile()->GetLocation(),
                          method.GetDexFile()->GetLocationChecksum(),
                          method.GetDexMethodIndex());
-      ASSERT_TRUE(pmi != nullptr);
+      ASSERT_TRUE(pmi != nullptr) << method.PrettyMethod();
     }
   }
   EXPECT_GT(method_count, 0u);
