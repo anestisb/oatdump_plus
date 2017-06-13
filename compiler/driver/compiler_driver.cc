@@ -2466,63 +2466,63 @@ class InitializeClassVisitor : public CompilationVisitor {
 
   bool ResolveTypesOfMethods(Thread* self, ArtMethod* m)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-      auto rtn_type = m->GetReturnType(true);  // return value is discarded because resolve will be done internally.
-      if (rtn_type == nullptr) {
-        self->ClearException();
-        return false;
-      }
-      const DexFile::TypeList* types = m->GetParameterTypeList();
-      if (types != nullptr) {
-        for (uint32_t i = 0; i < types->Size(); ++i) {
-          dex::TypeIndex param_type_idx = types->GetTypeItem(i).type_idx_;
-          auto param_type = m->GetClassFromTypeIndex(param_type_idx, true);
-          if (param_type == nullptr) {
-            self->ClearException();
-            return false;
-          }
+    auto rtn_type = m->GetReturnType(true);  // return value is discarded because resolve will be done internally.
+    if (rtn_type == nullptr) {
+      self->ClearException();
+      return false;
+    }
+    const DexFile::TypeList* types = m->GetParameterTypeList();
+    if (types != nullptr) {
+      for (uint32_t i = 0; i < types->Size(); ++i) {
+        dex::TypeIndex param_type_idx = types->GetTypeItem(i).type_idx_;
+        auto param_type = m->GetClassFromTypeIndex(param_type_idx, true);
+        if (param_type == nullptr) {
+          self->ClearException();
+          return false;
         }
       }
-      return true;
+    }
+    return true;
   }
 
   // Pre resolve types mentioned in all method signatures before start a transaction
   // since ResolveType doesn't work in transaction mode.
   bool PreResolveTypes(Thread* self, const Handle<mirror::Class>& klass)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-      PointerSize pointer_size = manager_->GetClassLinker()->GetImagePointerSize();
-      for (ArtMethod& m : klass->GetMethods(pointer_size)) {
-        if (!ResolveTypesOfMethods(self, &m)) {
+    PointerSize pointer_size = manager_->GetClassLinker()->GetImagePointerSize();
+    for (ArtMethod& m : klass->GetMethods(pointer_size)) {
+      if (!ResolveTypesOfMethods(self, &m)) {
+        return false;
+      }
+    }
+    if (klass->IsInterface()) {
+      return true;
+    } else if (klass->HasSuperClass()) {
+      StackHandleScope<1> hs(self);
+      MutableHandle<mirror::Class> super_klass(hs.NewHandle<mirror::Class>(klass->GetSuperClass()));
+      for (int i = super_klass->GetVTableLength() - 1; i >= 0; --i) {
+        ArtMethod* m = klass->GetVTableEntry(i, pointer_size);
+        ArtMethod* super_m = super_klass->GetVTableEntry(i, pointer_size);
+        if (!ResolveTypesOfMethods(self, m) || !ResolveTypesOfMethods(self, super_m)) {
           return false;
         }
       }
-      if (klass->IsInterface()) {
-        return true;
-      } else if (klass->HasSuperClass()) {
-        StackHandleScope<1> hs(self);
-        MutableHandle<mirror::Class> super_klass(hs.NewHandle<mirror::Class>(klass->GetSuperClass()));
-        for (int i = super_klass->GetVTableLength() - 1; i >= 0; --i) {
-          ArtMethod* m = klass->GetVTableEntry(i, pointer_size);
-          ArtMethod* super_m = super_klass->GetVTableEntry(i, pointer_size);
-          if (!ResolveTypesOfMethods(self, m) || !ResolveTypesOfMethods(self, super_m)) {
-            return false;
-          }
-        }
-        for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-          super_klass.Assign(klass->GetIfTable()->GetInterface(i));
-          if (klass->GetClassLoader() != super_klass->GetClassLoader()) {
-            uint32_t num_methods = super_klass->NumVirtualMethods();
-            for (uint32_t j = 0; j < num_methods; ++j) {
-              ArtMethod* m = klass->GetIfTable()->GetMethodArray(i)->GetElementPtrSize<ArtMethod*>(
-                  j, pointer_size);
-              ArtMethod* super_m = super_klass->GetVirtualMethod(j, pointer_size);
-              if (!ResolveTypesOfMethods(self, m) || !ResolveTypesOfMethods(self, super_m)) {
-                return false;
-              }
+      for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
+        super_klass.Assign(klass->GetIfTable()->GetInterface(i));
+        if (klass->GetClassLoader() != super_klass->GetClassLoader()) {
+          uint32_t num_methods = super_klass->NumVirtualMethods();
+          for (uint32_t j = 0; j < num_methods; ++j) {
+            ArtMethod* m = klass->GetIfTable()->GetMethodArray(i)->GetElementPtrSize<ArtMethod*>(
+                j, pointer_size);
+            ArtMethod* super_m = super_klass->GetVirtualMethod(j, pointer_size);
+            if (!ResolveTypesOfMethods(self, m) || !ResolveTypesOfMethods(self, super_m)) {
+              return false;
             }
           }
         }
       }
-      return true;
+    }
+    return true;
   }
 
   // Initialize the klass's dependencies recursively before initializing itself.
