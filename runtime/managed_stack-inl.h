@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include <string>
 
-#include "stack.h"
+#include "interpreter/shadow_frame.h"
 
 namespace art {
 
