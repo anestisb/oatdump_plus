@@ -298,28 +298,38 @@ std::string OatFileAssistant::GetStatusDump() {
 }
 
 std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
-    const OatFile& oat_file, const char* dex_location) {
+    const OatFile &oat_file, const char *dex_location) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
+  if (LoadDexFiles(oat_file, dex_location, &dex_files)) {
+    return dex_files;
+  } else {
+    return std::vector<std::unique_ptr<const DexFile>>();
+  }
+}
 
+bool OatFileAssistant::LoadDexFiles(
+    const OatFile &oat_file,
+    const std::string& dex_location,
+    std::vector<std::unique_ptr<const DexFile>>* out_dex_files) {
   // Load the main dex file.
   std::string error_msg;
   const OatFile::OatDexFile* oat_dex_file = oat_file.GetOatDexFile(
-      dex_location, nullptr, &error_msg);
+      dex_location.c_str(), nullptr, &error_msg);
   if (oat_dex_file == nullptr) {
     LOG(WARNING) << error_msg;
-    return std::vector<std::unique_ptr<const DexFile>>();
+    return false;
   }
 
   std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
   if (dex_file.get() == nullptr) {
     LOG(WARNING) << "Failed to open dex file from oat dex file: " << error_msg;
-    return std::vector<std::unique_ptr<const DexFile>>();
+    return false;
   }
-  dex_files.push_back(std::move(dex_file));
+  out_dex_files->push_back(std::move(dex_file));
 
   // Load the rest of the multidex entries
-  for (size_t i = 1; ; i++) {
-    std::string multidex_dex_location = DexFile::GetMultiDexLocation(i, dex_location);
+  for (size_t i = 1;; i++) {
+    std::string multidex_dex_location = DexFile::GetMultiDexLocation(i, dex_location.c_str());
     oat_dex_file = oat_file.GetOatDexFile(multidex_dex_location.c_str(), nullptr);
     if (oat_dex_file == nullptr) {
       // There are no more multidex entries to load.
@@ -329,11 +339,11 @@ std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
     dex_file = oat_dex_file->OpenDexFile(&error_msg);
     if (dex_file.get() == nullptr) {
       LOG(WARNING) << "Failed to open dex file from oat dex file: " << error_msg;
-      return std::vector<std::unique_ptr<const DexFile>>();
+      return false;
     }
-    dex_files.push_back(std::move(dex_file));
+    out_dex_files->push_back(std::move(dex_file));
   }
-  return dex_files;
+  return true;
 }
 
 bool OatFileAssistant::HasOriginalDexFiles() {

@@ -299,7 +299,7 @@ class OatFile {
   // Create a dependency list (dex locations and checksums) for the given dex files.
   // Removes dex file paths prefixed with base_dir to convert them back to relative paths.
   static std::string EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files,
-                                               std::string& base_dir);
+                                               const std::string& base_dir);
 
   // Finds the associated oat class for a dex_file and descriptor. Returns an invalid OatClass on
   // error and sets found to false.

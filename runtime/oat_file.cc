@@ -1577,7 +1577,7 @@ CompilerFilter::Filter OatFile::GetCompilerFilter() const {
 static constexpr char kDexClassPathEncodingSeparator = '*';
 
 std::string OatFile::EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files,
-                                               std::string& base_dir) {
+                                               const std::string& base_dir) {
   std::ostringstream out;
 
   for (const DexFile* dex_file : dex_files) {
