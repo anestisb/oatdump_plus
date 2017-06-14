@@ -2003,10 +2003,11 @@ END art_invoke_obsolete_method_stub
 ENTRY art_quick_instrumentation_entry
     SETUP_SAVE_REFS_AND_ARGS_FRAME
     sw       $a0, 28($sp)   # save arg0 in free arg slot
-    move     $a3, $ra       # pass $ra
+    addiu    $a3, $sp, ARG_SLOT_SIZE      # Pass $sp.
     la       $t9, artInstrumentationMethodEntryFromCode
-    jalr     $t9            # (Method*, Object*, Thread*, LR)
+    jalr     $t9            # (Method*, Object*, Thread*, SP)
     move     $a2, rSELF     # pass Thread::Current
+    beqz     $v0, .Ldeliver_instrumentation_entry_exception
     move     $t9, $v0       # $t9 holds reference to code
     lw       $a0, 28($sp)   # restore arg0 from free arg slot
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
@@ -2024,26 +2025,35 @@ art_quick_instrumentation_exit:
     SETUP_SAVE_REFS_ONLY_FRAME
     addiu    $sp, $sp, -16  # allocate temp storage on the stack
     .cfi_adjust_cfa_offset 16
-    sw       $v0, ARG_SLOT_SIZE+12($sp)
-    .cfi_rel_offset 2, ARG_SLOT_SIZE+12
-    sw       $v1, ARG_SLOT_SIZE+8($sp)
-    .cfi_rel_offset 3, ARG_SLOT_SIZE+8
+    sw       $v0, ARG_SLOT_SIZE+8($sp)
+    .cfi_rel_offset 2, ARG_SLOT_SIZE+8
+    sw       $v1, ARG_SLOT_SIZE+12($sp)
+    .cfi_rel_offset 3, ARG_SLOT_SIZE+12
     s.d      $f0, ARG_SLOT_SIZE($sp)
-    s.d      $f0, 16($sp)   # pass fpr result
-    move     $a2, $v0       # pass gpr result
-    move     $a3, $v1
-    addiu    $a1, $sp, ARG_SLOT_SIZE+16   # pass $sp (remove arg slots and temp storage)
+    addiu    $a3, $sp, ARG_SLOT_SIZE      # Pass fpr_res pointer.
+    addiu    $a2, $sp, ARG_SLOT_SIZE+8    # Pass gpr_res pointer.
+    addiu    $a1, $sp, ARG_SLOT_SIZE+16   # Pass $sp (remove arg slots and temp storage).
     la       $t9, artInstrumentationMethodExitFromCode
-    jalr     $t9            # (Thread*, SP, gpr_res, fpr_res)
-    move     $a0, rSELF     # pass Thread::Current
-    move     $t9, $v0       # set aside returned link register
-    move     $ra, $v1       # set link register for deoptimization
-    lw       $v0, ARG_SLOT_SIZE+12($sp)   # restore return values
-    lw       $v1, ARG_SLOT_SIZE+8($sp)
+    jalr     $t9                          # (Thread*, SP, gpr_res*, fpr_res*)
+    move     $a0, rSELF                   # Pass Thread::Current.
+    move     $t9, $v0                     # Set aside returned link register.
+    move     $ra, $v1                     # Set link register for deoptimization.
+    lw       $v0, ARG_SLOT_SIZE+8($sp)    # Restore return values.
+    lw       $v1, ARG_SLOT_SIZE+12($sp)
     l.d      $f0, ARG_SLOT_SIZE($sp)
-    jalr     $zero, $t9     # return
-    addiu    $sp, $sp, ARG_SLOT_SIZE+FRAME_SIZE_SAVE_REFS_ONLY+16  # restore stack
-    .cfi_adjust_cfa_offset -(ARG_SLOT_SIZE+FRAME_SIZE_SAVE_REFS_ONLY+16)
+    addiu    $sp, $sp, 16
+    .cfi_adjust_cfa_offset -16
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    beqz     $t9, .Ldo_deliver_instrumentation_exception
+    nop                     # Deliver exception if we got nullptr as function.
+    jalr     $zero, $t9     # Otherwise, return.
+    nop
+.Ldeliver_instrumentation_entry_exception:
+    # Deliver exception for art_quick_instrumentation_entry placed after
+    # art_quick_instrumentation_exit so that the fallthrough works.
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+.Ldo_deliver_instrumentation_exception:
+    DELIVER_PENDING_EXCEPTION
 END art_quick_instrumentation_exit
 
     /*
