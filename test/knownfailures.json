@@ -710,5 +710,10 @@
         "description": [ "Tests require speed compilation which is no longer the default for",
                           "no-prebuild or no-image configs."],
         "variant": "no-prebuild | no-image"
+    },
+    {
+        "tests": ["059-finalizer-throw", "063-process-manager"],
+        "description": [ "Tests that take too long on target with gcstress and debug" ],
+        "variant": "gcstress & target & debug"
     }
 ]
