@@ -716,7 +716,7 @@ class MANAGED Class FINAL : public Object {
   // Also updates the dex_cache_strings_ variable from new_dex_cache.
   void SetDexCache(ObjPtr<DexCache> new_dex_cache) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDirectMethods(PointerSize pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethods(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetMethodsPtr()
@@ -726,7 +726,7 @@ class MANAGED Class FINAL : public Object {
     return MemberOffset(OFFSETOF_MEMBER(Class, methods_));
   }
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetMethods(PointerSize pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetMethods(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetMethodsPtr(LengthPrefixedArray<ArtMethod>* new_methods,
@@ -763,7 +763,7 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethodsSlice(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDeclaredMethods(
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethods(
         PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -784,7 +784,7 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSlice(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDeclaredVirtualMethods(
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethods(
         PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -792,14 +792,14 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSlice(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetCopiedMethods(PointerSize pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethods(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSlice(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetVirtualMethods(
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethods(
       PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1345,6 +1345,11 @@ class MANAGED Class FINAL : public Object {
 
  private:
   ALWAYS_INLINE void SetMethodsPtrInternal(LengthPrefixedArray<ArtMethod>* new_methods)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetMethodsSliceRangeUnchecked(PointerSize pointer_size,
+                                                                    uint32_t start_offset,
+                                                                    uint32_t end_offset)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool throw_on_failure, bool use_referrers_cache>

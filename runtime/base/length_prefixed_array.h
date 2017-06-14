@@ -65,7 +65,7 @@ class LengthPrefixedArray {
                                 size_t element_size = sizeof(T),
                                 size_t alignment = alignof(T)) {
     DCHECK_ALIGNED_PARAM(element_size, alignment);
-    return RoundUp(offsetof(LengthPrefixedArray<T>, data), alignment) + index * element_size;
+    return RoundUp(offsetof(LengthPrefixedArray<T>, data_), alignment) + index * element_size;
   }
 
   static size_t ComputeSize(size_t num_elements,
@@ -87,7 +87,7 @@ class LengthPrefixedArray {
 
   // Clear the potentially uninitialized padding between the size_ and actual data.
   void ClearPadding(size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
-    size_t gap_offset = offsetof(LengthPrefixedArray<T>, data);
+    size_t gap_offset = offsetof(LengthPrefixedArray<T>, data_);
     size_t gap_size = OffsetOfElement(0, element_size, alignment) - gap_offset;
     memset(reinterpret_cast<uint8_t*>(this) + gap_offset, 0, gap_size);
   }
@@ -104,7 +104,7 @@ class LengthPrefixedArray {
   }
 
   uint32_t size_;
-  uint8_t data[0];
+  uint8_t data_[0];
 };
 
 // Returns empty iteration range if the array is null.
