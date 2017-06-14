@@ -688,6 +688,57 @@ size_t JitCodeCache::CodeCacheSize() {
   return CodeCacheSizeLocked();
 }
 
+bool JitCodeCache::RemoveMethod(ArtMethod* method, bool release_memory) {
+  MutexLock mu(Thread::Current(), lock_);
+  if (method->IsNative()) {
+    return false;
+  }
+
+  bool in_cache = false;
+  {
+    ScopedCodeCacheWrite ccw(code_map_.get());
+    for (auto code_iter = method_code_map_.begin(); code_iter != method_code_map_.end();) {
+      if (code_iter->second == method) {
+        if (release_memory) {
+          FreeCode(code_iter->first);
+        }
+        code_iter = method_code_map_.erase(code_iter);
+        in_cache = true;
+        continue;
+      }
+      ++code_iter;
+    }
+  }
+
+  bool osr = false;
+  auto code_map = osr_code_map_.find(method);
+  if (code_map != osr_code_map_.end()) {
+    osr_code_map_.erase(code_map);
+    osr = true;
+  }
+
+  if (!in_cache) {
+    return false;
+  }
+
+  ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
+  if (info != nullptr) {
+    auto profile = std::find(profiling_infos_.begin(), profiling_infos_.end(), info);
+    DCHECK(profile != profiling_infos_.end());
+    profiling_infos_.erase(profile);
+  }
+  method->SetProfilingInfo(nullptr);
+  method->ClearCounter();
+  Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+      method, GetQuickToInterpreterBridge());
+  VLOG(jit)
+      << "JIT removed (osr=" << std::boolalpha << osr << std::noboolalpha << ") "
+      << ArtMethod::PrettyMethod(method) << "@" << method
+      << " ccache_size=" << PrettySize(CodeCacheSizeLocked()) << ": "
+      << " dcache_size=" << PrettySize(DataCacheSizeLocked());
+  return true;
+}
+
 // This notifies the code cache that the given method has been redefined and that it should remove
 // any cached information it has on the method. All threads must be suspended before calling this
 // method. The compiled code for the method (if there is any) must not be in any threads call stack.
