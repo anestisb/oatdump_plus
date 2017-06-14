@@ -1930,16 +1930,15 @@ END art_invoke_obsolete_method_stub
     .extern artInstrumentationMethodExitFromCode
 ENTRY art_quick_instrumentation_entry
     SETUP_SAVE_REFS_AND_ARGS_FRAME
-    daddiu   $sp, $sp, -16     # space for saving arg0
-    .cfi_adjust_cfa_offset 16
-    sd       $a0, 0($sp)       # save arg0
-    move     $a3, $ra          # pass $ra
-    jal      artInstrumentationMethodEntryFromCode  # (Method*, Object*, Thread*, RA)
+    # Preserve $a0 knowing there is a spare slot in kSaveRefsAndArgs.
+    sd       $a0, 8($sp)       # Save arg0.
+    move     $a3, $sp          # Pass $sp.
+    jal      artInstrumentationMethodEntryFromCode  # (Method*, Object*, Thread*, SP)
     move     $a2, rSELF        # pass Thread::Current
+    beqzc    $v0, .Ldeliver_instrumentation_entry_exception
+                               # Deliver exception if we got nullptr as function.
     move     $t9, $v0          # $t9 holds reference to code
-    ld       $a0, 0($sp)       # restore arg0
-    daddiu   $sp, $sp, 16      # remove args
-    .cfi_adjust_cfa_offset -16
+    ld       $a0, 8($sp)       # Restore arg0.
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     jalr     $t9               # call method
     nop
@@ -1951,28 +1950,34 @@ art_quick_instrumentation_exit:
     SETUP_GP
     move     $ra, $zero        # link register is to here, so clobber with 0 for later checks
     SETUP_SAVE_REFS_ONLY_FRAME
-    move     $t0, $sp          # remember bottom of caller's frame
     daddiu   $sp, $sp, -16     # save return values and set up args
     .cfi_adjust_cfa_offset 16
     sd       $v0, 0($sp)
     .cfi_rel_offset 2, 0
     s.d      $f0, 8($sp)
-    mov.d    $f15, $f0         # pass fpr result
-    move     $a2, $v0          # pass gpr result
-    move     $a1, $t0          # pass $sp
+    daddiu   $a3, $sp, 8       # Pass fpr_res pointer.
+    move     $a2, $sp          # Pass gpr_res pointer.
+    daddiu   $a1, $sp, 16      # Pass $sp.
+    jal      artInstrumentationMethodExitFromCode  # (Thread*, SP, gpr_res*, fpr_res*)
     move     $a0, rSELF        # pass Thread::Current
-    jal      artInstrumentationMethodExitFromCode  # (Thread*, SP, gpr_res, fpr_res)
-    .cpreturn                  # Restore gp from t8 in branch delay slot. gp is not used anymore,
-                               # and t8 may be clobbered in artInstrumentationMethodExitFromCode.
 
     move     $t9, $v0          # set aside returned link register
     move     $ra, $v1          # set link register for deoptimization
     ld       $v0, 0($sp)       # restore return values
     l.d      $f0, 8($sp)
-    jalr     $zero, $t9        # return
-    # restore stack, 16 bytes of saved values + ref_only callee save frame
-    daddiu   $sp, $sp, 16+FRAME_SIZE_SAVE_REFS_ONLY
-    .cfi_adjust_cfa_offset -(16+FRAME_SIZE_SAVE_REFS_ONLY)
+    daddiu   $sp, $sp, 16
+    .cfi_adjust_cfa_offset -16
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    beqz     $t9, .Ldo_deliver_instrumentation_exception
+    nop                        # Deliver exception if we got nullptr as function.
+    jalr     $zero, $t9        # Otherwise, return.
+    nop
+.Ldeliver_instrumentation_entry_exception:
+    # Deliver exception for art_quick_instrumentation_entry placed after
+    # art_quick_instrumentation_exit so that the fallthrough works.
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+.Ldo_deliver_instrumentation_exception:
+    DELIVER_PENDING_EXCEPTION
 END art_quick_instrumentation_exit
 
     /*
