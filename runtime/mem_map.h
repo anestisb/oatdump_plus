@@ -28,9 +28,12 @@
 
 namespace art {
 
-#if defined(__LP64__) && (!defined(__x86_64__) || defined(__APPLE__))
+#if defined(__LP64__) && (defined(__aarch64__) || defined(__mips__) || defined(__APPLE__))
 #define USE_ART_LOW_4G_ALLOCATOR 1
 #else
+#if defined(__LP64__) && !defined(__x86_64__)
+#error "Unrecognized 64-bit architecture."
+#endif
 #define USE_ART_LOW_4G_ALLOCATOR 0
 #endif
 
@@ -221,7 +224,14 @@ class MemMap {
                            int flags,
                            int fd,
                            off_t offset,
-                           bool low_4gb);
+                           bool low_4gb)
+      REQUIRES(!MemMap::mem_maps_lock_);
+  static void* MapInternalArtLow4GBAllocator(size_t length,
+                                             int prot,
+                                             int flags,
+                                             int fd,
+                                             off_t offset)
+      REQUIRES(!MemMap::mem_maps_lock_);
 
   const std::string name_;
   uint8_t* begin_;  // Start of data. May be changed by AlignBy.

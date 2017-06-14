@@ -806,6 +806,99 @@ void MemMap::SetSize(size_t new_size) {
   size_ = new_size;
 }
 
+void* MemMap::MapInternalArtLow4GBAllocator(size_t length,
+                                            int prot,
+                                            int flags,
+                                            int fd,
+                                            off_t offset) {
+#if USE_ART_LOW_4G_ALLOCATOR
+  void* actual = MAP_FAILED;
+
+  bool first_run = true;
+
+  std::lock_guard<std::mutex> mu(*mem_maps_lock_);
+  for (uintptr_t ptr = next_mem_pos_; ptr < 4 * GB; ptr += kPageSize) {
+    // Use gMaps as an optimization to skip over large maps.
+    // Find the first map which is address > ptr.
+    auto it = gMaps->upper_bound(reinterpret_cast<void*>(ptr));
+    if (it != gMaps->begin()) {
+      auto before_it = it;
+      --before_it;
+      // Start at the end of the map before the upper bound.
+      ptr = std::max(ptr, reinterpret_cast<uintptr_t>(before_it->second->BaseEnd()));
+      CHECK_ALIGNED(ptr, kPageSize);
+    }
+    while (it != gMaps->end()) {
+      // How much space do we have until the next map?
+      size_t delta = reinterpret_cast<uintptr_t>(it->first) - ptr;
+      // If the space may be sufficient, break out of the loop.
+      if (delta >= length) {
+        break;
+      }
+      // Otherwise, skip to the end of the map.
+      ptr = reinterpret_cast<uintptr_t>(it->second->BaseEnd());
+      CHECK_ALIGNED(ptr, kPageSize);
+      ++it;
+    }
+
+    // Try to see if we get lucky with this address since none of the ART maps overlap.
+    actual = TryMemMapLow4GB(reinterpret_cast<void*>(ptr), length, prot, flags, fd, offset);
+    if (actual != MAP_FAILED) {
+      next_mem_pos_ = reinterpret_cast<uintptr_t>(actual) + length;
+      return actual;
+    }
+
+    if (4U * GB - ptr < length) {
+      // Not enough memory until 4GB.
+      if (first_run) {
+        // Try another time from the bottom;
+        ptr = LOW_MEM_START - kPageSize;
+        first_run = false;
+        continue;
+      } else {
+        // Second try failed.
+        break;
+      }
+    }
+
+    uintptr_t tail_ptr;
+
+    // Check pages are free.
+    bool safe = true;
+    for (tail_ptr = ptr; tail_ptr < ptr + length; tail_ptr += kPageSize) {
+      if (msync(reinterpret_cast<void*>(tail_ptr), kPageSize, 0) == 0) {
+        safe = false;
+        break;
+      } else {
+        DCHECK_EQ(errno, ENOMEM);
+      }
+    }
+
+    next_mem_pos_ = tail_ptr;  // update early, as we break out when we found and mapped a region
+
+    if (safe == true) {
+      actual = TryMemMapLow4GB(reinterpret_cast<void*>(ptr), length, prot, flags, fd, offset);
+      if (actual != MAP_FAILED) {
+        return actual;
+      }
+    } else {
+      // Skip over last page.
+      ptr = tail_ptr;
+    }
+  }
+
+  if (actual == MAP_FAILED) {
+    LOG(ERROR) << "Could not find contiguous low-memory space.";
+    errno = ENOMEM;
+  }
+  return actual;
+#else
+  UNUSED(length, prot, flags, fd, offset);
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+#endif
+}
+
 void* MemMap::MapInternal(void* addr,
                           size_t length,
                           int prot,
@@ -840,87 +933,32 @@ void* MemMap::MapInternal(void* addr,
 #if USE_ART_LOW_4G_ALLOCATOR
   // MAP_32BIT only available on x86_64.
   if (low_4gb && addr == nullptr) {
-    bool first_run = true;
-
-    std::lock_guard<std::mutex> mu(*mem_maps_lock_);
-    for (uintptr_t ptr = next_mem_pos_; ptr < 4 * GB; ptr += kPageSize) {
-      // Use gMaps as an optimization to skip over large maps.
-      // Find the first map which is address > ptr.
-      auto it = gMaps->upper_bound(reinterpret_cast<void*>(ptr));
-      if (it != gMaps->begin()) {
-        auto before_it = it;
-        --before_it;
-        // Start at the end of the map before the upper bound.
-        ptr = std::max(ptr, reinterpret_cast<uintptr_t>(before_it->second->BaseEnd()));
-        CHECK_ALIGNED(ptr, kPageSize);
-      }
-      while (it != gMaps->end()) {
-        // How much space do we have until the next map?
-        size_t delta = reinterpret_cast<uintptr_t>(it->first) - ptr;
-        // If the space may be sufficient, break out of the loop.
-        if (delta >= length) {
-          break;
-        }
-        // Otherwise, skip to the end of the map.
-        ptr = reinterpret_cast<uintptr_t>(it->second->BaseEnd());
-        CHECK_ALIGNED(ptr, kPageSize);
-        ++it;
-      }
-
-      // Try to see if we get lucky with this address since none of the ART maps overlap.
-      actual = TryMemMapLow4GB(reinterpret_cast<void*>(ptr), length, prot, flags, fd, offset);
-      if (actual != MAP_FAILED) {
-        next_mem_pos_ = reinterpret_cast<uintptr_t>(actual) + length;
-        return actual;
-      }
-
-      if (4U * GB - ptr < length) {
-        // Not enough memory until 4GB.
-        if (first_run) {
-          // Try another time from the bottom;
-          ptr = LOW_MEM_START - kPageSize;
-          first_run = false;
-          continue;
-        } else {
-          // Second try failed.
-          break;
-        }
-      }
-
-      uintptr_t tail_ptr;
-
-      // Check pages are free.
-      bool safe = true;
-      for (tail_ptr = ptr; tail_ptr < ptr + length; tail_ptr += kPageSize) {
-        if (msync(reinterpret_cast<void*>(tail_ptr), kPageSize, 0) == 0) {
-          safe = false;
-          break;
-        } else {
-          DCHECK_EQ(errno, ENOMEM);
-        }
-      }
-
-      next_mem_pos_ = tail_ptr;  // update early, as we break out when we found and mapped a region
-
-      if (safe == true) {
-        actual = TryMemMapLow4GB(reinterpret_cast<void*>(ptr), length, prot, flags, fd, offset);
-        if (actual != MAP_FAILED) {
-          return actual;
-        }
-      } else {
-        // Skip over last page.
-        ptr = tail_ptr;
-      }
-    }
+    // The linear-scan allocator has an issue when executable pages are denied (e.g., by selinux
+    // policies in sensitive processes). In that case, the error code will still be ENOMEM. So
+    // the allocator will scan all low 4GB twice, and still fail. This is *very* slow.
+    //
+    // To avoid the issue, always map non-executable first, and mprotect if necessary.
+    const int orig_prot = prot;
+    const int prot_non_exec = prot & ~PROT_EXEC;
+    actual = MapInternalArtLow4GBAllocator(length, prot_non_exec, flags, fd, offset);
 
     if (actual == MAP_FAILED) {
-      LOG(ERROR) << "Could not find contiguous low-memory space.";
-      errno = ENOMEM;
+      return MAP_FAILED;
     }
-  } else {
-    actual = mmap(addr, length, prot, flags, fd, offset);
+
+    // See if we need to remap with the executable bit now.
+    if (orig_prot != prot_non_exec) {
+      if (mprotect(actual, length, orig_prot) != 0) {
+        PLOG(ERROR) << "Could not protect to requested prot: " << orig_prot;
+        munmap(actual, length);
+        errno = ENOMEM;
+        return MAP_FAILED;
+      }
+    }
+    return actual;
   }
 
+  actual = mmap(addr, length, prot, flags, fd, offset);
 #else
 #if defined(__LP64__)
   if (low_4gb && addr == nullptr) {
