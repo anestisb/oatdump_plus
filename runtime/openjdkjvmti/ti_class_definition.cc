@@ -56,7 +56,7 @@ bool ArtClassDefinition::IsModified() const {
   // be that agents were removed in the mean-time so we still have a different dex file. The dex
   // checksum means this is likely to be fairly fast.
   return static_cast<jint>(original_dex_file_.size()) != dex_len_ ||
-      memcmp(&original_dex_file_.At(0), dex_data_.get(), dex_len_) != 0;
+      memcmp(original_dex_file_.data(), dex_data_.get(), dex_len_) != 0;
 }
 
 jvmtiError ArtClassDefinition::InitCommon(ArtJvmTiEnv* env, jclass klass) {
@@ -152,12 +152,12 @@ jvmtiError ArtClassDefinition::Init(ArtJvmTiEnv* env, jclass klass) {
     unsigned char* original_data_memory = nullptr;
     res = CopyDataIntoJvmtiBuffer(env, dex_data_.get(), dex_len_, &original_data_memory);
     original_dex_file_memory_ = MakeJvmtiUniquePtr(env, original_data_memory);
-    original_dex_file_ = art::ArraySlice<const unsigned char>(original_data_memory, dex_len_);
+    original_dex_file_ = art::ArrayRef<const unsigned char>(original_data_memory, dex_len_);
   } else {
     // We know that we have been redefined at least once (there is an original_dex_file set in
     // the class) so we can just use the current dex file directly.
     const art::DexFile& dex_file = m_klass->GetDexFile();
-    original_dex_file_ = art::ArraySlice<const unsigned char>(dex_file.Begin(), dex_file.Size());
+    original_dex_file_ = art::ArrayRef<const unsigned char>(dex_file.Begin(), dex_file.Size());
   }
   return res;
 }
@@ -168,7 +168,7 @@ jvmtiError ArtClassDefinition::Init(ArtJvmTiEnv* env, const jvmtiClassDefinition
     return res;
   }
   unsigned char* new_data = nullptr;
-  original_dex_file_ = art::ArraySlice<const unsigned char>(def.class_bytes, def.class_byte_count);
+  original_dex_file_ = art::ArrayRef<const unsigned char>(def.class_bytes, def.class_byte_count);
   redefined_ = true;
   dex_len_ = def.class_byte_count;
   res = CopyDataIntoJvmtiBuffer(env, def.class_bytes, def.class_byte_count, /*out*/ &new_data);

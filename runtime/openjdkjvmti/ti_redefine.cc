@@ -38,7 +38,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "art_jvmti.h"
-#include "base/array_slice.h"
+#include "base/array_ref.h"
 #include "base/logging.h"
 #include "class_linker-inl.h"
 #include "debugger.h"
@@ -265,7 +265,7 @@ jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> 
 
 // Moves dex data to an anonymous, read-only mmap'd region.
 std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& original_location,
-                                                         art::ArraySlice<const unsigned char> data,
+                                                         art::ArrayRef<const unsigned char> data,
                                                          std::string* error_msg) {
   std::unique_ptr<art::MemMap> map(art::MemMap::MapAnonymous(
       StringPrintf("%s-transformed", original_location.c_str()).c_str(),
@@ -278,7 +278,7 @@ std::unique_ptr<art::MemMap> Redefiner::MoveDataToMemMap(const std::string& orig
   if (map == nullptr) {
     return map;
   }
-  memcpy(map->Begin(), &data.At(0), data.size());
+  memcpy(map->Begin(), data.data(), data.size());
   // Make the dex files mmap read only. This matches how other DexFiles are mmaped and prevents
   // programs from corrupting it.
   map->Protect(PROT_READ);
@@ -290,7 +290,7 @@ Redefiner::ClassRedefinition::ClassRedefinition(
     jclass klass,
     const art::DexFile* redefined_dex_file,
     const char* class_sig,
-    art::ArraySlice<const unsigned char> orig_dex_file) :
+    art::ArrayRef<const unsigned char> orig_dex_file) :
       driver_(driver),
       klass_(klass),
       dex_file_(redefined_dex_file),
@@ -493,7 +493,7 @@ art::mirror::Object* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFile(
   if (original_dex_file_.size() != 0) {
     return art::mirror::ByteArray::AllocateAndFill(
         driver_->self_,
-        reinterpret_cast<const signed char*>(&original_dex_file_.At(0)),
+        reinterpret_cast<const signed char*>(original_dex_file_.data()),
         original_dex_file_.size());
   }
 

@@ -37,6 +37,7 @@
 #include <unordered_set>
 
 #include "art_jvmti.h"
+#include "base/array_ref.h"
 #include "base/macros.h"
 #include "class_table-inl.h"
 #include "class_linker.h"
@@ -83,7 +84,7 @@ static std::unique_ptr<const art::DexFile> MakeSingleDexFile(art::Thread* self,
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
   // Make the mmap
   std::string error_msg;
-  art::ArraySlice<const unsigned char> final_data(final_dex_data, final_len);
+  art::ArrayRef<const unsigned char> final_data(final_dex_data, final_len);
   std::unique_ptr<art::MemMap> map(Redefiner::MoveDataToMemMap(orig_location,
                                                                final_data,
                                                                &error_msg));
