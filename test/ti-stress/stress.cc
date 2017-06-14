@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
+#include <memory>
 #include <stdio.h>
 #include <sstream>
 #include <strstream>
@@ -87,6 +88,142 @@ static bool DoExtractClassFromData(StressData* data,
   return ReadIntoBuffer(data->out_temp_dex, dex);
 }
 
+class ScopedThreadInfo {
+ public:
+  ScopedThreadInfo(jvmtiEnv* jvmtienv, JNIEnv* env, jthread thread)
+      : jvmtienv_(jvmtienv), env_(env), free_name_(false) {
+    memset(&info_, 0, sizeof(info_));
+    if (thread == nullptr) {
+      info_.name = const_cast<char*>("<NULLPTR>");
+    } else if (jvmtienv->GetThreadInfo(thread, &info_) != JVMTI_ERROR_NONE) {
+      info_.name = const_cast<char*>("<UNKNOWN THREAD>");
+    } else {
+      free_name_ = true;
+    }
+  }
+
+  ~ScopedThreadInfo() {
+    if (free_name_) {
+      jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(info_.name));
+    }
+    env_->DeleteLocalRef(info_.thread_group);
+    env_->DeleteLocalRef(info_.context_class_loader);
+  }
+
+  const char* GetName() const {
+    return info_.name;
+  }
+
+ private:
+  jvmtiEnv* jvmtienv_;
+  JNIEnv* env_;
+  bool free_name_;
+  jvmtiThreadInfo info_;
+};
+
+class ScopedClassInfo {
+ public:
+  ScopedClassInfo(jvmtiEnv* jvmtienv, jclass c)
+      : jvmtienv_(jvmtienv),
+        class_(c),
+        name_(nullptr),
+        generic_(nullptr) {}
+
+  ~ScopedClassInfo() {
+    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(name_));
+    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(generic_));
+  }
+
+  bool Init() {
+    return jvmtienv_->GetClassSignature(class_, &name_, &generic_) == JVMTI_ERROR_NONE;
+  }
+
+  jclass GetClass() const {
+    return class_;
+  }
+  const char* GetName() const {
+    return name_;
+  }
+  const char* GetGeneric() const {
+    return generic_;
+  }
+
+ private:
+  jvmtiEnv* jvmtienv_;
+  jclass class_;
+  char* name_;
+  char* generic_;
+};
+
+class ScopedMethodInfo {
+ public:
+  ScopedMethodInfo(jvmtiEnv* jvmtienv, JNIEnv* env, jmethodID m)
+      : jvmtienv_(jvmtienv),
+        env_(env),
+        method_(m),
+        declaring_class_(nullptr),
+        class_info_(nullptr),
+        name_(nullptr),
+        signature_(nullptr),
+        generic_(nullptr) {}
+
+  ~ScopedMethodInfo() {
+    env_->DeleteLocalRef(declaring_class_);
+    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(name_));
+    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(signature_));
+    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(generic_));
+  }
+
+  bool Init() {
+    if (jvmtienv_->GetMethodDeclaringClass(method_, &declaring_class_) != JVMTI_ERROR_NONE) {
+      return false;
+    }
+    class_info_.reset(new ScopedClassInfo(jvmtienv_, declaring_class_));
+    return class_info_->Init() &&
+        (jvmtienv_->GetMethodName(method_, &name_, &signature_, &generic_) == JVMTI_ERROR_NONE);
+  }
+
+  const ScopedClassInfo& GetDeclaringClassInfo() const {
+    return *class_info_;
+  }
+
+  jclass GetDeclaringClass() const {
+    return declaring_class_;
+  }
+
+  const char* GetName() const {
+    return name_;
+  }
+
+  const char* GetSignature() const {
+    return signature_;
+  }
+
+  const char* GetGeneric() const {
+    return generic_;
+  }
+
+ private:
+  jvmtiEnv* jvmtienv_;
+  JNIEnv* env_;
+  jmethodID method_;
+  jclass declaring_class_;
+  std::unique_ptr<ScopedClassInfo> class_info_;
+  char* name_;
+  char* signature_;
+  char* generic_;
+
+  friend std::ostream& operator<<(std::ostream &os, ScopedMethodInfo const& m);
+};
+
+std::ostream& operator<<(std::ostream &os, const ScopedMethodInfo* m) {
+  return os << *m;
+}
+
+std::ostream& operator<<(std::ostream &os, ScopedMethodInfo const& m) {
+  return os << m.GetDeclaringClassInfo().GetName() << "->" << m.GetName() << m.GetSignature();
+}
+
 static void doJvmtiMethodBind(jvmtiEnv* jvmtienv,
                               JNIEnv* env,
                               jthread thread,
@@ -94,38 +231,14 @@ static void doJvmtiMethodBind(jvmtiEnv* jvmtienv,
                               void* address,
                               /*out*/void** out_address) {
   *out_address = address;
-  jvmtiThreadInfo info;
-  if (thread == nullptr) {
-    info.name = const_cast<char*>("<NULLPTR>");
-  } else if (jvmtienv->GetThreadInfo(thread, &info) != JVMTI_ERROR_NONE) {
-    info.name = const_cast<char*>("<UNKNOWN THREAD>");
-  }
-  char *fname, *fsig, *fgen;
-  char *cname, *cgen;
-  jclass klass = nullptr;
-  if (jvmtienv->GetMethodDeclaringClass(m, &klass) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get method declaring class!";
+  ScopedThreadInfo thread_info(jvmtienv, env, thread);
+  ScopedMethodInfo method_info(jvmtienv, env, m);
+  if (!method_info.Init()) {
+    LOG(ERROR) << "Unable to get method info!";
     return;
   }
-  if (jvmtienv->GetMethodName(m, &fname, &fsig, &fgen) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get method name!";
-    env->DeleteLocalRef(klass);
-    return;
-  }
-  if (jvmtienv->GetClassSignature(klass, &cname, &cgen) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get class name!";
-    env->DeleteLocalRef(klass);
-    return;
-  }
-  LOG(INFO) << "Loading native method \"" << cname << "->" << fname << fsig << "\". Thread is \""
-            << info.name << "\"";
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(cname));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(cgen));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fname));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fsig));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fgen));
-  env->DeleteLocalRef(klass);
-  return;
+  LOG(INFO) << "Loading native method \"" << method_info << "\". Thread is "
+            << thread_info.GetName();
 }
 
 static std::string GetName(jvmtiEnv* jvmtienv, JNIEnv* jnienv, jobject obj) {
@@ -197,80 +310,32 @@ void JNICALL MethodExitHook(jvmtiEnv* jvmtienv,
                             jmethodID m,
                             jboolean was_popped_by_exception,
                             jvalue val) {
-  jvmtiThreadInfo info;
-  if (thread == nullptr) {
-    info.name = const_cast<char*>("<NULLPTR>");
-  } else if (jvmtienv->GetThreadInfo(thread, &info) != JVMTI_ERROR_NONE) {
-    // LOG(WARNING) << "Unable to get thread info!";
-    info.name = const_cast<char*>("<UNKNOWN THREAD>");
-  }
-  char *fname, *fsig, *fgen;
-  char *cname, *cgen;
-  jclass klass = nullptr;
-  if (jvmtienv->GetMethodDeclaringClass(m, &klass) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get method declaring class!";
+  ScopedThreadInfo info(jvmtienv, env, thread);
+  ScopedMethodInfo method_info(jvmtienv, env, m);
+  if (!method_info.Init()) {
+    LOG(ERROR) << "Unable to get method info!";
     return;
   }
-  if (jvmtienv->GetMethodName(m, &fname, &fsig, &fgen) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get method name!";
-    env->DeleteLocalRef(klass);
-    return;
-  }
-  if (jvmtienv->GetClassSignature(klass, &cname, &cgen) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get class name!";
-    env->DeleteLocalRef(klass);
-    return;
-  }
-  std::string type(fsig);
+  std::string type(method_info.GetSignature());
   type = type.substr(type.find(")") + 1);
   std::string out_val(was_popped_by_exception ? "" : GetValOf(jvmtienv, env, type, val));
-  LOG(INFO) << "Leaving method \"" << cname << "->" << fname << fsig << "\". Thread is \""
-            << info.name << "\"." << std::endl
+  LOG(INFO) << "Leaving method \"" << method_info << "\". Thread is \"" << info.GetName() << "\"."
+            << std::endl
             << "    Cause: " << (was_popped_by_exception ? "exception" : "return ")
             << out_val << ".";
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(cname));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(cgen));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fname));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fsig));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fgen));
-  env->DeleteLocalRef(klass);
 }
 
 void JNICALL MethodEntryHook(jvmtiEnv* jvmtienv,
                              JNIEnv* env,
                              jthread thread,
                              jmethodID m) {
-  jvmtiThreadInfo info;
-  if (thread == nullptr) {
-    info.name = const_cast<char*>("<NULLPTR>");
-  } else if (jvmtienv->GetThreadInfo(thread, &info) != JVMTI_ERROR_NONE) {
-    info.name = const_cast<char*>("<UNKNOWN THREAD>");
-  }
-  char *fname, *fsig, *fgen;
-  char *cname, *cgen;
-  jclass klass = nullptr;
-  if (jvmtienv->GetMethodDeclaringClass(m, &klass) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get method declaring class!";
+  ScopedThreadInfo info(jvmtienv, env, thread);
+  ScopedMethodInfo method_info(jvmtienv, env, m);
+  if (!method_info.Init()) {
+    LOG(ERROR) << "Unable to get method info!";
     return;
   }
-  if (jvmtienv->GetMethodName(m, &fname, &fsig, &fgen) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get method name!";
-    env->DeleteLocalRef(klass);
-    return;
-  }
-  if (jvmtienv->GetClassSignature(klass, &cname, &cgen) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to get class name!";
-    env->DeleteLocalRef(klass);
-    return;
-  }
-  LOG(INFO) << "Entering method \"" << cname << "->" << fname << fsig << "\". Thread is \""
-            << info.name << "\"";
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(cname));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(cgen));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fname));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fsig));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fgen));
-  env->DeleteLocalRef(klass);
+  LOG(INFO) << "Entering method \"" << method_info << "\". Thread is \"" << info.GetName() << "\"";
 }
 
 // The hook we are using.
