@@ -61,7 +61,8 @@ class ImgDiagDumper {
         image_header_(image_header),
         image_location_(image_location),
         image_diff_pid_(image_diff_pid),
-        zygote_diff_pid_(zygote_diff_pid) {}
+        zygote_diff_pid_(zygote_diff_pid),
+        zygote_pid_only_(false) {}
 
   bool Dump() REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
@@ -71,13 +72,18 @@ class ImgDiagDumper {
 
     os << "IMAGE BEGIN: " << reinterpret_cast<void*>(image_header_.GetImageBegin()) << "\n\n";
 
+    PrintPidLine("IMAGE", image_diff_pid_);
+    os << "\n\n";
+    PrintPidLine("ZYGOTE", zygote_diff_pid_);
     bool ret = true;
-    if (image_diff_pid_ >= 0) {
-      os << "IMAGE DIFF PID (" << image_diff_pid_ << "): ";
-      ret = DumpImageDiff(image_diff_pid_, zygote_diff_pid_);
+    if (image_diff_pid_ >= 0 || zygote_diff_pid_ >= 0) {
+      if (image_diff_pid_ < 0) {
+        image_diff_pid_ = zygote_diff_pid_;
+        zygote_diff_pid_ = -1;
+        zygote_pid_only_ = true;
+      }
+      ret = DumpImageDiff();
       os << "\n\n";
-    } else {
-      os << "IMAGE DIFF PID: disabled\n\n";
     }
 
     os << std::flush;
@@ -86,6 +92,14 @@ class ImgDiagDumper {
   }
 
  private:
+  void PrintPidLine(const std::string& kind, pid_t pid) {
+    if (pid < 0) {
+      *os_ << kind << " DIFF PID: disabled\n\n";
+    } else {
+      *os_ << kind << " DIFF PID (" << pid << "): ";
+    }
+  }
+
   static bool EndsWith(const std::string& str, const std::string& suffix) {
     return str.size() >= suffix.size() &&
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
@@ -101,14 +115,14 @@ class ImgDiagDumper {
     return str.substr(idx + 1);
   }
 
-  bool DumpImageDiff(pid_t image_diff_pid, pid_t zygote_diff_pid)
+  bool DumpImageDiff()
       REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
 
     {
       struct stat sts;
       std::string proc_pid_str =
-          StringPrintf("/proc/%ld", static_cast<long>(image_diff_pid));  // NOLINT [runtime/int]
+          StringPrintf("/proc/%ld", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
       if (stat(proc_pid_str.c_str(), &sts) == -1) {
         os << "Process does not exist";
         return false;
@@ -116,7 +130,7 @@ class ImgDiagDumper {
     }
 
     // Open /proc/$pid/maps to view memory maps
-    auto proc_maps = std::unique_ptr<BacktraceMap>(BacktraceMap::Create(image_diff_pid));
+    auto proc_maps = std::unique_ptr<BacktraceMap>(BacktraceMap::Create(image_diff_pid_));
     if (proc_maps == nullptr) {
       os << "Could not read backtrace maps";
       return false;
@@ -145,7 +159,7 @@ class ImgDiagDumper {
     }
 
     // Future idea: diff against zygote so we can ignore the shared dirty pages.
-    return DumpImageDiffMap(image_diff_pid, zygote_diff_pid, boot_map);
+    return DumpImageDiffMap(boot_map);
   }
 
   static std::string PrettyFieldValue(ArtField* field, mirror::Object* obj)
@@ -284,16 +298,14 @@ class ImgDiagDumper {
   }
 
   // Look at /proc/$pid/mem and only diff the things from there
-  bool DumpImageDiffMap(pid_t image_diff_pid,
-                        pid_t zygote_diff_pid,
-                        const backtrace_map_t& boot_map)
+  bool DumpImageDiffMap(const backtrace_map_t& boot_map)
     REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
     const PointerSize pointer_size = InstructionSetPointerSize(
         Runtime::Current()->GetInstructionSet());
 
     std::string file_name =
-        StringPrintf("/proc/%ld/mem", static_cast<long>(image_diff_pid));  // NOLINT [runtime/int]
+        StringPrintf("/proc/%ld/mem", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
 
     size_t boot_map_size = boot_map.end - boot_map.start;
 
@@ -347,9 +359,9 @@ class ImgDiagDumper {
 
     std::vector<uint8_t> zygote_contents;
     std::unique_ptr<File> zygote_map_file;
-    if (zygote_diff_pid != -1) {
+    if (zygote_diff_pid_ != -1) {
       std::string zygote_file_name =
-          StringPrintf("/proc/%ld/mem", static_cast<long>(zygote_diff_pid));  // NOLINT [runtime/int]
+          StringPrintf("/proc/%ld/mem", static_cast<long>(zygote_diff_pid_));  // NOLINT [runtime/int]
       zygote_map_file.reset(OS::OpenFileForReading(zygote_file_name.c_str()));
       // The boot map should be at the same address.
       zygote_contents.resize(boot_map_size);
@@ -360,7 +372,7 @@ class ImgDiagDumper {
     }
 
     std::string page_map_file_name = StringPrintf(
-        "/proc/%ld/pagemap", static_cast<long>(image_diff_pid));  // NOLINT [runtime/int]
+        "/proc/%ld/pagemap", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
     auto page_map_file = std::unique_ptr<File>(OS::OpenFileForReading(page_map_file_name.c_str()));
     if (page_map_file == nullptr) {
       os << "Failed to open " << page_map_file_name << " for reading: " << strerror(errno);
@@ -503,10 +515,14 @@ class ImgDiagDumper {
     // Look up local classes by their descriptor
     std::map<std::string, mirror::Class*> local_class_map;
 
-    // Objects that are dirty against the image (possibly shared or private dirty).
+    // Image dirty objects
+    // If zygote_pid_only_ == true, these are dirty objects in the zygote.
+    // If zygote_pid_only_ == false, these are private dirty objects in the application.
     std::set<mirror::Object*> image_dirty_objects;
 
-    // Objects that are dirty against the zygote (probably private dirty).
+    // Zygote dirty objects (probably private dirty).
+    // We only add objects here if they differed in both the image and the zygote, so
+    // they are probably private dirty.
     std::set<mirror::Object*> zygote_dirty_objects;
 
     size_t dirty_object_bytes = 0;
@@ -561,7 +577,7 @@ class ImgDiagDumper {
           // Different from zygote.
           zygote_dirty_objects.insert(obj);
         } else {
-          // Just different from iamge.
+          // Just different from image.
           image_dirty_objects.insert(obj);
         }
 
@@ -658,7 +674,11 @@ class ImgDiagDumper {
         class_data, [](const ClassData& d) { return d.clean_object_count; });
 
     if (!zygote_dirty_objects.empty()) {
-      os << "\n" << "  Dirty objects compared to zygote (probably private dirty): "
+      // We only reach this point if both pids were specified.  Furthermore,
+      // objects are only displayed here if they differed in both the image
+      // and the zygote, so they are probably private dirty.
+      CHECK(image_diff_pid_ > 0 && zygote_diff_pid_ > 0);
+      os << "\n" << "  Zygote dirty objects (probably shared dirty): "
          << zygote_dirty_objects.size() << "\n";
       for (mirror::Object* obj : zygote_dirty_objects) {
         const uint8_t* obj_bytes = reinterpret_cast<const uint8_t*>(obj);
@@ -667,8 +687,13 @@ class ImgDiagDumper {
         DiffObjectContents(obj, remote_bytes, os);
       }
     }
-    os << "\n" << "  Dirty objects compared to image (private or shared dirty): "
-       << image_dirty_objects.size() << "\n";
+    os << "\n";
+    if (zygote_pid_only_) {
+      os << "  Zygote dirty objects: ";
+    } else {
+      os << "  Application dirty objects (private or shared dirty): ";
+    }
+    os << image_dirty_objects.size() << "\n";
     for (mirror::Object* obj : image_dirty_objects) {
       const uint8_t* obj_bytes = reinterpret_cast<const uint8_t*>(obj);
       ptrdiff_t offset = obj_bytes - begin_image_ptr;
@@ -1013,6 +1038,7 @@ class ImgDiagDumper {
   const std::string image_location_;
   pid_t image_diff_pid_;  // Dump image diff against boot.art if pid is non-negative
   pid_t zygote_diff_pid_;  // Dump image diff against zygote boot.art if pid is non-negative
+  bool zygote_pid_only_;  // The user only specified a pid for the zygote.
 
   DISALLOW_COPY_AND_ASSIGN(ImgDiagDumper);
 };
