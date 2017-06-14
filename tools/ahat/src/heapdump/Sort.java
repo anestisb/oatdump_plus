@@ -200,5 +200,27 @@ public class Sort {
       return aName.compareTo(bName);
     }
   };
+
+  /**
+   * Compare FieldValue by field name.
+   */
+  public static final Comparator<FieldValue> FIELD_VALUE_BY_NAME
+    = new Comparator<FieldValue>() {
+    @Override
+    public int compare(FieldValue a, FieldValue b) {
+      return a.name.compareTo(b.name);
+    }
+  };
+
+  /**
+   * Compare FieldValue by type name.
+   */
+  public static final Comparator<FieldValue> FIELD_VALUE_BY_TYPE
+    = new Comparator<FieldValue>() {
+    @Override
+    public int compare(FieldValue a, FieldValue b) {
+      return a.type.compareTo(b.type);
+    }
+  };
 }
 

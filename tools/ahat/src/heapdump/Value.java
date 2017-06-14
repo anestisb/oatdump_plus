@@ -28,7 +28,7 @@ public class Value {
    * The Object must either be a boxed Java primitive type or a subclass of
    * AhatInstance. The object must not be null.
    */
-  Value(Object object) {
+  public Value(Object object) {
     // TODO: Check that the Object is either an AhatSnapshot or boxed Java
     // primitive type?
     assert object != null;

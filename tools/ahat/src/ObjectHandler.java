@@ -21,13 +21,15 @@ import com.android.ahat.heapdump.AhatClassInstance;
 import com.android.ahat.heapdump.AhatClassObj;
 import com.android.ahat.heapdump.AhatInstance;
 import com.android.ahat.heapdump.AhatSnapshot;
-import com.android.ahat.heapdump.Diff;
+import com.android.ahat.heapdump.DiffFields;
+import com.android.ahat.heapdump.DiffedFieldValue;
 import com.android.ahat.heapdump.FieldValue;
 import com.android.ahat.heapdump.PathElement;
 import com.android.ahat.heapdump.Site;
 import com.android.ahat.heapdump.Value;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -108,13 +110,9 @@ class ObjectHandler implements AhatHandler {
   private static void printClassInstanceFields(Doc doc, Query query, AhatClassInstance inst) {
     doc.section("Fields");
     AhatInstance base = inst.getBaseline();
-    List<FieldValue> fields = inst.getInstanceFields();
-    if (!base.isPlaceHolder()) {
-      Diff.fields(fields, base.asClassInstance().getInstanceFields());
-    }
-    SubsetSelector<FieldValue> selector = new SubsetSelector(query, INSTANCE_FIELDS_ID, fields);
-    printFields(doc, inst != base && !base.isPlaceHolder(), selector.selected());
-    selector.render(doc);
+    printFields(doc, query, INSTANCE_FIELDS_ID, !base.isPlaceHolder(),
+        inst.asClassInstance().getInstanceFields(),
+        base.isPlaceHolder() ? null : base.asClassInstance().getInstanceFields());
   }
 
   private static void printArrayElements(Doc doc, Query query, AhatArrayInstance array) {
@@ -145,36 +143,61 @@ class ObjectHandler implements AhatHandler {
     selector.render(doc);
   }
 
-  private static void printFields(Doc doc, boolean diff, List<FieldValue> fields) {
+  /**
+   * Helper function for printing static or instance fields.
+   * @param id - id to use for the field subset selector.
+   * @param diff - whether a diff should be shown for the fields.
+   * @param current - the fields to show.
+   * @param baseline - the baseline fields to diff against if diff is true,
+   *                   ignored otherwise.
+   */
+  private static void printFields(Doc doc, Query query, String id, boolean diff,
+      List<FieldValue> current, List<FieldValue> baseline) {
+
+    if (!diff) {
+      // To avoid having to special case when diff is disabled, always diff
+      // the fields, but diff against an empty list.
+      baseline = Collections.emptyList();
+    }
+
+    List<DiffedFieldValue> fields = DiffFields.diff(current, baseline);
+    SubsetSelector<DiffedFieldValue> selector = new SubsetSelector(query, id, fields);
+
     doc.table(
         new Column("Type"),
         new Column("Name"),
         new Column("Value"),
         new Column("Δ", Column.Align.LEFT, diff));
 
-    for (FieldValue field : fields) {
-      Value current = field.getValue();
-      DocString value;
-      if (field.isPlaceHolder()) {
-        value = DocString.removed("del");
-      } else {
-        value = Summarizer.summarize(current);
-      }
+    for (DiffedFieldValue field : selector.selected()) {
+      Value previous = Value.getBaseline(field.baseline);
+      DocString was = DocString.text("was ");
+      was.append(Summarizer.summarize(previous));
+      switch (field.status) {
+        case ADDED:
+          doc.row(DocString.text(field.type),
+                  DocString.text(field.name),
+                  Summarizer.summarize(field.current),
+                  DocString.added("new"));
+          break;
 
-      DocString delta = new DocString();
-      FieldValue basefield = field.getBaseline();
-      if (basefield.isPlaceHolder()) {
-        delta.append(DocString.added("new"));
-      } else {
-        Value previous = Value.getBaseline(basefield.getValue());
-        if (!Objects.equals(current, previous)) {
-          delta.append("was ");
-          delta.append(Summarizer.summarize(previous));
-        }
+        case MATCHED:
+          doc.row(DocString.text(field.type),
+                  DocString.text(field.name),
+                  Summarizer.summarize(field.current),
+                  Objects.equals(field.current, previous) ? new DocString() : was);
+          break;
+
+        case DELETED:
+          doc.row(DocString.text(field.type),
+                  DocString.text(field.name),
+                  DocString.removed("del"),
+                  was);
+          break;
       }
-      doc.row(DocString.text(field.getType()), DocString.text(field.getName()), value, delta);
     }
     doc.end();
+    selector.render(doc);
   }
 
   private static void printClassInfo(Doc doc, Query query, AhatClassObj clsobj) {
@@ -188,13 +211,9 @@ class ObjectHandler implements AhatHandler {
 
     doc.section("Static Fields");
     AhatInstance base = clsobj.getBaseline();
-    List<FieldValue> fields = clsobj.getStaticFieldValues();
-    if (!base.isPlaceHolder()) {
-      Diff.fields(fields, base.asClassObj().getStaticFieldValues());
-    }
-    SubsetSelector<FieldValue> selector = new SubsetSelector(query, STATIC_FIELDS_ID, fields);
-    printFields(doc, clsobj != base && !base.isPlaceHolder(), selector.selected());
-    selector.render(doc);
+    printFields(doc, query, STATIC_FIELDS_ID, !base.isPlaceHolder(),
+        clsobj.getStaticFieldValues(),
+        base.isPlaceHolder() ? null : base.asClassObj().getStaticFieldValues());
   }
 
   private static void printReferences(Doc doc, Query query, AhatInstance inst) {

@@ -16,68 +16,14 @@
 
 package com.android.ahat.heapdump;
 
-public class FieldValue implements Diffable<FieldValue> {
-  private final String mName;
-  private final String mType;
-  private final Value mValue;
-  private FieldValue mBaseline;
-  private final boolean mIsPlaceHolder;
+public class FieldValue {
+  public final String name;
+  public final String type;
+  public final Value value;
 
   public FieldValue(String name, String type, Value value) {
-    mName = name;
-    mType = type;
-    mValue = value;
-    mBaseline = this;
-    mIsPlaceHolder = false;
-  }
-
-  /**
-   * Construct a place holder FieldValue
-   */
-  private FieldValue(FieldValue baseline) {
-    mName = baseline.mName;
-    mType = baseline.mType;
-    mValue = Value.getBaseline(baseline.mValue);
-    mBaseline = baseline;
-    mIsPlaceHolder = true;
-  }
-
-  static FieldValue newPlaceHolderFieldValue(FieldValue baseline) {
-    FieldValue field = new FieldValue(baseline);
-    baseline.setBaseline(field);
-    return field;
-  }
-
-  /**
-   * Returns the name of the field.
-   */
-  public String getName() {
-    return mName;
-  }
-
-  /**
-   * Returns a description of the type of the field.
-   */
-  public String getType() {
-    return mType;
-  }
-
-  /**
-   * Returns the value of this field.
-   */
-  public Value getValue() {
-    return mValue;
-  }
-
-  public void setBaseline(FieldValue baseline) {
-    mBaseline = baseline;
-  }
-
-  @Override public FieldValue getBaseline() {
-    return mBaseline;
-  }
-
-  @Override public boolean isPlaceHolder() {
-    return mIsPlaceHolder;
+    this.name = name;
+    this.type = type;
+    this.value = value;
   }
 }

@@ -336,48 +336,4 @@ public class Diff {
       placeholder.getBaseline().getSite().getBaseline().addPlaceHolderInstance(placeholder);
     }
   }
-
-  /**
-   * Diff two lists of field values.
-   * PlaceHolder objects are added to the given lists as needed to ensure
-   * every FieldValue in A ends up with a corresponding FieldValue in B.
-   */
-  public static void fields(List<FieldValue> a, List<FieldValue> b) {
-    // Fields with the same name and type are considered matching fields.
-    // For simplicity, we assume the matching fields are in the same order in
-    // both A and B, though some fields may be added or removed in either
-    // list. If our assumption is wrong, in the worst case the quality of the
-    // field diff is poor.
-
-    for (int i = 0; i < a.size(); i++) {
-      FieldValue afield = a.get(i);
-      afield.setBaseline(null);
-
-      // Find the matching field in B, if any.
-      for (int j = i; j < b.size(); j++) {
-        FieldValue bfield = b.get(j);
-        if (afield.getName().equals(bfield.getName())
-            && afield.getType().equals(bfield.getType())) {
-          // We found the matching field in B.
-          // Assume fields i, ..., j-1 in B have no match in A.
-          for ( ; i < j; i++) {
-            a.add(i, FieldValue.newPlaceHolderFieldValue(b.get(i)));
-          }
-
-          afield.setBaseline(bfield);
-          bfield.setBaseline(afield);
-          break;
-        }
-      }
-
-      if (afield.getBaseline() == null) {
-        b.add(i, FieldValue.newPlaceHolderFieldValue(afield));
-      }
-    }
-
-    // All remaining fields in B are unmatched by any in A.
-    for (int i = a.size(); i < b.size(); i++) {
-      a.add(i, FieldValue.newPlaceHolderFieldValue(b.get(i)));
-    }
-  }
 }
