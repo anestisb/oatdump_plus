@@ -1292,8 +1292,6 @@ class Dex2Oat FINAL {
     }
 
     // OAT and VDEX file handling
-    bool eagerly_unquicken_vdex = DoDexLayoutOptimizations();
-
     if (oat_fd_ == -1) {
       DCHECK(!oat_filenames_.empty());
       for (const char* oat_filename : oat_filenames_) {
@@ -1314,7 +1312,7 @@ class Dex2Oat FINAL {
           input_vdex_file_ = VdexFile::Open(input_vdex_,
                                             /* writable */ false,
                                             /* low_4gb */ false,
-                                            eagerly_unquicken_vdex,
+                                            DoEagerUnquickeningOfVdex(),
                                             &error_msg);
         }
 
@@ -1364,7 +1362,7 @@ class Dex2Oat FINAL {
                                             "vdex",
                                             /* writable */ false,
                                             /* low_4gb */ false,
-                                            eagerly_unquicken_vdex,
+                                            DoEagerUnquickeningOfVdex(),
                                             &error_msg);
           // If there's any problem with the passed vdex, just warn and proceed
           // without it.
@@ -1770,7 +1768,19 @@ class Dex2Oat FINAL {
                                      swap_fd_,
                                      profile_compilation_info_.get()));
     driver_->SetDexFilesForOatFile(dex_files_);
-    driver_->CompileAll(class_loader_, dex_files_, input_vdex_file_.get(), timings_);
+
+    // Setup vdex for compilation.
+    if (!DoEagerUnquickeningOfVdex() && input_vdex_file_ != nullptr) {
+      callbacks_->SetVerifierDeps(
+          new verifier::VerifierDeps(dex_files_, input_vdex_file_->GetVerifierDepsData()));
+
+      // TODO: we unquicken unconditionally, as we don't know
+      // if the boot image has changed. How exactly we'll know is under
+      // experimentation.
+      TimingLogger::ScopedTiming time_unquicken("Unquicken", timings_);
+      VdexFile::Unquicken(dex_files_, input_vdex_file_->GetQuickeningInfo());
+    }
+    driver_->CompileAll(class_loader_, dex_files_, timings_);
   }
 
   // Notes on the interleaving of creating the images and oat files to
@@ -2144,6 +2154,12 @@ class Dex2Oat FINAL {
 
   bool DoDexLayoutOptimizations() const {
     return DoProfileGuidedOptimizations();
+  }
+
+  bool DoEagerUnquickeningOfVdex() const {
+    // DexLayout can invalidate the vdex metadata, so we need to unquicken
+    // the vdex file eagerly, before passing it to dexlayout.
+    return DoDexLayoutOptimizations();
   }
 
   bool LoadProfile() {

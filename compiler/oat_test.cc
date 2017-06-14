@@ -400,8 +400,7 @@ TEST_F(OatTest, WriteRead) {
   if (kCompile) {
     TimingLogger timings2("OatTest::WriteRead", false, false);
     compiler_driver_->SetDexFilesForOatFile(class_linker->GetBootClassPath());
-    compiler_driver_->CompileAll(
-        class_loader, class_linker->GetBootClassPath(), /* verifier_deps */ nullptr, &timings2);
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings2);
   }
 
   ScratchFile tmp_oat, tmp_vdex(tmp_oat, ".vdex");
@@ -415,8 +414,7 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(success);
 
   if (kCompile) {  // OatWriter strips the code, regenerate to compare
-    compiler_driver_->CompileAll(
-        class_loader, class_linker->GetBootClassPath(), /* verifier_deps */ nullptr, &timings);
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
   std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp_oat.GetFilename(),
                                                   tmp_oat.GetFilename(),
@@ -540,7 +538,7 @@ TEST_F(OatTest, EmptyTextSection) {
                                   soa.Decode<mirror::ClassLoader>(class_loader).Ptr());
   }
   compiler_driver_->SetDexFilesForOatFile(dex_files);
-  compiler_driver_->CompileAll(class_loader, dex_files, /* verifier_deps */ nullptr, &timings);
+  compiler_driver_->CompileAll(class_loader, dex_files, &timings);
 
   ScratchFile tmp_oat, tmp_vdex(tmp_oat, ".vdex");
   SafeMap<std::string, std::string> key_value_store;

@@ -42,10 +42,7 @@ class CompilerDriverTest : public CommonCompilerTest {
   void CompileAll(jobject class_loader) REQUIRES(!Locks::mutator_lock_) {
     TimingLogger timings("CompilerDriverTest::CompileAll", false, false);
     TimingLogger::ScopedTiming t(__FUNCTION__, &timings);
-    compiler_driver_->CompileAll(class_loader,
-                                 GetDexFiles(class_loader),
-                                 /* verifier_deps */ nullptr,
-                                 &timings);
+    compiler_driver_->CompileAll(class_loader, GetDexFiles(class_loader), &timings);
     t.NewTiming("MakeAllExecutable");
     MakeAllExecutable(class_loader);
   }
