@@ -30,11 +30,33 @@ TEST_F(ScopedFlockTest, TestLocking) {
   // to each other, so attempting to query locks set by flock using
   // using fcntl(,F_GETLK,) will not work. see kernel doc at
   // Documentation/filesystems/locks.txt.
-  ScopedFlock file_lock;
-  ASSERT_TRUE(file_lock.Init(scratch_file.GetFilename().c_str(),
-                             &error_msg));
+  {
+    ScopedFlock file_lock = LockedFile::Open(scratch_file.GetFilename().c_str(),
+                                             &error_msg);
+    ASSERT_TRUE(file_lock.get() != nullptr);
 
-  ASSERT_FALSE(file_lock.Init("/guaranteed/not/to/exist", &error_msg));
+    // Attempt to acquire a second lock on the same file. This must fail.
+    ScopedFlock second_lock = LockedFile::Open(scratch_file.GetFilename().c_str(),
+                                               O_RDONLY,
+                                               /* block */ false,
+                                               &error_msg);
+    ASSERT_TRUE(second_lock.get() == nullptr);
+    ASSERT_TRUE(!error_msg.empty());
+  }
+
+  {
+    // Attempt to reacquire the lock once the first lock has been released, this
+    // must succeed.
+    ScopedFlock file_lock = LockedFile::Open(scratch_file.GetFilename().c_str(),
+                                             &error_msg);
+    ASSERT_TRUE(file_lock.get() != nullptr);
+  }
+
+  {
+    ScopedFlock file_lock = LockedFile::Open("/will/not/exist",
+                                             &error_msg);
+    ASSERT_TRUE(file_lock.get() == nullptr);
+  }
 }
 
 }  // namespace art

@@ -28,46 +28,39 @@ namespace art {
 
 using android::base::StringPrintf;
 
-bool ScopedFlock::Init(const char* filename, std::string* error_msg) {
-  return Init(filename, O_CREAT | O_RDWR, true, error_msg);
+/* static */ ScopedFlock LockedFile::Open(const char* filename, std::string* error_msg) {
+  return Open(filename, O_CREAT | O_RDWR, true, error_msg);
 }
 
-bool ScopedFlock::Init(const char* filename, int flags, bool block, std::string* error_msg) {
-  return Init(filename, flags, block, true, error_msg);
-}
-
-bool ScopedFlock::Init(const char* filename,
-                       int flags,
-                       bool block,
-                       bool flush_on_close,
-                       std::string* error_msg) {
-  flush_on_close_ = flush_on_close;
+/* static */ ScopedFlock LockedFile::Open(const char* filename, int flags, bool block,
+                                          std::string* error_msg) {
   while (true) {
-    if (file_.get() != nullptr) {
-      UNUSED(file_->FlushCloseOrErase());  // Ignore result.
+    // NOTE: We don't check usage here because the ScopedFlock should *never* be
+    // responsible for flushing its underlying FD. Its only purpose should be
+    // to acquire a lock, and the unlock / close in the corresponding
+    // destructor. Callers should explicitly flush files they're writing to if
+    // that is the desired behaviour.
+    std::unique_ptr<File> file(OS::OpenFileWithFlags(filename, flags, false /* check_usage */));
+    if (file.get() == nullptr) {
+      *error_msg = StringPrintf("Failed to open file '%s': %s", filename, strerror(errno));
+      return nullptr;
     }
 
-    bool check_usage = flush_on_close;  // Check usage only if we need to flush on close.
-    file_.reset(OS::OpenFileWithFlags(filename, flags, check_usage));
-    if (file_.get() == nullptr) {
-      *error_msg = StringPrintf("Failed to open file '%s': %s", filename, strerror(errno));
-      return false;
-    }
     int operation = block ? LOCK_EX : (LOCK_EX | LOCK_NB);
-    int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), operation));
+    int flock_result = TEMP_FAILURE_RETRY(flock(file->Fd(), operation));
     if (flock_result == EWOULDBLOCK) {
       // File is locked by someone else and we are required not to block;
-      return false;
+      return nullptr;
     }
     if (flock_result != 0) {
       *error_msg = StringPrintf("Failed to lock file '%s': %s", filename, strerror(errno));
-      return false;
+      return nullptr;
     }
     struct stat fstat_stat;
-    int fstat_result = TEMP_FAILURE_RETRY(fstat(file_->Fd(), &fstat_stat));
+    int fstat_result = TEMP_FAILURE_RETRY(fstat(file->Fd(), &fstat_stat));
     if (fstat_result != 0) {
       *error_msg = StringPrintf("Failed to fstat file '%s': %s", filename, strerror(errno));
-      return false;
+      return nullptr;
     }
     struct stat stat_stat;
     int stat_result = TEMP_FAILURE_RETRY(stat(filename, &stat_stat));
@@ -80,7 +73,7 @@ bool ScopedFlock::Init(const char* filename,
         // Note that in theory we could race with someone here for a long time and end up retrying
         // over and over again. This potential behavior does not fit well in the non-blocking
         // semantics. Thus, if we are not require to block return failure when racing.
-        return false;
+        return nullptr;
       }
     }
     if (fstat_stat.st_dev != stat_stat.st_dev || fstat_stat.st_ino != stat_stat.st_ino) {
@@ -89,61 +82,47 @@ bool ScopedFlock::Init(const char* filename,
         continue;
       } else {
         // See comment above.
-        return false;
+        return nullptr;
       }
     }
-    return true;
+
+    return ScopedFlock(new LockedFile(std::move((*file.get()))));
   }
 }
 
-bool ScopedFlock::Init(File* file, std::string* error_msg) {
-  flush_on_close_ = true;
-  file_.reset(new File(dup(file->Fd()), file->GetPath(), file->CheckUsage(), file->ReadOnlyMode()));
-  if (file_->Fd() == -1) {
-    file_.reset();
+ScopedFlock LockedFile::DupOf(const int fd, const std::string& path,
+                              const bool read_only_mode, std::string* error_msg) {
+  // NOTE: We don't check usage here because the ScopedFlock should *never* be
+  // responsible for flushing its underlying FD. Its only purpose should be
+  // to acquire a lock, and the unlock / close in the corresponding
+  // destructor. Callers should explicitly flush files they're writing to if
+  // that is the desired behaviour.
+  ScopedFlock locked_file(
+      new LockedFile(dup(fd), path, false /* check_usage */, read_only_mode));
+  if (locked_file->Fd() == -1) {
     *error_msg = StringPrintf("Failed to duplicate open file '%s': %s",
-                              file->GetPath().c_str(), strerror(errno));
-    return false;
+                              locked_file->GetPath().c_str(), strerror(errno));
+    return nullptr;
   }
-  if (0 != TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_EX))) {
-    file_.reset();
+  if (0 != TEMP_FAILURE_RETRY(flock(locked_file->Fd(), LOCK_EX))) {
     *error_msg = StringPrintf(
-        "Failed to lock file '%s': %s", file->GetPath().c_str(), strerror(errno));
-    return false;
+        "Failed to lock file '%s': %s", locked_file->GetPath().c_str(), strerror(errno));
+    return nullptr;
   }
-  return true;
+
+  return locked_file;
 }
 
-File* ScopedFlock::GetFile() const {
-  CHECK(file_.get() != nullptr);
-  return file_.get();
-}
-
-bool ScopedFlock::HasFile() {
-  return file_.get() != nullptr;
-}
-
-ScopedFlock::ScopedFlock() : flush_on_close_(true) { }
-
-ScopedFlock::~ScopedFlock() {
-  if (file_.get() != nullptr) {
-    int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_UN));
+void LockedFile::ReleaseLock() {
+  if (this->Fd() != -1) {
+    int flock_result = TEMP_FAILURE_RETRY(flock(this->Fd(), LOCK_UN));
     if (flock_result != 0) {
       // Only printing a warning is okay since this is only used with either:
       // 1) a non-blocking Init call, or
       // 2) as a part of a seperate binary (eg dex2oat) which has it's own timeout logic to prevent
       //    deadlocks.
       // This means we can be sure that the warning won't cause a deadlock.
-      PLOG(WARNING) << "Unable to unlock file " << file_->GetPath();
-    }
-    int close_result = -1;
-    if (file_->ReadOnlyMode() || !flush_on_close_) {
-      close_result = file_->Close();
-    } else {
-      close_result = file_->FlushCloseOrErase();
-    }
-    if (close_result != 0) {
-      PLOG(WARNING) << "Could not close scoped file lock file.";
+      PLOG(WARNING) << "Unable to unlock file " << this->GetPath();
     }
   }
 }

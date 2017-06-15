@@ -2169,30 +2169,27 @@ class Dex2Oat FINAL {
     // cleaning up before that (e.g. the oat writers are created before the
     // runtime).
     profile_compilation_info_.reset(new ProfileCompilationInfo());
-    ScopedFlock flock;
-    bool success = true;
+    ScopedFlock profile_file;
     std::string error;
     if (profile_file_fd_ != -1) {
-      // The file doesn't need to be flushed so don't check the usage.
-      // Pass a bogus path so that we can easily attribute any reported error.
-      File file(profile_file_fd_, "profile", /*check_usage*/ false, /*read_only_mode*/ true);
-      if (flock.Init(&file, &error)) {
-        success = profile_compilation_info_->Load(profile_file_fd_);
-      }
+      profile_file = LockedFile::DupOf(profile_file_fd_, "profile",
+                                       true /* read_only_mode */, &error);
     } else if (profile_file_ != "") {
-      if (flock.Init(profile_file_.c_str(), O_RDONLY, /* block */ true, &error)) {
-        success = profile_compilation_info_->Load(flock.GetFile()->Fd());
-      }
-    }
-    if (!error.empty()) {
-      LOG(WARNING) << "Cannot lock profiles: " << error;
+      profile_file = LockedFile::Open(profile_file_.c_str(), O_RDONLY, true, &error);
     }
 
-    if (!success) {
+    // Return early if we're unable to obtain a lock on the profile.
+    if (profile_file.get() == nullptr) {
+      LOG(ERROR) << "Cannot lock profiles: " << error;
+      return false;
+    }
+
+    if (!profile_compilation_info_->Load(profile_file->Fd())) {
       profile_compilation_info_.reset(nullptr);
+      return false;
     }
 
-    return success;
+    return true;
   }
 
  private:
