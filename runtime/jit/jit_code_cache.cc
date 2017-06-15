@@ -1360,7 +1360,7 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
     // If the inline cache is empty the compiler will generate a regular invoke virtual/interface.
     if (method->GetCounter() < jit_compile_threshold) {
       methods.emplace_back(/*ProfileMethodInfo*/
-          dex_file, method->GetDexMethodIndex(), inline_caches);
+          MethodReference(dex_file, method->GetDexMethodIndex()), inline_caches);
       continue;
     }
 
@@ -1417,7 +1417,7 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
       }
     }
     methods.emplace_back(/*ProfileMethodInfo*/
-        dex_file, method->GetDexMethodIndex(), inline_caches);
+        MethodReference(dex_file, method->GetDexMethodIndex()), inline_caches);
   }
 }
 

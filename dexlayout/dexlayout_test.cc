@@ -334,24 +334,23 @@ class DexLayoutTest : public CommonRuntimeTest {
     size_t profile_methods = 0;
     size_t profile_classes = 0;
     ProfileCompilationInfo pfi;
-    std::vector<ProfileMethodInfo> pmis;
     std::set<DexCacheResolvedClasses> classes;
     for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
       for (uint32_t i = 0; i < dex_file->NumMethodIds(); i += 2) {
+        uint8_t flags = 0u;
+
         if ((i & 3) != 0) {
-          pfi.AddMethodIndex(dex_location,
-                             dex_file->GetLocationChecksum(),
-                             i,
-                             dex_file->NumMethodIds());
+          flags |= ProfileCompilationInfo::MethodHotness::kFlagHot;
           ++profile_methods;
         } else if ((i & 2) != 0) {
-          pfi.AddSampledMethod(/*startup*/true,
-                               dex_location,
-                               dex_file->GetLocationChecksum(),
-                               i,
-                               dex_file->NumMethodIds());
+          flags |= ProfileCompilationInfo::MethodHotness::kFlagStartup;
           ++profile_methods;
         }
+        pfi.AddMethodIndex(static_cast<ProfileCompilationInfo::MethodHotness::Flag>(flags),
+                           dex_location,
+                           dex_file->GetLocationChecksum(),
+                           /*dex_method_idx*/i,
+                           dex_file->NumMethodIds());
       }
       DexCacheResolvedClasses cur_classes(dex_location,
                                           dex_location,
@@ -366,7 +365,7 @@ class DexLayoutTest : public CommonRuntimeTest {
       }
       classes.insert(cur_classes);
     }
-    pfi.AddMethodsAndClasses(pmis, classes);
+    pfi.AddClasses(classes);
     // Write to provided file.
     std::unique_ptr<File> file(OS::CreateEmptyFile(out_profile.c_str()));
     ASSERT_TRUE(file != nullptr);

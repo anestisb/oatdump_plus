@@ -25,12 +25,14 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "handle_scope-inl.h"
-#include "jit/profile_compilation_info-inl.h"
+#include "jit/profile_compilation_info.h"
 #include "linear_alloc.h"
 #include "scoped_thread_state_change-inl.h"
 #include "type_reference.h"
 
 namespace art {
+
+using Hotness = ProfileCompilationInfo::MethodHotness;
 
 static constexpr size_t kMaxMethodIds = 65535;
 
@@ -63,7 +65,11 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
                  uint32_t checksum,
                  uint16_t method_index,
                  ProfileCompilationInfo* info) {
-    return info->AddMethodIndex(dex_location, checksum, method_index, kMaxMethodIds);
+    return info->AddMethodIndex(Hotness::kFlagHot,
+                                dex_location,
+                                checksum,
+                                method_index,
+                                kMaxMethodIds);
   }
 
   bool AddMethod(const std::string& dex_location,
@@ -76,9 +82,11 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
 
   bool AddClass(const std::string& dex_location,
                 uint32_t checksum,
-                uint16_t class_index,
+                dex::TypeIndex type_index,
                 ProfileCompilationInfo* info) {
-    return info->AddMethodIndex(dex_location, checksum, class_index, kMaxMethodIds);
+    DexCacheResolvedClasses classes(dex_location, dex_location, checksum, kMaxMethodIds);
+    classes.AddClass(type_index);
+    return info->AddClasses({classes});
   }
 
   uint32_t GetFd(const ScratchFile& file) {
@@ -93,9 +101,10 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     std::vector<ProfileMethodInfo> profile_methods;
     ScopedObjectAccess soa(Thread::Current());
     for (ArtMethod* method : methods) {
-      profile_methods.emplace_back(method->GetDexFile(), method->GetDexMethodIndex());
+      profile_methods.emplace_back(
+          MethodReference(method->GetDexFile(), method->GetDexMethodIndex()));
     }
-    if (!info.AddMethodsAndClasses(profile_methods, resolved_classes)) {
+    if (!info.AddMethods(profile_methods) || !info.AddClasses(resolved_classes)) {
       return false;
     }
     if (info.GetNumberOfMethods() != profile_methods.size()) {
@@ -151,17 +160,14 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
         std::vector<TypeReference> classes;
         caches.emplace_back(dex_pc, /*is_missing_types*/true, classes);
       }
-      ProfileMethodInfo pmi(method->GetDexFile(),
-                            method->GetDexMethodIndex(),
+      ProfileMethodInfo pmi(MethodReference(method->GetDexFile(),
+                                            method->GetDexMethodIndex()),
                             caches);
       profile_methods.push_back(pmi);
       profile_methods_map->Put(method, pmi);
     }
 
-    if (!info.AddMethodsAndClasses(profile_methods, std::set<DexCacheResolvedClasses>())) {
-      return false;
-    }
-    if (info.GetNumberOfMethods() != profile_methods.size()) {
+    if (!info.AddMethods(profile_methods) || info.GetNumberOfMethods() != profile_methods.size()) {
       return false;
     }
     return info.Save(filename, nullptr);
@@ -298,8 +304,8 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
   {
     ScopedObjectAccess soa(self);
     for (ArtMethod* m : main_methods) {
-      ASSERT_TRUE(info1.ContainsHotMethod(
-          MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+      ASSERT_TRUE(info1.GetMethodHotness(
+          MethodReference(m->GetDexFile(), m->GetDexMethodIndex())).IsHot());
     }
   }
 
@@ -316,11 +322,11 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
     ScopedObjectAccess soa(self);
     for (ArtMethod* m : main_methods) {
       ASSERT_TRUE(
-          info2.ContainsHotMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+          info2.GetMethodHotness(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())).IsHot());
     }
     for (ArtMethod* m : second_methods) {
       ASSERT_TRUE(
-          info2.ContainsHotMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+          info2.GetMethodHotness(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())).IsHot());
     }
   }
 }
@@ -392,8 +398,8 @@ TEST_F(ProfileCompilationInfoTest, SaveMaxMethods) {
   }
   // Save the maximum number of classes
   for (uint16_t i = 0; i < std::numeric_limits<uint16_t>::max(); i++) {
-    ASSERT_TRUE(AddClass("dex_location1", /* checksum */ 1, /* class_idx */ i, &saved_info));
-    ASSERT_TRUE(AddClass("dex_location2", /* checksum */ 2, /* class_idx */ i, &saved_info));
+    ASSERT_TRUE(AddClass("dex_location1", /* checksum */ 1, dex::TypeIndex(i), &saved_info));
+    ASSERT_TRUE(AddClass("dex_location2", /* checksum */ 2, dex::TypeIndex(i), &saved_info));
   }
 
   ASSERT_TRUE(saved_info.Save(GetFd(profile)));
@@ -667,7 +673,7 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethodsWithInlineCaches) {
     ScopedObjectAccess soa(self);
     for (ArtMethod* m : main_methods) {
       ASSERT_TRUE(
-          info.ContainsHotMethod(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())));
+          info.GetMethodHotness(MethodReference(m->GetDexFile(), m->GetDexMethodIndex())).IsHot());
       const ProfileMethodInfo& pmi = profile_methods_map.find(m)->second;
       std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> offline_pmi =
           info.GetMethod(m->GetDexFile()->GetLocation(),
@@ -857,18 +863,19 @@ TEST_F(ProfileCompilationInfoTest, SampledMethodsTest) {
   static constexpr size_t kChecksum2 = 4321;
   static const std::string kDex1 = "dex1";
   static const std::string kDex2 = "dex2";
-  test_info.AddSampledMethod(true, kDex1, kChecksum1, 1, kNumMethods);
-  test_info.AddSampledMethod(true, kDex1, kChecksum1, 5, kNumMethods);
-  test_info.AddSampledMethod(false, kDex2, kChecksum2, 1, kNumMethods);
-  test_info.AddSampledMethod(false, kDex2, kChecksum2, 5, kNumMethods);
+  test_info.AddMethodIndex(Hotness::kFlagStartup, kDex1, kChecksum1, 1, kNumMethods);
+  test_info.AddMethodIndex(Hotness::kFlagPostStartup, kDex1, kChecksum1, 5, kNumMethods);
+  test_info.AddMethodIndex(Hotness::kFlagStartup, kDex2, kChecksum2, 2, kNumMethods);
+  test_info.AddMethodIndex(Hotness::kFlagPostStartup, kDex2, kChecksum2, 4, kNumMethods);
   auto run_test = [](const ProfileCompilationInfo& info) {
-    EXPECT_FALSE(info.IsStartupOrHotMethod(kDex1, kChecksum1, 0));
-    EXPECT_TRUE(info.IsStartupOrHotMethod(kDex1, kChecksum1, 1));
-    EXPECT_FALSE(info.IsStartupOrHotMethod(kDex1, kChecksum1, 3));
-    EXPECT_TRUE(info.IsStartupOrHotMethod(kDex1, kChecksum1, 5));
-    EXPECT_FALSE(info.IsStartupOrHotMethod(kDex1, kChecksum1, 6));
-    EXPECT_FALSE(info.IsStartupOrHotMethod(kDex2, kChecksum2, 5));
-    EXPECT_FALSE(info.IsStartupOrHotMethod(kDex2, kChecksum2, 5));
+    EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 2).HasAnyFlags());
+    EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 4).HasAnyFlags());
+    EXPECT_TRUE(info.GetMethodHotness(kDex1, kChecksum1, 1).IsStartup());
+    EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 3).IsStartup());
+    EXPECT_TRUE(info.GetMethodHotness(kDex1, kChecksum1, 5).IsPostStartup());
+    EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 6).IsStartup());
+    EXPECT_TRUE(info.GetMethodHotness(kDex2, kChecksum2, 2).IsStartup());
+    EXPECT_TRUE(info.GetMethodHotness(kDex2, kChecksum2, 4).IsPostStartup());
   };
   run_test(test_info);
 
@@ -884,13 +891,13 @@ TEST_F(ProfileCompilationInfoTest, SampledMethodsTest) {
   run_test(loaded_info);
 
   // Test that the bitmap gets merged properly.
-  EXPECT_FALSE(test_info.IsStartupOrHotMethod(kDex1, kChecksum1, 11));
+  EXPECT_FALSE(test_info.GetMethodHotness(kDex1, kChecksum1, 11).IsStartup());
   {
     ProfileCompilationInfo merge_info;
-    merge_info.AddSampledMethod(true, kDex1, kChecksum1, 11, kNumMethods);
+    merge_info.AddMethodIndex(Hotness::kFlagStartup, kDex1, kChecksum1, 11, kNumMethods);
     test_info.MergeWith(merge_info);
   }
-  EXPECT_TRUE(test_info.IsStartupOrHotMethod(kDex1, kChecksum1, 11));
+  EXPECT_TRUE(test_info.GetMethodHotness(kDex1, kChecksum1, 11).IsStartup());
 
   // Test bulk adding.
   {
@@ -900,39 +907,36 @@ TEST_F(ProfileCompilationInfoTest, SampledMethodsTest) {
     std::vector<uint16_t> startup_methods = {1, 2};
     std::vector<uint16_t> post_methods = {0, 2, 6};
     ASSERT_GE(dex->NumMethodIds(), 7u);
-    info.AddMethodsForDex(/*startup*/true,
-                          /*hot*/true,
+    info.AddMethodsForDex(static_cast<Hotness::Flag>(Hotness::kFlagHot | Hotness::kFlagStartup),
                           dex.get(),
                           hot_methods.begin(),
                           hot_methods.end());
-    info.AddMethodsForDex(/*startup*/true,
-                          /*hot*/false,
+    info.AddMethodsForDex(Hotness::kFlagStartup,
                           dex.get(),
                           startup_methods.begin(),
                           startup_methods.end());
-    info.AddMethodsForDex(/*startup*/false,
-                          /*hot*/false,
+    info.AddMethodsForDex(Hotness::kFlagPostStartup,
                           dex.get(),
                           post_methods.begin(),
                           post_methods.end());
     for (uint16_t id : hot_methods) {
-      EXPECT_TRUE(info.ContainsHotMethod(MethodReference(dex.get(), id)));
-      EXPECT_TRUE(info.ContainsSampledMethod(/*startup*/true, MethodReference(dex.get(), id)));
+      EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), id)).IsHot());
+      EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), id)).IsStartup());
     }
     for (uint16_t id : startup_methods) {
-      EXPECT_TRUE(info.ContainsSampledMethod(/*startup*/true, MethodReference(dex.get(), id)));
+      EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), id)).IsStartup());
     }
     for (uint16_t id : post_methods) {
-      EXPECT_TRUE(info.ContainsSampledMethod(/*startup*/false, MethodReference(dex.get(), id)));
+      EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), id)).IsPostStartup());
     }
-    EXPECT_TRUE(info.ContainsSampledMethod(/*startup*/false, MethodReference(dex.get(), 6)));
+    EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), 6)).IsPostStartup());
     // Check that methods that shouldn't have been touched are OK.
-    EXPECT_FALSE(info.ContainsHotMethod(MethodReference(dex.get(), 0)));
-    EXPECT_FALSE(info.ContainsHotMethod(MethodReference(dex.get(), 2)));
-    EXPECT_FALSE(info.ContainsHotMethod(MethodReference(dex.get(), 4)));
-    EXPECT_FALSE(info.ContainsSampledMethod(/*startup*/false, MethodReference(dex.get(), 1)));
-    EXPECT_FALSE(info.ContainsSampledMethod(/*startup*/true, MethodReference(dex.get(), 4)));
-    EXPECT_FALSE(info.ContainsSampledMethod(/*startup*/true, MethodReference(dex.get(), 6)));
+    EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), 0)).HasAnyFlags());
+    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 4)).HasAnyFlags());
+    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 7)).HasAnyFlags());
+    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 1)).IsPostStartup());
+    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 4)).IsStartup());
+    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 6)).IsStartup());
   }
 }
 

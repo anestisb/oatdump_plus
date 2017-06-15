@@ -34,7 +34,7 @@
 #include "gc/collector_type.h"
 #include "gc/gc_cause.h"
 #include "gc/scoped_gc_critical_section.h"
-#include "jit/profile_compilation_info-inl.h"
+#include "jit/profile_compilation_info.h"
 #include "oat_file_manager.h"
 #include "scoped_thread_state_change-inl.h"
 
@@ -275,6 +275,7 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
 
   MutexLock mu(self, *Locks::profiler_lock_);
   uint64_t total_number_of_profile_entries_cached = 0;
+  using Hotness = ProfileCompilationInfo::MethodHotness;
 
   for (const auto& it : tracked_dex_base_locations_) {
     std::set<DexCacheResolvedClasses> resolved_classes_for_location;
@@ -289,19 +290,18 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
       const DexFile* const dex_file = pair.first;
       if (locations.find(dex_file->GetBaseLocation()) != locations.end()) {
         const MethodReferenceCollection::IndexVector& indices = pair.second;
-        cached_info->AddMethodsForDex(/*startup*/ true,
-                                      /*hot*/ true,
-                                      dex_file,
-                                      indices.begin(),
-                                      indices.end());
+        cached_info->AddMethodsForDex(
+            static_cast<Hotness::Flag>(Hotness::kFlagHot | Hotness::kFlagStartup),
+            dex_file,
+            indices.begin(),
+            indices.end());
       }
     }
     for (const auto& pair : startup_methods.GetMap()) {
       const DexFile* const dex_file = pair.first;
       if (locations.find(dex_file->GetBaseLocation()) != locations.end()) {
         const MethodReferenceCollection::IndexVector& indices = pair.second;
-        cached_info->AddMethodsForDex(/*startup*/ true,
-                                      /*hot*/ false,
+        cached_info->AddMethodsForDex(Hotness::kFlagStartup,
                                       dex_file,
                                       indices.begin(),
                                       indices.end());
@@ -373,7 +373,7 @@ bool ProfileSaver::ProcessProfilingInfo(bool force_save, /*out*/uint16_t* number
       uint64_t last_save_number_of_methods = info.GetNumberOfMethods();
       uint64_t last_save_number_of_classes = info.GetNumberOfResolvedClasses();
 
-      info.AddMethodsAndClasses(profile_methods, std::set<DexCacheResolvedClasses>());
+      info.AddMethods(profile_methods);
       auto profile_cache_it = profile_cache_.find(filename);
       if (profile_cache_it != profile_cache_.end()) {
         info.MergeWith(*(profile_cache_it->second));
@@ -681,7 +681,7 @@ bool ProfileSaver::HasSeenMethod(const std::string& profile,
     if (!info.Load(profile, /*clear_if_invalid*/false)) {
       return false;
     }
-    return info.ContainsHotMethod(MethodReference(dex_file, method_idx));
+    return info.GetMethodHotness(MethodReference(dex_file, method_idx)).HasAnyFlags();
   }
   return false;
 }

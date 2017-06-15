@@ -982,7 +982,7 @@ bool CompilerDriver::ShouldCompileBasedOnProfile(const MethodReference& method_r
   }
   // Compile only hot methods, it is the profile saver's job to decide what startup methods to mark
   // as hot.
-  bool result = profile_compilation_info_->ContainsHotMethod(method_ref);
+  bool result = profile_compilation_info_->GetMethodHotness(method_ref).IsHot();
 
   if (kDebugProfileGuidedCompilation) {
     LOG(INFO) << "[ProfileGuidedCompilation] "
