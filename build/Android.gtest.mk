@@ -416,10 +416,13 @@ define define-art-gtest-rule-host
 
   ART_TEST_HOST_GTEST_DEPENDENCIES += $$(gtest_deps)
 
+# Note: envsetup currently exports ASAN_OPTIONS=detect_leaks=0 to suppress leak detection, as some
+#       build tools (e.g., ninja) intentionally leak. We want leak checks when we run our tests, so
+#       override ASAN_OPTIONS. b/37751350
 .PHONY: $$(gtest_rule)
 $$(gtest_rule): $$(gtest_exe) $$(gtest_deps)
-	$(hide) ($$(call ART_TEST_SKIP,$$@) && $$< && $$(call ART_TEST_PASSED,$$@)) \
-	  || $$(call ART_TEST_FAILED,$$@)
+	$(hide) ($$(call ART_TEST_SKIP,$$@) && ASAN_OPTIONS=detect_leaks=1 $$< && \
+		$$(call ART_TEST_PASSED,$$@)) || $$(call ART_TEST_FAILED,$$@)
 
   ART_TEST_HOST_GTEST$$($(3)ART_PHONY_TEST_HOST_SUFFIX)_RULES += $$(gtest_rule)
   ART_TEST_HOST_GTEST_RULES += $$(gtest_rule)
