@@ -1086,11 +1086,6 @@ void CodeGeneratorX86::GenerateFrameEntry() {
     }
   }
 
-  if (GetGraph()->HasShouldDeoptimizeFlag()) {
-    // Initialize should_deoptimize flag to 0.
-    __ movl(Address(ESP, -kShouldDeoptimizeFlagSize), Immediate(0));
-  }
-
   int adjust = GetFrameSize() - FrameEntrySpillSize();
   __ subl(ESP, Immediate(adjust));
   __ cfi().AdjustCFAOffset(adjust);
@@ -1099,6 +1094,11 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   // in the SSA graph.
   if (RequiresCurrentMethod()) {
     __ movl(Address(ESP, kCurrentMethodStackOffset), kMethodRegisterArgument);
+  }
+
+  if (GetGraph()->HasShouldDeoptimizeFlag()) {
+    // Initialize should_deoptimize flag to 0.
+    __ movl(Address(ESP, GetStackOffsetOfShouldDeoptimizeFlag()), Immediate(0));
   }
 }
 
