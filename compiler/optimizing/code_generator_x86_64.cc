@@ -1298,18 +1298,17 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
     }
   }
 
-  if (GetGraph()->HasShouldDeoptimizeFlag()) {
-    // Initialize should_deoptimize flag to 0.
-    __ movl(Address(CpuRegister(RSP), xmm_spill_location - kShouldDeoptimizeFlagSize),
-            Immediate(0));
-  }
-
   // Save the current method if we need it. Note that we do not
   // do this in HCurrentMethod, as the instruction might have been removed
   // in the SSA graph.
   if (RequiresCurrentMethod()) {
     __ movq(Address(CpuRegister(RSP), kCurrentMethodStackOffset),
             CpuRegister(kMethodRegisterArgument));
+  }
+
+  if (GetGraph()->HasShouldDeoptimizeFlag()) {
+    // Initialize should_deoptimize flag to 0.
+    __ movl(Address(CpuRegister(RSP), GetStackOffsetOfShouldDeoptimizeFlag()), Immediate(0));
   }
 }
 

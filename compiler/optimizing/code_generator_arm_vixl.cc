@@ -2659,14 +2659,6 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
     GetAssembler()->cfi().RelOffsetForMany(DWARFReg(s0), 0, fpu_spill_mask_, kArmWordSize);
   }
 
-  if (GetGraph()->HasShouldDeoptimizeFlag()) {
-    UseScratchRegisterScope temps(GetVIXLAssembler());
-    vixl32::Register temp = temps.Acquire();
-    // Initialize should_deoptimize flag to 0.
-    __ Mov(temp, 0);
-    GetAssembler()->StoreToOffset(kStoreWord, temp, sp, -kShouldDeoptimizeFlagSize);
-  }
-
   int adjust = GetFrameSize() - FrameEntrySpillSize();
   __ Sub(sp, sp, adjust);
   GetAssembler()->cfi().AdjustCFAOffset(adjust);
@@ -2676,6 +2668,14 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
   // in the SSA graph.
   if (RequiresCurrentMethod()) {
     GetAssembler()->StoreToOffset(kStoreWord, kMethodRegister, sp, 0);
+  }
+
+  if (GetGraph()->HasShouldDeoptimizeFlag()) {
+    UseScratchRegisterScope temps(GetVIXLAssembler());
+    vixl32::Register temp = temps.Acquire();
+    // Initialize should_deoptimize flag to 0.
+    __ Mov(temp, 0);
+    GetAssembler()->StoreToOffset(kStoreWord, temp, sp, GetStackOffsetOfShouldDeoptimizeFlag());
   }
 }
 
