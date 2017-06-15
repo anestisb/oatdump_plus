@@ -167,20 +167,344 @@ void SchedulingLatencyVisitorARM::VisitUShr(HUShr* instr) {
   HandleShiftLatencies(instr);
 }
 
-void SchedulingLatencyVisitorARM::VisitCondition(HCondition* instr) {
-  switch (instr->GetLeft()->GetType()) {
-    case Primitive::kPrimLong:
-      last_visited_internal_latency_ = 4 * kArmIntegerOpLatency;
+void SchedulingLatencyVisitorARM::HandleGenerateConditionWithZero(IfCondition condition) {
+  switch (condition) {
+    case kCondEQ:
+    case kCondBE:
+    case kCondNE:
+    case kCondA:
+      last_visited_internal_latency_ += kArmIntegerOpLatency;
+      last_visited_latency_ = kArmIntegerOpLatency;
       break;
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble:
-      last_visited_internal_latency_ = 2 * kArmFloatingPointOpLatency;
+    case kCondGE:
+      // Mvn
+      last_visited_internal_latency_ += kArmIntegerOpLatency;
+      FALLTHROUGH_INTENDED;
+    case kCondLT:
+      // Lsr
+      last_visited_latency_ = kArmIntegerOpLatency;
+      break;
+    case kCondAE:
+      // Trivially true.
+      // Mov
+      last_visited_latency_ = kArmIntegerOpLatency;
+      break;
+    case kCondB:
+      // Trivially false.
+      // Mov
+      last_visited_latency_ = kArmIntegerOpLatency;
       break;
     default:
-      last_visited_internal_latency_ = 2 * kArmIntegerOpLatency;
-      break;
+      LOG(FATAL) << "Unexpected condition " << condition;
+      UNREACHABLE();
   }
+}
+
+void SchedulingLatencyVisitorARM::HandleGenerateLongTestConstant(HCondition* condition) {
+  DCHECK_EQ(condition->GetLeft()->GetType(), Primitive::kPrimLong);
+
+  IfCondition cond = condition->GetCondition();
+
+  HInstruction* right = condition->InputAt(1);
+
+  int64_t value = Uint64ConstantFrom(right);
+
+  // Comparisons against 0 are common enough, so codegen has special handling for them.
+  if (value == 0) {
+    switch (cond) {
+      case kCondNE:
+      case kCondA:
+      case kCondEQ:
+      case kCondBE:
+        // Orrs
+        last_visited_internal_latency_ += kArmIntegerOpLatency;
+        return;
+      case kCondLT:
+      case kCondGE:
+        // Cmp
+        last_visited_internal_latency_ += kArmIntegerOpLatency;
+        return;
+      case kCondB:
+      case kCondAE:
+        // Cmp
+        last_visited_internal_latency_ += kArmIntegerOpLatency;
+        return;
+      default:
+        break;
+    }
+  }
+
+  switch (cond) {
+    case kCondEQ:
+    case kCondNE:
+    case kCondB:
+    case kCondBE:
+    case kCondA:
+    case kCondAE: {
+      // Cmp, IT, Cmp
+      last_visited_internal_latency_ += 3 * kArmIntegerOpLatency;
+      break;
+    }
+    case kCondLE:
+    case kCondGT:
+      // Trivially true or false.
+      if (value == std::numeric_limits<int64_t>::max()) {
+        // Cmp
+        last_visited_internal_latency_ += kArmIntegerOpLatency;
+        break;
+      }
+      FALLTHROUGH_INTENDED;
+    case kCondGE:
+    case kCondLT: {
+      // Cmp, Sbcs
+      last_visited_internal_latency_ += 2 * kArmIntegerOpLatency;
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unreachable";
+      UNREACHABLE();
+  }
+}
+
+void SchedulingLatencyVisitorARM::HandleGenerateLongTest(HCondition* condition) {
+  DCHECK_EQ(condition->GetLeft()->GetType(), Primitive::kPrimLong);
+
+  IfCondition cond = condition->GetCondition();
+
+  switch (cond) {
+    case kCondEQ:
+    case kCondNE:
+    case kCondB:
+    case kCondBE:
+    case kCondA:
+    case kCondAE: {
+      // Cmp, IT, Cmp
+      last_visited_internal_latency_ += 3 * kArmIntegerOpLatency;
+      break;
+    }
+    case kCondLE:
+    case kCondGT:
+    case kCondGE:
+    case kCondLT: {
+      // Cmp, Sbcs
+      last_visited_internal_latency_ += 2 * kArmIntegerOpLatency;
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unreachable";
+      UNREACHABLE();
+  }
+}
+
+// The GenerateTest series of function all counted as internal latency.
+void SchedulingLatencyVisitorARM::HandleGenerateTest(HCondition* condition) {
+  const Primitive::Type type = condition->GetLeft()->GetType();
+
+  if (type == Primitive::kPrimLong) {
+    condition->InputAt(1)->IsConstant()
+        ? HandleGenerateLongTestConstant(condition)
+        : HandleGenerateLongTest(condition);
+  } else if (Primitive::IsFloatingPointType(type)) {
+    // GenerateVcmp + Vmrs
+    last_visited_internal_latency_ += 2 * kArmFloatingPointOpLatency;
+  } else {
+    // Cmp
+    last_visited_internal_latency_ += kArmIntegerOpLatency;
+  }
+}
+
+bool SchedulingLatencyVisitorARM::CanGenerateTest(HCondition* condition) {
+  if (condition->GetLeft()->GetType() == Primitive::kPrimLong) {
+    HInstruction* right = condition->InputAt(1);
+
+    if (right->IsConstant()) {
+      IfCondition c = condition->GetCondition();
+      const uint64_t value = Uint64ConstantFrom(right);
+
+      if (c < kCondLT || c > kCondGE) {
+        if (value != 0) {
+          return false;
+        }
+      } else if (c == kCondLE || c == kCondGT) {
+        if (value < std::numeric_limits<int64_t>::max() &&
+            !codegen_->GetAssembler()->ShifterOperandCanHold(SBC, High32Bits(value + 1), kCcSet)) {
+          return false;
+        }
+      } else if (!codegen_->GetAssembler()->ShifterOperandCanHold(SBC, High32Bits(value), kCcSet)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+void SchedulingLatencyVisitorARM::HandleGenerateConditionGeneric(HCondition* cond) {
+  HandleGenerateTest(cond);
+
+  // Unlike codegen pass, we cannot check 'out' register IsLow() here,
+  // because scheduling is before liveness(location builder) and register allocator,
+  // so we can only choose to follow one path of codegen by assuming otu.IsLow() is true.
+  last_visited_internal_latency_ += 2 * kArmIntegerOpLatency;
   last_visited_latency_ = kArmIntegerOpLatency;
+}
+
+void SchedulingLatencyVisitorARM::HandleGenerateEqualLong(HCondition* cond) {
+  DCHECK_EQ(cond->GetLeft()->GetType(), Primitive::kPrimLong);
+
+  IfCondition condition = cond->GetCondition();
+
+  last_visited_internal_latency_ += 2 * kArmIntegerOpLatency;
+
+  if (condition == kCondNE) {
+    // Orrs, IT, Mov
+    last_visited_internal_latency_ += 3 * kArmIntegerOpLatency;
+  } else {
+    last_visited_internal_latency_ += kArmIntegerOpLatency;
+    HandleGenerateConditionWithZero(condition);
+  }
+}
+
+void SchedulingLatencyVisitorARM::HandleGenerateLongComparesAndJumps() {
+  last_visited_internal_latency_ += 4 * kArmIntegerOpLatency;
+  last_visited_internal_latency_ += kArmBranchLatency;
+}
+
+void SchedulingLatencyVisitorARM::HandleGenerateConditionLong(HCondition* cond) {
+  DCHECK_EQ(cond->GetLeft()->GetType(), Primitive::kPrimLong);
+
+  IfCondition condition = cond->GetCondition();
+  HInstruction* right = cond->InputAt(1);
+
+  if (right->IsConstant()) {
+    // Comparisons against 0 are common enough, so codegen has special handling for them.
+    if (Uint64ConstantFrom(right) == 0) {
+      switch (condition) {
+        case kCondNE:
+        case kCondA:
+        case kCondEQ:
+        case kCondBE:
+          // Orr
+          last_visited_internal_latency_ += kArmIntegerOpLatency;
+          HandleGenerateConditionWithZero(condition);
+          return;
+        case kCondLT:
+        case kCondGE:
+          FALLTHROUGH_INTENDED;
+        case kCondAE:
+        case kCondB:
+          HandleGenerateConditionWithZero(condition);
+          return;
+        case kCondLE:
+        case kCondGT:
+        default:
+          break;
+      }
+    }
+  }
+
+  if ((condition == kCondEQ || condition == kCondNE) &&
+      !CanGenerateTest(cond)) {
+    HandleGenerateEqualLong(cond);
+    return;
+  }
+
+  if (CanGenerateTest(cond)) {
+    HandleGenerateConditionGeneric(cond);
+    return;
+  }
+
+  HandleGenerateLongComparesAndJumps();
+
+  last_visited_internal_latency_ += kArmIntegerOpLatency;
+  last_visited_latency_ = kArmBranchLatency;;
+}
+
+void SchedulingLatencyVisitorARM::HandleGenerateConditionIntegralOrNonPrimitive(HCondition* cond) {
+  const Primitive::Type type = cond->GetLeft()->GetType();
+
+  DCHECK(Primitive::IsIntegralType(type) || type == Primitive::kPrimNot) << type;
+
+  if (type == Primitive::kPrimLong) {
+    HandleGenerateConditionLong(cond);
+    return;
+  }
+
+  IfCondition condition = cond->GetCondition();
+  HInstruction* right = cond->InputAt(1);
+  int64_t value;
+
+  if (right->IsConstant()) {
+    value = Uint64ConstantFrom(right);
+
+    // Comparisons against 0 are common enough, so codegen has special handling for them.
+    if (value == 0) {
+      switch (condition) {
+        case kCondNE:
+        case kCondA:
+        case kCondEQ:
+        case kCondBE:
+        case kCondLT:
+        case kCondGE:
+        case kCondAE:
+        case kCondB:
+          HandleGenerateConditionWithZero(condition);
+          return;
+        case kCondLE:
+        case kCondGT:
+        default:
+          break;
+      }
+    }
+  }
+
+  if (condition == kCondEQ || condition == kCondNE) {
+    if (condition == kCondNE) {
+      // CMP, IT, MOV.ne
+      last_visited_internal_latency_ += 2 * kArmIntegerOpLatency;
+      last_visited_latency_ = kArmIntegerOpLatency;
+    } else {
+      last_visited_internal_latency_ += kArmIntegerOpLatency;
+      HandleGenerateConditionWithZero(condition);
+    }
+    return;
+  }
+
+  HandleGenerateConditionGeneric(cond);
+}
+
+void SchedulingLatencyVisitorARM::HandleCondition(HCondition* cond) {
+  if (cond->IsEmittedAtUseSite()) {
+    last_visited_latency_ = 0;
+    return;
+  }
+
+  const Primitive::Type type = cond->GetLeft()->GetType();
+
+  if (Primitive::IsFloatingPointType(type)) {
+    HandleGenerateConditionGeneric(cond);
+    return;
+  }
+
+  DCHECK(Primitive::IsIntegralType(type) || type == Primitive::kPrimNot) << type;
+
+  const IfCondition condition = cond->GetCondition();
+
+  if (type == Primitive::kPrimBoolean &&
+      cond->GetRight()->GetType() == Primitive::kPrimBoolean &&
+      (condition == kCondEQ || condition == kCondNE)) {
+    if (condition == kCondEQ) {
+      last_visited_internal_latency_ = kArmIntegerOpLatency;
+    }
+    last_visited_latency_ = kArmIntegerOpLatency;
+    return;
+  }
+
+  HandleGenerateConditionIntegralOrNonPrimitive(cond);
+}
+
+void SchedulingLatencyVisitorARM::VisitCondition(HCondition* instr) {
+  HandleCondition(instr);
 }
 
 void SchedulingLatencyVisitorARM::VisitCompare(HCompare* instr) {
