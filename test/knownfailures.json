@@ -703,5 +703,11 @@
         "tests": ["059-finalizer-throw", "063-process-manager"],
         "description": [ "Tests that take too long on target with gcstress and debug" ],
         "variant": "gcstress & target & debug"
+    },
+    {
+        "tests": ["905-object-free"],
+        "description": [ "Flake on gcstress" ],
+        "bug": "b/62562923",
+        "variant": "gcstress & jit & target"
     }
 ]
