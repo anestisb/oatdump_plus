@@ -35,6 +35,7 @@
 #include "transform.h"
 
 #include "art_method.h"
+#include "base/array_ref.h"
 #include "class_linker.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
@@ -70,7 +71,7 @@ jvmtiError Transformer::RetransformClassesDirect(
   for (ArtClassDefinition& def : *definitions) {
     jint new_len = -1;
     unsigned char* new_data = nullptr;
-    art::ArraySlice<const unsigned char> dex_data = def.GetDexData();
+    art::ArrayRef<const unsigned char> dex_data = def.GetDexData();
     event_handler->DispatchEvent<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
         self,
         GetJniEnv(env),
@@ -79,7 +80,7 @@ jvmtiError Transformer::RetransformClassesDirect(
         def.GetName().c_str(),
         def.GetProtectionDomain(),
         static_cast<jint>(dex_data.size()),
-        &dex_data.At(0),
+        dex_data.data(),
         /*out*/&new_len,
         /*out*/&new_data);
     def.SetNewDexData(env, new_len, new_data);

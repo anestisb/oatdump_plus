@@ -37,7 +37,6 @@
 
 #include <jni.h>
 
-#include "base/array_slice.h"
 #include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"

@@ -40,17 +40,17 @@ namespace art {
 template <typename T>
 class ArrayRef {
  public:
-  typedef T value_type;
-  typedef T& reference;
-  typedef const T& const_reference;
-  typedef T* pointer;
-  typedef const T* const_pointer;
-  typedef T* iterator;
-  typedef const T* const_iterator;
-  typedef std::reverse_iterator<iterator> reverse_iterator;
-  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
-  typedef ptrdiff_t difference_type;
-  typedef size_t size_type;
+  using value_type = T;
+  using reference = T&;
+  using const_reference = const T&;
+  using pointer = T*;
+  using const_pointer = const T*;
+  using iterator = T*;
+  using const_iterator = const T*;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+  using difference_type = ptrdiff_t;
+  using size_type = size_t;
 
   // Constructors.
 
@@ -140,22 +140,22 @@ class ArrayRef {
   }
 
   reference front() {
-    DCHECK_NE(size_, 0u);
+    DCHECK(!empty());
     return array_[0];
   }
 
   const_reference front() const {
-    DCHECK_NE(size_, 0u);
+    DCHECK(!empty());
     return array_[0];
   }
 
   reference back() {
-    DCHECK_NE(size_, 0u);
+    DCHECK(!empty());
     return array_[size_ - 1u];
   }
 
   const_reference back() const {
-    DCHECK_NE(size_, 0u);
+    DCHECK(!empty());
     return array_[size_ - 1u];
   }
 
@@ -165,14 +165,17 @@ class ArrayRef {
   ArrayRef SubArray(size_type pos) {
     return SubArray(pos, size() - pos);
   }
+
   ArrayRef<const T> SubArray(size_type pos) const {
     return SubArray(pos, size() - pos);
   }
+
   ArrayRef SubArray(size_type pos, size_type length) {
     DCHECK_LE(pos, size());
     DCHECK_LE(length, size() - pos);
     return ArrayRef(data() + pos, length);
   }
+
   ArrayRef<const T> SubArray(size_type pos, size_type length) const {
     DCHECK_LE(pos, size());
     DCHECK_LE(length, size() - pos);

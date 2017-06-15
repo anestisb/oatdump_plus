@@ -38,7 +38,7 @@
 
 #include "art_jvmti.h"
 #include "art_method.h"
-#include "base/array_slice.h"
+#include "base/array_ref.h"
 #include "class_linker.h"
 #include "dex_file.h"
 #include "gc_root-inl.h"
@@ -95,7 +95,7 @@ class Redefiner {
   static jvmtiError IsModifiableClass(jvmtiEnv* env, jclass klass, jboolean* is_redefinable);
 
   static std::unique_ptr<art::MemMap> MoveDataToMemMap(const std::string& original_location,
-                                                       art::ArraySlice<const unsigned char> data,
+                                                       art::ArrayRef<const unsigned char> data,
                                                        std::string* error_msg);
 
  private:
@@ -105,7 +105,7 @@ class Redefiner {
                       jclass klass,
                       const art::DexFile* redefined_dex_file,
                       const char* class_sig,
-                      art::ArraySlice<const unsigned char> orig_dex_file)
+                      art::ArrayRef<const unsigned char> orig_dex_file)
       REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     // NO_THREAD_SAFETY_ANALYSIS so we can unlock the class in the destructor.
@@ -205,7 +205,7 @@ class Redefiner {
     jclass klass_;
     std::unique_ptr<const art::DexFile> dex_file_;
     std::string class_sig_;
-    art::ArraySlice<const unsigned char> original_dex_file_;
+    art::ArrayRef<const unsigned char> original_dex_file_;
   };
 
   jvmtiError result_;
