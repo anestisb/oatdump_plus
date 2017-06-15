@@ -516,7 +516,7 @@ class ImgDiagDumper {
     std::map<std::string, mirror::Class*> local_class_map;
 
     // Image dirty objects
-    // If zygote_pid_only_ == true, these are dirty objects in the zygote.
+    // If zygote_pid_only_ == true, these are shared dirty objects in the zygote.
     // If zygote_pid_only_ == false, these are private dirty objects in the application.
     std::set<mirror::Object*> image_dirty_objects;
 
@@ -689,9 +689,15 @@ class ImgDiagDumper {
     }
     os << "\n";
     if (zygote_pid_only_) {
-      os << "  Zygote dirty objects: ";
+      // image_diff_pid_ is the zygote process.
+      os << "  Zygote shared dirty objects: ";
     } else {
-      os << "  Application dirty objects (private or shared dirty): ";
+      // image_diff_pid_ is actually the image (application) process.
+      if (zygote_diff_pid_ > 0) {
+        os << "  Application dirty objects (private dirty): ";
+      } else {
+        os << "  Application dirty objects (unknown whether private or shared dirty): ";
+      }
     }
     os << image_dirty_objects.size() << "\n";
     for (mirror::Object* obj : image_dirty_objects) {
