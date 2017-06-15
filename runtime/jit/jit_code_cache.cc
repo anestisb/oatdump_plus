@@ -90,17 +90,17 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
   // We could do PC-relative addressing to avoid this problem, but that
   // would require reserving code and data area before submitting, which
   // means more windows for the code memory to be RWX.
-  MemMap* data_map = MemMap::MapAnonymous(
+  std::unique_ptr<MemMap> data_map(MemMap::MapAnonymous(
       "data-code-cache", nullptr,
       max_capacity,
-      kProtAll,
+      kProtData,
       /* low_4gb */ true,
       /* reuse */ false,
       &error_str,
-      use_ashmem);
+      use_ashmem));
   if (data_map == nullptr) {
     std::ostringstream oss;
-    oss << "Failed to create read write execute cache: " << error_str << " size=" << max_capacity;
+    oss << "Failed to create read write cache: " << error_str << " size=" << max_capacity;
     *error_msg = oss.str();
     return nullptr;
   }
@@ -129,7 +129,7 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
   code_size = initial_capacity - data_size;
   DCHECK_EQ(code_size + data_size, initial_capacity);
   return new JitCodeCache(
-      code_map, data_map, code_size, data_size, max_capacity, garbage_collect_code);
+      code_map, data_map.release(), code_size, data_size, max_capacity, garbage_collect_code);
 }
 
 JitCodeCache::JitCodeCache(MemMap* code_map,
