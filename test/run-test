@@ -46,7 +46,6 @@ export RUN="${progdir}/etc/run-test-jar"
 export DEX_LOCATION=/data/run-test/${test_dir}
 export NEED_DEX="true"
 export USE_JACK="true"
-export USE_DESUGAR="true"
 export SMALI_ARGS=""
 
 # If dx was not set by the environment variable, assume it is in the path.
@@ -770,16 +769,6 @@ fi
 # script for the particular test in question.
 if ! ulimit -f 128000; then
   err_echo "ulimit file size setting failed"
-fi
-
-if [[ "$target_mode" == "yes" ]]; then
-  build_args="$build_args --target"
-else
-  build_args="$build_args --host"
-fi
-
-if [[ "$dev_mode" == "yes" ]]; then
-  build_args="$build_args --dev"
 fi
 
 good="no"
