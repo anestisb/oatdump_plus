@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_BASE_ARRAY_SLICE_H_
 #define ART_RUNTIME_BASE_ARRAY_SLICE_H_
 
-#include "length_prefixed_array.h"
 #include "stride_iterator.h"
 #include "base/bit_utils.h"
 #include "base/casts.h"
@@ -27,9 +26,21 @@ namespace art {
 
 // An ArraySlice is an abstraction over an array or a part of an array of a particular type. It does
 // bounds checking and can be made from several common array-like structures in Art.
-template<typename T>
+template <typename T>
 class ArraySlice {
  public:
+  using value_type = T;
+  using reference = T&;
+  using const_reference = const T&;
+  using pointer = T*;
+  using const_pointer = const T*;
+  using iterator = StrideIterator<T>;
+  using const_iterator = StrideIterator<const T>;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+  using difference_type = ptrdiff_t;
+  using size_type = size_t;
+
   // Create an empty array slice.
   ArraySlice() : array_(nullptr), size_(0), element_size_(0) {}
 
@@ -44,85 +55,74 @@ class ArraySlice {
     DCHECK(array_ != nullptr || length == 0);
   }
 
-  // Create an array slice of the elements between start_offset and end_offset of the array with
-  // each element being element_size bytes long. Both start_offset and end_offset are in
-  // element_size units.
-  ArraySlice(T* array,
-             uint32_t start_offset,
-             uint32_t end_offset,
-             size_t element_size = sizeof(T))
-      : array_(nullptr),
-        size_(end_offset - start_offset),
-        element_size_(element_size) {
-    DCHECK(array_ != nullptr || size_ == 0);
-    DCHECK_LE(start_offset, end_offset);
-    if (size_ != 0) {
-      uintptr_t offset = start_offset * element_size_;
-      array_ = *reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(array) + offset);
-    }
-  }
+  // Iterators.
+  iterator begin() { return iterator(&AtUnchecked(0), element_size_); }
+  const_iterator begin() const { return const_iterator(&AtUnchecked(0), element_size_); }
+  const_iterator cbegin() const { return const_iterator(&AtUnchecked(0), element_size_); }
+  StrideIterator<T> end() { return StrideIterator<T>(&AtUnchecked(size_), element_size_); }
+  const_iterator end() const { return const_iterator(&AtUnchecked(size_), element_size_); }
+  const_iterator cend() const { return const_iterator(&AtUnchecked(size_), element_size_); }
+  reverse_iterator rbegin() { return reverse_iterator(end()); }
+  const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+  const_reverse_iterator crbegin() const { return const_reverse_iterator(cend()); }
+  reverse_iterator rend() { return reverse_iterator(begin()); }
+  const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+  const_reverse_iterator crend() const { return const_reverse_iterator(cbegin()); }
 
-  // Create an array slice of the elements between start_offset and end_offset of the array with
-  // each element being element_size bytes long and having the given alignment. Both start_offset
-  // and end_offset are in element_size units.
-  ArraySlice(LengthPrefixedArray<T>* array,
-             uint32_t start_offset,
-             uint32_t end_offset,
-             size_t element_size = sizeof(T),
-             size_t alignment = alignof(T))
-      : array_(nullptr),
-        size_(end_offset - start_offset),
-        element_size_(element_size) {
-    DCHECK(array != nullptr || size_ == 0);
-    if (size_ != 0) {
-      DCHECK_LE(start_offset, end_offset);
-      DCHECK_LE(start_offset, array->size());
-      DCHECK_LE(end_offset, array->size());
-      array_ = &array->At(start_offset, element_size_, alignment);
-    }
-  }
+  // Size.
+  size_type size() const { return size_; }
+  bool empty() const { return size() == 0u; }
 
-  T& At(size_t index) {
+  // Element access. NOTE: Not providing at() and data().
+
+  reference operator[](size_t index) {
     DCHECK_LT(index, size_);
     return AtUnchecked(index);
   }
 
-  const T& At(size_t index) const {
+  const_reference operator[](size_t index) const {
     DCHECK_LT(index, size_);
     return AtUnchecked(index);
   }
 
-  T& operator[](size_t index) {
-    return At(index);
+  reference front() {
+    DCHECK(!empty());
+    return (*this)[0];
   }
 
-  const T& operator[](size_t index) const {
-    return At(index);
+  const_reference front() const {
+    DCHECK(!empty());
+    return (*this)[0];
   }
 
-  StrideIterator<T> begin() {
-    return StrideIterator<T>(&AtUnchecked(0), element_size_);
+  reference back() {
+    DCHECK(!empty());
+    return (*this)[size_ - 1u];
   }
 
-  StrideIterator<const T> begin() const {
-    return StrideIterator<const T>(&AtUnchecked(0), element_size_);
+  const_reference back() const {
+    DCHECK(!empty());
+    return (*this)[size_ - 1u];
   }
 
-  StrideIterator<T> end() {
-    return StrideIterator<T>(&AtUnchecked(size_), element_size_);
+  ArraySlice<T> SubArray(size_type pos) {
+    return SubArray(pos, size() - pos);
   }
 
-  StrideIterator<const T> end() const {
-    return StrideIterator<const T>(&AtUnchecked(size_), element_size_);
+  ArraySlice<const T> SubArray(size_type pos) const {
+    return SubArray(pos, size() - pos);
   }
 
-  IterationRange<StrideIterator<T>> AsRange() {
-    return size() != 0 ? MakeIterationRange(begin(), end())
-                       : MakeEmptyIterationRange(StrideIterator<T>(nullptr, 0));
+  ArraySlice<T> SubArray(size_type pos, size_type length) {
+    DCHECK_LE(pos, size());
+    DCHECK_LE(length, size() - pos);
+    return ArraySlice<T>(&AtUnchecked(pos), length, element_size_);
   }
 
-  size_t size() const {
-    return size_;
+  ArraySlice<const T> SubArray(size_type pos, size_type length) const {
+    DCHECK_LE(pos, size());
+    DCHECK_LE(length, size() - pos);
+    return ArraySlice<const T>(&AtUnchecked(pos), length, element_size_);
   }
 
   size_t ElementSize() const {

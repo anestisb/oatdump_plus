@@ -136,7 +136,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
         // Rely on the fact that the methods are contiguous to determine the index of the method in
         // the slice.
         int throws_index = (reinterpret_cast<uintptr_t>(proxy_method) -
-            reinterpret_cast<uintptr_t>(&virtual_methods.At(0))) / method_size;
+            reinterpret_cast<uintptr_t>(&virtual_methods[0])) / method_size;
         CHECK_LT(throws_index, static_cast<int>(num_virtuals));
         mirror::ObjectArray<mirror::Class>* declared_exceptions =
             proxy_class->GetProxyThrows()->Get(throws_index);
