@@ -324,10 +324,14 @@ target_config = {
 
    # ASAN (host) configurations.
 
+   # These configurations need detect_leaks=0 to work in non-setup environments like build bots,
+   # as our build tools leak. b/37751350
+
    'art-gtest-asan': {
         'make' : 'test-art-host-gtest',
         'env': {
-            'SANITIZE_HOST' : 'address'
+            'SANITIZE_HOST' : 'address',
+            'ASAN_OPTIONS' : 'detect_leaks=0'
         }
    },
    'art-asan': {
@@ -335,7 +339,8 @@ target_config = {
                       '--optimizing',
                       '--jit'],
         'env': {
-            'SANITIZE_HOST' : 'address'
+            'SANITIZE_HOST' : 'address',
+            'ASAN_OPTIONS' : 'detect_leaks=0'
         }
    },
 
