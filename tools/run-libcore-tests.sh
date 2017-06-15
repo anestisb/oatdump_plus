@@ -103,6 +103,9 @@ working_packages=("dalvik.system"
 # "org.apache.harmony.security"
 
 vogar_args=$@
+gcstress=false
+debug=false
+
 while true; do
   if [[ "$1" == "--mode=device" ]]; then
     vogar_args="$vogar_args --device-dir=/data/local/tmp"
@@ -125,6 +128,10 @@ while true; do
     # Remove the --debug from the arguments.
     vogar_args=${vogar_args/$1}
     vogar_args="$vogar_args --vm-arg -XXlib:libartd.so"
+    debug=true
+    shift
+  elif [[ "$1" == "-Xgc:gcstress" ]]; then
+    gcstress=true
     shift
   elif [[ "$1" == "" ]]; then
     break
@@ -150,6 +157,11 @@ if $use_jit; then
   vogar_args="$vogar_args --vm-arg -Xcompiler-option --vm-arg --compiler-filter=quicken"
 fi
 vogar_args="$vogar_args --vm-arg -Xusejit:$use_jit"
+
+# gcstress and debug may lead to timeouts, so we need a dedicated expectations file for it.
+if [[ $gcstress && $debug ]]; then
+  expectations="$expectations --expectations art/tools/libcore_gcstress_debug_failures.txt"
+fi
 
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"

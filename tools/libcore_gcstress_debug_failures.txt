@@ -1,0 +1,16 @@
+/*
+ * This file contains expectations for ART's buildbot when running gcstress in debug mode.
+ * The script that uses this file is art/tools/run-libcore-tests.sh.
+ */
+
+[
+{
+  description: "Timeouts on target with gcstress and debug.",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.icu.TransliteratorTest#testAll",
+          "libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndTimeout",
+          "libcore.java.util.TimeZoneTest#testSetDefaultDeadlock",
+          "org.apache.harmony.tests.java.util.TimerTest#testThrowingTaskKillsTimerThread"]
+}
+]

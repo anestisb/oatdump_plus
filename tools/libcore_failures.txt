@@ -1,6 +1,6 @@
 /*
  * This file contains expectations for ART's buildbot. The purpose of this file is
- * to temporary and quickly list failing tests and not break the bots, until the
+ * to temporarily list failing tests and not break the bots, until the
  * libcore expectation files get properly updated. The script that uses this file
  * is art/tools/run-libcore-tests.sh.
  *
