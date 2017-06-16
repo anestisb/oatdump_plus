@@ -33,6 +33,8 @@ union PACKED(alignof(mirror::Object*)) JValue {
   // We default initialize JValue instances to all-zeros.
   JValue() : j(0) {}
 
+  template<typename T> static JValue FromPrimitive(T v);
+
   int8_t GetB() const { return b; }
   void SetB(int8_t new_b) {
     j = ((static_cast<int64_t>(new_b) << 56) >> 56);  // Sign-extend to 64 bits.

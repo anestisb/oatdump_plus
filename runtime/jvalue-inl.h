@@ -27,6 +27,24 @@ inline void JValue::SetL(ObjPtr<mirror::Object> new_l) {
   l = new_l.Ptr();
 }
 
+#define DEFINE_FROM(type, chr) \
+    template <> inline JValue JValue::FromPrimitive(type v) { \
+      JValue res; \
+      res.Set ## chr(v); \
+      return res; \
+    }
+
+DEFINE_FROM(uint8_t, Z);
+DEFINE_FROM(int8_t, B);
+DEFINE_FROM(uint16_t, C);
+DEFINE_FROM(int16_t, S);
+DEFINE_FROM(int32_t, I);
+DEFINE_FROM(int64_t, J);
+DEFINE_FROM(float, F);
+DEFINE_FROM(double, D);
+
+#undef DEFINE_FROM
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_JVALUE_INL_H_

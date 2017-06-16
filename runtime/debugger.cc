@@ -2927,7 +2927,8 @@ void Dbg::PostLocationEvent(ArtMethod* m, int dex_pc, mirror::Object* this_objec
 
 void Dbg::PostFieldAccessEvent(ArtMethod* m, int dex_pc,
                                mirror::Object* this_object, ArtField* f) {
-  if (!IsDebuggerActive()) {
+  // TODO We should send events for native methods.
+  if (!IsDebuggerActive() || m->IsNative()) {
     return;
   }
   DCHECK(m != nullptr);
@@ -2941,7 +2942,8 @@ void Dbg::PostFieldAccessEvent(ArtMethod* m, int dex_pc,
 void Dbg::PostFieldModificationEvent(ArtMethod* m, int dex_pc,
                                      mirror::Object* this_object, ArtField* f,
                                      const JValue* field_value) {
-  if (!IsDebuggerActive()) {
+  // TODO We should send events for native methods.
+  if (!IsDebuggerActive() || m->IsNative()) {
     return;
   }
   DCHECK(m != nullptr);

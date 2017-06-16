@@ -40,6 +40,7 @@
 #include "interpreter/interpreter.h"
 #include "jni_env_ext.h"
 #include "java_vm_ext.h"
+#include "jvalue-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/field-inl.h"
@@ -63,6 +64,84 @@ namespace art {
 // Consider turning this on when there is errors which could be related to JNI array copies such as
 // things not rendering correctly. E.g. b/16858794
 static constexpr bool kWarnJniAbort = false;
+
+// Helpers to call instrumentation functions for fields. These take jobjects so we don't need to set
+// up handles for the rare case where these actually do something. Once these functions return it is
+// possible there will be a pending exception if the instrumentation happens to throw one.
+static void NotifySetObjectField(ArtField* field, jobject obj, jobject jval)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK_EQ(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instrumentation->HasFieldWriteListeners())) {
+    Thread* self = Thread::Current();
+    ArtMethod* cur_method = self->GetCurrentMethod(/*dex_pc*/ nullptr,
+                                                   /*check_suspended*/ true,
+                                                   /*abort_on_error*/ false);
+
+    if (cur_method == nullptr) {
+      // Set/Get Fields can be issued without a method during runtime startup/teardown. Ignore all
+      // of these changes.
+      return;
+    }
+    DCHECK(cur_method->IsNative());
+    JValue val;
+    val.SetL(self->DecodeJObject(jval));
+    instrumentation->FieldWriteEvent(self,
+                                     self->DecodeJObject(obj).Ptr(),
+                                     cur_method,
+                                     0,  // dex_pc is always 0 since this is a native method.
+                                     field,
+                                     val);
+  }
+}
+
+static void NotifySetPrimitiveField(ArtField* field, jobject obj, JValue val)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instrumentation->HasFieldWriteListeners())) {
+    Thread* self = Thread::Current();
+    ArtMethod* cur_method = self->GetCurrentMethod(/*dex_pc*/ nullptr,
+                                                   /*check_suspended*/ true,
+                                                   /*abort_on_error*/ false);
+
+    if (cur_method == nullptr) {
+      // Set/Get Fields can be issued without a method during runtime startup/teardown. Ignore all
+      // of these changes.
+      return;
+    }
+    DCHECK(cur_method->IsNative());
+    instrumentation->FieldWriteEvent(self,
+                                     self->DecodeJObject(obj).Ptr(),
+                                     cur_method,
+                                     0,  // dex_pc is always 0 since this is a native method.
+                                     field,
+                                     val);
+  }
+}
+
+static void NotifyGetField(ArtField* field, jobject obj)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instrumentation->HasFieldReadListeners())) {
+    Thread* self = Thread::Current();
+    ArtMethod* cur_method = self->GetCurrentMethod(/*dex_pc*/ nullptr,
+                                                   /*check_suspended*/ true,
+                                                   /*abort_on_error*/ false);
+
+    if (cur_method == nullptr) {
+      // Set/Get Fields can be issued without a method during runtime startup/teardown. Ignore all
+      // of these changes.
+      return;
+    }
+    DCHECK(cur_method->IsNative());
+    instrumentation->FieldReadEvent(self,
+                                    self->DecodeJObject(obj).Ptr(),
+                                    cur_method,
+                                    0,  // dex_pc is always 0 since this is a native method.
+                                    field);
+  }
+}
 
 // Section 12.3.2 of the JNI spec describes JNI class descriptors. They're
 // separated with slashes but aren't wrapped with "L;" like regular descriptors
@@ -1235,8 +1314,9 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(obj);
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
-    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(obj);
     ArtField* f = jni::DecodeArtField(fid);
+    NotifyGetField(f, obj);
+    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(obj);
     return soa.AddLocalReference<jobject>(f->GetObject(o));
   }
 
@@ -1244,6 +1324,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
     ArtField* f = jni::DecodeArtField(fid);
+    NotifyGetField(f, nullptr);
     return soa.AddLocalReference<jobject>(f->GetObject(f->GetDeclaringClass()));
   }
 
@@ -1251,17 +1332,19 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_object);
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid);
     ScopedObjectAccess soa(env);
+    ArtField* f = jni::DecodeArtField(fid);
+    NotifySetObjectField(f, java_object, java_value);
     ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
     ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
-    ArtField* f = jni::DecodeArtField(fid);
     f->SetObject<false>(o, v);
   }
 
   static void SetStaticObjectField(JNIEnv* env, jclass, jfieldID fid, jobject java_value) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid);
     ScopedObjectAccess soa(env);
-    ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
     ArtField* f = jni::DecodeArtField(fid);
+    NotifySetObjectField(f, nullptr, java_value);
+    ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
     f->SetObject<false>(f->GetDeclaringClass(), v);
   }
 
@@ -1269,28 +1352,32 @@ class JNI {
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(instance); \
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(fid); \
   ScopedObjectAccess soa(env); \
-  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   ArtField* f = jni::DecodeArtField(fid); \
+  NotifyGetField(f, instance); \
+  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   return f->Get ##fn (o)
 
 #define GET_STATIC_PRIMITIVE_FIELD(fn) \
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(fid); \
   ScopedObjectAccess soa(env); \
   ArtField* f = jni::DecodeArtField(fid); \
+  NotifyGetField(f, nullptr); \
   return f->Get ##fn (f->GetDeclaringClass())
 
 #define SET_PRIMITIVE_FIELD(fn, instance, value) \
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(instance); \
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
   ScopedObjectAccess soa(env); \
-  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   ArtField* f = jni::DecodeArtField(fid); \
+  NotifySetPrimitiveField(f, instance, JValue::FromPrimitive<decltype(value)>(value)); \
+  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   f->Set ##fn <false>(o, value)
 
 #define SET_STATIC_PRIMITIVE_FIELD(fn, value) \
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
   ScopedObjectAccess soa(env); \
   ArtField* f = jni::DecodeArtField(fid); \
+  NotifySetPrimitiveField(f, nullptr, JValue::FromPrimitive<decltype(value)>(value)); \
   f->Set ##fn <false>(f->GetDeclaringClass(), value)
 
   static jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fid) {
