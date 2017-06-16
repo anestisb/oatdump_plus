@@ -194,6 +194,10 @@ class ProfileCompilationInfo {
       flags_ |= flag;
     }
 
+    uint8_t GetFlags() const {
+      return flags_;
+    }
+
     bool HasAnyFlags() const {
       return flags_ != 0;
     }

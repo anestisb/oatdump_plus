@@ -1663,19 +1663,21 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
     }
   }
 
-  enum CodeItemKind {
-    kMethodNotExecuted = 0,
-    kMethodClinit = 1,
-    kMethodExecuted = 2,
-    kSize = 3,
+  enum CodeItemState {
+    kCodeItemStateExecStartupOnly = 0,
+    kCodeItemStateHot,
+    kCodeItemStateClinit,
+    kCodeItemStateExec,
+    kCodeItemStateNotExecuted,
+    kCodeItemStateSize,
   };
 
   static constexpr InvokeType invoke_types[] = {
-      kDirect,
-      kVirtual
+    kDirect,
+    kVirtual
   };
 
-  std::unordered_set<dex_ir::CodeItem*> code_items[CodeItemKind::kSize];
+  std::unordered_set<dex_ir::CodeItem*> code_items[kCodeItemStateSize];
   for (InvokeType invoke_type : invoke_types) {
     for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_->GetCollections().ClassDefs()) {
       const bool is_profile_class =
@@ -1695,18 +1697,25 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
           continue;
         }
         // Separate executed methods (clinits and profiled methods) from unexecuted methods.
-        const bool is_clinit = is_profile_class &&
-            (method->GetAccessFlags() & kAccConstructor) != 0 &&
+        const bool is_clinit = (method->GetAccessFlags() & kAccConstructor) != 0 &&
             (method->GetAccessFlags() & kAccStatic) != 0;
-        const bool is_method_executed =
-            info_->GetMethodHotness(MethodReference(dex_file, method_id->GetIndex())).HasAnyFlags();
-        CodeItemKind code_item_kind = CodeItemKind::kMethodNotExecuted;
-        if (is_clinit) {
-          code_item_kind = CodeItemKind::kMethodClinit;
-        } else if (is_method_executed) {
-          code_item_kind = CodeItemKind::kMethodExecuted;
+        const bool is_startup_clinit = is_profile_class && is_clinit;
+        using Hotness = ProfileCompilationInfo::MethodHotness;
+        Hotness hotness = info_->GetMethodHotness(MethodReference(dex_file, method_id->GetIndex()));
+        CodeItemState state = kCodeItemStateNotExecuted;
+        if (hotness.IsHot()) {
+          // Hot code is compiled, maybe one day it won't be accessed. So lay it out together for
+          // now.
+          state = kCodeItemStateHot;
+        } else if (is_startup_clinit || hotness.GetFlags() == Hotness::kFlagStartup) {
+          // Startup clinit or a method that only has the startup flag.
+          state = kCodeItemStateExecStartupOnly;
+        } else if (is_clinit) {
+          state = kCodeItemStateClinit;
+        } else if (hotness.HasAnyFlags()) {
+          state = kCodeItemStateExec;
         }
-        code_items[code_item_kind].insert(code_item);
+        code_items[state].insert(code_item);
       }
     }
   }
@@ -1718,6 +1727,7 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
   for (std::unordered_set<dex_ir::CodeItem*>& code_items_set : code_items) {
     // diff is reset for each class of code items.
     int32_t diff = 0;
+    uint32_t start_offset = code_item_offset;
     for (dex_ir::ClassData* data : new_class_data_order) {
       data->SetOffset(data->GetOffset() + diff);
       for (InvokeType invoke_type : invoke_types) {
@@ -1735,6 +1745,10 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
           }
         }
       }
+    }
+    for (size_t i = 0; i < kCodeItemStateSize; ++i) {
+      VLOG(dex) << "Code item layout bucket " << i << " count=" << code_items[i].size()
+                << " bytes=" << code_item_offset - start_offset;
     }
     total_diff += diff;
   }
