@@ -528,6 +528,7 @@ art_cc_test {
         "base/hash_set_test.cc",
         "base/hex_dump_test.cc",
         "base/histogram_test.cc",
+        "base/logging_test.cc",
         "base/mutex_test.cc",
         "base/safe_copy_test.cc",
         "base/scoped_flock_test.cc",

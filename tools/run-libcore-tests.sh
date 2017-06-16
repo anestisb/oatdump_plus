@@ -127,7 +127,7 @@ while true; do
   elif [[ "$1" == "--debug" ]]; then
     # Remove the --debug from the arguments.
     vogar_args=${vogar_args/$1}
-    vogar_args="$vogar_args --vm-arg -XXlib:libartd.so"
+    vogar_args="$vogar_args --vm-arg -XXlib:libartd.so --vm-arg -XX:SlowDebug=true"
     debug=true
     shift
   elif [[ "$1" == "-Xgc:gcstress" ]]; then

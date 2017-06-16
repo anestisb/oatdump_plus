@@ -79,6 +79,9 @@ SET_STACK_TRACE_DUMP_DIR="n"
 # build step (e.g. dex2oat) were finished writing.
 SYNC_BEFORE_RUN="n"
 
+# When running a debug build, we want to run with all checks.
+ANDROID_FLAGS="${ANDROID_FLAGS} -XX:SlowDebug=true"
+
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
