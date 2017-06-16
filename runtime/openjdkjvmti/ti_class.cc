@@ -313,8 +313,10 @@ struct ClassCallback : public art::ClassLoadCallback {
       art::Thread* thread = art::Thread::Current();
       ScopedLocalRef<jclass> jklass(thread->GetJniEnv(),
                                     thread->GetJniEnv()->AddLocalReference<jclass>(klass.Get()));
+      art::ObjPtr<art::mirror::Object> peer(thread->GetPeer());
       ScopedLocalRef<jthread> thread_jni(
-          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jthread>(thread->GetPeer()));
+          thread->GetJniEnv(),
+          peer.IsNull() ? nullptr : thread->GetJniEnv()->AddLocalReference<jthread>(peer));
       {
         art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
         event_handler->DispatchEvent<ArtJvmtiEvent::kClassLoad>(
@@ -341,8 +343,10 @@ struct ClassCallback : public art::ClassLoadCallback {
       }
       ScopedLocalRef<jclass> jklass(thread->GetJniEnv(),
                                     thread->GetJniEnv()->AddLocalReference<jclass>(klass.Get()));
+      art::ObjPtr<art::mirror::Object> peer(thread->GetPeer());
       ScopedLocalRef<jthread> thread_jni(
-          thread->GetJniEnv(), thread->GetJniEnv()->AddLocalReference<jthread>(thread->GetPeer()));
+          thread->GetJniEnv(),
+          peer.IsNull() ? nullptr : thread->GetJniEnv()->AddLocalReference<jthread>(peer));
       art::ScopedThreadSuspension sts(thread, art::ThreadState::kNative);
       event_handler->DispatchEvent<ArtJvmtiEvent::kClassPrepare>(
           thread,

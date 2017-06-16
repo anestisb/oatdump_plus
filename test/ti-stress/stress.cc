@@ -338,6 +338,20 @@ void JNICALL MethodEntryHook(jvmtiEnv* jvmtienv,
   LOG(INFO) << "Entering method \"" << method_info << "\". Thread is \"" << info.GetName() << "\"";
 }
 
+void JNICALL ClassPrepareHook(jvmtiEnv* jvmtienv,
+                              JNIEnv* env,
+                              jthread thread,
+                              jclass klass) {
+  ScopedThreadInfo info(jvmtienv, env, thread);
+  ScopedClassInfo class_info(jvmtienv, klass);
+  if (!class_info.Init()) {
+    LOG(ERROR) << "Unable to get class info!";
+    return;
+  }
+  LOG(INFO) << "Prepared class \"" << class_info.GetName() << "\". Thread is \""
+            << info.GetName() << "\"";
+}
+
 // The hook we are using.
 void JNICALL ClassFileLoadHookSecretNoOp(jvmtiEnv* jvmti,
                                          JNIEnv* jni_env ATTRIBUTE_UNUSED,
@@ -487,6 +501,7 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
   cb.VMInit = PerformFinalSetupVMInit;
   cb.MethodEntry = MethodEntryHook;
   cb.MethodExit = MethodExitHook;
+  cb.ClassPrepare = ClassPrepareHook;
   if (jvmti->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
     LOG(ERROR) << "Unable to set class file load hook cb!";
     return 1;
@@ -502,6 +517,14 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
                                       nullptr) != JVMTI_ERROR_NONE) {
     LOG(ERROR) << "Unable to enable JVMTI_EVENT_VM_INIT event!";
     return 1;
+  }
+  if (data->trace_stress) {
+    if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                        JVMTI_EVENT_CLASS_PREPARE,
+                                        nullptr) != JVMTI_ERROR_NONE) {
+      LOG(ERROR) << "Unable to enable CLASS_PREPARE event!";
+      return 1;
+    }
   }
   if (data->redefine_stress) {
     if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
