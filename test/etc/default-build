@@ -60,6 +60,11 @@ else
   HAS_SRC_DEX2OAT_UNRESOLVED=false
 fi
 
+# DESUGAR=false run-test... will disable desugar.
+if [[ "$DESUGAR" == false ]]; then
+  USE_DESUGAR=false
+fi
+
 # Allow overriding ZIP_COMPRESSION_METHOD with e.g. 'store'
 ZIP_COMPRESSION_METHOD="deflate"
 # Align every ZIP file made by calling $ZIPALIGN command?
@@ -207,7 +212,7 @@ function desugar() {
     desugar_args="$desugar_args --show-commands"
   fi
 
-  "${ANDROID_BUILD_TOP}/art/tools/desugar.sh" --core-only $desugar_args "$@"
+  "$DESUGAR" --core-only $desugar_args "$@"
 }
 
 # Make a "dex" file given a directory of classes in $1.
