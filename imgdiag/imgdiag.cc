@@ -64,6 +64,127 @@ class ImgDiagDumper {
         zygote_diff_pid_(zygote_diff_pid),
         zygote_pid_only_(false) {}
 
+  bool Init() {
+    std::ostream& os = *os_;
+
+    {
+      struct stat sts;
+      std::string proc_pid_str =
+          StringPrintf("/proc/%ld", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
+      if (stat(proc_pid_str.c_str(), &sts) == -1) {
+        os << "Process does not exist";
+        return false;
+      }
+    }
+
+    // Open /proc/$pid/maps to view memory maps
+    auto tmp_proc_maps = std::unique_ptr<BacktraceMap>(BacktraceMap::Create(image_diff_pid_));
+    if (tmp_proc_maps == nullptr) {
+      os << "Could not read backtrace maps";
+      return false;
+    }
+
+    bool found_boot_map = false;
+    // Find the memory map only for boot.art
+    for (const backtrace_map_t& map : *tmp_proc_maps) {
+      if (EndsWith(map.name, GetImageLocationBaseName())) {
+        if ((map.flags & PROT_WRITE) != 0) {
+          boot_map_ = map;
+          found_boot_map = true;
+          break;
+        }
+        // In actuality there's more than 1 map, but the second one is read-only.
+        // The one we care about is the write-able map.
+        // The readonly maps are guaranteed to be identical, so its not interesting to compare
+        // them.
+      }
+    }
+
+    if (!found_boot_map) {
+      os << "Could not find map for " << GetImageLocationBaseName();
+      return false;
+    }
+    // Sanity check boot_map_.
+    CHECK(boot_map_.end >= boot_map_.start);
+    boot_map_size_ = boot_map_.end - boot_map_.start;
+
+    pointer_size_ = InstructionSetPointerSize(Runtime::Current()->GetInstructionSet());
+
+    // Open /proc/<image_diff_pid_>/mem and read as remote_contents_.
+    std::string image_file_name =
+        StringPrintf("/proc/%ld/mem", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
+    auto image_map_file = std::unique_ptr<File>(OS::OpenFileForReading(image_file_name.c_str()));
+    if (image_map_file == nullptr) {
+      os << "Failed to open " << image_file_name << " for reading";
+      return false;
+    }
+    std::vector<uint8_t> tmp_remote_contents(boot_map_size_);
+    if (!image_map_file->PreadFully(&tmp_remote_contents[0], boot_map_size_, boot_map_.start)) {
+      os << "Could not fully read file " << image_file_name;
+      return false;
+    }
+
+    // If zygote_diff_pid_ != -1, open /proc/<zygote_diff_pid_>/mem and read as zygote_contents_.
+    std::vector<uint8_t> tmp_zygote_contents;
+    if (zygote_diff_pid_ != -1) {
+      std::string zygote_file_name =
+          StringPrintf("/proc/%ld/mem", static_cast<long>(zygote_diff_pid_));  // NOLINT [runtime/int]
+      std::unique_ptr<File> zygote_map_file(OS::OpenFileForReading(zygote_file_name.c_str()));
+      if (zygote_map_file == nullptr) {
+        os << "Failed to open " << zygote_file_name << " for reading";
+        return false;
+      }
+      // The boot map should be at the same address.
+      tmp_zygote_contents.reserve(boot_map_size_);
+      if (!zygote_map_file->PreadFully(&tmp_zygote_contents[0], boot_map_size_, boot_map_.start)) {
+        LOG(WARNING) << "Could not fully read zygote file " << zygote_file_name;
+        return false;
+      }
+    }
+
+    // Open /proc/<image_diff_pid_>/pagemap.
+    std::string pagemap_file_name = StringPrintf(
+        "/proc/%ld/pagemap", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
+    auto tmp_pagemap_file =
+        std::unique_ptr<File>(OS::OpenFileForReading(pagemap_file_name.c_str()));
+    if (tmp_pagemap_file == nullptr) {
+      os << "Failed to open " << pagemap_file_name << " for reading: " << strerror(errno);
+      return false;
+    }
+
+    // Not truly clean, mmap-ing boot.art again would be more pristine, but close enough
+    const char* clean_pagemap_file_name = "/proc/self/pagemap";
+    auto tmp_clean_pagemap_file = std::unique_ptr<File>(
+        OS::OpenFileForReading(clean_pagemap_file_name));
+    if (tmp_clean_pagemap_file == nullptr) {
+      os << "Failed to open " << clean_pagemap_file_name << " for reading: " << strerror(errno);
+      return false;
+    }
+
+    auto tmp_kpageflags_file = std::unique_ptr<File>(OS::OpenFileForReading("/proc/kpageflags"));
+    if (tmp_kpageflags_file == nullptr) {
+      os << "Failed to open /proc/kpageflags for reading: " << strerror(errno);
+      return false;
+    }
+
+    auto tmp_kpagecount_file = std::unique_ptr<File>(OS::OpenFileForReading("/proc/kpagecount"));
+    if (tmp_kpagecount_file == nullptr) {
+      os << "Failed to open /proc/kpagecount for reading:" << strerror(errno);
+      return false;
+    }
+
+    // Commit the mappings, etc., to the object state.
+    proc_maps_ = std::move(tmp_proc_maps);
+    remote_contents_ = std::move(tmp_remote_contents);
+    zygote_contents_ = std::move(tmp_zygote_contents);
+    pagemap_file_ = std::move(*tmp_pagemap_file.release());
+    clean_pagemap_file_ = std::move(*tmp_clean_pagemap_file.release());
+    kpageflags_file_ = std::move(*tmp_kpageflags_file.release());
+    kpagecount_file_ = std::move(*tmp_kpagecount_file.release());
+
+    return true;
+  }
+
   bool Dump() REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
     os << "IMAGE LOCATION: " << image_location_ << "\n\n";
@@ -92,74 +213,128 @@ class ImgDiagDumper {
   }
 
  private:
-  void PrintPidLine(const std::string& kind, pid_t pid) {
-    if (pid < 0) {
-      *os_ << kind << " DIFF PID: disabled\n\n";
-    } else {
-      *os_ << kind << " DIFF PID (" << pid << "): ";
-    }
-  }
-
-  static bool EndsWith(const std::string& str, const std::string& suffix) {
-    return str.size() >= suffix.size() &&
-           str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
-  }
-
-  // Return suffix of the file path after the last /. (e.g. /foo/bar -> bar, bar -> bar)
-  static std::string BaseName(const std::string& str) {
-    size_t idx = str.rfind('/');
-    if (idx == std::string::npos) {
-      return str;
-    }
-
-    return str.substr(idx + 1);
-  }
-
   bool DumpImageDiff()
       REQUIRES_SHARED(Locks::mutator_lock_) {
+    return DumpImageDiffMap();
+  }
+
+  bool ComputeDirtyBytes(const uint8_t* image_begin,
+                         size_t* dirty_pages /*out*/,
+                         size_t* different_pages /*out*/,
+                         size_t* different_bytes /*out*/,
+                         size_t* different_int32s /*out*/,
+                         size_t* private_pages /*out*/,
+                         size_t* private_dirty_pages /*out*/,
+                         std::set<size_t>* dirty_page_set_local) {
     std::ostream& os = *os_;
 
-    {
-      struct stat sts;
-      std::string proc_pid_str =
-          StringPrintf("/proc/%ld", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
-      if (stat(proc_pid_str.c_str(), &sts) == -1) {
-        os << "Process does not exist";
-        return false;
-      }
-    }
+    size_t virtual_page_idx = 0;   // Virtual page number (for an absolute memory address)
+    size_t page_idx = 0;           // Page index relative to 0
+    size_t previous_page_idx = 0;  // Previous page index relative to 0
 
-    // Open /proc/$pid/maps to view memory maps
-    auto proc_maps = std::unique_ptr<BacktraceMap>(BacktraceMap::Create(image_diff_pid_));
-    if (proc_maps == nullptr) {
-      os << "Could not read backtrace maps";
-      return false;
-    }
 
-    bool found_boot_map = false;
-    backtrace_map_t boot_map = backtrace_map_t();
-    // Find the memory map only for boot.art
-    for (const backtrace_map_t& map : *proc_maps) {
-      if (EndsWith(map.name, GetImageLocationBaseName())) {
-        if ((map.flags & PROT_WRITE) != 0) {
-          boot_map = map;
-          found_boot_map = true;
-          break;
+    // Iterate through one page at a time. Boot map begin/end already implicitly aligned.
+    for (uintptr_t begin = boot_map_.start; begin != boot_map_.end; begin += kPageSize) {
+      ptrdiff_t offset = begin - boot_map_.start;
+
+      // We treat the image header as part of the memory map for now
+      // If we wanted to change this, we could pass base=start+sizeof(ImageHeader)
+      // But it might still be interesting to see if any of the ImageHeader data mutated
+      const uint8_t* local_ptr = reinterpret_cast<const uint8_t*>(&image_header_) + offset;
+      uint8_t* remote_ptr = &remote_contents_[offset];
+
+      if (memcmp(local_ptr, remote_ptr, kPageSize) != 0) {
+        different_pages++;
+
+        // Count the number of 32-bit integers that are different.
+        for (size_t i = 0; i < kPageSize / sizeof(uint32_t); ++i) {
+          uint32_t* remote_ptr_int32 = reinterpret_cast<uint32_t*>(remote_ptr);
+          const uint32_t* local_ptr_int32 = reinterpret_cast<const uint32_t*>(local_ptr);
+
+          if (remote_ptr_int32[i] != local_ptr_int32[i]) {
+            different_int32s++;
+          }
         }
-        // In actuality there's more than 1 map, but the second one is read-only.
-        // The one we care about is the write-able map.
-        // The readonly maps are guaranteed to be identical, so its not interesting to compare
-        // them.
       }
     }
 
-    if (!found_boot_map) {
-      os << "Could not find map for " << GetImageLocationBaseName();
-      return false;
-    }
+    // Iterate through one byte at a time.
+    ptrdiff_t page_off_begin = image_header_.GetImageBegin() - image_begin;
+    for (uintptr_t begin = boot_map_.start; begin != boot_map_.end; ++begin) {
+      previous_page_idx = page_idx;
+      ptrdiff_t offset = begin - boot_map_.start;
 
-    // Future idea: diff against zygote so we can ignore the shared dirty pages.
-    return DumpImageDiffMap(boot_map);
+      // We treat the image header as part of the memory map for now
+      // If we wanted to change this, we could pass base=start+sizeof(ImageHeader)
+      // But it might still be interesting to see if any of the ImageHeader data mutated
+      const uint8_t* local_ptr = reinterpret_cast<const uint8_t*>(&image_header_) + offset;
+      uint8_t* remote_ptr = &remote_contents_[offset];
+
+      virtual_page_idx = reinterpret_cast<uintptr_t>(local_ptr) / kPageSize;
+
+      // Calculate the page index, relative to the 0th page where the image begins
+      page_idx = (offset + page_off_begin) / kPageSize;
+      if (*local_ptr != *remote_ptr) {
+        // Track number of bytes that are different
+        different_bytes++;
+      }
+
+      // Independently count the # of dirty pages on the remote side
+      size_t remote_virtual_page_idx = begin / kPageSize;
+      if (previous_page_idx != page_idx) {
+        uint64_t page_count = 0xC0FFEE;
+        // TODO: virtual_page_idx needs to be from the same process
+        std::string error_msg;
+        int dirtiness = (IsPageDirty(&pagemap_file_,           // Image-diff-pid procmap
+                                     &clean_pagemap_file_,     // Self procmap
+                                     &kpageflags_file_,
+                                     &kpagecount_file_,
+                                     remote_virtual_page_idx,  // potentially "dirty" page
+                                     virtual_page_idx,         // true "clean" page
+                                     &page_count,
+                                     &error_msg));
+        if (dirtiness < 0) {
+          os << error_msg;
+          return false;
+        } else if (dirtiness > 0) {
+          (*dirty_pages)++;
+          dirty_page_set_local->insert(dirty_page_set_local->end(), virtual_page_idx);
+        }
+
+        bool is_dirty = dirtiness > 0;
+        bool is_private = page_count == 1;
+
+        if (page_count == 1) {
+          (*private_pages)++;
+        }
+
+        if (is_dirty && is_private) {
+          (*private_dirty_pages)++;
+        }
+      }
+    }
+    return true;
+  }
+
+  bool ObjectIsOnDirtyPage(const uint8_t* item,
+                           size_t size,
+                           const std::set<size_t>& dirty_page_set_local) {
+    size_t page_off = 0;
+    size_t current_page_idx;
+    uintptr_t object_address = reinterpret_cast<uintptr_t>(item);
+    // Iterate every page this object belongs to
+    do {
+      current_page_idx = object_address / kPageSize + page_off;
+
+      if (dirty_page_set_local.find(current_page_idx) != dirty_page_set_local.end()) {
+        // This object is on a dirty page
+        return true;
+      }
+
+      page_off++;
+    } while ((current_page_idx * kPageSize) < RoundUp(object_address + size, kObjectAlignment));
+
+    return false;
   }
 
   static std::string PrettyFieldValue(ArtField* field, mirror::Object* obj)
@@ -213,24 +388,24 @@ class ImgDiagDumper {
 
   // Aggregate and detail class data from an image diff.
   struct ClassData {
-    int dirty_object_count = 0;
+    size_t dirty_object_count = 0;
 
     // Track only the byte-per-byte dirtiness (in bytes)
-    int dirty_object_byte_count = 0;
+    size_t dirty_object_byte_count = 0;
 
     // Track the object-by-object dirtiness (in bytes)
-    int dirty_object_size_in_bytes = 0;
+    size_t dirty_object_size_in_bytes = 0;
 
-    int clean_object_count = 0;
+    size_t clean_object_count = 0;
 
     std::string descriptor;
 
-    int false_dirty_byte_count = 0;
-    int false_dirty_object_count = 0;
-    std::vector<mirror::Object*> false_dirty_objects;
+    size_t false_dirty_byte_count = 0;
+    size_t false_dirty_object_count = 0;
+    std::vector<const uint8_t*> false_dirty_objects;
 
     // Remote pointers to dirty objects
-    std::vector<mirror::Object*> dirty_objects;
+    std::vector<const uint8_t*> dirty_objects;
   };
 
   void DiffObjectContents(mirror::Object* obj,
@@ -297,237 +472,184 @@ class ImgDiagDumper {
     os << "\n";
   }
 
-  // Look at /proc/$pid/mem and only diff the things from there
-  bool DumpImageDiffMap(const backtrace_map_t& boot_map)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-    std::ostream& os = *os_;
-    const PointerSize pointer_size = InstructionSetPointerSize(
-        Runtime::Current()->GetInstructionSet());
+  struct ObjectRegionData {
+    // Count of objects that are different.
+    size_t different_objects = 0;
 
-    std::string file_name =
-        StringPrintf("/proc/%ld/mem", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
+    // Local objects that are dirty (differ in at least one byte).
+    size_t dirty_object_bytes = 0;
+    std::vector<const uint8_t*>* dirty_objects;
 
-    size_t boot_map_size = boot_map.end - boot_map.start;
+    // Local objects that are clean, but located on dirty pages.
+    size_t false_dirty_object_bytes = 0;
+    std::vector<const uint8_t*> false_dirty_objects;
 
-    // Open /proc/$pid/mem as a file
-    auto map_file = std::unique_ptr<File>(OS::OpenFileForReading(file_name.c_str()));
-    if (map_file == nullptr) {
-      os << "Failed to open " << file_name << " for reading";
-      return false;
+    // Image dirty objects
+    // If zygote_pid_only_ == true, these are shared dirty objects in the zygote.
+    // If zygote_pid_only_ == false, these are private dirty objects in the application.
+    std::set<const uint8_t*> image_dirty_objects;
+
+    // Zygote dirty objects (probably private dirty).
+    // We only add objects here if they differed in both the image and the zygote, so
+    // they are probably private dirty.
+    std::set<const uint8_t*> zygote_dirty_objects;
+
+    std::map<off_t /* field offset */, size_t /* count */> field_dirty_count;
+  };
+
+  void ComputeObjectDirty(const uint8_t* current,
+                          const uint8_t* current_remote,
+                          const uint8_t* current_zygote,
+                          ClassData* obj_class_data,
+                          size_t obj_size,
+                          const std::set<size_t>& dirty_page_set_local,
+                          ObjectRegionData* region_data /*out*/) {
+    bool different_image_object = memcmp(current, current_remote, obj_size) != 0;
+    if (different_image_object) {
+      bool different_zygote_object = false;
+      if (!zygote_contents_.empty()) {
+        different_zygote_object = memcmp(current, current_zygote, obj_size) != 0;
+      }
+      if (different_zygote_object) {
+        // Different from zygote.
+        region_data->zygote_dirty_objects.insert(current);
+      } else {
+        // Just different from image.
+        region_data->image_dirty_objects.insert(current);
+      }
+
+      ++region_data->different_objects;
+      region_data->dirty_object_bytes += obj_size;
+
+      ++obj_class_data->dirty_object_count;
+
+      // Go byte-by-byte and figure out what exactly got dirtied
+      size_t dirty_byte_count_per_object = 0;
+      for (size_t i = 0; i < obj_size; ++i) {
+        if (current[i] != current_remote[i]) {
+          dirty_byte_count_per_object++;
+        }
+      }
+      obj_class_data->dirty_object_byte_count += dirty_byte_count_per_object;
+      obj_class_data->dirty_object_size_in_bytes += obj_size;
+      obj_class_data->dirty_objects.push_back(current_remote);
+    } else {
+      ++obj_class_data->clean_object_count;
     }
 
-    // Memory-map /proc/$pid/mem subset from the boot map
-    CHECK(boot_map.end >= boot_map.start);
+    if (different_image_object) {
+      if (region_data->dirty_objects != nullptr) {
+        // print the fields that are dirty
+        for (size_t i = 0; i < obj_size; ++i) {
+          if (current[i] != current_remote[i]) {
+            region_data->field_dirty_count[i]++;
+          }
+        }
 
+        region_data->dirty_objects->push_back(current);
+      }
+      /*
+       * TODO: Resurrect this stuff in the client when we add ArtMethod iterator.
+      } else {
+        std::string descriptor = GetClassDescriptor(klass);
+        if (strcmp(descriptor.c_str(), "Ljava/lang/reflect/ArtMethod;") == 0) {
+          // this is an ArtMethod
+          ArtMethod* art_method = reinterpret_cast<ArtMethod*>(remote_obj);
+
+          // print the fields that are dirty
+          for (size_t i = 0; i < obj_size; ++i) {
+            if (current[i] != current_remote[i]) {
+              art_method_field_dirty_count[i]++;
+            }
+          }
+
+          art_method_dirty_objects.push_back(art_method);
+        }
+      }
+      */
+    } else if (ObjectIsOnDirtyPage(current, obj_size, dirty_page_set_local)) {
+      // This object was either never mutated or got mutated back to the same value.
+      // TODO: Do I want to distinguish a "different" vs a "dirty" page here?
+      region_data->false_dirty_objects.push_back(current);
+      obj_class_data->false_dirty_objects.push_back(current);
+      region_data->false_dirty_object_bytes += obj_size;
+      obj_class_data->false_dirty_byte_count += obj_size;
+      obj_class_data->false_dirty_object_count += 1;
+    }
+  }
+
+  // Look at /proc/$pid/mem and only diff the things from there
+  bool DumpImageDiffMap()
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+    std::ostream& os = *os_;
     std::string error_msg;
 
     // Walk the bytes and diff against our boot image
-    const ImageHeader& boot_image_header = image_header_;
-
     os << "\nObserving boot image header at address "
-       << reinterpret_cast<const void*>(&boot_image_header)
+       << reinterpret_cast<const void*>(&image_header_)
        << "\n\n";
 
-    const uint8_t* image_begin_unaligned = boot_image_header.GetImageBegin();
+    const uint8_t* image_begin_unaligned = image_header_.GetImageBegin();
     const uint8_t* image_mirror_end_unaligned = image_begin_unaligned +
-        boot_image_header.GetImageSection(ImageHeader::kSectionObjects).Size();
-    const uint8_t* image_end_unaligned = image_begin_unaligned + boot_image_header.GetImageSize();
+        image_header_.GetImageSection(ImageHeader::kSectionObjects).Size();
+    const uint8_t* image_end_unaligned = image_begin_unaligned + image_header_.GetImageSize();
 
     // Adjust range to nearest page
     const uint8_t* image_begin = AlignDown(image_begin_unaligned, kPageSize);
     const uint8_t* image_end = AlignUp(image_end_unaligned, kPageSize);
 
-    ptrdiff_t page_off_begin = boot_image_header.GetImageBegin() - image_begin;
-
-    if (reinterpret_cast<uintptr_t>(image_begin) > boot_map.start ||
-        reinterpret_cast<uintptr_t>(image_end) < boot_map.end) {
+    if (reinterpret_cast<uintptr_t>(image_begin) > boot_map_.start ||
+        reinterpret_cast<uintptr_t>(image_end) < boot_map_.end) {
       // Sanity check that we aren't trying to read a completely different boot image
       os << "Remote boot map is out of range of local boot map: " <<
         "local begin " << reinterpret_cast<const void*>(image_begin) <<
         ", local end " << reinterpret_cast<const void*>(image_end) <<
-        ", remote begin " << reinterpret_cast<const void*>(boot_map.start) <<
-        ", remote end " << reinterpret_cast<const void*>(boot_map.end);
+        ", remote begin " << reinterpret_cast<const void*>(boot_map_.start) <<
+        ", remote end " << reinterpret_cast<const void*>(boot_map_.end);
       return false;
       // If we wanted even more validation we could map the ImageHeader from the file
     }
 
-    std::vector<uint8_t> remote_contents(boot_map_size);
-    if (!map_file->PreadFully(&remote_contents[0], boot_map_size, boot_map.start)) {
-      os << "Could not fully read file " << file_name;
-      return false;
-    }
-
-    std::vector<uint8_t> zygote_contents;
-    std::unique_ptr<File> zygote_map_file;
-    if (zygote_diff_pid_ != -1) {
-      std::string zygote_file_name =
-          StringPrintf("/proc/%ld/mem", static_cast<long>(zygote_diff_pid_));  // NOLINT [runtime/int]
-      zygote_map_file.reset(OS::OpenFileForReading(zygote_file_name.c_str()));
-      // The boot map should be at the same address.
-      zygote_contents.resize(boot_map_size);
-      if (!zygote_map_file->PreadFully(&zygote_contents[0], boot_map_size, boot_map.start)) {
-        LOG(WARNING) << "Could not fully read zygote file " << zygote_file_name;
-        zygote_contents.clear();
-      }
-    }
-
-    std::string page_map_file_name = StringPrintf(
-        "/proc/%ld/pagemap", static_cast<long>(image_diff_pid_));  // NOLINT [runtime/int]
-    auto page_map_file = std::unique_ptr<File>(OS::OpenFileForReading(page_map_file_name.c_str()));
-    if (page_map_file == nullptr) {
-      os << "Failed to open " << page_map_file_name << " for reading: " << strerror(errno);
-      return false;
-    }
-
-    // Not truly clean, mmap-ing boot.art again would be more pristine, but close enough
-    const char* clean_page_map_file_name = "/proc/self/pagemap";
-    auto clean_page_map_file = std::unique_ptr<File>(
-        OS::OpenFileForReading(clean_page_map_file_name));
-    if (clean_page_map_file == nullptr) {
-      os << "Failed to open " << clean_page_map_file_name << " for reading: " << strerror(errno);
-      return false;
-    }
-
-    auto kpage_flags_file = std::unique_ptr<File>(OS::OpenFileForReading("/proc/kpageflags"));
-    if (kpage_flags_file == nullptr) {
-      os << "Failed to open /proc/kpageflags for reading: " << strerror(errno);
-      return false;
-    }
-
-    auto kpage_count_file = std::unique_ptr<File>(OS::OpenFileForReading("/proc/kpagecount"));
-    if (kpage_count_file == nullptr) {
-      os << "Failed to open /proc/kpagecount for reading:" << strerror(errno);
-      return false;
-    }
-
-    // Set of the remote virtual page indices that are dirty
-    std::set<size_t> dirty_page_set_remote;
-    // Set of the local virtual page indices that are dirty
-    std::set<size_t> dirty_page_set_local;
-
-    size_t different_int32s = 0;
-    size_t different_bytes = 0;
-    size_t different_pages = 0;
-    size_t virtual_page_idx = 0;   // Virtual page number (for an absolute memory address)
-    size_t page_idx = 0;           // Page index relative to 0
-    size_t previous_page_idx = 0;  // Previous page index relative to 0
     size_t dirty_pages = 0;
+    size_t different_pages = 0;
+    size_t different_bytes = 0;
+    size_t different_int32s = 0;
     size_t private_pages = 0;
     size_t private_dirty_pages = 0;
 
-    // Iterate through one page at a time. Boot map begin/end already implicitly aligned.
-    for (uintptr_t begin = boot_map.start; begin != boot_map.end; begin += kPageSize) {
-      ptrdiff_t offset = begin - boot_map.start;
+    // Set of the local virtual page indices that are dirty
+    std::set<size_t> dirty_page_set_local;
 
-      // We treat the image header as part of the memory map for now
-      // If we wanted to change this, we could pass base=start+sizeof(ImageHeader)
-      // But it might still be interesting to see if any of the ImageHeader data mutated
-      const uint8_t* local_ptr = reinterpret_cast<const uint8_t*>(&boot_image_header) + offset;
-      uint8_t* remote_ptr = &remote_contents[offset];
-
-      if (memcmp(local_ptr, remote_ptr, kPageSize) != 0) {
-        different_pages++;
-
-        // Count the number of 32-bit integers that are different.
-        for (size_t i = 0; i < kPageSize / sizeof(uint32_t); ++i) {
-          uint32_t* remote_ptr_int32 = reinterpret_cast<uint32_t*>(remote_ptr);
-          const uint32_t* local_ptr_int32 = reinterpret_cast<const uint32_t*>(local_ptr);
-
-          if (remote_ptr_int32[i] != local_ptr_int32[i]) {
-            different_int32s++;
-          }
-        }
-      }
-    }
-
-    // Iterate through one byte at a time.
-    for (uintptr_t begin = boot_map.start; begin != boot_map.end; ++begin) {
-      previous_page_idx = page_idx;
-      ptrdiff_t offset = begin - boot_map.start;
-
-      // We treat the image header as part of the memory map for now
-      // If we wanted to change this, we could pass base=start+sizeof(ImageHeader)
-      // But it might still be interesting to see if any of the ImageHeader data mutated
-      const uint8_t* local_ptr = reinterpret_cast<const uint8_t*>(&boot_image_header) + offset;
-      uint8_t* remote_ptr = &remote_contents[offset];
-
-      virtual_page_idx = reinterpret_cast<uintptr_t>(local_ptr) / kPageSize;
-
-      // Calculate the page index, relative to the 0th page where the image begins
-      page_idx = (offset + page_off_begin) / kPageSize;
-      if (*local_ptr != *remote_ptr) {
-        // Track number of bytes that are different
-        different_bytes++;
-      }
-
-      // Independently count the # of dirty pages on the remote side
-      size_t remote_virtual_page_idx = begin / kPageSize;
-      if (previous_page_idx != page_idx) {
-        uint64_t page_count = 0xC0FFEE;
-        // TODO: virtual_page_idx needs to be from the same process
-        int dirtiness = (IsPageDirty(page_map_file.get(),        // Image-diff-pid procmap
-                                     clean_page_map_file.get(),  // Self procmap
-                                     kpage_flags_file.get(),
-                                     kpage_count_file.get(),
-                                     remote_virtual_page_idx,    // potentially "dirty" page
-                                     virtual_page_idx,           // true "clean" page
-                                     &page_count,
-                                     &error_msg));
-        if (dirtiness < 0) {
-          os << error_msg;
-          return false;
-        } else if (dirtiness > 0) {
-          dirty_pages++;
-          dirty_page_set_remote.insert(dirty_page_set_remote.end(), remote_virtual_page_idx);
-          dirty_page_set_local.insert(dirty_page_set_local.end(), virtual_page_idx);
-        }
-
-        bool is_dirty = dirtiness > 0;
-        bool is_private = page_count == 1;
-
-        if (page_count == 1) {
-          private_pages++;
-        }
-
-        if (is_dirty && is_private) {
-          private_dirty_pages++;
-        }
-      }
+    if (!ComputeDirtyBytes(image_begin,
+                           &dirty_pages,
+                           &different_pages,
+                           &different_bytes,
+                           &different_int32s,
+                           &private_pages,
+                           &private_dirty_pages,
+                           &dirty_page_set_local)) {
+      return false;
     }
 
     std::map<mirror::Class*, ClassData> class_data;
 
     // Walk each object in the remote image space and compare it against ours
-    size_t different_objects = 0;
-
     std::map<off_t /* field offset */, int /* count */> art_method_field_dirty_count;
     std::vector<ArtMethod*> art_method_dirty_objects;
 
-    std::map<off_t /* field offset */, int /* count */> class_field_dirty_count;
-    std::vector<mirror::Class*> class_dirty_objects;
+    std::map<off_t /* field offset */, size_t /* count */> class_field_dirty_count;
+    std::vector<const uint8_t*> class_dirty_objects;
 
-    // List of local objects that are clean, but located on dirty pages.
-    std::vector<mirror::Object*> false_dirty_objects;
-    size_t false_dirty_object_bytes = 0;
 
     // Look up remote classes by their descriptor
     std::map<std::string, mirror::Class*> remote_class_map;
     // Look up local classes by their descriptor
     std::map<std::string, mirror::Class*> local_class_map;
 
-    // Image dirty objects
-    // If zygote_pid_only_ == true, these are shared dirty objects in the zygote.
-    // If zygote_pid_only_ == false, these are private dirty objects in the application.
-    std::set<mirror::Object*> image_dirty_objects;
-
-    // Zygote dirty objects (probably private dirty).
-    // We only add objects here if they differed in both the image and the zygote, so
-    // they are probably private dirty.
-    std::set<mirror::Object*> zygote_dirty_objects;
-
-    size_t dirty_object_bytes = 0;
     const uint8_t* begin_image_ptr = image_begin_unaligned;
     const uint8_t* end_image_ptr = image_mirror_end_unaligned;
+
+    ObjectRegionData region_data;
 
     const uint8_t* current = begin_image_ptr + RoundUp(sizeof(ImageHeader), kObjectAlignment);
     while (reinterpret_cast<uintptr_t>(current) < reinterpret_cast<uintptr_t>(end_image_ptr)) {
@@ -540,125 +662,56 @@ class ImgDiagDumper {
         obj->AssertReadBarrierState();
       }
 
-      // Iterate every page this object belongs to
-      bool on_dirty_page = false;
-      size_t page_off = 0;
-      size_t current_page_idx;
-      uintptr_t object_address;
-      do {
-        object_address = reinterpret_cast<uintptr_t>(current);
-        current_page_idx = object_address / kPageSize + page_off;
-
-        if (dirty_page_set_local.find(current_page_idx) != dirty_page_set_local.end()) {
-          // This object is on a dirty page
-          on_dirty_page = true;
-        }
-
-        page_off++;
-      } while ((current_page_idx * kPageSize) <
-               RoundUp(object_address + obj->SizeOf(), kObjectAlignment));
-
       mirror::Class* klass = obj->GetClass();
+      size_t obj_size = obj->SizeOf();
+      ClassData& obj_class_data = class_data[klass];
 
       // Check against the other object and see if they are different
       ptrdiff_t offset = current - begin_image_ptr;
-      const uint8_t* current_remote = &remote_contents[offset];
-      mirror::Object* remote_obj = reinterpret_cast<mirror::Object*>(
-          const_cast<uint8_t*>(current_remote));
+      const uint8_t* current_remote = &remote_contents_[offset];
+      const uint8_t* current_zygote =
+          zygote_contents_.empty() ? nullptr : &zygote_contents_[offset];
 
-      bool different_image_object = memcmp(current, current_remote, obj->SizeOf()) != 0;
-      if (different_image_object) {
-        bool different_zygote_object = false;
-        if (!zygote_contents.empty()) {
-          const uint8_t* zygote_ptr = &zygote_contents[offset];
-          different_zygote_object = memcmp(current, zygote_ptr, obj->SizeOf()) != 0;
-        }
-        if (different_zygote_object) {
-          // Different from zygote.
-          zygote_dirty_objects.insert(obj);
-        } else {
-          // Just different from image.
-          image_dirty_objects.insert(obj);
-        }
-
-        different_objects++;
-        dirty_object_bytes += obj->SizeOf();
-
-        ++class_data[klass].dirty_object_count;
-
-        // Go byte-by-byte and figure out what exactly got dirtied
-        size_t dirty_byte_count_per_object = 0;
-        for (size_t i = 0; i < obj->SizeOf(); ++i) {
-          if (current[i] != current_remote[i]) {
-            dirty_byte_count_per_object++;
-          }
-        }
-        class_data[klass].dirty_object_byte_count += dirty_byte_count_per_object;
-        class_data[klass].dirty_object_size_in_bytes += obj->SizeOf();
-        class_data[klass].dirty_objects.push_back(remote_obj);
-      } else {
-        ++class_data[klass].clean_object_count;
+      std::map<off_t /* field offset */, size_t /* count */>* field_dirty_count = nullptr;
+      if (klass->IsClassClass()) {
+        field_dirty_count = &class_field_dirty_count;
       }
 
+      ComputeObjectDirty(current,
+                         current_remote,
+                         current_zygote,
+                         &obj_class_data,
+                         obj_size,
+                         dirty_page_set_local,
+                         &region_data);
+
+      // Object specific stuff.
       std::string descriptor = GetClassDescriptor(klass);
-      if (different_image_object) {
-        if (klass->IsClassClass()) {
-          // this is a "Class"
-          mirror::Class* obj_as_class  = reinterpret_cast<mirror::Class*>(remote_obj);
-
-          // print the fields that are dirty
-          for (size_t i = 0; i < obj->SizeOf(); ++i) {
-            if (current[i] != current_remote[i]) {
-              class_field_dirty_count[i]++;
-            }
-          }
-
-          class_dirty_objects.push_back(obj_as_class);
-        } else if (strcmp(descriptor.c_str(), "Ljava/lang/reflect/ArtMethod;") == 0) {
-          // this is an ArtMethod
-          ArtMethod* art_method = reinterpret_cast<ArtMethod*>(remote_obj);
-
-          // print the fields that are dirty
-          for (size_t i = 0; i < obj->SizeOf(); ++i) {
-            if (current[i] != current_remote[i]) {
-              art_method_field_dirty_count[i]++;
-            }
-          }
-
-          art_method_dirty_objects.push_back(art_method);
-        }
-      } else if (on_dirty_page) {
-        // This object was either never mutated or got mutated back to the same value.
-        // TODO: Do I want to distinguish a "different" vs a "dirty" page here?
-        false_dirty_objects.push_back(obj);
-        class_data[klass].false_dirty_objects.push_back(obj);
-        false_dirty_object_bytes += obj->SizeOf();
-        class_data[obj->GetClass()].false_dirty_byte_count += obj->SizeOf();
-        class_data[obj->GetClass()].false_dirty_object_count += 1;
-      }
-
       if (strcmp(descriptor.c_str(), "Ljava/lang/Class;") == 0) {
         local_class_map[descriptor] = reinterpret_cast<mirror::Class*>(obj);
+        mirror::Object* remote_obj = reinterpret_cast<mirror::Object*>(
+            const_cast<uint8_t*>(current_remote));
         remote_class_map[descriptor] = reinterpret_cast<mirror::Class*>(remote_obj);
       }
 
       // Unconditionally store the class descriptor in case we need it later
-      class_data[klass].descriptor = descriptor;
-      current += RoundUp(obj->SizeOf(), kObjectAlignment);
+      obj_class_data.descriptor = descriptor;
+
+      current += RoundUp(obj_size, kObjectAlignment);
     }
 
     // Looking at only dirty pages, figure out how many of those bytes belong to dirty objects.
-    float true_dirtied_percent = dirty_object_bytes * 1.0f / (dirty_pages * kPageSize);
+    float true_dirtied_percent = region_data.dirty_object_bytes * 1.0f / (dirty_pages * kPageSize);
     size_t false_dirty_pages = dirty_pages - different_pages;
 
-    os << "Mapping at [" << reinterpret_cast<void*>(boot_map.start) << ", "
-       << reinterpret_cast<void*>(boot_map.end) << ") had: \n  "
+    os << "Mapping at [" << reinterpret_cast<void*>(boot_map_.start) << ", "
+       << reinterpret_cast<void*>(boot_map_.end) << ") had: \n  "
        << different_bytes << " differing bytes, \n  "
        << different_int32s << " differing int32s, \n  "
-       << different_objects << " different objects, \n  "
-       << dirty_object_bytes << " different object [bytes], \n  "
-       << false_dirty_objects.size() << " false dirty objects,\n  "
-       << false_dirty_object_bytes << " false dirty object [bytes], \n  "
+       << region_data.different_objects << " different objects, \n  "
+       << region_data.dirty_object_bytes << " different object [bytes], \n  "
+       << region_data.false_dirty_objects.size() << " false dirty objects,\n  "
+       << region_data.false_dirty_object_bytes << " false dirty object [bytes], \n  "
        << true_dirtied_percent << " different objects-vs-total in a dirty page;\n  "
        << different_pages << " different pages; \n  "
        << dirty_pages << " pages are dirty; \n  "
@@ -673,17 +726,17 @@ class ImgDiagDumper {
     auto clean_object_class_values = SortByValueDesc<mirror::Class*, int, ClassData>(
         class_data, [](const ClassData& d) { return d.clean_object_count; });
 
-    if (!zygote_dirty_objects.empty()) {
+    if (!region_data.zygote_dirty_objects.empty()) {
       // We only reach this point if both pids were specified.  Furthermore,
       // objects are only displayed here if they differed in both the image
       // and the zygote, so they are probably private dirty.
       CHECK(image_diff_pid_ > 0 && zygote_diff_pid_ > 0);
       os << "\n" << "  Zygote dirty objects (probably shared dirty): "
-         << zygote_dirty_objects.size() << "\n";
-      for (mirror::Object* obj : zygote_dirty_objects) {
-        const uint8_t* obj_bytes = reinterpret_cast<const uint8_t*>(obj);
+         << region_data.zygote_dirty_objects.size() << "\n";
+      for (const uint8_t* obj_bytes : region_data.zygote_dirty_objects) {
+        auto obj = const_cast<mirror::Object*>(reinterpret_cast<const mirror::Object*>(obj_bytes));
         ptrdiff_t offset = obj_bytes - begin_image_ptr;
-        uint8_t* remote_bytes = &zygote_contents[offset];
+        uint8_t* remote_bytes = &zygote_contents_[offset];
         DiffObjectContents(obj, remote_bytes, os);
       }
     }
@@ -699,11 +752,11 @@ class ImgDiagDumper {
         os << "  Application dirty objects (unknown whether private or shared dirty): ";
       }
     }
-    os << image_dirty_objects.size() << "\n";
-    for (mirror::Object* obj : image_dirty_objects) {
-      const uint8_t* obj_bytes = reinterpret_cast<const uint8_t*>(obj);
+    os << region_data.image_dirty_objects.size() << "\n";
+    for (const uint8_t* obj_bytes : region_data.image_dirty_objects) {
+      auto obj = const_cast<mirror::Object*>(reinterpret_cast<const mirror::Object*>(obj_bytes));
       ptrdiff_t offset = obj_bytes - begin_image_ptr;
-      uint8_t* remote_bytes = &remote_contents[offset];
+      uint8_t* remote_bytes = &remote_contents_[offset];
       DiffObjectContents(obj, remote_bytes, os);
     }
 
@@ -747,27 +800,26 @@ class ImgDiagDumper {
 
         os << "      field contents:\n";
         const auto& dirty_objects_list = class_data[klass].dirty_objects;
-        for (mirror::Object* obj : dirty_objects_list) {
+        for (const uint8_t* uobj : dirty_objects_list) {
+          auto obj = const_cast<mirror::Object*>(reinterpret_cast<const mirror::Object*>(uobj));
           // remote method
           auto art_method = reinterpret_cast<ArtMethod*>(obj);
 
           // remote class
           mirror::Class* remote_declaring_class =
-            FixUpRemotePointer(art_method->GetDeclaringClass(), remote_contents, boot_map);
+            FixUpRemotePointer(art_method->GetDeclaringClass(), remote_contents_, boot_map_);
 
           // local class
           mirror::Class* declaring_class =
-            RemoteContentsPointerToLocal(remote_declaring_class,
-                                         remote_contents,
-                                         boot_image_header);
+            RemoteContentsPointerToLocal(remote_declaring_class, remote_contents_, image_header_);
 
           os << "        " << reinterpret_cast<void*>(obj) << " ";
           os << "  entryPointFromJni: "
              << reinterpret_cast<const void*>(
-                    art_method->GetDataPtrSize(pointer_size)) << ", ";
+                    art_method->GetDataPtrSize(pointer_size_)) << ", ";
           os << "  entryPointFromQuickCompiledCode: "
              << reinterpret_cast<const void*>(
-                    art_method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size))
+                    art_method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size_))
              << ", ";
           os << "  isNative? " << (art_method->IsNative() ? "yes" : "no") << ", ";
           os << "  class_status (local): " << declaring_class->GetStatus();
@@ -780,13 +832,13 @@ class ImgDiagDumper {
         for (size_t i = 0; i < class_dirty_objects.size() && i < kMaxAddressPrint; ++i) {
           auto class_ptr = class_dirty_objects[i];
 
-          os << reinterpret_cast<void*>(class_ptr) << ", ";
+          os << reinterpret_cast<const void*>(class_ptr) << ", ";
         }
         os << "\n";
 
         os << "       dirty byte +offset:count list = ";
         auto class_field_dirty_count_sorted =
-            SortByValueDesc<off_t, int, int>(class_field_dirty_count);
+            SortByValueDesc<off_t, int, size_t>(class_field_dirty_count);
         for (auto pair : class_field_dirty_count_sorted) {
           off_t offset = pair.second;
           int count = pair.first;
@@ -796,17 +848,19 @@ class ImgDiagDumper {
         os << "\n";
 
         os << "      field contents:\n";
+        // TODO: templatize this to avoid the awful casts down to uint8_t* and back.
         const auto& dirty_objects_list = class_data[klass].dirty_objects;
-        for (mirror::Object* obj : dirty_objects_list) {
+        for (const uint8_t* uobj : dirty_objects_list) {
+          auto obj = const_cast<mirror::Object*>(reinterpret_cast<const mirror::Object*>(uobj));
           // remote class object
           auto remote_klass = reinterpret_cast<mirror::Class*>(obj);
 
           // local class object
           auto local_klass = RemoteContentsPointerToLocal(remote_klass,
-                                                          remote_contents,
-                                                          boot_image_header);
+                                                          remote_contents_,
+                                                          image_header_);
 
-          os << "        " << reinterpret_cast<void*>(obj) << " ";
+          os << "        " << reinterpret_cast<const void*>(obj) << " ";
           os << "  class_status (remote): " << remote_klass->GetStatus() << ", ";
           os << "  class_status (local): " << local_klass->GetStatus();
           os << "\n";
@@ -832,23 +886,25 @@ class ImgDiagDumper {
          << ")\n";
 
       if (strcmp(descriptor.c_str(), "Ljava/lang/reflect/ArtMethod;") == 0) {
+        // TODO: templatize this to avoid the awful casts down to uint8_t* and back.
         auto& art_method_false_dirty_objects = class_data[klass].false_dirty_objects;
 
         os << "      field contents:\n";
-        for (mirror::Object* obj : art_method_false_dirty_objects) {
+        for (const uint8_t* uobj : art_method_false_dirty_objects) {
+          auto obj = const_cast<mirror::Object*>(reinterpret_cast<const mirror::Object*>(uobj));
           // local method
           auto art_method = reinterpret_cast<ArtMethod*>(obj);
 
           // local class
           mirror::Class* declaring_class = art_method->GetDeclaringClass();
 
-          os << "        " << reinterpret_cast<void*>(obj) << " ";
+          os << "        " << reinterpret_cast<const void*>(obj) << " ";
           os << "  entryPointFromJni: "
              << reinterpret_cast<const void*>(
-                    art_method->GetDataPtrSize(pointer_size)) << ", ";
+                    art_method->GetDataPtrSize(pointer_size_)) << ", ";
           os << "  entryPointFromQuickCompiledCode: "
              << reinterpret_cast<const void*>(
-                    art_method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size))
+                    art_method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size_))
              << ", ";
           os << "  isNative? " << (art_method->IsNative() ? "yes" : "no") << ", ";
           os << "  class_status (local): " << declaring_class->GetStatus();
@@ -963,18 +1019,18 @@ class ImgDiagDumper {
   }
 
   static int IsPageDirty(File* page_map_file,
-                         File* clean_page_map_file,
-                         File* kpage_flags_file,
-                         File* kpage_count_file,
+                         File* clean_pagemap_file,
+                         File* kpageflags_file,
+                         File* kpagecount_file,
                          size_t virtual_page_idx,
                          size_t clean_virtual_page_idx,
                          // Out parameters:
                          uint64_t* page_count, std::string* error_msg) {
     CHECK(page_map_file != nullptr);
-    CHECK(clean_page_map_file != nullptr);
-    CHECK_NE(page_map_file, clean_page_map_file);
-    CHECK(kpage_flags_file != nullptr);
-    CHECK(kpage_count_file != nullptr);
+    CHECK(clean_pagemap_file != nullptr);
+    CHECK_NE(page_map_file, clean_pagemap_file);
+    CHECK(kpageflags_file != nullptr);
+    CHECK(kpagecount_file != nullptr);
     CHECK(page_count != nullptr);
     CHECK(error_msg != nullptr);
 
@@ -992,27 +1048,27 @@ class ImgDiagDumper {
     }
 
     uint64_t page_frame_number_clean = 0;
-    if (!GetPageFrameNumber(clean_page_map_file, clean_virtual_page_idx, &page_frame_number_clean,
+    if (!GetPageFrameNumber(clean_pagemap_file, clean_virtual_page_idx, &page_frame_number_clean,
                             error_msg)) {
       return -1;
     }
 
     // Read 64-bit entry from /proc/kpageflags to get the dirty bit for a page
     uint64_t kpage_flags_entry = 0;
-    if (!kpage_flags_file->PreadFully(&kpage_flags_entry,
+    if (!kpageflags_file->PreadFully(&kpage_flags_entry,
                                      kPageFlagsEntrySize,
                                      page_frame_number * kPageFlagsEntrySize)) {
       *error_msg = StringPrintf("Failed to read the page flags from %s",
-                                kpage_flags_file->GetPath().c_str());
+                                kpageflags_file->GetPath().c_str());
       return -1;
     }
 
     // Read 64-bit entyry from /proc/kpagecount to get mapping counts for a page
-    if (!kpage_count_file->PreadFully(page_count /*out*/,
+    if (!kpagecount_file->PreadFully(page_count /*out*/,
                                      kPageCountEntrySize,
                                      page_frame_number * kPageCountEntrySize)) {
       *error_msg = StringPrintf("Failed to read the page count from %s",
-                                kpage_count_file->GetPath().c_str());
+                                kpagecount_file->GetPath().c_str());
       return -1;
     }
 
@@ -1033,7 +1089,29 @@ class ImgDiagDumper {
     return page_frame_number != page_frame_number_clean;
   }
 
- private:
+  void PrintPidLine(const std::string& kind, pid_t pid) {
+    if (pid < 0) {
+      *os_ << kind << " DIFF PID: disabled\n\n";
+    } else {
+      *os_ << kind << " DIFF PID (" << pid << "): ";
+    }
+  }
+
+  static bool EndsWith(const std::string& str, const std::string& suffix) {
+    return str.size() >= suffix.size() &&
+           str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+  }
+
+  // Return suffix of the file path after the last /. (e.g. /foo/bar -> bar, bar -> bar)
+  static std::string BaseName(const std::string& str) {
+    size_t idx = str.rfind('/');
+    if (idx == std::string::npos) {
+      return str;
+    }
+
+    return str.substr(idx + 1);
+  }
+
   // Return the image location, stripped of any directories, e.g. "boot.art" or "core.art"
   std::string GetImageLocationBaseName() const {
     return BaseName(std::string(image_location_));
@@ -1045,6 +1123,27 @@ class ImgDiagDumper {
   pid_t image_diff_pid_;  // Dump image diff against boot.art if pid is non-negative
   pid_t zygote_diff_pid_;  // Dump image diff against zygote boot.art if pid is non-negative
   bool zygote_pid_only_;  // The user only specified a pid for the zygote.
+
+  // Pointer size constant for object fields, etc.
+  PointerSize pointer_size_;
+  // BacktraceMap used for finding the memory mapping of the image file.
+  std::unique_ptr<BacktraceMap> proc_maps_;
+  // Boot image mapping.
+  backtrace_map_t boot_map_{};  // NOLINT
+  // The size of the boot image mapping.
+  size_t boot_map_size_;
+  // The contents of /proc/<image_diff_pid_>/maps.
+  std::vector<uint8_t> remote_contents_;
+  // The contents of /proc/<zygote_diff_pid_>/maps.
+  std::vector<uint8_t> zygote_contents_;
+  // A File for reading /proc/<zygote_diff_pid_>/maps.
+  File pagemap_file_;
+  // A File for reading /proc/self/pagemap.
+  File clean_pagemap_file_;
+  // A File for reading /proc/kpageflags.
+  File kpageflags_file_;
+  // A File for reading /proc/kpagecount.
+  File kpagecount_file_;
 
   DISALLOW_COPY_AND_ASSIGN(ImgDiagDumper);
 };
@@ -1069,6 +1168,9 @@ static int DumpImage(Runtime* runtime,
                                   image_space->GetImageLocation(),
                                   image_diff_pid,
                                   zygote_diff_pid);
+    if (!img_diag_dumper.Init()) {
+      return EXIT_FAILURE;
+    }
     if (!img_diag_dumper.Dump()) {
       return EXIT_FAILURE;
     }
