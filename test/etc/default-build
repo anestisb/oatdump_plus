@@ -262,6 +262,7 @@ if [ ${HAS_SRC_DEX2OAT_UNRESOLVED} = "true" ]; then
   else
     if [ ${NEED_DEX} = "true" ]; then
       make_dex classes-ex
+      mv classes-ex.dex classes.dex   # rename it so it shows up as "classes.dex" in the zip file.
       zip ${TEST_NAME}-ex.jar classes.dex
       make_dex classes
     fi
