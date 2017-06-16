@@ -21,4 +21,8 @@ set -e
 # the typed System.arraycopy versions directly.
 export USE_JACK=false
 
-./default-build
+# Don't use desugar because the bootclasspath jars will be missing
+# on a platform build compiled with ANDROID_COMPILE_WITH_JACK=true.
+export USE_DESUGAR=false
+
+./default-build "$@"

@@ -70,6 +70,9 @@ DX_FLAGS=""
 SKIP_DX_MERGER="false"
 EXPERIMENTAL=""
 
+BUILD_MODE="target"
+DEV_MODE="no"
+
 # The key for default arguments if no experimental things are enabled.
 DEFAULT_EXPERIMENT="no-experiment"
 
@@ -137,6 +140,15 @@ while true; do
     WITH_ZIP_ALIGN=true
     ZIP_ALIGN_BYTES="$1"
     shift
+  elif [ "x$1" = "x--host" ]; then
+    BUILD_MODE="host"
+    shift
+  elif [ "x$1" = "x--target" ]; then
+    BUILD_MODE="target"
+    shift
+  elif [ "x$1" = "x--dev" ]; then
+    DEV_MODE="yes"
+    shift
   elif expr "x$1" : "x--" >/dev/null 2>&1; then
     echo "unknown $0 option: $1" 1>&2
     exit 1
@@ -185,6 +197,41 @@ function zip() {
   fi
 }
 
+function desugar() {
+  local desugar_args=--mode=host
+  if [[ $BUILD_MODE == target ]]; then
+    desugar_args=--mode=target
+  fi
+
+  if [[ $DEV_MODE == yes ]]; then
+    desugar_args="$desugar_args --show-commands"
+  fi
+
+  "${ANDROID_BUILD_TOP}/art/tools/desugar.sh" --core-only $desugar_args "$@"
+}
+
+# Make a "dex" file given a directory of classes in $1.
+# Also calls desugar on the classes first to convert lambdas.
+function make_dex() {
+  local name="$1"
+
+  local dx_input
+  if [[ "$USE_DESUGAR" == "true" ]]; then
+    # Make a jar first so desugar doesn't need every .class file individually.
+    jar cf "$name.before-desugar.jar" -C "$name" .
+
+    dx_input="${name}.desugar.jar"
+
+    # Make desugared JAR.
+    desugar --input "$name.before-desugar.jar" --output "$dx_input"
+  else
+    dx_input="${name}"
+  fi
+
+  # Make dex file from desugared JAR.
+  ${DX} -JXmx256m --debug --dex --dump-to=${name}.lst --output=${name}.dex --dump-width=1000 ${DX_FLAGS} "${dx_input}"
+}
+
 if [ -e classes.dex ]; then
   zip $TEST_NAME.jar classes.dex
   exit 0
@@ -209,9 +256,9 @@ if [ ${HAS_SRC_DEX2OAT_UNRESOLVED} = "true" ]; then
     ${JACK} --import classes.jill.jar --output-dex .
   else
     if [ ${NEED_DEX} = "true" ]; then
-      ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes.dex --dump-width=1000 ${DX_FLAGS} classes-ex
+      make_dex classes-ex
       zip ${TEST_NAME}-ex.jar classes.dex
-      ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 ${DX_FLAGS} classes
+      make_dex classes
     fi
   fi
 else
@@ -254,8 +301,7 @@ else
       mkdir classes2
       ${JAVAC} -implicit:none -classpath src -d classes2 `find src-multidex -name '*.java'`
       if [ ${NEED_DEX} = "true" ]; then
-        ${DX} -JXmx256m --debug --dex --dump-to=classes2.lst --output=classes2.dex \
-          --dump-width=1000 ${DX_FLAGS} classes2
+        make_dex classes2
       fi
     fi
 
@@ -266,8 +312,7 @@ else
 
     if [ "${HAS_SRC}" = "true" ] || [ "${HAS_SRC2}" = "true" ]; then
       if [ ${NEED_DEX} = "true" -a ${SKIP_DX_MERGER} = "false" ]; then
-        ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
-          --dump-width=1000 ${DX_FLAGS} classes
+        make_dex classes
       fi
     fi
   fi
@@ -311,8 +356,7 @@ if [ ${HAS_SRC_EX} = "true" ]; then
     mkdir classes-ex
     ${JAVAC} ${JAVAC_ARGS} -d classes-ex -cp classes `find src-ex -name '*.java'`
     if [ ${NEED_DEX} = "true" ]; then
-      ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes-ex.dex \
-        --dump-width=1000 ${DX_FLAGS} classes-ex
+      make_dex classes-ex
 
       # quick shuffle so that the stored name is "classes.dex"
       mv classes.dex classes-1.dex
