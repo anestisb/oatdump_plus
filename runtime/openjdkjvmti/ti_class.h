@@ -82,6 +82,12 @@ class ClassUtil {
                                            jclass klass,
                                            jint* minor_version_ptr,
                                            jint* major_version_ptr);
+
+  static jvmtiError GetSourceFileName(jvmtiEnv* env, jclass klass, char** source_name_ptr);
+
+  static jvmtiError GetSourceDebugExtension(jvmtiEnv* env,
+                                            jclass klass,
+                                            char** source_debug_extension_ptr);
 };
 
 }  // namespace openjdkjvmti

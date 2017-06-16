@@ -128,12 +128,16 @@ class ScopedClassInfo {
       : jvmtienv_(jvmtienv),
         class_(c),
         name_(nullptr),
-        generic_(nullptr) {}
+        generic_(nullptr),
+        file_(nullptr),
+        debug_ext_(nullptr) {}
 
   ~ScopedClassInfo() {
     if (class_ != nullptr) {
       jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(name_));
       jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(generic_));
+      jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(file_));
+      jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(debug_ext_));
     }
   }
 
@@ -143,7 +147,13 @@ class ScopedClassInfo {
       generic_ = const_cast<char*>("<NONE>");
       return true;
     } else {
-      return jvmtienv_->GetClassSignature(class_, &name_, &generic_) == JVMTI_ERROR_NONE;
+      jvmtiError ret1 = jvmtienv_->GetSourceFileName(class_, &file_);
+      jvmtiError ret2 = jvmtienv_->GetSourceDebugExtension(class_, &debug_ext_);
+      return jvmtienv_->GetClassSignature(class_, &name_, &generic_) == JVMTI_ERROR_NONE &&
+          ret1 != JVMTI_ERROR_MUST_POSSESS_CAPABILITY &&
+          ret1 != JVMTI_ERROR_INVALID_CLASS &&
+          ret2 != JVMTI_ERROR_MUST_POSSESS_CAPABILITY &&
+          ret2 != JVMTI_ERROR_INVALID_CLASS;
     }
   }
 
@@ -156,12 +166,28 @@ class ScopedClassInfo {
   const char* GetGeneric() const {
     return generic_;
   }
+  const char* GetSourceDebugExtension() const {
+    if (debug_ext_ == nullptr) {
+      return "<UNKNOWN_SOURCE_DEBUG_EXTENSION>";
+    } else {
+      return debug_ext_;
+    }
+  }
+  const char* GetSourceFileName() const {
+    if (file_ == nullptr) {
+      return "<UNKNOWN_FILE>";
+    } else {
+      return file_;
+    }
+  }
 
  private:
   jvmtiEnv* jvmtienv_;
   jclass class_;
   char* name_;
   char* generic_;
+  char* file_;
+  char* debug_ext_;
 };
 
 class ScopedMethodInfo {
@@ -174,7 +200,8 @@ class ScopedMethodInfo {
         class_info_(nullptr),
         name_(nullptr),
         signature_(nullptr),
-        generic_(nullptr) {}
+        generic_(nullptr),
+        first_line_(-1) {}
 
   ~ScopedMethodInfo() {
     env_->DeleteLocalRef(declaring_class_);
@@ -188,6 +215,18 @@ class ScopedMethodInfo {
       return false;
     }
     class_info_.reset(new ScopedClassInfo(jvmtienv_, declaring_class_));
+    jint nlines;
+    jvmtiLineNumberEntry* lines;
+    jvmtiError err = jvmtienv_->GetLineNumberTable(method_, &nlines, &lines);
+    if (err == JVMTI_ERROR_NONE) {
+      if (nlines > 0) {
+        first_line_ = lines[0].line_number;
+      }
+      jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(lines));
+    } else if (err != JVMTI_ERROR_ABSENT_INFORMATION &&
+               err != JVMTI_ERROR_NATIVE_METHOD) {
+      return false;
+    }
     return class_info_->Init() &&
         (jvmtienv_->GetMethodName(method_, &name_, &signature_, &generic_) == JVMTI_ERROR_NONE);
   }
@@ -212,6 +251,10 @@ class ScopedMethodInfo {
     return generic_;
   }
 
+  jint GetFirstLine() const {
+    return first_line_;
+  }
+
  private:
   jvmtiEnv* jvmtienv_;
   JNIEnv* env_;
@@ -221,6 +264,7 @@ class ScopedMethodInfo {
   char* name_;
   char* signature_;
   char* generic_;
+  jint first_line_;
 
   friend std::ostream& operator<<(std::ostream &os, ScopedMethodInfo const& m);
 };
@@ -295,7 +339,9 @@ std::ostream& operator<<(std::ostream &os, const ScopedMethodInfo* m) {
 }
 
 std::ostream& operator<<(std::ostream &os, ScopedMethodInfo const& m) {
-  return os << m.GetDeclaringClassInfo().GetName() << "->" << m.GetName() << m.GetSignature();
+  return os << m.GetDeclaringClassInfo().GetName() << "->" << m.GetName() << m.GetSignature()
+            << " (source: " << m.GetDeclaringClassInfo().GetSourceFileName() << ":"
+            << m.GetFirstLine() << ")";
 }
 
 static void doJvmtiMethodBind(jvmtiEnv* jvmtienv,

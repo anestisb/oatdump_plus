@@ -1017,4 +1017,61 @@ jvmtiError ClassUtil::GetClassVersionNumbers(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
+jvmtiError ClassUtil::GetSourceFileName(jvmtiEnv* env, jclass jklass, char** source_name_ptr) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  if (jklass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+  art::ObjPtr<art::mirror::Object> jklass_obj = soa.Decode<art::mirror::Object>(jklass);
+  if (!jklass_obj->IsClass()) {
+    return ERR(INVALID_CLASS);
+  }
+  art::ObjPtr<art::mirror::Class> klass = jklass_obj->AsClass();
+  if (klass->IsPrimitive() || klass->IsArrayClass()) {
+    return ERR(ABSENT_INFORMATION);
+  }
+  JvmtiUniquePtr<char[]> source_copy;
+  const char* file_name = klass->GetSourceFile();
+  if (file_name == nullptr) {
+    return ERR(ABSENT_INFORMATION);
+  }
+  jvmtiError ret;
+  source_copy = CopyString(env, file_name, &ret);
+  if (source_copy == nullptr) {
+    return ret;
+  }
+  *source_name_ptr = source_copy.release();
+  return OK;
+}
+
+jvmtiError ClassUtil::GetSourceDebugExtension(jvmtiEnv* env,
+                                              jclass jklass,
+                                              char** source_debug_extension_ptr) {
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  if (jklass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+  art::ObjPtr<art::mirror::Object> jklass_obj = soa.Decode<art::mirror::Object>(jklass);
+  if (!jklass_obj->IsClass()) {
+    return ERR(INVALID_CLASS);
+  }
+  art::StackHandleScope<1> hs(art::Thread::Current());
+  art::Handle<art::mirror::Class> klass(hs.NewHandle(jklass_obj->AsClass()));
+  if (klass->IsPrimitive() || klass->IsArrayClass()) {
+    return ERR(ABSENT_INFORMATION);
+  }
+  JvmtiUniquePtr<char[]> ext_copy;
+  const char* data = art::annotations::GetSourceDebugExtension(klass);
+  if (data == nullptr) {
+    return ERR(ABSENT_INFORMATION);
+  }
+  jvmtiError ret;
+  ext_copy = CopyString(env, data, &ret);
+  if (ext_copy == nullptr) {
+    return ret;
+  }
+  *source_debug_extension_ptr = ext_copy.release();
+  return OK;
+}
+
 }  // namespace openjdkjvmti

@@ -1,0 +1,10 @@
+class art.Test992 is defined in file "Test992.java"
+class art.Test992$Target1 is defined in file "Test992.java"
+class art.Test2 is defined in file "Test2.java"
+int does not have a known source file because java.lang.RuntimeException: JVMTI_ERROR_ABSENT_INFORMATION
+class java.lang.Integer is defined in file "Integer.java"
+class java.lang.Object is defined in file "Object.java"
+interface java.lang.Runnable is defined in file "Runnable.java"
+class [Ljava.lang.Object; does not have a known source file because java.lang.RuntimeException: JVMTI_ERROR_ABSENT_INFORMATION
+class [I does not have a known source file because java.lang.RuntimeException: JVMTI_ERROR_ABSENT_INFORMATION
+null does not have a known source file because java.lang.RuntimeException: JVMTI_ERROR_INVALID_CLASS
