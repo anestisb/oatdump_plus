@@ -187,4 +187,68 @@ jvmtiError FieldUtil::IsFieldSynthetic(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
+jvmtiError FieldUtil::SetFieldModificationWatch(jvmtiEnv* jenv, jclass klass, jfieldID field) {
+  ArtJvmTiEnv* env = ArtJvmTiEnv::AsArtJvmTiEnv(jenv);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+  if (field == nullptr) {
+    return ERR(INVALID_FIELDID);
+  }
+  auto res_pair = env->modify_watched_fields.insert(art::jni::DecodeArtField(field));
+  if (!res_pair.second) {
+    // Didn't get inserted because it's already present!
+    return ERR(DUPLICATE);
+  }
+  return OK;
+}
+
+jvmtiError FieldUtil::ClearFieldModificationWatch(jvmtiEnv* jenv, jclass klass, jfieldID field) {
+  ArtJvmTiEnv* env = ArtJvmTiEnv::AsArtJvmTiEnv(jenv);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+  if (field == nullptr) {
+    return ERR(INVALID_FIELDID);
+  }
+  auto pos = env->modify_watched_fields.find(art::jni::DecodeArtField(field));
+  if (pos == env->modify_watched_fields.end()) {
+    return ERR(NOT_FOUND);
+  }
+  env->modify_watched_fields.erase(pos);
+  return OK;
+}
+
+jvmtiError FieldUtil::SetFieldAccessWatch(jvmtiEnv* jenv, jclass klass, jfieldID field) {
+  ArtJvmTiEnv* env = ArtJvmTiEnv::AsArtJvmTiEnv(jenv);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+  if (field == nullptr) {
+    return ERR(INVALID_FIELDID);
+  }
+  auto res_pair = env->access_watched_fields.insert(art::jni::DecodeArtField(field));
+  if (!res_pair.second) {
+    // Didn't get inserted because it's already present!
+    return ERR(DUPLICATE);
+  }
+  return OK;
+}
+
+jvmtiError FieldUtil::ClearFieldAccessWatch(jvmtiEnv* jenv, jclass klass, jfieldID field) {
+  ArtJvmTiEnv* env = ArtJvmTiEnv::AsArtJvmTiEnv(jenv);
+  if (klass == nullptr) {
+    return ERR(INVALID_CLASS);
+  }
+  if (field == nullptr) {
+    return ERR(INVALID_FIELDID);
+  }
+  auto pos = env->access_watched_fields.find(art::jni::DecodeArtField(field));
+  if (pos == env->access_watched_fields.end()) {
+    return ERR(NOT_FOUND);
+  }
+  env->access_watched_fields.erase(pos);
+  return OK;
+}
+
 }  // namespace openjdkjvmti

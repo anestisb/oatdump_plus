@@ -20,6 +20,7 @@
 #include <array>
 
 #include "events.h"
+#include "jni_internal.h"
 #include "ScopedLocalRef.h"
 
 #include "art_jvmti.h"
@@ -212,6 +213,71 @@ inline void EventHandler::DispatchEvent(ArtJvmTiEnv* env, art::Thread* thread, A
     FnType* callback = impl::GetCallback<kEvent>(env);
     if (callback != nullptr) {
       (*callback)(env, args...);
+    }
+  }
+}
+
+// Need to give custom specializations for FieldAccess and FieldModification since they need to
+// filter out which particular fields agents want to get notified on.
+// TODO The spec allows us to do shortcuts like only allow one agent to ever set these watches. This
+// could make the system more performant.
+template <>
+inline void EventHandler::DispatchEvent<ArtJvmtiEvent::kFieldModification>(art::Thread* thread,
+                                                                           JNIEnv* jnienv,
+                                                                           jthread jni_thread,
+                                                                           jmethodID method,
+                                                                           jlocation location,
+                                                                           jclass field_klass,
+                                                                           jobject object,
+                                                                           jfieldID field,
+                                                                           char type_char,
+                                                                           jvalue val) const {
+  for (ArtJvmTiEnv* env : envs) {
+    if (env != nullptr &&
+        ShouldDispatch<ArtJvmtiEvent::kFieldModification>(env, thread) &&
+        env->modify_watched_fields.find(
+            art::jni::DecodeArtField(field)) != env->modify_watched_fields.end()) {
+      ScopedLocalRef<jthrowable> thr(jnienv, jnienv->ExceptionOccurred());
+      jnienv->ExceptionClear();
+      auto callback = impl::GetCallback<ArtJvmtiEvent::kFieldModification>(env);
+      (*callback)(env,
+                  jnienv,
+                  jni_thread,
+                  method,
+                  location,
+                  field_klass,
+                  object,
+                  field,
+                  type_char,
+                  val);
+      if (thr.get() != nullptr && !jnienv->ExceptionCheck()) {
+        jnienv->Throw(thr.get());
+      }
+    }
+  }
+}
+
+template <>
+inline void EventHandler::DispatchEvent<ArtJvmtiEvent::kFieldAccess>(art::Thread* thread,
+                                                                     JNIEnv* jnienv,
+                                                                     jthread jni_thread,
+                                                                     jmethodID method,
+                                                                     jlocation location,
+                                                                     jclass field_klass,
+                                                                     jobject object,
+                                                                     jfieldID field) const {
+  for (ArtJvmTiEnv* env : envs) {
+    if (env != nullptr &&
+        ShouldDispatch<ArtJvmtiEvent::kFieldAccess>(env, thread) &&
+        env->access_watched_fields.find(
+            art::jni::DecodeArtField(field)) != env->access_watched_fields.end()) {
+      ScopedLocalRef<jthrowable> thr(jnienv, jnienv->ExceptionOccurred());
+      jnienv->ExceptionClear();
+      auto callback = impl::GetCallback<ArtJvmtiEvent::kFieldAccess>(env);
+      (*callback)(env, jnienv, jni_thread, method, location, field_klass, object, field);
+      if (thr.get() != nullptr && !jnienv->ExceptionCheck()) {
+        jnienv->Throw(thr.get());
+      }
     }
   }
 }
