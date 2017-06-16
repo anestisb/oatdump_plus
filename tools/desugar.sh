@@ -72,7 +72,7 @@ while true; do
   shift
 done
 
-desugar_args=()
+desugar_args=(--min_sdk_version=10000)
 boot_class_path_list=$($TOP/art/tools/bootjars.sh $bootjars_args --path)
 
 for path in $boot_class_path_list; do

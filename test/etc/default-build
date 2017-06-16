@@ -71,7 +71,8 @@ ZIP_COMPRESSION_METHOD="deflate"
 WITH_ZIP_ALIGN=false
 ZIP_ALIGN_BYTES="-1"
 
-DX_FLAGS=""
+DX_FLAGS="--min-sdk-version=24"
+DX_VM_FLAGS=""
 SKIP_DX_MERGER="false"
 EXPERIMENTAL=""
 
@@ -102,11 +103,19 @@ JAVAC_EXPERIMENTAL_ARGS["method-handles"]="-source 1.8 -target 1.8"
 JAVAC_EXPERIMENTAL_ARGS[${DEFAULT_EXPERIMENT}]="-source 1.8 -target 1.8"
 JAVAC_EXPERIMENTAL_ARGS["agents"]="-source 1.8 -target 1.8"
 
+declare -A DX_EXPERIMENTAL_ARGS
+DX_EXPERIMENTAL_ARGS["method-handles"]="--min-sdk-version=26"
+
 while true; do
   if [ "x$1" = "x--dx-option" ]; then
     shift
     option="$1"
     DX_FLAGS="${DX_FLAGS} $option"
+    shift
+  elif [ "x$1" = "x--dx-vm-option" ]; then
+    shift
+    option="$1"
+    DX_VM_FLAGS="${DX_VM_FLAGS} $option"
     shift
   elif [ "x$1" = "x--jvm" ]; then
     shift
@@ -180,6 +189,7 @@ for experiment in ${EXPERIMENTAL}; do
   JACK_ARGS="${JACK_ARGS} ${JACK_EXPERIMENTAL_ARGS[${experiment}]}"
   SMALI_ARGS="${SMALI_ARGS} ${SMALI_EXPERIMENTAL_ARGS[${experiment}]}"
   JAVAC_ARGS="${JAVAC_ARGS} ${JAVAC_EXPERIMENTAL_ARGS[${experiment}]}"
+  DX_FLAGS="${DX_FLAGS} ${DX_EXPERIMENTAL_ARGS[${experiment}]}"
 done
 
 #########################################
@@ -234,7 +244,7 @@ function make_dex() {
   fi
 
   # Make dex file from desugared JAR.
-  ${DX} -JXmx256m --debug --dex --dump-to=${name}.lst --output=${name}.dex --dump-width=1000 ${DX_FLAGS} "${dx_input}"
+  ${DX} -JXmx256m ${DX_VM_FLAGS} --debug --dex --dump-to=${name}.lst --output=${name}.dex --dump-width=1000 ${DX_FLAGS} "${dx_input}"
 }
 
 if [ -e classes.dex ]; then
