@@ -279,6 +279,7 @@ art_cc_defaults {
         "986-native-method-bind/native_bind.cc",
         "987-agent-bind/agent_bind.cc",
         "989-method-trace-throw/method_trace.cc",
+        "991-field-trace-2/field_trace.cc",
     ],
     shared_libs: [
         "libbase",

@@ -56,7 +56,7 @@ public class Test989 {
   // to an infinite loop on the RI.
   private static void disableTraceForRI() {
     if (!System.getProperty("java.vm.name").equals("Dalvik")) {
-      Trace.disableMethodTracing(Thread.currentThread());
+      Trace.disableTracing(Thread.currentThread());
     }
   }
 
@@ -158,7 +158,7 @@ public class Test989 {
 
   private static void maybeDisableTracing() throws Exception {
     if (DISABLE_TRACING) {
-      Trace.disableMethodTracing(Thread.currentThread());
+      Trace.disableTracing(Thread.currentThread());
     }
   }
 
@@ -179,7 +179,7 @@ public class Test989 {
   }
   private static void setEntry(MethodTracer type) throws Exception {
     if (DISABLE_TRACING || !System.getProperty("java.vm.name").equals("Dalvik")) {
-      Trace.disableMethodTracing(Thread.currentThread());
+      Trace.disableTracing(Thread.currentThread());
       setupTracing();
     }
     currentTracer = type;
@@ -274,7 +274,7 @@ public class Test989 {
 
     maybeDisableTracing();
     System.out.println("Finished!");
-    Trace.disableMethodTracing(Thread.currentThread());
+    Trace.disableTracing(Thread.currentThread());
   }
 
   private static final class throwAClass implements MyRunnable {

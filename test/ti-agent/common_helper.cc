@@ -78,8 +78,22 @@ struct TraceData {
   jclass test_klass;
   jmethodID enter_method;
   jmethodID exit_method;
+  jmethodID field_access;
+  jmethodID field_modify;
   bool in_callback;
+  bool access_watch_on_load;
+  bool modify_watch_on_load;
 };
+
+static jobject GetJavaField(jvmtiEnv* jvmti, JNIEnv* env, jclass field_klass, jfieldID f) {
+  jint mods = 0;
+  if (JvmtiErrorToException(env, jvmti, jvmti->GetFieldModifiers(field_klass, f, &mods))) {
+    return nullptr;
+  }
+
+  bool is_static = (mods & kAccStatic) != 0;
+  return env->ToReflectedField(field_klass, f, is_static);
+}
 
 static jobject GetJavaMethod(jvmtiEnv* jvmti, JNIEnv* env, jmethodID m) {
   jint mods = 0;
@@ -97,21 +111,9 @@ static jobject GetJavaMethod(jvmtiEnv* jvmti, JNIEnv* env, jmethodID m) {
   return res;
 }
 
-static jobject GetJavaValue(jvmtiEnv* jvmtienv,
-                            JNIEnv* env,
-                            jmethodID m,
-                            jvalue value) {
-  char *fname, *fsig, *fgen;
-  if (JvmtiErrorToException(env, jvmtienv, jvmtienv->GetMethodName(m, &fname, &fsig, &fgen))) {
-    return nullptr;
-  }
-  std::string type(fsig);
-  type = type.substr(type.find(")") + 1);
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fsig));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fname));
-  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fgen));
+static jobject GetJavaValueByType(JNIEnv* env, char type, jvalue value) {
   std::string name;
-  switch (type[0]) {
+  switch (type) {
     case 'V':
       return nullptr;
     case '[':
@@ -146,7 +148,7 @@ static jobject GetJavaValue(jvmtiEnv* jvmtienv,
       return nullptr;
   }
   std::ostringstream oss;
-  oss << "(" << type[0] << ")L" << name << ";";
+  oss << "(" << type << ")L" << name << ";";
   std::string args = oss.str();
   jclass target = env->FindClass(name.c_str());
   jmethodID valueOfMethod = env->GetStaticMethodID(target, "valueOf", args.c_str());
@@ -155,6 +157,98 @@ static jobject GetJavaValue(jvmtiEnv* jvmtienv,
   jobject res = env->CallStaticObjectMethodA(target, valueOfMethod, &value);
   env->DeleteLocalRef(target);
   return res;
+}
+
+static jobject GetJavaValue(jvmtiEnv* jvmtienv,
+                            JNIEnv* env,
+                            jmethodID m,
+                            jvalue value) {
+  char *fname, *fsig, *fgen;
+  if (JvmtiErrorToException(env, jvmtienv, jvmtienv->GetMethodName(m, &fname, &fsig, &fgen))) {
+    return nullptr;
+  }
+  std::string type(fsig);
+  type = type.substr(type.find(")") + 1);
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fsig));
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fname));
+  jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fgen));
+  return GetJavaValueByType(env, type[0], value);
+}
+
+static void fieldAccessCB(jvmtiEnv* jvmti,
+                          JNIEnv* jnienv,
+                          jthread thr ATTRIBUTE_UNUSED,
+                          jmethodID method,
+                          jlocation location,
+                          jclass field_klass,
+                          jobject object,
+                          jfieldID field) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(jnienv, jvmti,
+                            jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  if (data->in_callback) {
+    // Don't do callback for either of these to prevent an infinite loop.
+    return;
+  }
+  CHECK(data->field_access != nullptr);
+  data->in_callback = true;
+  jobject method_arg = GetJavaMethod(jvmti, jnienv, method);
+  jobject field_arg = GetJavaField(jvmti, jnienv, field_klass, field);
+  jnienv->CallStaticVoidMethod(data->test_klass,
+                               data->field_access,
+                               method_arg,
+                               static_cast<jlong>(location),
+                               field_klass,
+                               object,
+                               field_arg);
+  jnienv->DeleteLocalRef(method_arg);
+  jnienv->DeleteLocalRef(field_arg);
+  data->in_callback = false;
+}
+
+static void fieldModificationCB(jvmtiEnv* jvmti,
+                                JNIEnv* jnienv,
+                                jthread thr ATTRIBUTE_UNUSED,
+                                jmethodID method,
+                                jlocation location,
+                                jclass field_klass,
+                                jobject object,
+                                jfieldID field,
+                                char type_char,
+                                jvalue new_value) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(jnienv, jvmti,
+                            jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  if (data->in_callback) {
+    // Don't do callback recursively to prevent an infinite loop.
+    return;
+  }
+  CHECK(data->field_modify != nullptr);
+  data->in_callback = true;
+  jobject method_arg = GetJavaMethod(jvmti, jnienv, method);
+  jobject field_arg = GetJavaField(jvmti, jnienv, field_klass, field);
+  jobject value = GetJavaValueByType(jnienv, type_char, new_value);
+  if (jnienv->ExceptionCheck()) {
+    data->in_callback = false;
+    jnienv->DeleteLocalRef(method_arg);
+    jnienv->DeleteLocalRef(field_arg);
+    return;
+  }
+  jnienv->CallStaticVoidMethod(data->test_klass,
+                               data->field_modify,
+                               method_arg,
+                               static_cast<jlong>(location),
+                               field_klass,
+                               object,
+                               field_arg,
+                               value);
+  jnienv->DeleteLocalRef(method_arg);
+  jnienv->DeleteLocalRef(field_arg);
+  data->in_callback = false;
 }
 
 static void methodExitCB(jvmtiEnv* jvmti,
@@ -172,6 +266,7 @@ static void methodExitCB(jvmtiEnv* jvmti,
     // Don't do callback for either of these to prevent an infinite loop.
     return;
   }
+  CHECK(data->exit_method != nullptr);
   data->in_callback = true;
   jobject method_arg = GetJavaMethod(jvmti, jnienv, method);
   jobject result =
@@ -198,6 +293,7 @@ static void methodEntryCB(jvmtiEnv* jvmti,
                             jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
     return;
   }
+  CHECK(data->enter_method != nullptr);
   if (method == data->exit_method || method == data->enter_method || data->in_callback) {
     // Don't do callback for either of these to prevent an infinite loop.
     return;
@@ -212,12 +308,179 @@ static void methodEntryCB(jvmtiEnv* jvmti,
   data->in_callback = false;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableMethodTracing(
+static void classPrepareCB(jvmtiEnv* jvmti,
+                           JNIEnv* jnienv,
+                           jthread thr ATTRIBUTE_UNUSED,
+                           jclass klass) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(jnienv, jvmti,
+                            jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  if (data->access_watch_on_load || data->modify_watch_on_load) {
+    jint nfields;
+    jfieldID* fields;
+    if (JvmtiErrorToException(jnienv, jvmti, jvmti->GetClassFields(klass, &nfields, &fields))) {
+      return;
+    }
+    for (jint i = 0; i < nfields; i++) {
+      jfieldID f = fields[i];
+      // Ignore errors
+      if (data->access_watch_on_load) {
+        jvmti->SetFieldAccessWatch(klass, f);
+      }
+
+      if (data->modify_watch_on_load) {
+        jvmti->SetFieldModificationWatch(klass, f);
+      }
+    }
+    jvmti->Deallocate(reinterpret_cast<unsigned char*>(fields));
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Trace_watchAllFieldAccesses(JNIEnv* env) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(
+      env, jvmti_env, jvmti_env->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  data->access_watch_on_load = true;
+  // We need the classPrepareCB to watch new fields as the classes are loaded/prepared.
+  if (JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                JVMTI_EVENT_CLASS_PREPARE,
+                                                                nullptr))) {
+    return;
+  }
+  jint nklasses;
+  jclass* klasses;
+  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->GetLoadedClasses(&nklasses, &klasses))) {
+    return;
+  }
+  for (jint i = 0; i < nklasses; i++) {
+    jclass k = klasses[i];
+
+    jint nfields;
+    jfieldID* fields;
+    jvmtiError err = jvmti_env->GetClassFields(k, &nfields, &fields);
+    if (err == JVMTI_ERROR_CLASS_NOT_PREPARED) {
+      continue;
+    } else if (JvmtiErrorToException(env, jvmti_env, err)) {
+      jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(klasses));
+      return;
+    }
+    for (jint j = 0; j < nfields; j++) {
+      jvmti_env->SetFieldAccessWatch(k, fields[j]);
+    }
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(fields));
+  }
+  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(klasses));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Trace_watchAllFieldModifications(JNIEnv* env) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(
+      env, jvmti_env, jvmti_env->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  data->modify_watch_on_load = true;
+  // We need the classPrepareCB to watch new fields as the classes are loaded/prepared.
+  if (JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                JVMTI_EVENT_CLASS_PREPARE,
+                                                                nullptr))) {
+    return;
+  }
+  jint nklasses;
+  jclass* klasses;
+  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->GetLoadedClasses(&nklasses, &klasses))) {
+    return;
+  }
+  for (jint i = 0; i < nklasses; i++) {
+    jclass k = klasses[i];
+
+    jint nfields;
+    jfieldID* fields;
+    jvmtiError err = jvmti_env->GetClassFields(k, &nfields, &fields);
+    if (err == JVMTI_ERROR_CLASS_NOT_PREPARED) {
+      continue;
+    } else if (JvmtiErrorToException(env, jvmti_env, err)) {
+      jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(klasses));
+      return;
+    }
+    for (jint j = 0; j < nfields; j++) {
+      jvmti_env->SetFieldModificationWatch(k, fields[j]);
+    }
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(fields));
+  }
+  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(klasses));
+}
+
+static bool GetFieldAndClass(JNIEnv* env,
+                             jobject ref_field,
+                             jclass* out_klass,
+                             jfieldID* out_field) {
+  *out_field = env->FromReflectedField(ref_field);
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  jclass field_klass = env->FindClass("java/lang/reflect/Field");
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  jmethodID get_declaring_class_method =
+      env->GetMethodID(field_klass, "getDeclaringClass", "()Ljava/lang/Class;");
+  if (env->ExceptionCheck()) {
+    env->DeleteLocalRef(field_klass);
+    return false;
+  }
+  *out_klass = static_cast<jclass>(env->CallObjectMethod(ref_field, get_declaring_class_method));
+  if (env->ExceptionCheck()) {
+    *out_klass = nullptr;
+    env->DeleteLocalRef(field_klass);
+    return false;
+  }
+  env->DeleteLocalRef(field_klass);
+  return true;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Trace_watchFieldModification(
+    JNIEnv* env,
+    jclass trace ATTRIBUTE_UNUSED,
+    jobject field_obj) {
+  jfieldID field;
+  jclass klass;
+  if (!GetFieldAndClass(env, field_obj, &klass, &field)) {
+    return;
+  }
+
+  JvmtiErrorToException(env, jvmti_env, jvmti_env->SetFieldModificationWatch(klass, field));
+  env->DeleteLocalRef(klass);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Trace_watchFieldAccess(
+    JNIEnv* env,
+    jclass trace ATTRIBUTE_UNUSED,
+    jobject field_obj) {
+  jfieldID field;
+  jclass klass;
+  if (!GetFieldAndClass(env, field_obj, &klass, &field)) {
+    return;
+  }
+  JvmtiErrorToException(env, jvmti_env, jvmti_env->SetFieldAccessWatch(klass, field));
+  env->DeleteLocalRef(klass);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableTracing(
     JNIEnv* env,
     jclass trace ATTRIBUTE_UNUSED,
     jclass klass,
     jobject enter,
     jobject exit,
+    jobject field_access,
+    jobject field_modify,
     jthread thr) {
   TraceData* data = nullptr;
   if (JvmtiErrorToException(env,
@@ -228,8 +491,10 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableMethodTracing(
   }
   memset(data, 0, sizeof(TraceData));
   data->test_klass = reinterpret_cast<jclass>(env->NewGlobalRef(klass));
-  data->enter_method = env->FromReflectedMethod(enter);
-  data->exit_method = env->FromReflectedMethod(exit);
+  data->enter_method = enter != nullptr ? env->FromReflectedMethod(enter) : nullptr;
+  data->exit_method = exit != nullptr ? env->FromReflectedMethod(exit) : nullptr;
+  data->field_access = field_access != nullptr ? env->FromReflectedMethod(field_access) : nullptr;
+  data->field_modify = field_modify != nullptr ? env->FromReflectedMethod(field_modify) : nullptr;
   data->in_callback = false;
 
   if (JvmtiErrorToException(env, jvmti_env, jvmti_env->SetEnvironmentLocalStorage(data))) {
@@ -240,27 +505,60 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableMethodTracing(
   memset(&cb, 0, sizeof(cb));
   cb.MethodEntry = methodEntryCB;
   cb.MethodExit = methodExitCB;
+  cb.FieldAccess = fieldAccessCB;
+  cb.FieldModification = fieldModificationCB;
+  cb.ClassPrepare = classPrepareCB;
   if (JvmtiErrorToException(env, jvmti_env, jvmti_env->SetEventCallbacks(&cb, sizeof(cb)))) {
     return;
   }
-  if (JvmtiErrorToException(env,
+  if (enter != nullptr &&
+      JvmtiErrorToException(env,
                             jvmti_env,
                             jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
                                                                 JVMTI_EVENT_METHOD_ENTRY,
                                                                 thr))) {
     return;
   }
-  if (JvmtiErrorToException(env,
+  if (exit != nullptr &&
+      JvmtiErrorToException(env,
                             jvmti_env,
                             jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
                                                                 JVMTI_EVENT_METHOD_EXIT,
                                                                 thr))) {
     return;
   }
+  if (field_access != nullptr &&
+      JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                JVMTI_EVENT_FIELD_ACCESS,
+                                                                thr))) {
+    return;
+  }
+  if (field_modify != nullptr &&
+      JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                JVMTI_EVENT_FIELD_MODIFICATION,
+                                                                thr))) {
+    return;
+  }
 }
 
-extern "C" JNIEXPORT void JNICALL Java_art_Trace_disableMethodTracing(
+extern "C" JNIEXPORT void JNICALL Java_art_Trace_disableTracing(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+  if (JvmtiErrorToException(env, jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                                                JVMTI_EVENT_FIELD_ACCESS,
+                                                                thr))) {
+    return;
+  }
+  if (JvmtiErrorToException(env, jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                                                JVMTI_EVENT_FIELD_MODIFICATION,
+                                                                thr))) {
+    return;
+  }
   if (JvmtiErrorToException(env, jvmti_env,
                             jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                                                 JVMTI_EVENT_METHOD_ENTRY,

@@ -1,4 +1,5 @@
-<= public static native void art.Trace.enableMethodTracing(java.lang.Class,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.Thread) -> <null: null>
+.<= public static native void art.Trace.enableTracing(java.lang.Class,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.Thread) -> <null: null>
+<= public static void art.Trace.enableMethodTracing(java.lang.Class,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.Thread) -> <null: null>
 => art.Test988$IterOp()
 .=> public java.lang.Object()
 .<= public java.lang.Object() -> <null: null>
@@ -142,10 +143,10 @@ fibonacci(5)=5
 ......=> private static native java.lang.Object java.lang.Throwable.nativeFillInStackTrace()
 ......<= private static native java.lang.Object java.lang.Throwable.nativeFillInStackTrace() -> <class [Ljava.lang.Object;: <non-deterministic>>
 .....<= public synchronized java.lang.Throwable java.lang.Throwable.fillInStackTrace() -> <class java.lang.Error: java.lang.Error: Bad argument: -19 < 0
-	at art.Test988.iter_fibonacci(Test988.java:207)
-	at art.Test988$IterOp.applyAsInt(Test988.java:202)
-	at art.Test988.doFibTest(Test988.java:295)
-	at art.Test988.run(Test988.java:265)
+	at art.Test988.iter_fibonacci(Test988.java:209)
+	at art.Test988$IterOp.applyAsInt(Test988.java:204)
+	at art.Test988.doFibTest(Test988.java:297)
+	at art.Test988.run(Test988.java:267)
 	at Main.main(Main.java:19)
 >
 ....<= public java.lang.Throwable(java.lang.String) -> <null: null>
@@ -162,10 +163,10 @@ fibonacci(5)=5
 ...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
-	at art.Test988.iter_fibonacci(Test988.java:207)
-	at art.Test988$IterOp.applyAsInt(Test988.java:202)
-	at art.Test988.doFibTest(Test988.java:295)
-	at art.Test988.run(Test988.java:265)
+	at art.Test988.iter_fibonacci(Test988.java:209)
+	at art.Test988$IterOp.applyAsInt(Test988.java:204)
+	at art.Test988.doFibTest(Test988.java:297)
+	at art.Test988.run(Test988.java:267)
 	at Main.main(Main.java:19)
 
 .<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
@@ -243,10 +244,10 @@ fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 ......=> private static native java.lang.Object java.lang.Throwable.nativeFillInStackTrace()
 ......<= private static native java.lang.Object java.lang.Throwable.nativeFillInStackTrace() -> <class [Ljava.lang.Object;: <non-deterministic>>
 .....<= public synchronized java.lang.Throwable java.lang.Throwable.fillInStackTrace() -> <class java.lang.Error: java.lang.Error: Bad argument: -19 < 0
-	at art.Test988.fibonacci(Test988.java:229)
-	at art.Test988$RecurOp.applyAsInt(Test988.java:224)
-	at art.Test988.doFibTest(Test988.java:295)
-	at art.Test988.run(Test988.java:266)
+	at art.Test988.fibonacci(Test988.java:231)
+	at art.Test988$RecurOp.applyAsInt(Test988.java:226)
+	at art.Test988.doFibTest(Test988.java:297)
+	at art.Test988.run(Test988.java:268)
 	at Main.main(Main.java:19)
 >
 ....<= public java.lang.Throwable(java.lang.String) -> <null: null>
@@ -263,14 +264,14 @@ fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 ...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
-	at art.Test988.fibonacci(Test988.java:229)
-	at art.Test988$RecurOp.applyAsInt(Test988.java:224)
-	at art.Test988.doFibTest(Test988.java:295)
-	at art.Test988.run(Test988.java:266)
+	at art.Test988.fibonacci(Test988.java:231)
+	at art.Test988$RecurOp.applyAsInt(Test988.java:226)
+	at art.Test988.doFibTest(Test988.java:297)
+	at art.Test988.run(Test988.java:268)
 	at Main.main(Main.java:19)
 
 .<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
 <= public static void art.Test988.doFibTest(int,java.util.function.IntUnaryOperator) -> <null: null>
 => public static native java.lang.Thread java.lang.Thread.currentThread()
 <= public static native java.lang.Thread java.lang.Thread.currentThread() -> <class java.lang.Thread: <non-deterministic>>
-=> public static native void art.Trace.disableMethodTracing(java.lang.Thread)
+=> public static native void art.Trace.disableTracing(java.lang.Thread)
