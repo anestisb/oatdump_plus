@@ -281,7 +281,8 @@ class InstructionCodeGeneratorMIPS64 : public InstructionCodeGenerator {
                                Location root,
                                GpuRegister obj,
                                uint32_t offset,
-                               ReadBarrierOption read_barrier_option);
+                               ReadBarrierOption read_barrier_option,
+                               Mips64Label* label_low = nullptr);
 
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
@@ -592,7 +593,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info_high,
                                             GpuRegister out,
-                                            PcRelativePatchInfo* info_low);
+                                            PcRelativePatchInfo* info_low = nullptr);
 
   void PatchJitRootUse(uint8_t* code,
                        const uint8_t* roots_data,

@@ -280,6 +280,7 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   void Lwpc(Register rs, uint32_t imm19);  // R6
   void Lui(Register rt, uint16_t imm16);
   void Aui(Register rt, Register rs, uint16_t imm16);  // R6
+  void AddUpper(Register rt, Register rs, uint16_t imm16, Register tmp = AT);
   void Sync(uint32_t stype);
   void Mfhi(Register rd);  // R2
   void Mflo(Register rd);  // R2

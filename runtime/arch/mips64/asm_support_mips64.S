@@ -83,6 +83,13 @@
 #endif  // USE_HEAP_POISONING
 .endm
 
+// Byte size of the instructions (un)poisoning heap references.
+#ifdef USE_HEAP_POISONING
+#define HEAP_POISON_INSTR_SIZE 8
+#else
+#define HEAP_POISON_INSTR_SIZE 0
+#endif  // USE_HEAP_POISONING
+
 // Based on contents of creg select the minimum integer
 // At the end of the macro the original value of creg is lost
 .macro MINint dreg,rreg,sreg,creg

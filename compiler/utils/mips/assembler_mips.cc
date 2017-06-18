@@ -828,6 +828,22 @@ void MipsAssembler::Aui(Register rt, Register rs, uint16_t imm16) {
   DsFsmInstrRrr(EmitI(0xf, rs, rt, imm16), rt, rt, rs);
 }
 
+void MipsAssembler::AddUpper(Register rt, Register rs, uint16_t imm16, Register tmp) {
+  bool increment = (rs == rt);
+  if (increment) {
+    CHECK_NE(rs, tmp);
+  }
+  if (IsR6()) {
+    Aui(rt, rs, imm16);
+  } else if (increment) {
+    Lui(tmp, imm16);
+    Addu(rt, rs, tmp);
+  } else {
+    Lui(rt, imm16);
+    Addu(rt, rs, rt);
+  }
+}
+
 void MipsAssembler::Sync(uint32_t stype) {
   DsFsmInstrNop(EmitR(0, ZERO, ZERO, ZERO, stype & 0x1f, 0xf));
 }

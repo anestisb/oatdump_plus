@@ -16,6 +16,7 @@
 
 #include "code_generator_mips.h"
 
+#include "arch/mips/asm_support_mips.h"
 #include "arch/mips/entrypoints_direct_mips.h"
 #include "arch/mips/instruction_set_features_mips.h"
 #include "art_method.h"
@@ -39,6 +40,11 @@ namespace mips {
 
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = A0;
+
+// Flags controlling the use of thunks for Baker read barriers.
+constexpr bool kBakerReadBarrierThunksEnableForFields = true;
+constexpr bool kBakerReadBarrierThunksEnableForArrays = true;
+constexpr bool kBakerReadBarrierThunksEnableForGcRoots = true;
 
 Location MipsReturnLocation(Primitive::Type return_type) {
   switch (return_type) {
@@ -1486,7 +1492,8 @@ void CodeGeneratorMIPS::MoveLocation(Location destination,
         __ Mfc1(dst_low, src);
         __ MoveFromFpuHigh(dst_high, src);
       } else {
-        DCHECK(source.IsDoubleStackSlot()) << "Cannot move from " << source << " to " << destination;
+        DCHECK(source.IsDoubleStackSlot())
+            << "Cannot move from " << source << " to " << destination;
         int32_t off = source.GetStackIndex();
         Register r = destination.AsRegisterPairLow<Register>();
         __ LoadFromOffset(kLoadDoubleword, r, SP, off);
@@ -1539,7 +1546,8 @@ void CodeGeneratorMIPS::MoveLocation(Location destination,
       } else if (source.IsFpuRegister()) {
         __ StoreDToOffset(source.AsFpuRegister<FRegister>(), SP, dst_offset);
       } else {
-        DCHECK(source.IsDoubleStackSlot()) << "Cannot move from " << source << " to " << destination;
+        DCHECK(source.IsDoubleStackSlot())
+            << "Cannot move from " << source << " to " << destination;
         __ LoadFromOffset(kLoadWord, TMP, SP, source.GetStackIndex());
         __ StoreToOffset(kStoreWord, TMP, SP, dst_offset);
         __ LoadFromOffset(kLoadWord, TMP, SP, source.GetStackIndex() + 4);
@@ -1763,8 +1771,10 @@ void CodeGeneratorMIPS::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo
   }
   // A following instruction will add the sign-extended low half of the 32-bit
   // offset to `out` (e.g. lw, jialc, addiu).
-  DCHECK_EQ(info_low->patch_info_high, info_high);
-  __ Bind(&info_low->label);
+  if (info_low != nullptr) {
+    DCHECK_EQ(info_low->patch_info_high, info_high);
+    __ Bind(&info_low->label);
+  }
 }
 
 CodeGeneratorMIPS::JitPatchInfo* CodeGeneratorMIPS::NewJitRootStringPatch(
@@ -1791,25 +1801,26 @@ void CodeGeneratorMIPS::PatchJitRootUse(uint8_t* code,
                                         const uint8_t* roots_data,
                                         const CodeGeneratorMIPS::JitPatchInfo& info,
                                         uint64_t index_in_table) const {
-  uint32_t literal_offset = GetAssembler().GetLabelLocation(&info.high_label);
+  uint32_t high_literal_offset = GetAssembler().GetLabelLocation(&info.high_label);
+  uint32_t low_literal_offset = GetAssembler().GetLabelLocation(&info.low_label);
   uintptr_t address =
       reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
   uint32_t addr32 = dchecked_integral_cast<uint32_t>(address);
   // lui reg, addr32_high
-  DCHECK_EQ(code[literal_offset + 0], 0x34);
-  DCHECK_EQ(code[literal_offset + 1], 0x12);
-  DCHECK_EQ((code[literal_offset + 2] & 0xE0), 0x00);
-  DCHECK_EQ(code[literal_offset + 3], 0x3C);
+  DCHECK_EQ(code[high_literal_offset + 0], 0x34);
+  DCHECK_EQ(code[high_literal_offset + 1], 0x12);
+  DCHECK_EQ((code[high_literal_offset + 2] & 0xE0), 0x00);
+  DCHECK_EQ(code[high_literal_offset + 3], 0x3C);
   // instr reg, reg, addr32_low
-  DCHECK_EQ(code[literal_offset + 4], 0x78);
-  DCHECK_EQ(code[literal_offset + 5], 0x56);
+  DCHECK_EQ(code[low_literal_offset + 0], 0x78);
+  DCHECK_EQ(code[low_literal_offset + 1], 0x56);
   addr32 += (addr32 & 0x8000) << 1;  // Account for sign extension in "instr reg, reg, addr32_low".
   // lui reg, addr32_high
-  code[literal_offset + 0] = static_cast<uint8_t>(addr32 >> 16);
-  code[literal_offset + 1] = static_cast<uint8_t>(addr32 >> 24);
+  code[high_literal_offset + 0] = static_cast<uint8_t>(addr32 >> 16);
+  code[high_literal_offset + 1] = static_cast<uint8_t>(addr32 >> 24);
   // instr reg, reg, addr32_low
-  code[literal_offset + 4] = static_cast<uint8_t>(addr32 >> 0);
-  code[literal_offset + 5] = static_cast<uint8_t>(addr32 >> 8);
+  code[low_literal_offset + 0] = static_cast<uint8_t>(addr32 >> 0);
+  code[low_literal_offset + 1] = static_cast<uint8_t>(addr32 >> 8);
 }
 
 void CodeGeneratorMIPS::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
@@ -2545,7 +2556,12 @@ void LocationsBuilderMIPS::VisitArrayGet(HArrayGet* instruction) {
   // We need a temporary register for the read barrier marking slow
   // path in CodeGeneratorMIPS::GenerateArrayLoadWithBakerReadBarrier.
   if (object_array_get_with_read_barrier && kUseBakerReadBarrier) {
-    locations->AddTemp(Location::RequiresRegister());
+    bool temp_needed = instruction->GetIndex()->IsConstant()
+        ? !kBakerReadBarrierThunksEnableForFields
+        : !kBakerReadBarrierThunksEnableForArrays;
+    if (temp_needed) {
+      locations->AddTemp(Location::RequiresRegister());
+    }
   }
 }
 
@@ -2681,16 +2697,32 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
       // /* HeapReference<Object> */ out =
       //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
       if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-        Location temp = locations->GetTemp(0);
+        bool temp_needed = index.IsConstant()
+            ? !kBakerReadBarrierThunksEnableForFields
+            : !kBakerReadBarrierThunksEnableForArrays;
+        Location temp = temp_needed ? locations->GetTemp(0) : Location::NoLocation();
         // Note that a potential implicit null check is handled in this
         // CodeGeneratorMIPS::GenerateArrayLoadWithBakerReadBarrier call.
-        codegen_->GenerateArrayLoadWithBakerReadBarrier(instruction,
-                                                        out_loc,
-                                                        obj,
-                                                        data_offset,
-                                                        index,
-                                                        temp,
-                                                        /* needs_null_check */ true);
+        DCHECK(!instruction->CanDoImplicitNullCheckOn(instruction->InputAt(0)));
+        if (index.IsConstant()) {
+          // Array load with a constant index can be treated as a field load.
+          size_t offset =
+              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+          codegen_->GenerateFieldLoadWithBakerReadBarrier(instruction,
+                                                          out_loc,
+                                                          obj,
+                                                          offset,
+                                                          temp,
+                                                          /* needs_null_check */ false);
+        } else {
+          codegen_->GenerateArrayLoadWithBakerReadBarrier(instruction,
+                                                          out_loc,
+                                                          obj,
+                                                          data_offset,
+                                                          index,
+                                                          temp,
+                                                          /* needs_null_check */ false);
+        }
       } else {
         Register out = out_loc.AsRegister<Register>();
         if (index.IsConstant()) {
@@ -3093,6 +3125,7 @@ void InstructionCodeGeneratorMIPS::VisitBoundsCheck(HBoundsCheck* instruction) {
 // Temp is used for read barrier.
 static size_t NumberOfInstanceOfTemps(TypeCheckKind type_check_kind) {
   if (kEmitCompilerReadBarrier &&
+      !(kUseBakerReadBarrier && kBakerReadBarrierThunksEnableForFields) &&
       (kUseBakerReadBarrier ||
        type_check_kind == TypeCheckKind::kAbstractClassCheck ||
        type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
@@ -6096,7 +6129,9 @@ void LocationsBuilderMIPS::HandleFieldGet(HInstruction* instruction, const Field
     if (object_field_get_with_read_barrier && kUseBakerReadBarrier) {
       // We need a temporary register for the read barrier marking slow
       // path in CodeGeneratorMIPS::GenerateFieldLoadWithBakerReadBarrier.
-      locations->AddTemp(Location::RequiresRegister());
+      if (!kBakerReadBarrierThunksEnableForFields) {
+        locations->AddTemp(Location::RequiresRegister());
+      }
     }
   }
 }
@@ -6171,7 +6206,8 @@ void InstructionCodeGeneratorMIPS::HandleFieldGet(HInstruction* instruction,
     if (type == Primitive::kPrimNot) {
       // /* HeapReference<Object> */ dst = *(obj + offset)
       if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-        Location temp_loc = locations->GetTemp(0);
+        Location temp_loc =
+            kBakerReadBarrierThunksEnableForFields ? Location::NoLocation() : locations->GetTemp(0);
         // Note that a potential implicit null check is handled in this
         // CodeGeneratorMIPS::GenerateFieldLoadWithBakerReadBarrier call.
         codegen_->GenerateFieldLoadWithBakerReadBarrier(instruction,
@@ -6395,7 +6431,9 @@ void InstructionCodeGeneratorMIPS::GenerateReferenceLoadOneRegister(
   Register out_reg = out.AsRegister<Register>();
   if (read_barrier_option == kWithReadBarrier) {
     CHECK(kEmitCompilerReadBarrier);
-    DCHECK(maybe_temp.IsRegister()) << maybe_temp;
+    if (!kUseBakerReadBarrier || !kBakerReadBarrierThunksEnableForFields) {
+      DCHECK(maybe_temp.IsRegister()) << maybe_temp;
+    }
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(out + offset)
@@ -6435,7 +6473,9 @@ void InstructionCodeGeneratorMIPS::GenerateReferenceLoadTwoRegisters(
   if (read_barrier_option == kWithReadBarrier) {
     CHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
-      DCHECK(maybe_temp.IsRegister()) << maybe_temp;
+      if (!kBakerReadBarrierThunksEnableForFields) {
+        DCHECK(maybe_temp.IsRegister()) << maybe_temp;
+      }
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(obj + offset)
       codegen_->GenerateFieldLoadWithBakerReadBarrier(instruction,
@@ -6458,67 +6498,172 @@ void InstructionCodeGeneratorMIPS::GenerateReferenceLoadTwoRegisters(
   }
 }
 
+static inline int GetBakerMarkThunkNumber(Register reg) {
+  static_assert(BAKER_MARK_INTROSPECTION_REGISTER_COUNT == 21, "Expecting equal");
+  if (reg >= V0 && reg <= T7) {  // 14 consequtive regs.
+    return reg - V0;
+  } else if (reg >= S2 && reg <= S7) {  // 6 consequtive regs.
+    return 14 + (reg - S2);
+  } else if (reg == FP) {  // One more.
+    return 20;
+  }
+  LOG(FATAL) << "Unexpected register " << reg;
+  UNREACHABLE();
+}
+
+static inline int GetBakerMarkFieldArrayThunkDisplacement(Register reg, bool short_offset) {
+  int num = GetBakerMarkThunkNumber(reg) +
+      (short_offset ? BAKER_MARK_INTROSPECTION_REGISTER_COUNT : 0);
+  return num * BAKER_MARK_INTROSPECTION_FIELD_ARRAY_ENTRY_SIZE;
+}
+
+static inline int GetBakerMarkGcRootThunkDisplacement(Register reg) {
+  return GetBakerMarkThunkNumber(reg) * BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRY_SIZE +
+      BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRIES_OFFSET;
+}
+
 void InstructionCodeGeneratorMIPS::GenerateGcRootFieldLoad(HInstruction* instruction,
                                                            Location root,
                                                            Register obj,
                                                            uint32_t offset,
-                                                           ReadBarrierOption read_barrier_option) {
+                                                           ReadBarrierOption read_barrier_option,
+                                                           MipsLabel* label_low) {
+  bool reordering;
+  if (label_low != nullptr) {
+    DCHECK_EQ(offset, 0x5678u);
+  }
   Register root_reg = root.AsRegister<Register>();
   if (read_barrier_option == kWithReadBarrier) {
     DCHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Fast path implementation of art::ReadBarrier::BarrierForRoot when
       // Baker's read barrier are used:
-      //
-      //   root = obj.field;
-      //   temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
-      //   if (temp != null) {
-      //     root = temp(root)
-      //   }
+      if (kBakerReadBarrierThunksEnableForGcRoots) {
+        // Note that we do not actually check the value of `GetIsGcMarking()`
+        // to decide whether to mark the loaded GC root or not.  Instead, we
+        // load into `temp` (T9) the read barrier mark introspection entrypoint.
+        // If `temp` is null, it means that `GetIsGcMarking()` is false, and
+        // vice versa.
+        //
+        // We use thunks for the slow path. That thunk checks the reference
+        // and jumps to the entrypoint if needed.
+        //
+        //     temp = Thread::Current()->pReadBarrierMarkReg00
+        //     // AKA &art_quick_read_barrier_mark_introspection.
+        //     GcRoot<mirror::Object> root = *(obj+offset);  // Original reference load.
+        //     if (temp != nullptr) {
+        //        temp = &gc_root_thunk<root_reg>
+        //        root = temp(root)
+        //     }
 
-      // /* GcRoot<mirror::Object> */ root = *(obj + offset)
-      __ LoadFromOffset(kLoadWord, root_reg, obj, offset);
-      static_assert(
-          sizeof(mirror::CompressedReference<mirror::Object>) == sizeof(GcRoot<mirror::Object>),
-          "art::mirror::CompressedReference<mirror::Object> and art::GcRoot<mirror::Object> "
-          "have different sizes.");
-      static_assert(sizeof(mirror::CompressedReference<mirror::Object>) == sizeof(int32_t),
-                    "art::mirror::CompressedReference<mirror::Object> and int32_t "
-                    "have different sizes.");
+        bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
+        const int32_t entry_point_offset =
+            Thread::ReadBarrierMarkEntryPointsOffset<kMipsPointerSize>(0);
+        const int thunk_disp = GetBakerMarkGcRootThunkDisplacement(root_reg);
+        int16_t offset_low = Low16Bits(offset);
+        int16_t offset_high = High16Bits(offset - offset_low);  // Accounts for sign
+                                                                // extension in lw.
+        bool short_offset = IsInt<16>(static_cast<int32_t>(offset));
+        Register base = short_offset ? obj : TMP;
+        // Loading the entrypoint does not require a load acquire since it is only changed when
+        // threads are suspended or running a checkpoint.
+        __ LoadFromOffset(kLoadWord, T9, TR, entry_point_offset);
+        reordering = __ SetReorder(false);
+        if (!short_offset) {
+          DCHECK(!label_low);
+          __ AddUpper(base, obj, offset_high);
+        }
+        __ Beqz(T9, (isR6 ? 2 : 4));  // Skip jialc / addiu+jalr+nop.
+        if (label_low != nullptr) {
+          DCHECK(short_offset);
+          __ Bind(label_low);
+        }
+        // /* GcRoot<mirror::Object> */ root = *(obj + offset)
+        __ LoadFromOffset(kLoadWord, root_reg, base, offset_low);  // Single instruction
+                                                                   // in delay slot.
+        if (isR6) {
+          __ Jialc(T9, thunk_disp);
+        } else {
+          __ Addiu(T9, T9, thunk_disp);
+          __ Jalr(T9);
+          __ Nop();
+        }
+        __ SetReorder(reordering);
+      } else {
+        // Note that we do not actually check the value of `GetIsGcMarking()`
+        // to decide whether to mark the loaded GC root or not.  Instead, we
+        // load into `temp` (T9) the read barrier mark entry point corresponding
+        // to register `root`. If `temp` is null, it means that `GetIsGcMarking()`
+        // is false, and vice versa.
+        //
+        //     GcRoot<mirror::Object> root = *(obj+offset);  // Original reference load.
+        //     temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
+        //     if (temp != null) {
+        //       root = temp(root)
+        //     }
 
-      // Slow path marking the GC root `root`.
-      Location temp = Location::RegisterLocation(T9);
-      SlowPathCodeMIPS* slow_path =
-          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathMIPS(
-              instruction,
-              root,
-              /*entrypoint*/ temp);
-      codegen_->AddSlowPath(slow_path);
+        if (label_low != nullptr) {
+          reordering = __ SetReorder(false);
+          __ Bind(label_low);
+        }
+        // /* GcRoot<mirror::Object> */ root = *(obj + offset)
+        __ LoadFromOffset(kLoadWord, root_reg, obj, offset);
+        if (label_low != nullptr) {
+          __ SetReorder(reordering);
+        }
+        static_assert(
+            sizeof(mirror::CompressedReference<mirror::Object>) == sizeof(GcRoot<mirror::Object>),
+            "art::mirror::CompressedReference<mirror::Object> and art::GcRoot<mirror::Object> "
+            "have different sizes.");
+        static_assert(sizeof(mirror::CompressedReference<mirror::Object>) == sizeof(int32_t),
+                      "art::mirror::CompressedReference<mirror::Object> and int32_t "
+                      "have different sizes.");
 
-      // temp = Thread::Current()->pReadBarrierMarkReg ## root.reg()
-      const int32_t entry_point_offset =
-          Thread::ReadBarrierMarkEntryPointsOffset<kMipsPointerSize>(root.reg() - 1);
-      // Loading the entrypoint does not require a load acquire since it is only changed when
-      // threads are suspended or running a checkpoint.
-      __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), TR, entry_point_offset);
-      // The entrypoint is null when the GC is not marking, this prevents one load compared to
-      // checking GetIsGcMarking.
-      __ Bnez(temp.AsRegister<Register>(), slow_path->GetEntryLabel());
-      __ Bind(slow_path->GetExitLabel());
+        // Slow path marking the GC root `root`.
+        Location temp = Location::RegisterLocation(T9);
+        SlowPathCodeMIPS* slow_path =
+            new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathMIPS(
+                instruction,
+                root,
+                /*entrypoint*/ temp);
+        codegen_->AddSlowPath(slow_path);
+
+        const int32_t entry_point_offset =
+            Thread::ReadBarrierMarkEntryPointsOffset<kMipsPointerSize>(root.reg() - 1);
+        // Loading the entrypoint does not require a load acquire since it is only changed when
+        // threads are suspended or running a checkpoint.
+        __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), TR, entry_point_offset);
+        __ Bnez(temp.AsRegister<Register>(), slow_path->GetEntryLabel());
+        __ Bind(slow_path->GetExitLabel());
+      }
     } else {
+      if (label_low != nullptr) {
+        reordering = __ SetReorder(false);
+        __ Bind(label_low);
+      }
       // GC root loaded through a slow path for read barriers other
       // than Baker's.
       // /* GcRoot<mirror::Object>* */ root = obj + offset
       __ Addiu32(root_reg, obj, offset);
+      if (label_low != nullptr) {
+        __ SetReorder(reordering);
+      }
       // /* mirror::Object* */ root = root->Read()
       codegen_->GenerateReadBarrierForRootSlow(instruction, root, root);
     }
   } else {
+    if (label_low != nullptr) {
+      reordering = __ SetReorder(false);
+      __ Bind(label_low);
+    }
     // Plain GC root load with no read barrier.
     // /* GcRoot<mirror::Object> */ root = *(obj + offset)
     __ LoadFromOffset(kLoadWord, root_reg, obj, offset);
     // Note that GC roots are not affected by heap poisoning, thus we
     // do not have to unpoison `root_reg` here.
+    if (label_low != nullptr) {
+      __ SetReorder(reordering);
+    }
   }
 }
 
@@ -6530,6 +6675,88 @@ void CodeGeneratorMIPS::GenerateFieldLoadWithBakerReadBarrier(HInstruction* inst
                                                               bool needs_null_check) {
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
+
+  if (kBakerReadBarrierThunksEnableForFields) {
+    // Note that we do not actually check the value of `GetIsGcMarking()`
+    // to decide whether to mark the loaded reference or not.  Instead, we
+    // load into `temp` (T9) the read barrier mark introspection entrypoint.
+    // If `temp` is null, it means that `GetIsGcMarking()` is false, and
+    // vice versa.
+    //
+    // We use thunks for the slow path. That thunk checks the reference
+    // and jumps to the entrypoint if needed. If the holder is not gray,
+    // it issues a load-load memory barrier and returns to the original
+    // reference load.
+    //
+    //     temp = Thread::Current()->pReadBarrierMarkReg00
+    //     // AKA &art_quick_read_barrier_mark_introspection.
+    //     if (temp != nullptr) {
+    //        temp = &field_array_thunk<holder_reg>
+    //        temp()
+    //     }
+    //   not_gray_return_address:
+    //     // If the offset is too large to fit into the lw instruction, we
+    //     // use an adjusted base register (TMP) here. This register
+    //     // receives bits 16 ... 31 of the offset before the thunk invocation
+    //     // and the thunk benefits from it.
+    //     HeapReference<mirror::Object> reference = *(obj+offset);  // Original reference load.
+    //   gray_return_address:
+
+    DCHECK(temp.IsInvalid());
+    bool isR6 = GetInstructionSetFeatures().IsR6();
+    int16_t offset_low = Low16Bits(offset);
+    int16_t offset_high = High16Bits(offset - offset_low);  // Accounts for sign extension in lw.
+    bool short_offset = IsInt<16>(static_cast<int32_t>(offset));
+    bool reordering = __ SetReorder(false);
+    const int32_t entry_point_offset =
+        Thread::ReadBarrierMarkEntryPointsOffset<kMipsPointerSize>(0);
+    // There may have or may have not been a null check if the field offset is smaller than
+    // the page size.
+    // There must've been a null check in case it's actually a load from an array.
+    // We will, however, perform an explicit null check in the thunk as it's easier to
+    // do it than not.
+    if (instruction->IsArrayGet()) {
+      DCHECK(!needs_null_check);
+    }
+    const int thunk_disp = GetBakerMarkFieldArrayThunkDisplacement(obj, short_offset);
+    // Loading the entrypoint does not require a load acquire since it is only changed when
+    // threads are suspended or running a checkpoint.
+    __ LoadFromOffset(kLoadWord, T9, TR, entry_point_offset);
+    Register ref_reg = ref.AsRegister<Register>();
+    Register base = short_offset ? obj : TMP;
+    if (short_offset) {
+      if (isR6) {
+        __ Beqzc(T9, 2);  // Skip jialc.
+        __ Nop();  // In forbidden slot.
+        __ Jialc(T9, thunk_disp);
+      } else {
+        __ Beqz(T9, 3);  // Skip jalr+nop.
+        __ Addiu(T9, T9, thunk_disp);  // In delay slot.
+        __ Jalr(T9);
+        __ Nop();  // In delay slot.
+      }
+    } else {
+      if (isR6) {
+        __ Beqz(T9, 2);  // Skip jialc.
+        __ Aui(base, obj, offset_high);  // In delay slot.
+        __ Jialc(T9, thunk_disp);
+      } else {
+        __ Lui(base, offset_high);
+        __ Beqz(T9, 2);  // Skip jalr.
+        __ Addiu(T9, T9, thunk_disp);  // In delay slot.
+        __ Jalr(T9);
+        __ Addu(base, base, obj);  // In delay slot.
+      }
+    }
+    // /* HeapReference<Object> */ ref = *(obj + offset)
+    __ LoadFromOffset(kLoadWord, ref_reg, base, offset_low);  // Single instruction.
+    if (needs_null_check) {
+      MaybeRecordImplicitNullCheck(instruction);
+    }
+    __ MaybeUnpoisonHeapReference(ref_reg);
+    __ SetReorder(reordering);
+    return;
+  }
 
   // /* HeapReference<Object> */ ref = *(obj + offset)
   Location no_index = Location::NoLocation();
@@ -6557,9 +6784,69 @@ void CodeGeneratorMIPS::GenerateArrayLoadWithBakerReadBarrier(HInstruction* inst
   static_assert(
       sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
       "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
+  ScaleFactor scale_factor = TIMES_4;
+
+  if (kBakerReadBarrierThunksEnableForArrays) {
+    // Note that we do not actually check the value of `GetIsGcMarking()`
+    // to decide whether to mark the loaded reference or not.  Instead, we
+    // load into `temp` (T9) the read barrier mark introspection entrypoint.
+    // If `temp` is null, it means that `GetIsGcMarking()` is false, and
+    // vice versa.
+    //
+    // We use thunks for the slow path. That thunk checks the reference
+    // and jumps to the entrypoint if needed. If the holder is not gray,
+    // it issues a load-load memory barrier and returns to the original
+    // reference load.
+    //
+    //     temp = Thread::Current()->pReadBarrierMarkReg00
+    //     // AKA &art_quick_read_barrier_mark_introspection.
+    //     if (temp != nullptr) {
+    //        temp = &field_array_thunk<holder_reg>
+    //        temp()
+    //     }
+    //   not_gray_return_address:
+    //     // The element address is pre-calculated in the TMP register before the
+    //     // thunk invocation and the thunk benefits from it.
+    //     HeapReference<mirror::Object> reference = data[index];  // Original reference load.
+    //   gray_return_address:
+
+    DCHECK(temp.IsInvalid());
+    DCHECK(index.IsValid());
+    bool reordering = __ SetReorder(false);
+    const int32_t entry_point_offset =
+        Thread::ReadBarrierMarkEntryPointsOffset<kMipsPointerSize>(0);
+    // We will not do the explicit null check in the thunk as some form of a null check
+    // must've been done earlier.
+    DCHECK(!needs_null_check);
+    const int thunk_disp = GetBakerMarkFieldArrayThunkDisplacement(obj, /* short_offset */ false);
+    // Loading the entrypoint does not require a load acquire since it is only changed when
+    // threads are suspended or running a checkpoint.
+    __ LoadFromOffset(kLoadWord, T9, TR, entry_point_offset);
+    Register ref_reg = ref.AsRegister<Register>();
+    Register index_reg = index.IsRegisterPair()
+        ? index.AsRegisterPairLow<Register>()
+        : index.AsRegister<Register>();
+    if (GetInstructionSetFeatures().IsR6()) {
+      __ Beqz(T9, 2);  // Skip jialc.
+      __ Lsa(TMP, index_reg, obj, scale_factor);  // In delay slot.
+      __ Jialc(T9, thunk_disp);
+    } else {
+      __ Sll(TMP, index_reg, scale_factor);
+      __ Beqz(T9, 2);  // Skip jalr.
+      __ Addiu(T9, T9, thunk_disp);  // In delay slot.
+      __ Jalr(T9);
+      __ Addu(TMP, TMP, obj);  // In delay slot.
+    }
+    // /* HeapReference<Object> */ ref = *(obj + data_offset + (index << scale_factor))
+    DCHECK(IsInt<16>(static_cast<int32_t>(data_offset))) << data_offset;
+    __ LoadFromOffset(kLoadWord, ref_reg, TMP, data_offset);  // Single instruction.
+    __ MaybeUnpoisonHeapReference(ref_reg);
+    __ SetReorder(reordering);
+    return;
+  }
+
   // /* HeapReference<Object> */ ref =
   //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
-  ScaleFactor scale_factor = TIMES_4;
   GenerateReferenceLoadWithBakerReadBarrier(instruction,
                                             ref,
                                             obj,
@@ -7461,10 +7748,14 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
       bool reordering = __ SetReorder(false);
       codegen_->EmitPcRelativeAddressPlaceholderHigh(bss_info_high,
                                                      temp,
-                                                     base_or_current_method_reg,
-                                                     info_low);
-      GenerateGcRootFieldLoad(cls, out_loc, temp, /* placeholder */ 0x5678, read_barrier_option);
+                                                     base_or_current_method_reg);
       __ SetReorder(reordering);
+      GenerateGcRootFieldLoad(cls,
+                              out_loc,
+                              temp,
+                              /* placeholder */ 0x5678,
+                              read_barrier_option,
+                              &info_low->label);
       generate_null_check = true;
       break;
     }
@@ -7475,8 +7766,13 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
       bool reordering = __ SetReorder(false);
       __ Bind(&info->high_label);
       __ Lui(out, /* placeholder */ 0x1234);
-      GenerateGcRootFieldLoad(cls, out_loc, out, /* placeholder */ 0x5678, read_barrier_option);
       __ SetReorder(reordering);
+      GenerateGcRootFieldLoad(cls,
+                              out_loc,
+                              out,
+                              /* placeholder */ 0x5678,
+                              read_barrier_option,
+                              &info->low_label);
       break;
     }
     case HLoadClass::LoadKind::kRuntimeCall:
@@ -7623,14 +7919,14 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
       bool reordering = __ SetReorder(false);
       codegen_->EmitPcRelativeAddressPlaceholderHigh(info_high,
                                                      temp,
-                                                     base_or_current_method_reg,
-                                                     info_low);
+                                                     base_or_current_method_reg);
+      __ SetReorder(reordering);
       GenerateGcRootFieldLoad(load,
                               out_loc,
                               temp,
                               /* placeholder */ 0x5678,
-                              kCompilerReadBarrierOption);
-      __ SetReorder(reordering);
+                              kCompilerReadBarrierOption,
+                              &info_low->label);
       SlowPathCodeMIPS* slow_path =
           new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load, info_high);
       codegen_->AddSlowPath(slow_path);
@@ -7646,12 +7942,13 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
       bool reordering = __ SetReorder(false);
       __ Bind(&info->high_label);
       __ Lui(out, /* placeholder */ 0x1234);
+      __ SetReorder(reordering);
       GenerateGcRootFieldLoad(load,
                               out_loc,
                               out,
                               /* placeholder */ 0x5678,
-                              kCompilerReadBarrierOption);
-      __ SetReorder(reordering);
+                              kCompilerReadBarrierOption,
+                              &info->low_label);
       return;
     }
     default:
