@@ -214,14 +214,38 @@ class Collections {
       const DexFile& dex_file, const DexFile::CodeItem& disk_code_item, uint32_t offset);
   ClassData* CreateClassData(const DexFile& dex_file, const uint8_t* encoded_data, uint32_t offset);
 
-  StringId* GetStringId(uint32_t index) { return StringIds()[index].get(); }
-  TypeId* GetTypeId(uint32_t index) { return TypeIds()[index].get(); }
-  ProtoId* GetProtoId(uint32_t index) { return ProtoIds()[index].get(); }
-  FieldId* GetFieldId(uint32_t index) { return FieldIds()[index].get(); }
-  MethodId* GetMethodId(uint32_t index) { return MethodIds()[index].get(); }
-  ClassDef* GetClassDef(uint32_t index) { return ClassDefs()[index].get(); }
-  CallSiteId* GetCallSiteId(uint32_t index) { return CallSiteIds()[index].get(); }
-  MethodHandleItem* GetMethodHandle(uint32_t index) { return MethodHandleItems()[index].get(); }
+  StringId* GetStringId(uint32_t index) {
+    CHECK_LT(index, StringIdsSize());
+    return StringIds()[index].get();
+  }
+  TypeId* GetTypeId(uint32_t index) {
+    CHECK_LT(index, TypeIdsSize());
+    return TypeIds()[index].get();
+  }
+  ProtoId* GetProtoId(uint32_t index) {
+    CHECK_LT(index, ProtoIdsSize());
+    return ProtoIds()[index].get();
+  }
+  FieldId* GetFieldId(uint32_t index) {
+    CHECK_LT(index, FieldIdsSize());
+    return FieldIds()[index].get();
+  }
+  MethodId* GetMethodId(uint32_t index) {
+    CHECK_LT(index, MethodIdsSize());
+    return MethodIds()[index].get();
+  }
+  ClassDef* GetClassDef(uint32_t index) {
+    CHECK_LT(index, ClassDefsSize());
+    return ClassDefs()[index].get();
+  }
+  CallSiteId* GetCallSiteId(uint32_t index) {
+    CHECK_LT(index, CallSiteIdsSize());
+    return CallSiteIds()[index].get();
+  }
+  MethodHandleItem* GetMethodHandle(uint32_t index) {
+    CHECK_LT(index, MethodHandleItemsSize());
+    return MethodHandleItems()[index].get();
+  }
 
   StringId* GetStringIdOrNullPtr(uint32_t index) {
     return index == DexFile::kDexNoIndex ? nullptr : GetStringId(index);

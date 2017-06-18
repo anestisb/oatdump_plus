@@ -715,10 +715,10 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
 }
 
 MethodItem* Collections::GenerateMethodItem(const DexFile& dex_file, ClassDataItemIterator& cdii) {
-  MethodId* method_item = GetMethodId(cdii.GetMemberIndex());
+  MethodId* method_id = GetMethodId(cdii.GetMemberIndex());
   uint32_t access_flags = cdii.GetRawMemberAccessFlags();
   const DexFile::CodeItem* disk_code_item = cdii.GetMethodCodeItem();
-  CodeItem* code_item = code_items_.GetExistingObject(cdii.GetMethodCodeItemOffset());;
+  CodeItem* code_item = code_items_.GetExistingObject(cdii.GetMethodCodeItemOffset());
   DebugInfoItem* debug_info = nullptr;
   if (disk_code_item != nullptr) {
     if (code_item == nullptr) {
@@ -732,7 +732,7 @@ MethodItem* Collections::GenerateMethodItem(const DexFile& dex_file, ClassDataIt
         disk_code_item, is_static, cdii.GetMemberIndex(), GetLocalsCb, debug_info);
     dex_file.DecodeDebugPositionInfo(disk_code_item, GetPositionsCb, debug_info);
   }
-  return new MethodItem(access_flags, method_item, code_item);
+  return new MethodItem(access_flags, method_id, code_item);
 }
 
 ClassData* Collections::CreateClassData(
@@ -744,14 +744,14 @@ ClassData* Collections::CreateClassData(
     ClassDataItemIterator cdii(dex_file, encoded_data);
     // Static fields.
     FieldItemVector* static_fields = new FieldItemVector();
-    for (uint32_t i = 0; cdii.HasNextStaticField(); i++, cdii.Next()) {
+    for (; cdii.HasNextStaticField(); cdii.Next()) {
       FieldId* field_item = GetFieldId(cdii.GetMemberIndex());
       uint32_t access_flags = cdii.GetRawMemberAccessFlags();
       static_fields->push_back(std::unique_ptr<FieldItem>(new FieldItem(access_flags, field_item)));
     }
     // Instance fields.
     FieldItemVector* instance_fields = new FieldItemVector();
-    for (uint32_t i = 0; cdii.HasNextInstanceField(); i++, cdii.Next()) {
+    for (; cdii.HasNextInstanceField(); cdii.Next()) {
       FieldId* field_item = GetFieldId(cdii.GetMemberIndex());
       uint32_t access_flags = cdii.GetRawMemberAccessFlags();
       instance_fields->push_back(
@@ -759,15 +759,13 @@ ClassData* Collections::CreateClassData(
     }
     // Direct methods.
     MethodItemVector* direct_methods = new MethodItemVector();
-    for (uint32_t i = 0; cdii.HasNextDirectMethod(); i++, cdii.Next()) {
-      direct_methods->push_back(
-          std::unique_ptr<MethodItem>(GenerateMethodItem(dex_file, cdii)));
+    for (; cdii.HasNextDirectMethod(); cdii.Next()) {
+      direct_methods->push_back(std::unique_ptr<MethodItem>(GenerateMethodItem(dex_file, cdii)));
     }
     // Virtual methods.
     MethodItemVector* virtual_methods = new MethodItemVector();
-    for (uint32_t i = 0; cdii.HasNextVirtualMethod(); i++, cdii.Next()) {
-      virtual_methods->push_back(
-          std::unique_ptr<MethodItem>(GenerateMethodItem(dex_file, cdii)));
+    for (; cdii.HasNextVirtualMethod(); cdii.Next()) {
+      virtual_methods->push_back(std::unique_ptr<MethodItem>(GenerateMethodItem(dex_file, cdii)));
     }
     class_data = new ClassData(static_fields, instance_fields, direct_methods, virtual_methods);
     class_data->SetSize(cdii.EndDataPointer() - encoded_data);
