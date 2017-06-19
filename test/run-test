@@ -144,6 +144,7 @@ basic_verify="false"
 gc_verify="false"
 gc_stress="false"
 jvmti_trace_stress="false"
+jvmti_field_stress="false"
 jvmti_redefine_stress="false"
 strace="false"
 always_clean="no"
@@ -243,6 +244,9 @@ while true; do
         shift
     elif [ "x$1" = "x--jvmti-redefine-stress" ]; then
         jvmti_redefine_stress="true"
+        shift
+    elif [ "x$1" = "x--jvmti-field-stress" ]; then
+        jvmti_field_stress="true"
         shift
     elif [ "x$1" = "x--jvmti-trace-stress" ]; then
         jvmti_trace_stress="true"
@@ -459,6 +463,9 @@ if [ "$gc_stress" = "true" ]; then
 fi
 if [ "$jvmti_redefine_stress" = "true" ]; then
     run_args="${run_args} --no-app-image --jvmti-redefine-stress"
+fi
+if [ "$jvmti_field_stress" = "true" ]; then
+    run_args="${run_args} --no-app-image --jvmti-field-stress"
 fi
 if [ "$jvmti_trace_stress" = "true" ]; then
     run_args="${run_args} --no-app-image --jvmti-trace-stress"

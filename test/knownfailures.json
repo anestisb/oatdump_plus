@@ -511,7 +511,7 @@
             "645-checker-abs-simd",
             "706-checker-scheduler"],
         "description": ["Checker tests are not compatible with jvmti."],
-        "variant": "jvmti-stress | redefine-stress | trace-stress"
+        "variant": "jvmti-stress | redefine-stress | trace-stress | field-stress"
     },
     {
         "tests": [
@@ -550,7 +550,7 @@
             "981-dedup-original-dex"
         ],
         "description": ["Tests that require exact knowledge of the number of plugins and agents."],
-        "variant": "jvmti-stress | redefine-stress | trace-stress"
+        "variant": "jvmti-stress | redefine-stress | trace-stress | field-stress"
     },
     {
         "tests": [
@@ -582,6 +582,13 @@
             "by our JVMTI implementation"
         ],
         "variant": "jvmti-stress | redefine-stress"
+    },
+    {
+        "tests": [
+            "004-ThreadStress"
+        ],
+        "description": "The thread stress test just takes too long with field-stress",
+        "variant": "jvmti-stress | field-stress"
     },
     {
         "tests": [

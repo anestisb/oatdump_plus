@@ -63,6 +63,7 @@ TEST_VDEX="n"
 TEST_IS_NDEBUG="n"
 APP_IMAGE="y"
 JVMTI_STRESS="n"
+JVMTI_FIELD_STRESS="n"
 JVMTI_TRACE_STRESS="n"
 JVMTI_REDEFINE_STRESS="n"
 VDEX_FILTER=""
@@ -158,6 +159,10 @@ while true; do
         APP_IMAGE="n"
         JVMTI_STRESS="y"
         JVMTI_REDEFINE_STRESS="y"
+        shift
+    elif [ "x$1" = "x--jvmti-field-stress" ]; then
+        JVMTI_STRESS="y"
+        JVMTI_FIELD_STRESS="y"
         shift
     elif [ "x$1" = "x--jvmti-trace-stress" ]; then
         JVMTI_STRESS="y"
@@ -414,6 +419,9 @@ if [[ "$JVMTI_STRESS" = "y" ]]; then
       # TODO Remove need for DEXTER_BINARY!
       agent_args="${agent_args},redefine,${DEXTER_BINARY},${file_1},${file_2}"
     fi
+  fi
+  if [[ "$JVMTI_FIELD_STRESS" = "y" ]]; then
+    agent_args="${agent_args},field"
   fi
   if [[ "$JVMTI_TRACE_STRESS" = "y" ]]; then
     agent_args="${agent_args},trace"
