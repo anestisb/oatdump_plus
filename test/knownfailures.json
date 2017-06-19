@@ -596,7 +596,6 @@
     },
     {
         "tests": [
-            "004-JniTest",
             "004-NativeAllocations",
             "004-ReferenceMap",
             "004-StackWalk",
