@@ -21,4 +21,4 @@ set -e
 mkdir src
 python ./genMain.py
 
-./default-build
+./default-build "$@"
