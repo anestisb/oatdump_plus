@@ -45,8 +45,8 @@ LOCAL_SRC_FILES += \
     911-get-stack-trace/src/art/Recurse.java \
     911-get-stack-trace/src/art/SameThread.java \
     911-get-stack-trace/src/art/ThreadListTraces.java \
-  912-classes/src/art/Test912.java \
-    912-classes/src/art/DexData.java \
+  912-classes/src-art/art/Test912.java \
+    912-classes/src-art/art/DexData.java \
   913-heaps/src/art/Test913.java \
   914-hello-obsolescence/src/art/Test914.java \
   915-obsolete-2/src/art/Test915.java \
@@ -71,7 +71,7 @@ LOCAL_SRC_FILES += \
   945-obsolete-native/src/art/Test945.java \
   947-reflect-method/src/art/Test947.java \
   951-threaded-obsolete/src/art/Test951.java \
-  981-dedup-original-dex/src/art/Test981.java \
+  981-dedup-original-dex/src-art/art/Test981.java \
   982-ok-no-retransform/src/art/Test982.java \
   984-obsolete-invoke/src/art/Test984.java \
   985-re-obsolete/src/art/Test985.java \
