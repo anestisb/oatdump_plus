@@ -808,13 +808,7 @@ static void ResolveConstStrings(CompilerDriver* driver,
       }
 
       ClassDataItemIterator it(*dex_file, class_data);
-      // Skip fields
-      while (it.HasNextStaticField()) {
-        it.Next();
-      }
-      while (it.HasNextInstanceField()) {
-        it.Next();
-      }
+      it.SkipAllFields();
 
       bool compilation_enabled = driver->IsClassToCompile(
           dex_file->StringByTypeIdx(class_def.class_idx_));
@@ -1661,9 +1655,7 @@ bool CompilerDriver::RequiresConstructorBarrier(const DexFile& dex_file,
     return false;
   }
   ClassDataItemIterator it(dex_file, class_data);
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
+  it.SkipStaticFields();
   // We require a constructor barrier if there are final instance fields.
   while (it.HasNextInstanceField()) {
     if (it.MemberIsFinal()) {
@@ -1873,13 +1865,7 @@ static void PopulateVerifiedMethods(const DexFile& dex_file,
     return;
   }
   ClassDataItemIterator it(dex_file, class_data);
-  // Skip fields
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
-  while (it.HasNextInstanceField()) {
-    it.Next();
-  }
+  it.SkipAllFields();
 
   while (it.HasNextDirectMethod()) {
     verification_results->CreateVerifiedMethodFor(MethodReference(&dex_file, it.GetMemberIndex()));
@@ -2778,13 +2764,7 @@ class CompileClassVisitor : public CompilationVisitor {
         GetDexToDexCompilationLevel(soa.Self(), *driver, jclass_loader, dex_file, class_def);
 
     ClassDataItemIterator it(dex_file, class_data);
-    // Skip fields
-    while (it.HasNextStaticField()) {
-      it.Next();
-    }
-    while (it.HasNextInstanceField()) {
-      it.Next();
-    }
+    it.SkipAllFields();
 
     bool compilation_enabled = driver->IsClassToCompile(
         dex_file.StringByTypeIdx(class_def.class_idx_));

@@ -1676,12 +1676,7 @@ bool OatWriter::VisitDexMethods(DexMethodVisitor* visitor) {
         const uint8_t* class_data = dex_file->GetClassData(class_def);
         if (class_data != nullptr) {  // ie not an empty class, such as a marker interface
           ClassDataItemIterator it(*dex_file, class_data);
-          while (it.HasNextStaticField()) {
-            it.Next();
-          }
-          while (it.HasNextInstanceField()) {
-            it.Next();
-          }
+          it.SkipAllFields();
           size_t class_def_method_index = 0u;
           while (it.HasNextDirectMethod()) {
             if (!visitor->VisitMethod(class_def_method_index, it)) {

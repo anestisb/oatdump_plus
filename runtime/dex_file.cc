@@ -656,13 +656,7 @@ uint32_t DexFile::FindCodeItemOffset(const DexFile::ClassDef& class_def,
   const uint8_t* class_data = GetClassData(class_def);
   CHECK(class_data != nullptr);
   ClassDataItemIterator it(*this, class_data);
-  // Skip fields
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
-  while (it.HasNextInstanceField()) {
-    it.Next();
-  }
+  it.SkipAllFields();
   while (it.HasNextDirectMethod()) {
     if (it.GetMemberIndex() == method_idx) {
       return it.GetMethodCodeItemOffset();

@@ -151,9 +151,7 @@ class VerifierDepsTest : public CommonCompilerTest {
     CHECK(class_data != nullptr);
 
     ClassDataItemIterator it(*primary_dex_file_, class_data);
-    while (it.HasNextStaticField() || it.HasNextInstanceField()) {
-      it.Next();
-    }
+    it.SkipAllFields();
 
     ArtMethod* method = nullptr;
     while (it.HasNextDirectMethod()) {

@@ -185,13 +185,7 @@ void VdexFile::Unquicken(const std::vector<const DexFile*>& dex_files,
         continue;
       }
       ClassDataItemIterator it(*dex_file, class_data);
-      // Skip fields
-      while (it.HasNextStaticField()) {
-        it.Next();
-      }
-      while (it.HasNextInstanceField()) {
-        it.Next();
-      }
+      it.SkipAllFields();
 
       while (it.HasNextDirectMethod()) {
         const DexFile::CodeItem* code_item = it.GetMethodCodeItem();

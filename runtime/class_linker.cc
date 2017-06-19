@@ -3019,13 +3019,7 @@ void ClassLinker::FixupStaticTrampolines(ObjPtr<mirror::Class> klass) {
   // There should always be class data if there were direct methods.
   CHECK(class_data != nullptr) << klass->PrettyDescriptor();
   ClassDataItemIterator it(dex_file, class_data);
-  // Skip fields
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
-  while (it.HasNextInstanceField()) {
-    it.Next();
-  }
+  it.SkipAllFields();
   bool has_oat_class;
   OatFile::OatClass oat_class = OatFile::FindOatClass(dex_file,
                                                       klass->GetDexClassDefIndex(),
@@ -5451,25 +5445,10 @@ static void CountMethodsAndFields(ClassDataItemIterator& dex_data,
                                   size_t* direct_methods,
                                   size_t* static_fields,
                                   size_t* instance_fields) {
-  *virtual_methods = *direct_methods = *static_fields = *instance_fields = 0;
-
-  while (dex_data.HasNextStaticField()) {
-    dex_data.Next();
-    (*static_fields)++;
-  }
-  while (dex_data.HasNextInstanceField()) {
-    dex_data.Next();
-    (*instance_fields)++;
-  }
-  while (dex_data.HasNextDirectMethod()) {
-    (*direct_methods)++;
-    dex_data.Next();
-  }
-  while (dex_data.HasNextVirtualMethod()) {
-    (*virtual_methods)++;
-    dex_data.Next();
-  }
-  DCHECK(!dex_data.HasNext());
+  *static_fields = dex_data.NumStaticFields();
+  *instance_fields = dex_data.NumInstanceFields();
+  *direct_methods = dex_data.NumDirectMethods();
+  *virtual_methods = dex_data.NumVirtualMethods();
 }
 
 static void DumpClass(std::ostream& os,

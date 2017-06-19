@@ -1343,6 +1343,30 @@ class ClassDataItemIterator {
   bool HasNextVirtualMethod() const {
     return pos_ >= EndOfDirectMethodsPos() && pos_ < EndOfVirtualMethodsPos();
   }
+  void SkipStaticFields() {
+    while (HasNextStaticField()) {
+      Next();
+    }
+  }
+  void SkipInstanceFields() {
+    while (HasNextInstanceField()) {
+      Next();
+    }
+  }
+  void SkipAllFields() {
+    SkipStaticFields();
+    SkipInstanceFields();
+  }
+  void SkipDirectMethods() {
+    while (HasNextDirectMethod()) {
+      Next();
+    }
+  }
+  void SkipVirtualMethods() {
+    while (HasNextVirtualMethod()) {
+      Next();
+    }
+  }
   bool HasNext() const {
     return pos_ < EndOfVirtualMethodsPos();
   }

@@ -433,13 +433,7 @@ static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file,
   const uint8_t* class_data = dex_file.GetClassData(class_def);
   CHECK(class_data != nullptr);
   ClassDataItemIterator it(dex_file, class_data);
-  // Skip fields
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
-  while (it.HasNextInstanceField()) {
-    it.Next();
-  }
+  it.SkipAllFields();
   // Process methods
   size_t class_def_method_index = 0;
   while (it.HasNextDirectMethod()) {
