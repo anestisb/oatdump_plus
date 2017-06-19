@@ -120,23 +120,23 @@ def is_directory(path_name):
 def parse_args(argv):
     """Parses arguments passed in."""
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', action='store',
+    parser.add_argument("-d", action="store",
                         default="", dest="out_dir_name", type=is_directory,
-                        help='Output Directory')
-    parser.add_argument('sanitizer_trace', action='store',
-                        type=argparse.FileType('r'),
-                        help='File containing sanitizer traces filtered by '
-                             'prune_sanitizer_output.py')
-    parser.add_argument('symbol_trace', action='store',
-                        type=argparse.FileType('r'),
-                        help='File containing symbolized traces that match '
-                             'sanitizer_trace')
-    parser.add_argument('dex_starts', action='store',
-                        type=argparse.FileType('r'),
-                        help='File containing starting addresses of Dex Files')
-    parser.add_argument('categories', action='store', nargs='*',
-                        help='Keywords expected to show in large amounts of'
-                             ' symbolized traces')
+                        help="Output Directory")
+    parser.add_argument("sanitizer_trace", action="store",
+                        type=argparse.FileType("r"),
+                        help="File containing sanitizer traces filtered by "
+                             "prune_sanitizer_output.py")
+    parser.add_argument("symbol_trace", action="store",
+                        type=argparse.FileType("r"),
+                        help="File containing symbolized traces that match "
+                             "sanitizer_trace")
+    parser.add_argument("dex_starts", action="store",
+                        type=argparse.FileType("r"),
+                        help="File containing starting addresses of Dex Files")
+    parser.add_argument("categories", action="store", nargs="*",
+                        help="Keywords expected to show in large amounts of"
+                             " symbolized traces")
 
     return parser.parse_args(argv)
 
@@ -177,6 +177,10 @@ def read_data(parsed_argv):
                                     for line in dex_start_file_data
                                     if "RegisterDexFile" in line
                                     ]
+    # Dex File Starting addresses must be sorted because bisect requires sorted
+    # lists.
+    data_lists["dex_start_list"].sort()
+
     return data_lists, categories, symbol_file_split
 
 
@@ -210,5 +214,5 @@ def main(argv=None):
     print_categories(categories, symbol_file_split, parsed_argv.out_dir_name)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

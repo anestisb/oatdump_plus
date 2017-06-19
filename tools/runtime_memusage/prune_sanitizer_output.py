@@ -21,86 +21,73 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import re
 import os
-import sys
 
-STACK_DIVIDER = 65 * '='
-
-
-def has_min_lines(trace, stack_min_size):
-    """Checks if the trace has a minimum amount of levels in trace."""
-    # Line containing 'use-after-poison' contains address accessed, which is
-    # useful for extracting Dex File offsets
-    string_checks = ['use-after-poison', 'READ']
-    required_checks = string_checks + ['#%d ' % line_ctr
-                                       for line_ctr in
-                                       range(stack_min_size)
-                                       ]
-    try:
-        trace_indices = [trace.index(check) for check in required_checks]
-        return all(trace_indices[trace_ind] < trace_indices[trace_ind + 1]
-                   for trace_ind in range(len(trace_indices) - 1))
-    except ValueError:
-        return False
-    return True
+STACK_DIVIDER = 65 * "="
 
 
-def prune_exact(trace, stack_min_size):
-    """Removes all of trace that comes after the (stack_min_size)th trace."""
-    string_checks = ['use-after-poison', 'READ']
-    required_checks = string_checks + ['#%d ' % line_ctr
-                                       for line_ctr in
-                                       range(stack_min_size)
-                                       ]
-    trace_indices = [trace.index(check) for check in required_checks]
-    new_line_index = trace.index("\n", trace_indices[-1])
-    return trace[:new_line_index + 1]
+def match_to_int(match):
+    """Returns trace line number matches as integers for sorting.
+    Maps other matches to negative integers.
+    """
+    # Hard coded string are necessary since each trace must have the address
+    # accessed, which is printed before trace lines.
+    if match == "use-after-poison":
+        return -2
+    elif match == "READ":
+        return -1
+    # Cutting off non-integer part of match
+    return int(match[1:-1])
 
 
-def make_unique(trace):
-    """Removes overlapping line numbers and lines out of order."""
-    string_checks = ['use-after-poison', 'READ']
-    hard_checks = string_checks + ['#%d ' % line_ctr
-                                   for line_ctr in range(100)
-                                   ]
-    last_ind = -1
-    for str_check in hard_checks:
-        try:
-            location_ind = trace.index(str_check)
-            if last_ind > location_ind:
-                trace = trace[:trace[:location_ind].find("\n") + 1]
-            last_ind = location_ind
-            try:
-                next_location_ind = trace.index(str_check, location_ind + 1)
-                trace = trace[:next_location_ind]
-            except ValueError:
-                pass
-        except ValueError:
-            pass
-    return trace
+def clean_trace_if_valid(trace, stack_min_size, prune_exact):
+    """Cleans trace if it meets a certain standard. Returns None otherwise."""
+    # Sample input:
+    #   trace:
+    # "...ERROR: AddressSanitizer: use-after-poison on address 0x0071126a870a...
+    # ...READ of size 2 at 0x0071126a870a thread T0 (droid.deskclock)
+    # ...    #0 0x71281013b3  (/data/asan/system/lib64/libart.so+0x2263b3)
+    # ...    #1 0x71280fe6b7  (/data/asan/system/lib64/libart.so+0x2236b7)
+    # ...    #3 0x71280c22ef  (/data/asan/system/lib64/libart.so+0x1e72ef)
+    # ...    #2 0x712810a84f  (/data/asan/system/lib64/libart.so+0x22f84f)"
+    #
+    #   stack_min_size: 2
+    #   prune_exact: False
+    #
+    # Sample output:
+    #
+    # "...ERROR: AddressSanitizer: use-after-poison on address 0x0071126a870a...
+    # ...READ of size 2 at 0x0071126a870a thread T0 (droid.deskclock)
+    # ...    #0 0x71281013b3  (/data/asan/system/lib64/libart.so+0x2263b3)
+    # ...    #1 0x71280fe6b7  (/data/asan/system/lib64/libart.so+0x2236b7)
+    # "
+
+    # Adds a newline character if not present at the end of trace
+    trace = trace if trace[-1] == "\n" else trace + "\n"
+    trace_line_matches = [(match_to_int(match.group()), match.start())
+                          for match in re.finditer("#[0-9]+ "
+                                                   "|use-after-poison"
+                                                   "|READ", trace)
+                          ]
+    # Finds the first index where the line number ordering isn't in sequence or
+    # returns the number of matches if it everything is in order.
+    bad_line_no = next((i - 2 for i, match in enumerate(trace_line_matches)
+                        if i - 2 != match[0]), len(trace_line_matches) - 2)
+    # If the number ordering breaks after minimum stack size, then the trace is
+    # still valid.
+    if bad_line_no >= stack_min_size:
+        # Added if the trace is already clean
+        trace_line_matches.append((trace_line_matches[-1][0] + 1, len(trace)))
+        bad_match = trace_line_matches[bad_line_no + 2]
+        if prune_exact:
+            bad_match = trace_line_matches[stack_min_size + 2]
+        # Up to new-line that comes before bad line number
+        return trace[:trace.rindex("\n", 0, bad_match[1]) + 1]
+    return None
 
 
-def parse_args(argv):
-    """Parses arguments passed in."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-d', action='store',
-                        default="", dest="out_dir_name", type=is_directory,
-                        help='Output Directory')
-    parser.add_argument('-e', action='store_true',
-                        default=False, dest='check_exact',
-                        help='Forces each trace to be cut to have '
-                             'minimum number of lines')
-    parser.add_argument('-m', action='store',
-                        default=4, dest='stack_min_size', type=int,
-                        help='minimum number of lines a trace should have')
-    parser.add_argument('trace_file', action='store',
-                        type=argparse.FileType('r'),
-                        help='File only containing lines that are related to '
-                             'Sanitizer traces')
-    return parser.parse_args(argv)
-
-
-def is_directory(path_name):
+def extant_directory(path_name):
     """Checks if a path is an actual directory."""
     if not os.path.isdir(path_name):
         dir_error = "%s is not a directory" % (path_name)
@@ -108,15 +95,32 @@ def is_directory(path_name):
     return path_name
 
 
-def main(argv=None):
+def parse_args():
+    """Parses arguments passed in."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", action="store",
+                        default="", dest="out_dir_name", type=extant_directory,
+                        help="Output Directory")
+    parser.add_argument("-e", action="store_true",
+                        default=False, dest="check_exact",
+                        help="Forces each trace to be cut to have "
+                             "minimum number of lines")
+    parser.add_argument("-m", action="store",
+                        default=4, dest="stack_min_size", type=int,
+                        help="minimum number of lines a trace should have")
+    parser.add_argument("trace_file", action="store",
+                        type=argparse.FileType("r"),
+                        help="File only containing lines that are related to "
+                             "Sanitizer traces")
+    return parser.parse_args()
+
+
+def main():
     """Parses arguments and cleans up traces using other functions."""
     stack_min_size = 4
     check_exact = False
 
-    if argv is None:
-        argv = sys.argv
-
-    parsed_argv = parse_args(argv[1:])
+    parsed_argv = parse_args()
     stack_min_size = parsed_argv.stack_min_size
     check_exact = parsed_argv.check_exact
     out_dir_name = parsed_argv.out_dir_name
@@ -124,28 +128,15 @@ def main(argv=None):
 
     trace_split = trace_file.read().split(STACK_DIVIDER)
     trace_file.close()
-    # if flag -e is enabled
-    if check_exact:
-        trace_prune_split = [prune_exact(trace, stack_min_size)
-                             for trace in trace_split if
-                             has_min_lines(trace, stack_min_size)
-                             ]
-        trace_unique_split = [make_unique(trace)
-                              for trace in trace_prune_split
-                              ]
-    else:
-        trace_unique_split = [make_unique(trace)
-                              for trace in trace_split if
-                              has_min_lines(trace, stack_min_size)
-                              ]
-    # has_min_lines is called again because removing lines can prune too much
-    trace_clean_split = [trace for trace
-                         in trace_unique_split if
-                         has_min_lines(trace,
-                                       stack_min_size)
+    trace_clean_split = [clean_trace_if_valid(trace,
+                                              stack_min_size,
+                                              check_exact)
+                         for trace in trace_split
                          ]
+    trace_clean_split = [trace for trace in trace_clean_split
+                         if trace is not None]
 
-    outfile = os.path.join(out_dir_name, trace_file.name + '_filtered')
+    outfile = os.path.join(out_dir_name, trace_file.name + "_filtered")
     with open(outfile, "w") as output_file:
         output_file.write(STACK_DIVIDER.join(trace_clean_split))
 
