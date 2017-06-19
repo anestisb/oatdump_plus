@@ -36,6 +36,7 @@
 #include "base/stringpiece.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
+#include "boot_image_profile.h"
 #include "bytecode_utils.h"
 #include "dex_file.h"
 #include "jit/profile_compilation_info.h"
@@ -133,6 +134,15 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("      search for dex files");
   UsageError("  --apk-=<filename>: an APK to search for dex files");
   UsageError("");
+  UsageError("  --generate-boot-image-profile: Generate a boot image profile based on input");
+  UsageError("      profiles. Requires passing in dex files to inspect properties of classes.");
+  UsageError("  --boot-image-class-threshold=<value>: specify minimum number of class occurrences");
+  UsageError("      to include a class in the boot image profile. Default is 10.");
+  UsageError("  --boot-image-clean-class-threshold=<value>: specify minimum number of clean class");
+  UsageError("      occurrences to include a class in the boot image profile. A clean class is a");
+  UsageError("      class that doesn't have any static fields or native methods and is likely to");
+  UsageError("      remain clean in the image. Default is 3.");
+  UsageError("");
 
   exit(EXIT_FAILURE);
 }
@@ -163,6 +173,7 @@ class ProfMan FINAL {
       reference_profile_file_fd_(kInvalidFd),
       dump_only_(false),
       dump_classes_and_methods_(false),
+      generate_boot_image_profile_(false),
       dump_output_to_fd_(kInvalidFd),
       test_profile_num_dex_(kDefaultTestProfileNumDex),
       test_profile_method_ratio_(kDefaultTestProfileMethodRatio),
@@ -202,6 +213,18 @@ class ProfMan FINAL {
         create_profile_from_file_ = option.substr(strlen("--create-profile-from=")).ToString();
       } else if (option.starts_with("--dump-output-to-fd=")) {
         ParseUintOption(option, "--dump-output-to-fd", &dump_output_to_fd_, Usage);
+      } else if (option == "--generate-boot-image-profile") {
+        generate_boot_image_profile_ = true;
+      } else if (option.starts_with("--boot-image-class-threshold=")) {
+        ParseUintOption(option,
+                        "--boot-image-class-threshold",
+                        &boot_image_options_.image_class_theshold,
+                        Usage);
+      } else if (option.starts_with("--boot-image-clean-class-threshold=")) {
+        ParseUintOption(option,
+                        "--boot-image-clean-class-threshold",
+                        &boot_image_options_.image_class_clean_theshold,
+                        Usage);
       } else if (option.starts_with("--profile-file=")) {
         profile_files_.push_back(option.substr(strlen("--profile-file=")).ToString());
       } else if (option.starts_with("--profile-file-fd=")) {
@@ -323,28 +346,33 @@ class ProfMan FINAL {
     }
   }
 
+  std::unique_ptr<const ProfileCompilationInfo> LoadProfile(const std::string& filename, int fd) {
+    if (!filename.empty()) {
+      fd = open(filename.c_str(), O_RDWR);
+      if (fd < 0) {
+        LOG(ERROR) << "Cannot open " << filename << strerror(errno);
+        return nullptr;
+      }
+    }
+    std::unique_ptr<ProfileCompilationInfo> info(new ProfileCompilationInfo);
+    if (!info->Load(fd)) {
+      LOG(ERROR) << "Cannot load profile info from fd=" << fd << "\n";
+      return nullptr;
+    }
+    return info;
+  }
+
   int DumpOneProfile(const std::string& banner,
                      const std::string& filename,
                      int fd,
                      const std::vector<std::unique_ptr<const DexFile>>* dex_files,
                      std::string* dump) {
-    if (!filename.empty()) {
-      fd = open(filename.c_str(), O_RDWR);
-      if (fd < 0) {
-        LOG(ERROR) << "Cannot open " << filename << strerror(errno);
-        return -1;
-      }
-    }
-    ProfileCompilationInfo info;
-    if (!info.Load(fd)) {
-      LOG(ERROR) << "Cannot load profile info from fd=" << fd << "\n";
+    std::unique_ptr<const ProfileCompilationInfo> info(LoadProfile(filename, fd));
+    if (info == nullptr) {
+      LOG(ERROR) << "Cannot load profile info from filename=" << filename << " fd=" << fd;
       return -1;
     }
-    std::string this_dump = banner + "\n" + info.DumpInfo(dex_files) + "\n";
-    *dump += this_dump;
-    if (close(fd) < 0) {
-      PLOG(WARNING) << "Failed to close descriptor";
-    }
+    *dump += banner + "\n" + info->DumpInfo(dex_files) + "\n";
     return 0;
   }
 
@@ -854,6 +882,19 @@ class ProfMan FINAL {
     return true;
   }
 
+  int OpenReferenceProfile() const {
+    int fd = reference_profile_file_fd_;
+    if (!FdIsValid(fd)) {
+      CHECK(!reference_profile_file_.empty());
+      fd = open(reference_profile_file_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
+      if (fd < 0) {
+        LOG(ERROR) << "Cannot open " << reference_profile_file_ << strerror(errno);
+        return kInvalidFd;
+      }
+    }
+    return fd;
+  }
+
   // Creates a profile from a human friendly textual representation.
   // The expected input format is:
   //   # Classes
@@ -881,14 +922,9 @@ class ProfMan FINAL {
     // for ZipArchive::OpenFromFd
     MemMap::Init();
     // Open the profile output file if needed.
-    int fd = reference_profile_file_fd_;
+    int fd = OpenReferenceProfile();
     if (!FdIsValid(fd)) {
-      CHECK(!reference_profile_file_.empty());
-      fd = open(reference_profile_file_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
-      if (fd < 0) {
-        LOG(ERROR) << "Cannot open " << reference_profile_file_ << strerror(errno);
         return -1;
-      }
     }
     // Read the user-specified list of classes and methods.
     std::unique_ptr<std::unordered_set<std::string>>
@@ -911,6 +947,57 @@ class ProfMan FINAL {
     if (close(fd) < 0) {
       PLOG(WARNING) << "Failed to close descriptor";
     }
+    return 0;
+  }
+
+  bool ShouldCreateBootProfile() const {
+    return generate_boot_image_profile_;
+  }
+
+  int CreateBootProfile() {
+    // Initialize memmap since it's required to open dex files.
+    MemMap::Init();
+    // Open the profile output file.
+    const int reference_fd = OpenReferenceProfile();
+    if (!FdIsValid(reference_fd)) {
+      PLOG(ERROR) << "Error opening reference profile";
+      return -1;
+    }
+    // Open the dex files.
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    OpenApkFilesFromLocations(&dex_files);
+    if (dex_files.empty()) {
+      PLOG(ERROR) << "Expected dex files for creating boot profile";
+      return -2;
+    }
+    // Open the input profiles.
+    std::vector<std::unique_ptr<const ProfileCompilationInfo>> profiles;
+    if (!profile_files_fd_.empty()) {
+      for (int profile_file_fd : profile_files_fd_) {
+        std::unique_ptr<const ProfileCompilationInfo> profile(LoadProfile("", profile_file_fd));
+        if (profile == nullptr) {
+          return -3;
+        }
+        profiles.emplace_back(std::move(profile));
+      }
+    }
+    if (!profile_files_.empty()) {
+      for (const std::string& profile_file : profile_files_) {
+        std::unique_ptr<const ProfileCompilationInfo> profile(LoadProfile(profile_file, kInvalidFd));
+        if (profile == nullptr) {
+          return -4;
+        }
+        profiles.emplace_back(std::move(profile));
+      }
+    }
+    ProfileCompilationInfo out_profile;
+    GenerateBootImageProfile(dex_files,
+                             profiles,
+                             boot_image_options_,
+                             VLOG_IS_ON(profiler),
+                             &out_profile);
+    out_profile.Save(reference_fd);
+    close(reference_fd);
     return 0;
   }
 
@@ -1001,7 +1088,9 @@ class ProfMan FINAL {
   int reference_profile_file_fd_;
   bool dump_only_;
   bool dump_classes_and_methods_;
+  bool generate_boot_image_profile_;
   int dump_output_to_fd_;
+  BootImageOptions boot_image_options_;
   std::string test_profile_;
   std::string create_profile_from_file_;
   uint16_t test_profile_num_dex_;
@@ -1029,6 +1118,10 @@ static int profman(int argc, char** argv) {
   }
   if (profman.ShouldCreateProfile()) {
     return profman.CreateProfile();
+  }
+
+  if (profman.ShouldCreateBootProfile()) {
+    return profman.CreateBootProfile();
   }
   // Process profile information and assess if we need to do a profile guided compilation.
   // This operation involves I/O.

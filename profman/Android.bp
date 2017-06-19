@@ -19,6 +19,7 @@ cc_defaults {
     host_supported: true,
     defaults: ["art_defaults"],
     srcs: [
+        "boot_image_profile.cc",
         "profman.cc",
         "profile_assistant.cc",
     ],
