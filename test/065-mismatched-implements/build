@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2015 The Android Open Source Project
+# Copyright 2017 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +13,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Make us exit on a failure.
 
-# make us exit on a failure
 set -e
 
-if [[ $@ != *"--jvm"* ]]; then
-  # Don't do anything with jvm
-  # Hard-wired use of experimental jack.
-  # TODO: fix this temporary work-around for default-methods, see b/19467889
-  export USE_JACK=true
-fi
+# Don't use desugar because the build fails when it encounters ICCE.
+#
+# Exception in thread "main" java.lang.IllegalArgumentException
+#  at com.google.common.base.Preconditions.checkArgument(Preconditions.java:108)
+#  at com.google.devtools.build.android.desugar.DefaultMethodClassFixer$DefaultMethodFinder.visit(DefaultMethodClassFixer.java:295)
+export USE_DESUGAR=false
 
-./default-build "$@" --experimental default-methods
+./default-build "$@"

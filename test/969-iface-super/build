@@ -17,13 +17,6 @@
 # make us exit on a failure
 set -e
 
-if [[ $@ != *"--jvm"* ]]; then
-  # Don't do anything with jvm
-  # Hard-wired use of experimental jack.
-  # TODO: fix this temporary work-around for default-methods, see b/19467889
-  export USE_JACK=true
-fi
-
 # Generate the Main.java file or fail
 ${ANDROID_BUILD_TOP}/art/test/utils/python/generate_java_main.py ./src
 

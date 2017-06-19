@@ -17,9 +17,4 @@
 # make us exit on a failure
 set -e
 
-if [[ $@ != *"--jvm"* ]]; then
-  # Don't do anything with jvm.
-  export USE_JACK=true
-fi
-
 ./default-build "$@" --experimental method-handles
