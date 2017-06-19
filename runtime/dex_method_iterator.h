@@ -66,13 +66,7 @@ class DexMethodIterator {
       }
       if (it_.get() == nullptr) {
         it_.reset(new ClassDataItemIterator(GetDexFileInternal(), class_data_));
-        // Skip fields
-        while (GetIterator().HasNextStaticField()) {
-          GetIterator().Next();
-        }
-        while (GetIterator().HasNextInstanceField()) {
-          GetIterator().Next();
-        }
+        GetIterator().SkipAllFields();
         direct_method_ = true;
       }
       if (direct_method_ && GetIterator().HasNextDirectMethod()) {

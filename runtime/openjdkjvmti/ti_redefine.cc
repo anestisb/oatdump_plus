@@ -601,9 +601,7 @@ bool Redefiner::ClassRedefinition::CheckSameMethods() {
   }
 
   // Skip all of the fields. We should have already checked this.
-  while (new_iter.HasNextStaticField() || new_iter.HasNextInstanceField()) {
-    new_iter.Next();
-  }
+  new_iter.SkipAllFields();
   // Check each of the methods. NB we don't need to specifically check for removals since the 2 dex
   // files have the same number of methods, which means there must be an equal amount of additions
   // and removals.

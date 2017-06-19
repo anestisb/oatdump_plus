@@ -373,10 +373,7 @@ void DumpMethodCFG(const DexFile* dex_file, uint32_t dex_method_idx, std::ostrea
   }
 
   ClassDataItemIterator it(*dex_file, class_data);
-  // Skip fields
-  while (it.HasNextStaticField() || it.HasNextInstanceField()) {
-    it.Next();
-  }
+  it.SkipAllFields();
 
   // Find method, and dump it.
   while (it.HasNextDirectMethod() || it.HasNextVirtualMethod()) {

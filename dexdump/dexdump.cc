@@ -1376,12 +1376,7 @@ static void dumpCfg(const DexFile* dex_file, int idx) {
     return;
   }
   ClassDataItemIterator it(*dex_file, class_data);
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
-  while (it.HasNextInstanceField()) {
-    it.Next();
-  }
+  it.SkipAllFields();
   while (it.HasNextDirectMethod()) {
     dumpCfg(dex_file,
             it.GetMemberIndex(),

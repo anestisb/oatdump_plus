@@ -134,10 +134,7 @@ void DexFileTrackingRegistrar::SetAllCodeItemRegistration(bool should_poison) {
     const uint8_t* class_data = dex_file_->GetClassData(cd);
     if (class_data != nullptr) {
       ClassDataItemIterator cdit(*dex_file_, class_data);
-      // Skipping Fields
-      while (cdit.HasNextStaticField() || cdit.HasNextInstanceField()) {
-        cdit.Next();
-      }
+      cdit.SkipAllFields();
       while (cdit.HasNextDirectMethod()) {
         const DexFile::CodeItem* code_item = cdit.GetMethodCodeItem();
         if (code_item != nullptr) {
@@ -157,10 +154,7 @@ void DexFileTrackingRegistrar::SetAllInsnsRegistration(bool should_poison) {
     const uint8_t* class_data = dex_file_->GetClassData(cd);
     if (class_data != nullptr) {
       ClassDataItemIterator cdit(*dex_file_, class_data);
-      // Skipping Fields
-      while (cdit.HasNextStaticField() || cdit.HasNextInstanceField()) {
-        cdit.Next();
-      }
+      cdit.SkipAllFields();
       while (cdit.HasNextDirectMethod()) {
         const DexFile::CodeItem* code_item = cdit.GetMethodCodeItem();
         if (code_item != nullptr) {
@@ -181,10 +175,7 @@ void DexFileTrackingRegistrar::SetCodeItemRegistration(const char* class_name, b
     const uint8_t* class_data = dex_file_->GetClassData(cd);
     if (class_data != nullptr) {
       ClassDataItemIterator cdit(*dex_file_, class_data);
-      // Skipping Fields
-      while (cdit.HasNextStaticField() || cdit.HasNextInstanceField()) {
-        cdit.Next();
-      }
+      cdit.SkipAllFields();
       while (cdit.HasNextDirectMethod()) {
         const DexFile::MethodId& methodid_item = dex_file_->GetMethodId(cdit.GetMemberIndex());
         const char * methodid_name = dex_file_->GetMethodName(methodid_item);

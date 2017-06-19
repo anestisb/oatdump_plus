@@ -772,9 +772,7 @@ class ProfMan FINAL {
         const uint8_t* class_data = dex_file->GetClassData(*class_def);
         if (class_data != nullptr) {
           ClassDataItemIterator it(*dex_file, class_data);
-          while (it.HasNextStaticField() || it.HasNextInstanceField()) {
-            it.Next();
-          }
+          it.SkipAllFields();
           while (it.HasNextDirectMethod() || it.HasNextVirtualMethod()) {
             if (it.GetMethodCodeItemOffset() != 0) {
               // Add all of the methods that have code to the profile.

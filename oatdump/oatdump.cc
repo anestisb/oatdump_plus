@@ -246,8 +246,7 @@ class OatSymbolizer FINAL {
     //       might be a static initializer.
     ClassDataItemIterator it(dex_file, class_data);
     uint32_t class_method_idx = 0;
-    for (; it.HasNextStaticField(); it.Next()) { /* skip */ }
-    for (; it.HasNextInstanceField(); it.Next()) { /* skip */ }
+    it.SkipAllFields();
     for (; it.HasNextDirectMethod() || it.HasNextVirtualMethod(); it.Next()) {
       WalkOatMethod(oat_class.GetOatMethod(class_method_idx++),
                     dex_file,
@@ -769,7 +768,7 @@ class OatDumper {
         const uint8_t* class_data = dex_file->GetClassData(class_def);
         if (class_data != nullptr) {
           ClassDataItemIterator it(*dex_file, class_data);
-          SkipAllFields(it);
+          it.SkipAllFields();
           uint32_t class_method_index = 0;
           while (it.HasNextDirectMethod()) {
             AddOffsets(oat_class.GetOatMethod(class_method_index++));
@@ -856,7 +855,7 @@ class OatDumper {
         return;
       }
       ClassDataItemIterator it(dex_file, class_data);
-      SkipAllFields(it);
+      it.SkipAllFields();
       while (it.HasNextDirectMethod()) {
         WalkCodeItem(dex_file, it.GetMethodCodeItem());
         it.Next();
@@ -1076,15 +1075,6 @@ class OatDumper {
     return true;
   }
 
-  static void SkipAllFields(ClassDataItemIterator& it) {
-    while (it.HasNextStaticField()) {
-      it.Next();
-    }
-    while (it.HasNextInstanceField()) {
-      it.Next();
-    }
-  }
-
   bool DumpOatClass(VariableIndentationOutputStream* vios,
                     const OatFile::OatClass& oat_class, const DexFile& dex_file,
                     const DexFile::ClassDef& class_def, bool* stop_analysis) {
@@ -1096,7 +1086,7 @@ class OatDumper {
       return success;
     }
     ClassDataItemIterator it(dex_file, class_data);
-    SkipAllFields(it);
+    it.SkipAllFields();
     uint32_t class_method_index = 0;
     while (it.HasNextDirectMethod()) {
       if (!DumpOatMethod(vios, class_def, class_method_index, oat_class, dex_file,

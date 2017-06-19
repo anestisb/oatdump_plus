@@ -82,13 +82,7 @@ class DexToDexDecompilerTest : public CommonCompilerTest {
         continue;
       }
       ClassDataItemIterator it(*updated_dex_file, class_data);
-      // Skip fields
-      while (it.HasNextStaticField()) {
-        it.Next();
-      }
-      while (it.HasNextInstanceField()) {
-        it.Next();
-      }
+      it.SkipAllFields();
 
       // Unquicken each method.
       while (it.HasNextDirectMethod()) {

@@ -300,9 +300,7 @@ FailureKind MethodVerifier::VerifyClass(Thread* self,
     return FailureKind::kNoFailure;
   }
   ClassDataItemIterator it(*dex_file, class_data);
-  while (it.HasNextStaticField() || it.HasNextInstanceField()) {
-    it.Next();
-  }
+  it.SkipAllFields();
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   // Direct methods.
   MethodVerifier::FailureData data1 = VerifyMethods<true>(self,
@@ -1986,10 +1984,7 @@ static uint32_t GetFirstFinalInstanceFieldIndex(const DexFile& dex_file, dex::Ty
   const uint8_t* class_data = dex_file.GetClassData(*class_def);
   DCHECK(class_data != nullptr);
   ClassDataItemIterator it(dex_file, class_data);
-  // Skip static fields.
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
+  it.SkipStaticFields();
   while (it.HasNextInstanceField()) {
     if ((it.GetFieldAccessFlags() & kAccFinal) != 0) {
       return it.GetMemberIndex();
