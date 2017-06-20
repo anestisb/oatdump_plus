@@ -198,9 +198,13 @@ class ProfileCompilationInfo {
       return flags_;
     }
 
-    bool HasAnyFlags() const {
+    bool IsInProfile() const {
       return flags_ != 0;
     }
+
+   private:
+    const InlineCacheMap* inline_cache_map_ = nullptr;
+    uint8_t flags_ = 0;
 
     const InlineCacheMap* GetInlineCacheMap() const {
       return inline_cache_map_;
@@ -210,9 +214,7 @@ class ProfileCompilationInfo {
       inline_cache_map_ = info;
     }
 
-   private:
-    const InlineCacheMap* inline_cache_map_ = nullptr;
-    uint8_t flags_ = 0;
+    friend class ProfileCompilationInfo;
   };
 
   // Encodes the full set of inline caches for a given method.
@@ -421,19 +423,7 @@ class ProfileCompilationInfo {
     }
 
     // Mark a method as executed at least once.
-    void AddMethod(MethodHotness::Flag flags, size_t index) {
-      if ((flags & MethodHotness::kFlagStartup) != 0) {
-        method_bitmap.StoreBit(MethodBitIndex(/*startup*/ true, index), /*value*/ true);
-      }
-      if ((flags & MethodHotness::kFlagPostStartup) != 0) {
-        method_bitmap.StoreBit(MethodBitIndex(/*startup*/ false, index), /*value*/ true);
-      }
-      if ((flags & MethodHotness::kFlagHot) != 0) {
-        method_map.FindOrAdd(
-            index,
-            InlineCacheMap(std::less<uint16_t>(), arena_->Adapter(kArenaAllocProfile)));
-      }
-    }
+    void AddMethod(MethodHotness::Flag flags, size_t index);
 
     void MergeBitmap(const DexFileData& other) {
       DCHECK_EQ(bitmap_storage.size(), other.bitmap_storage.size());
@@ -442,21 +432,7 @@ class ProfileCompilationInfo {
       }
     }
 
-    MethodHotness GetHotnessInfo(uint32_t dex_method_index) const {
-      MethodHotness ret;
-      if (method_bitmap.LoadBit(MethodBitIndex(/*startup*/ true, dex_method_index))) {
-        ret.AddFlag(MethodHotness::kFlagStartup);
-      }
-      if (method_bitmap.LoadBit(MethodBitIndex(/*startup*/ false, dex_method_index))) {
-        ret.AddFlag(MethodHotness::kFlagPostStartup);
-      }
-      auto it = method_map.find(dex_method_index);
-      if (it != method_map.end()) {
-        ret.SetInlineCacheMap(&it->second);
-        ret.AddFlag(MethodHotness::kFlagHot);
-      }
-      return ret;
-    }
+    MethodHotness GetHotnessInfo(uint32_t dex_method_index) const;
 
     // The arena used to allocate new inline cache maps.
     ArenaAllocator* arena_;

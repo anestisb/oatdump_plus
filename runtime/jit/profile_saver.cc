@@ -681,7 +681,7 @@ bool ProfileSaver::HasSeenMethod(const std::string& profile,
     if (!info.Load(profile, /*clear_if_invalid*/false)) {
       return false;
     }
-    return info.GetMethodHotness(MethodReference(dex_file, method_idx)).HasAnyFlags();
+    return info.GetMethodHotness(MethodReference(dex_file, method_idx)).IsInProfile();
   }
   return false;
 }
