@@ -153,6 +153,12 @@ art_global_defaults {
         // No exceptions.
         "-misc-noexcept-move-constructor",
     ],
+
+    tidy_flags: [
+        // The static analyzer treats DCHECK as always enabled; we sometimes get
+        // false positives when we use DCHECKs with code that relies on NDEBUG.
+        "-extra-arg=-UNDEBUG",
+    ],
 }
 
 art_debug_defaults {
