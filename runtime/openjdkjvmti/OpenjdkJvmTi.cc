@@ -686,12 +686,10 @@ class JvmtiFunctions {
     return ClassUtil::GetClassStatus(env, klass, status_ptr);
   }
 
-  static jvmtiError GetSourceFileName(jvmtiEnv* env,
-                                      jclass klass ATTRIBUTE_UNUSED,
-                                      char** source_name_ptr ATTRIBUTE_UNUSED) {
+  static jvmtiError GetSourceFileName(jvmtiEnv* env, jclass klass, char** source_name_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_get_source_file_name);
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetSourceFileName(env, klass, source_name_ptr);
   }
 
   static jvmtiError GetClassModifiers(jvmtiEnv* env, jclass klass, jint* modifiers_ptr) {
@@ -766,11 +764,11 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetSourceDebugExtension(jvmtiEnv* env,
-                                            jclass klass ATTRIBUTE_UNUSED,
-                                            char** source_debug_extension_ptr ATTRIBUTE_UNUSED) {
+                                            jclass klass,
+                                            char** source_debug_extension_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_get_source_debug_extension);
-    return ERR(NOT_IMPLEMENTED);
+    return ClassUtil::GetSourceDebugExtension(env, klass, source_debug_extension_ptr);
   }
 
   static jvmtiError RetransformClasses(jvmtiEnv* env, jint class_count, const jclass* classes) {

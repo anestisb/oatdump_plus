@@ -280,6 +280,7 @@ art_cc_defaults {
         "987-agent-bind/agent_bind.cc",
         "989-method-trace-throw/method_trace.cc",
         "991-field-trace-2/field_trace.cc",
+        "992-source-data/source_file.cc",
     ],
     shared_libs: [
         "libbase",
