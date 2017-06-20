@@ -147,7 +147,8 @@ def gather_test_info():
   VARIANT_TYPE_DICT['relocate'] = {'relocate-npatchoat', 'relocate', 'no-relocate'}
   VARIANT_TYPE_DICT['jni'] = {'jni', 'forcecopy', 'checkjni'}
   VARIANT_TYPE_DICT['address_sizes'] = {'64', '32'}
-  VARIANT_TYPE_DICT['jvmti'] = {'no-jvmti', 'jvmti-stress', 'redefine-stress', 'trace-stress'}
+  VARIANT_TYPE_DICT['jvmti'] = {'no-jvmti', 'jvmti-stress', 'redefine-stress', 'trace-stress',
+                                'field-stress'}
   VARIANT_TYPE_DICT['compiler'] = {'interp-ac', 'interpreter', 'jit', 'optimizing',
                               'regalloc_gc', 'speed-profile'}
 
@@ -437,7 +438,9 @@ def run_tests(tests):
         options_test += ' --debuggable'
 
       if jvmti == 'jvmti-stress':
-        options_test += ' --jvmti-trace-stress --jvmti-redefine-stress'
+        options_test += ' --jvmti-trace-stress --jvmti-redefine-stress --jvmti-field-stress'
+      elif jvmti == 'field-stress':
+        options_test += ' --jvmti-field-stress'
       elif jvmti == 'trace-stress':
         options_test += ' --jvmti-trace-stress'
       elif jvmti == 'redefine-stress':
@@ -960,6 +963,8 @@ def parse_option():
     JVMTI_TYPES.add('jvmti-stress')
   if options['redefine_stress']:
     JVMTI_TYPES.add('redefine-stress')
+  if options['field_stress']:
+    JVMTI_TYPES.add('field-stress')
   if options['trace_stress']:
     JVMTI_TYPES.add('trace-stress')
   if options['no_jvmti']:

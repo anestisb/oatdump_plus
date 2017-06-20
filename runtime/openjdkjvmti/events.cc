@@ -33,6 +33,7 @@
 
 #include "art_jvmti.h"
 #include "art_method-inl.h"
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "gc/allocation_listener.h"
 #include "gc/gc_pause_listener.h"
@@ -433,24 +434,92 @@ class JvmtiMethodTraceListener FINAL : public art::instrumentation::Instrumentat
   }
 
   // Call-back for when we read from a field.
-  void FieldRead(art::Thread* self ATTRIBUTE_UNUSED,
-                 art::Handle<art::mirror::Object> this_object ATTRIBUTE_UNUSED,
-                 art::ArtMethod* method ATTRIBUTE_UNUSED,
-                 uint32_t dex_pc ATTRIBUTE_UNUSED,
-                 art::ArtField* field ATTRIBUTE_UNUSED)
+  void FieldRead(art::Thread* self,
+                 art::Handle<art::mirror::Object> this_object,
+                 art::ArtMethod* method,
+                 uint32_t dex_pc,
+                 art::ArtField* field)
       REQUIRES_SHARED(art::Locks::mutator_lock_) OVERRIDE {
-    return;
+    if (event_handler_->IsEventEnabledAnywhere(ArtJvmtiEvent::kFieldAccess)) {
+      art::JNIEnvExt* jnienv = self->GetJniEnv();
+      // DCHECK(!self->IsExceptionPending());
+      ScopedLocalRef<jobject> this_ref(jnienv, AddLocalRef<jobject>(jnienv, this_object.Get()));
+      ScopedLocalRef<jobject> fklass(jnienv,
+                                     AddLocalRef<jobject>(jnienv,
+                                                          field->GetDeclaringClass().Ptr()));
+      RunEventCallback<ArtJvmtiEvent::kFieldAccess>(self,
+                                                    jnienv,
+                                                    art::jni::EncodeArtMethod(method),
+                                                    static_cast<jlocation>(dex_pc),
+                                                    static_cast<jclass>(fklass.get()),
+                                                    this_ref.get(),
+                                                    art::jni::EncodeArtField(field));
+    }
+  }
+
+  void FieldWritten(art::Thread* self,
+                    art::Handle<art::mirror::Object> this_object,
+                    art::ArtMethod* method,
+                    uint32_t dex_pc,
+                    art::ArtField* field,
+                    art::Handle<art::mirror::Object> new_val)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) OVERRIDE {
+    if (event_handler_->IsEventEnabledAnywhere(ArtJvmtiEvent::kFieldModification)) {
+      art::JNIEnvExt* jnienv = self->GetJniEnv();
+      // DCHECK(!self->IsExceptionPending());
+      ScopedLocalRef<jobject> this_ref(jnienv, AddLocalRef<jobject>(jnienv, this_object.Get()));
+      ScopedLocalRef<jobject> fklass(jnienv,
+                                     AddLocalRef<jobject>(jnienv,
+                                                          field->GetDeclaringClass().Ptr()));
+      ScopedLocalRef<jobject> fval(jnienv, AddLocalRef<jobject>(jnienv, new_val.Get()));
+      jvalue val;
+      val.l = fval.get();
+      RunEventCallback<ArtJvmtiEvent::kFieldModification>(
+          self,
+          jnienv,
+          art::jni::EncodeArtMethod(method),
+          static_cast<jlocation>(dex_pc),
+          static_cast<jclass>(fklass.get()),
+          field->IsStatic() ? nullptr :  this_ref.get(),
+          art::jni::EncodeArtField(field),
+          'L',  // type_char
+          val);
+    }
   }
 
   // Call-back for when we write into a field.
-  void FieldWritten(art::Thread* self ATTRIBUTE_UNUSED,
-                    art::Handle<art::mirror::Object> this_object ATTRIBUTE_UNUSED,
-                    art::ArtMethod* method ATTRIBUTE_UNUSED,
-                    uint32_t dex_pc ATTRIBUTE_UNUSED,
-                    art::ArtField* field ATTRIBUTE_UNUSED,
-                    const art::JValue& field_value ATTRIBUTE_UNUSED)
+  void FieldWritten(art::Thread* self,
+                    art::Handle<art::mirror::Object> this_object,
+                    art::ArtMethod* method,
+                    uint32_t dex_pc,
+                    art::ArtField* field,
+                    const art::JValue& field_value)
       REQUIRES_SHARED(art::Locks::mutator_lock_) OVERRIDE {
-    return;
+    if (event_handler_->IsEventEnabledAnywhere(ArtJvmtiEvent::kFieldModification)) {
+      art::JNIEnvExt* jnienv = self->GetJniEnv();
+      DCHECK(!self->IsExceptionPending());
+      ScopedLocalRef<jobject> this_ref(jnienv, AddLocalRef<jobject>(jnienv, this_object.Get()));
+      ScopedLocalRef<jobject> fklass(jnienv,
+                                     AddLocalRef<jobject>(jnienv,
+                                                          field->GetDeclaringClass().Ptr()));
+      char type_char = art::Primitive::Descriptor(field->GetTypeAsPrimitiveType())[0];
+      jvalue val;
+      // 64bit integer is the largest value in the union so we should be fine simply copying it into
+      // the union.
+      val.j = field_value.GetJ();
+      RunEventCallback<ArtJvmtiEvent::kFieldModification>(
+          self,
+          jnienv,
+          art::jni::EncodeArtMethod(method),
+          static_cast<jlocation>(dex_pc),
+          static_cast<jclass>(fklass.get()),
+          field->IsStatic() ? nullptr :  this_ref.get(),  // nb static field modification get given
+                                                          // the class as this_object for some
+                                                          // reason.
+          art::jni::EncodeArtField(field),
+          type_char,
+          val);
+    }
   }
 
   // Call-back when an exception is caught.
@@ -490,15 +559,20 @@ static uint32_t GetInstrumentationEventsFor(ArtJvmtiEvent event) {
     case ArtJvmtiEvent::kMethodExit:
       return art::instrumentation::Instrumentation::kMethodExited |
              art::instrumentation::Instrumentation::kMethodUnwind;
+    case ArtJvmtiEvent::kFieldModification:
+      return art::instrumentation::Instrumentation::kFieldWritten;
+    case ArtJvmtiEvent::kFieldAccess:
+      return art::instrumentation::Instrumentation::kFieldRead;
     default:
       LOG(FATAL) << "Unknown event ";
       return 0;
   }
 }
 
-static void SetupMethodTraceListener(JvmtiMethodTraceListener* listener,
-                                     ArtJvmtiEvent event,
-                                     bool enable) {
+static void SetupTraceListener(JvmtiMethodTraceListener* listener,
+                               ArtJvmtiEvent event,
+                               bool enable) {
+  art::ScopedThreadStateChange stsc(art::Thread::Current(), art::ThreadState::kNative);
   uint32_t new_events = GetInstrumentationEventsFor(event);
   art::instrumentation::Instrumentation* instr = art::Runtime::Current()->GetInstrumentation();
   art::gc::ScopedGCCriticalSection gcs(art::Thread::Current(),
@@ -529,7 +603,9 @@ void EventHandler::HandleEventType(ArtJvmtiEvent event, bool enable) {
 
     case ArtJvmtiEvent::kMethodEntry:
     case ArtJvmtiEvent::kMethodExit:
-      SetupMethodTraceListener(method_trace_listener_.get(), event, enable);
+    case ArtJvmtiEvent::kFieldAccess:
+    case ArtJvmtiEvent::kFieldModification:
+      SetupTraceListener(method_trace_listener_.get(), event, enable);
       return;
 
     default:

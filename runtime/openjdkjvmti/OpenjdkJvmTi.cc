@@ -635,36 +635,28 @@ class JvmtiFunctions {
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError SetFieldAccessWatch(jvmtiEnv* env,
-                                        jclass klass ATTRIBUTE_UNUSED,
-                                        jfieldID field ATTRIBUTE_UNUSED) {
+  static jvmtiError SetFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_generate_field_access_events);
-    return ERR(NOT_IMPLEMENTED);
+    return FieldUtil::SetFieldAccessWatch(env, klass, field);
   }
 
-  static jvmtiError ClearFieldAccessWatch(jvmtiEnv* env,
-                                          jclass klass ATTRIBUTE_UNUSED,
-                                          jfieldID field ATTRIBUTE_UNUSED) {
+  static jvmtiError ClearFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_generate_field_access_events);
-    return ERR(NOT_IMPLEMENTED);
+    return FieldUtil::ClearFieldAccessWatch(env, klass, field);
   }
 
-  static jvmtiError SetFieldModificationWatch(jvmtiEnv* env,
-                                              jclass klass ATTRIBUTE_UNUSED,
-                                              jfieldID field ATTRIBUTE_UNUSED) {
+  static jvmtiError SetFieldModificationWatch(jvmtiEnv* env, jclass klass, jfieldID field) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_generate_field_modification_events);
-    return ERR(NOT_IMPLEMENTED);
+    return FieldUtil::SetFieldModificationWatch(env, klass, field);
   }
 
-  static jvmtiError ClearFieldModificationWatch(jvmtiEnv* env,
-                                                jclass klass ATTRIBUTE_UNUSED,
-                                                jfieldID field ATTRIBUTE_UNUSED) {
+  static jvmtiError ClearFieldModificationWatch(jvmtiEnv* env, jclass klass, jfieldID field) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_generate_field_modification_events);
-    return ERR(NOT_IMPLEMENTED);
+    return FieldUtil::ClearFieldModificationWatch(env, klass, field);
   }
 
   static jvmtiError GetLoadedClasses(jvmtiEnv* env, jint* class_count_ptr, jclass** classes_ptr) {

@@ -39,6 +39,7 @@ struct StressData {
   bool vm_class_loader_initialized;
   bool trace_stress;
   bool redefine_stress;
+  bool field_stress;
 };
 
 static void WriteToFile(const std::string& fname, jint data_len, const unsigned char* data) {
@@ -130,12 +131,20 @@ class ScopedClassInfo {
         generic_(nullptr) {}
 
   ~ScopedClassInfo() {
-    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(name_));
-    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(generic_));
+    if (class_ != nullptr) {
+      jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(name_));
+      jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(generic_));
+    }
   }
 
   bool Init() {
-    return jvmtienv_->GetClassSignature(class_, &name_, &generic_) == JVMTI_ERROR_NONE;
+    if (class_ == nullptr) {
+      name_ = const_cast<char*>("<NONE>");
+      generic_ = const_cast<char*>("<NONE>");
+      return true;
+    } else {
+      return jvmtienv_->GetClassSignature(class_, &name_, &generic_) == JVMTI_ERROR_NONE;
+    }
   }
 
   jclass GetClass() const {
@@ -215,6 +224,71 @@ class ScopedMethodInfo {
 
   friend std::ostream& operator<<(std::ostream &os, ScopedMethodInfo const& m);
 };
+
+class ScopedFieldInfo {
+ public:
+  ScopedFieldInfo(jvmtiEnv* jvmtienv, jclass field_klass, jfieldID field)
+      : jvmtienv_(jvmtienv),
+        declaring_class_(field_klass),
+        field_(field),
+        class_info_(nullptr),
+        name_(nullptr),
+        type_(nullptr),
+        generic_(nullptr) {}
+
+  ~ScopedFieldInfo() {
+    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(name_));
+    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(type_));
+    jvmtienv_->Deallocate(reinterpret_cast<unsigned char*>(generic_));
+  }
+
+  bool Init() {
+    class_info_.reset(new ScopedClassInfo(jvmtienv_, declaring_class_));
+    return class_info_->Init() &&
+        (jvmtienv_->GetFieldName(
+            declaring_class_, field_, &name_, &type_, &generic_) == JVMTI_ERROR_NONE);
+  }
+
+  const ScopedClassInfo& GetDeclaringClassInfo() const {
+    return *class_info_;
+  }
+
+  jclass GetDeclaringClass() const {
+    return declaring_class_;
+  }
+
+  const char* GetName() const {
+    return name_;
+  }
+
+  const char* GetType() const {
+    return type_;
+  }
+
+  const char* GetGeneric() const {
+    return generic_;
+  }
+
+ private:
+  jvmtiEnv* jvmtienv_;
+  jclass declaring_class_;
+  jfieldID field_;
+  std::unique_ptr<ScopedClassInfo> class_info_;
+  char* name_;
+  char* type_;
+  char* generic_;
+
+  friend std::ostream& operator<<(std::ostream &os, ScopedFieldInfo const& m);
+};
+
+std::ostream& operator<<(std::ostream &os, const ScopedFieldInfo* m) {
+  return os << *m;
+}
+
+std::ostream& operator<<(std::ostream &os, ScopedFieldInfo const& m) {
+  return os << m.GetDeclaringClassInfo().GetName() << "->" << m.GetName()
+            << ":" << m.GetType();
+}
 
 std::ostream& operator<<(std::ostream &os, const ScopedMethodInfo* m) {
   return os << *m;
@@ -304,6 +378,100 @@ static std::string GetValOf(jvmtiEnv* env, JNIEnv* jnienv, std::string type, jva
   }
 }
 
+void JNICALL FieldAccessHook(jvmtiEnv* jvmtienv,
+                             JNIEnv* env,
+                             jthread thread,
+                             jmethodID m,
+                             jlocation location,
+                             jclass field_klass,
+                             jobject object,
+                             jfieldID field) {
+  ScopedThreadInfo info(jvmtienv, env, thread);
+  ScopedMethodInfo method_info(jvmtienv, env, m);
+  ScopedFieldInfo field_info(jvmtienv, field_klass, field);
+  jclass oklass = (object != nullptr) ? env->GetObjectClass(object) : nullptr;
+  ScopedClassInfo obj_class_info(jvmtienv, oklass);
+  if (!method_info.Init() || !field_info.Init() || !obj_class_info.Init()) {
+    LOG(ERROR) << "Unable to get callback info!";
+    return;
+  }
+  LOG(INFO) << "ACCESS field \"" << field_info << "\" on object of "
+            << "type \"" << obj_class_info.GetName() << "\" in method \"" << method_info
+            << "\" at location 0x" << std::hex << location << ". Thread is \""
+            << info.GetName() << "\".";
+  env->DeleteLocalRef(oklass);
+}
+
+static std::string PrintJValue(jvmtiEnv* jvmtienv, JNIEnv* env, char type, jvalue new_value) {
+  std::ostringstream oss;
+  switch (type) {
+    case 'L': {
+      jobject nv = new_value.l;
+      if (nv == nullptr) {
+        oss << "\"null\"";
+      } else {
+        jclass nv_klass = env->GetObjectClass(nv);
+        ScopedClassInfo nv_class_info(jvmtienv, nv_klass);
+        if (!nv_class_info.Init()) {
+          oss << "with unknown type";
+        } else {
+          oss << "of type \"" << nv_class_info.GetName() << "\"";
+        }
+        env->DeleteLocalRef(nv_klass);
+      }
+      break;
+    }
+    case 'Z': {
+      if (new_value.z) {
+        oss << "true";
+      } else {
+        oss << "false";
+      }
+      break;
+    }
+#define SEND_VALUE(chr, sym, type) \
+    case chr: { \
+      oss << static_cast<type>(new_value.sym); \
+      break; \
+    }
+    SEND_VALUE('B', b, int8_t);
+    SEND_VALUE('C', c, uint16_t);
+    SEND_VALUE('S', s, int16_t);
+    SEND_VALUE('I', i, int32_t);
+    SEND_VALUE('J', j, int64_t);
+    SEND_VALUE('F', f, float);
+    SEND_VALUE('D', d, double);
+#undef SEND_VALUE
+  }
+  return oss.str();
+}
+
+void JNICALL FieldModificationHook(jvmtiEnv* jvmtienv,
+                                   JNIEnv* env,
+                                   jthread thread,
+                                   jmethodID m,
+                                   jlocation location,
+                                   jclass field_klass,
+                                   jobject object,
+                                   jfieldID field,
+                                   char type,
+                                   jvalue new_value) {
+  ScopedThreadInfo info(jvmtienv, env, thread);
+  ScopedMethodInfo method_info(jvmtienv, env, m);
+  ScopedFieldInfo field_info(jvmtienv, field_klass, field);
+  jclass oklass = (object != nullptr) ? env->GetObjectClass(object) : nullptr;
+  ScopedClassInfo obj_class_info(jvmtienv, oklass);
+  if (!method_info.Init() || !field_info.Init() || !obj_class_info.Init()) {
+    LOG(ERROR) << "Unable to get callback info!";
+    return;
+  }
+  LOG(INFO) << "MODIFY field \"" << field_info << "\" on object of "
+            << "type \"" << obj_class_info.GetName() << "\" in method \"" << method_info
+            << "\" at location 0x" << std::hex << location << std::dec << ". New value is "
+            << PrintJValue(jvmtienv, env, type, new_value) << ". Thread is \""
+            << info.GetName() << "\".";
+  env->DeleteLocalRef(oklass);
+}
 void JNICALL MethodExitHook(jvmtiEnv* jvmtienv,
                             JNIEnv* env,
                             jthread thread,
@@ -342,14 +510,34 @@ void JNICALL ClassPrepareHook(jvmtiEnv* jvmtienv,
                               JNIEnv* env,
                               jthread thread,
                               jclass klass) {
-  ScopedThreadInfo info(jvmtienv, env, thread);
-  ScopedClassInfo class_info(jvmtienv, klass);
-  if (!class_info.Init()) {
-    LOG(ERROR) << "Unable to get class info!";
-    return;
+  StressData* data = nullptr;
+  CHECK_EQ(jvmtienv->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)),
+           JVMTI_ERROR_NONE);
+  if (data->field_stress) {
+    jint nfields;
+    jfieldID* fields;
+    if (jvmtienv->GetClassFields(klass, &nfields, &fields) != JVMTI_ERROR_NONE) {
+      LOG(ERROR) << "Unable to get a classes fields!";
+      return;
+    }
+    for (jint i = 0; i < nfields; i++) {
+      jfieldID f = fields[i];
+      // Ignore errors
+      jvmtienv->SetFieldAccessWatch(klass, f);
+      jvmtienv->SetFieldModificationWatch(klass, f);
+    }
+    jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fields));
   }
-  LOG(INFO) << "Prepared class \"" << class_info.GetName() << "\". Thread is \""
-            << info.GetName() << "\"";
+  if (data->trace_stress) {
+    ScopedThreadInfo info(jvmtienv, env, thread);
+    ScopedClassInfo class_info(jvmtienv, klass);
+    if (!class_info.Init()) {
+      LOG(ERROR) << "Unable to get class info!";
+      return;
+    }
+    LOG(INFO) << "Prepared class \"" << class_info.GetName() << "\". Thread is \""
+              << info.GetName() << "\"";
+  }
 }
 
 // The hook we are using.
@@ -402,7 +590,7 @@ static std::string GetOption(const std::string& in) {
 }
 
 // Options are
-// jvmti-stress,[redefine,${DEXTER_BINARY},${TEMP_FILE_1},${TEMP_FILE_2},][trace]
+// jvmti-stress,[redefine,${DEXTER_BINARY},${TEMP_FILE_1},${TEMP_FILE_2},][trace,][field]
 static void ReadOptions(StressData* data, char* options) {
   std::string ops(options);
   CHECK_EQ(GetOption(ops), "jvmti-stress") << "Options should start with jvmti-stress";
@@ -411,6 +599,8 @@ static void ReadOptions(StressData* data, char* options) {
     std::string cur = GetOption(ops);
     if (cur == "trace") {
       data->trace_stress = true;
+    } else if (cur == "field") {
+      data->field_stress = true;
     } else if (cur == "redefine") {
       data->redefine_stress = true;
       ops = AdvanceOption(ops);
@@ -451,18 +641,54 @@ static void JNICALL PerformFinalSetupVMInit(jvmtiEnv *jvmti_env,
     jni_env->DeleteLocalRef(klass);
     data->vm_class_loader_initialized = true;
   }
-  if (data->trace_stress) {
-    if (jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
-                                            JVMTI_EVENT_METHOD_ENTRY,
-                                            nullptr) != JVMTI_ERROR_NONE) {
-      LOG(ERROR) << "Unable to enable JVMTI_EVENT_METHOD_ENTRY event!";
-    }
-    if (jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
-                                        JVMTI_EVENT_METHOD_EXIT,
-                                        nullptr) != JVMTI_ERROR_NONE) {
-      LOG(ERROR) << "Unable to enable JVMTI_EVENT_METHOD_EXIT event!";
-    }
+}
+
+static bool WatchAllFields(JavaVM* vm, jvmtiEnv* jvmti) {
+  if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                      JVMTI_EVENT_CLASS_PREPARE,
+                                      nullptr) != JVMTI_ERROR_NONE) {
+    LOG(ERROR) << "Couldn't set prepare event!";
+    return false;
   }
+  // TODO We really shouldn't need to do this step here.
+  jint nklass;
+  jclass* klasses;
+  if (jvmti->GetLoadedClasses(&nklass, &klasses) != JVMTI_ERROR_NONE) {
+    LOG(WARNING) << "Couldn't get loaded classes! Ignoring.";
+    return true;
+  }
+  JNIEnv* jni = nullptr;
+  if (vm->GetEnv(reinterpret_cast<void**>(&jni), JNI_VERSION_1_6)) {
+    LOG(ERROR) << "Unable to get jni env. Ignoring and potentially leaking jobjects.";
+    return false;
+  }
+  for (jint i = 0; i < nklass; i++) {
+    jclass k = klasses[i];
+    ScopedClassInfo sci(jvmti, k);
+    if (sci.Init()) {
+      LOG(INFO) << "NOTE: class " << sci.GetName() << " already loaded.";
+    }
+    jint nfields;
+    jfieldID* fields;
+    jvmtiError err = jvmti->GetClassFields(k, &nfields, &fields);
+    if (err == JVMTI_ERROR_NONE) {
+      for (jint j = 0; j < nfields; j++) {
+        jfieldID f = fields[j];
+        if (jvmti->SetFieldModificationWatch(k, f) != JVMTI_ERROR_NONE ||
+            jvmti->SetFieldAccessWatch(k, f) != JVMTI_ERROR_NONE) {
+          LOG(ERROR) << "Unable to set watches on a field.";
+          return false;
+        }
+      }
+    } else if (err != JVMTI_ERROR_CLASS_NOT_PREPARED) {
+      LOG(ERROR) << "Unexpected error getting class fields!";
+      return false;
+    }
+    jvmti->Deallocate(reinterpret_cast<unsigned char*>(fields));
+    jni->DeleteLocalRef(k);
+  }
+  jvmti->Deallocate(reinterpret_cast<unsigned char*>(klasses));
+  return true;
 }
 
 extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
@@ -501,15 +727,11 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
   cb.VMInit = PerformFinalSetupVMInit;
   cb.MethodEntry = MethodEntryHook;
   cb.MethodExit = MethodExitHook;
+  cb.FieldAccess = FieldAccessHook;
+  cb.FieldModification = FieldModificationHook;
   cb.ClassPrepare = ClassPrepareHook;
   if (jvmti->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
     LOG(ERROR) << "Unable to set class file load hook cb!";
-    return 1;
-  }
-  if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-                                      JVMTI_EVENT_NATIVE_METHOD_BIND,
-                                      nullptr) != JVMTI_ERROR_NONE) {
-    LOG(ERROR) << "Unable to enable JVMTI_EVENT_NATIVE_METHOD_BIND event!";
     return 1;
   }
   if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
@@ -518,6 +740,14 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
     LOG(ERROR) << "Unable to enable JVMTI_EVENT_VM_INIT event!";
     return 1;
   }
+  if (data->redefine_stress) {
+    if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                        JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
+                                        nullptr) != JVMTI_ERROR_NONE) {
+      LOG(ERROR) << "Unable to enable CLASS_FILE_LOAD_HOOK event!";
+      return 1;
+    }
+  }
   if (data->trace_stress) {
     if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
                                         JVMTI_EVENT_CLASS_PREPARE,
@@ -525,12 +755,39 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
       LOG(ERROR) << "Unable to enable CLASS_PREPARE event!";
       return 1;
     }
-  }
-  if (data->redefine_stress) {
     if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
-                                        JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
+                                        JVMTI_EVENT_NATIVE_METHOD_BIND,
                                         nullptr) != JVMTI_ERROR_NONE) {
-      LOG(ERROR) << "Unable to enable CLASS_FILE_LOAD_HOOK event!";
+      LOG(ERROR) << "Unable to enable JVMTI_EVENT_NATIVE_METHOD_BIND event!";
+      return 1;
+    }
+    if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                        JVMTI_EVENT_METHOD_ENTRY,
+                                        nullptr) != JVMTI_ERROR_NONE) {
+      LOG(ERROR) << "Unable to enable JVMTI_EVENT_METHOD_ENTRY event!";
+      return 1;
+    }
+    if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                        JVMTI_EVENT_METHOD_EXIT,
+                                        nullptr) != JVMTI_ERROR_NONE) {
+      LOG(ERROR) << "Unable to enable JVMTI_EVENT_METHOD_EXIT event!";
+      return 1;
+    }
+  }
+  if (data->field_stress) {
+    if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                        JVMTI_EVENT_FIELD_MODIFICATION,
+                                        nullptr) != JVMTI_ERROR_NONE) {
+      LOG(ERROR) << "Unable to enable FIELD_MODIFICATION event!";
+      return 1;
+    }
+    if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                        JVMTI_EVENT_FIELD_ACCESS,
+                                        nullptr) != JVMTI_ERROR_NONE) {
+      LOG(ERROR) << "Unable to enable FIELD_ACCESS event!";
+      return 1;
+    }
+    if (!WatchAllFields(vm, jvmti)) {
       return 1;
     }
   }

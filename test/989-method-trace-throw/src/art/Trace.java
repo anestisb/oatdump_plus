@@ -16,10 +16,34 @@
 
 package art;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 public class Trace {
-  public static native void enableMethodTracing(
-      Class<?> methodClass, Method entryMethod, Method exitMethod, Thread thr);
-  public static native void disableMethodTracing(Thread thr);
+  public static native void enableTracing(Class<?> methodClass,
+                                          Method entryMethod,
+                                          Method exitMethod,
+                                          Method fieldAccess,
+                                          Method fieldModify,
+                                          Thread thr);
+  public static native void disableTracing(Thread thr);
+
+  public static void enableFieldTracing(Class<?> methodClass,
+                                        Method fieldAccess,
+                                        Method fieldModify,
+                                        Thread thr) {
+    enableTracing(methodClass, null, null, fieldAccess, fieldModify, thr);
+  }
+
+  public static void enableMethodTracing(Class<?> methodClass,
+                                         Method entryMethod,
+                                         Method exitMethod,
+                                         Thread thr) {
+    enableTracing(methodClass, entryMethod, exitMethod, null, null, thr);
+  }
+
+  public static native void watchFieldAccess(Field f);
+  public static native void watchFieldModification(Field f);
+  public static native void watchAllFieldAccesses();
+  public static native void watchAllFieldModifications();
 }

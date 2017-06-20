@@ -34,6 +34,7 @@
 
 #include <memory>
 #include <type_traits>
+#include <unordered_set>
 
 #include <jni.h>
 
@@ -45,6 +46,10 @@
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
 #include "jvmti.h"
+
+namespace art {
+class ArtField;
+}
 
 namespace openjdkjvmti {
 
@@ -61,6 +66,15 @@ struct ArtJvmTiEnv : public jvmtiEnv {
 
   // Tagging is specific to the jvmtiEnv.
   std::unique_ptr<ObjectTagTable> object_tag_table;
+
+  // Set of watched fields is unique to each jvmtiEnv.
+  // TODO It might be good to follow the RI and only let one jvmtiEnv ever have the watch caps so
+  // we can record this on the field directly. We could do this either using free access-flag bits
+  // or by putting a list in the ClassExt of a field's DeclaringClass.
+  // TODO Maybe just have an extension to let one put a watch on every field, that would probably be
+  // good enough maybe since you probably want either a few or all/almost all of them.
+  std::unordered_set<art::ArtField*> access_watched_fields;
+  std::unordered_set<art::ArtField*> modify_watched_fields;
 
   ArtJvmTiEnv(art::JavaVMExt* runtime, EventHandler* event_handler);
 
@@ -194,8 +208,8 @@ static inline JvmtiUniquePtr<char[]> CopyString(jvmtiEnv* env, const char* src, 
 
 const jvmtiCapabilities kPotentialCapabilities = {
     .can_tag_objects                                 = 1,
-    .can_generate_field_modification_events          = 0,
-    .can_generate_field_access_events                = 0,
+    .can_generate_field_modification_events          = 1,
+    .can_generate_field_access_events                = 1,
     .can_get_bytecodes                               = 0,
     .can_get_synthetic_attribute                     = 1,
     .can_get_owned_monitor_info                      = 0,

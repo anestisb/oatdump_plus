@@ -822,7 +822,7 @@ inline bool DoFieldPutForInvokePolymorphic(Thread* self,
                                            ObjPtr<mirror::Object>& obj,
                                            ArtField* field,
                                            Primitive::Type field_type,
-                                           const JValue& value)
+                                           JValue& value)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   static const bool kTransaction = false;         // Not in a transaction.
