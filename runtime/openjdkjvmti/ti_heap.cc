@@ -23,6 +23,7 @@
 #include "class_linker.h"
 #include "gc/heap.h"
 #include "gc_root-inl.h"
+#include "java_frame_root_info.h"
 #include "jni_env_ext.h"
 #include "jni_internal.h"
 #include "jvmti_weak_table-inl.h"

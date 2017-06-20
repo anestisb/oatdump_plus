@@ -58,6 +58,8 @@
 #include "gc_root.h"
 #include "handle_scope-inl.h"
 #include "indirect_reference_table-inl.h"
+#include "interpreter/shadow_frame.h"
+#include "java_frame_root_info.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
