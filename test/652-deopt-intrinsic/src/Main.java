@@ -27,16 +27,22 @@ public class Main {
     for (int i = 0; i < 5000; i++) {
       $noinline$doCall("foo");
       $noinline$doCall(m);
-      if (numberOfDeoptimizations() != 0) {
-        throw new Error("Unexpected deoptimizations");
-      }
     }
   }
 
   public static boolean $noinline$doCall(Object foo) {
-    return foo.equals(Main.class);
+    boolean isCompiledAtEntry = !isInterpreted();
+    boolean result = foo.equals(Main.class);
+
+    // Test that the 'equals' above did not lead to a deoptimization.
+    if (isCompiledAtEntry) {
+      if (isInterpreted()) {
+        throw new Error("Unexpected deoptimization");
+      }
+    }
+    return result;
   }
 
-  public static native int numberOfDeoptimizations();
+  public static native boolean isInterpreted();
   public static native void ensureJitCompiled(Class<?> cls, String methodName);
 }
