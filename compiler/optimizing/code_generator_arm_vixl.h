@@ -408,6 +408,17 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateDivRemConstantIntegral(HBinaryOperation* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
+  vixl::aarch32::MemOperand VecAddress(
+      HVecMemoryOperation* instruction,
+      // This function may acquire a scratch register.
+      vixl::aarch32::UseScratchRegisterScope* temps_scope,
+      /*out*/ vixl32::Register* scratch);
+  vixl::aarch32::AlignedMemOperand VecAddressUnaligned(
+      HVecMemoryOperation* instruction,
+      // This function may acquire a scratch register.
+      vixl::aarch32::UseScratchRegisterScope* temps_scope,
+      /*out*/ vixl32::Register* scratch);
+
   ArmVIXLAssembler* const assembler_;
   CodeGeneratorARMVIXL* const codegen_;
 
