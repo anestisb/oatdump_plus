@@ -461,7 +461,7 @@ void CommonRuntimeTestImpl::FinalizeSetup() {
   runtime_->GetHeap()->SetMinIntervalHomogeneousSpaceCompactionByOom(0U);
 }
 
-void CommonRuntimeTestImpl::ClearDirectory(const char* dirpath) {
+void CommonRuntimeTestImpl::ClearDirectory(const char* dirpath, bool recursive) {
   ASSERT_TRUE(dirpath != nullptr);
   DIR* dir = opendir(dirpath);
   ASSERT_TRUE(dir != nullptr);
@@ -477,9 +477,11 @@ void CommonRuntimeTestImpl::ClearDirectory(const char* dirpath) {
     int stat_result = lstat(filename.c_str(), &s);
     ASSERT_EQ(0, stat_result) << "unable to stat " << filename;
     if (S_ISDIR(s.st_mode)) {
-      ClearDirectory(filename.c_str());
-      int rmdir_result = rmdir(filename.c_str());
-      ASSERT_EQ(0, rmdir_result) << filename;
+      if (recursive) {
+        ClearDirectory(filename.c_str());
+        int rmdir_result = rmdir(filename.c_str());
+        ASSERT_EQ(0, rmdir_result) << filename;
+      }
     } else {
       int unlink_result = unlink(filename.c_str());
       ASSERT_EQ(0, unlink_result) << filename;

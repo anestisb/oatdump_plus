@@ -138,6 +138,9 @@ art_cc_test {
     defaults: [
         "art_gtest_defaults",
     ],
-    srcs: ["dex2oat_test.cc"],
+    srcs: [
+        "dex2oat_test.cc",
+        "dex2oat_image_test.cc",
+    ],
     header_libs: ["dex2oat_headers"],
 }

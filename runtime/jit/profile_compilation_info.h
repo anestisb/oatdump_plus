@@ -375,9 +375,6 @@ class ProfileCompilationInfo {
 
   ArenaAllocator* GetArena() { return &arena_; }
 
-  // Add a method index to the profile (without inline caches).
-  bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
-
  private:
   enum ProfileLoadSatus {
     kProfileLoadWouldOverwiteData,

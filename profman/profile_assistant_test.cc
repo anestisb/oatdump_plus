@@ -171,6 +171,7 @@ class ProfileAssistantTest : public CommonRuntimeTest {
         << file_path << " should be a valid file path";
     return file_path;
   }
+
   // Runs test with given arguments.
   int ProcessProfiles(const std::vector<int>& profiles_fd, int reference_profile_fd) {
     std::string profman_cmd = GetProfmanCmd();

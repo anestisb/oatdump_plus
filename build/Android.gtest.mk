@@ -106,6 +106,7 @@ ART_GTEST_dex_cache_test_DEX_DEPS := Main Packages MethodTypes
 ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested MultiDex
 ART_GTEST_dexlayout_test_DEX_DEPS := ManyMethods
 ART_GTEST_dex2oat_test_DEX_DEPS := $(ART_GTEST_dex2oat_environment_tests_DEX_DEPS) Statics VerifierDeps
+ART_GTEST_dex2oat_image_test_DEX_DEPS := $(ART_GTEST_dex2oat_environment_tests_DEX_DEPS) Statics VerifierDeps
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
 ART_GTEST_image_test_DEX_DEPS := ImageLayoutA ImageLayoutB DefaultMethods
 ART_GTEST_imtable_test_DEX_DEPS := IMTA IMTB
@@ -168,6 +169,11 @@ ART_GTEST_image_space_test_TARGET_DEPS := \
 ART_GTEST_dex2oat_test_HOST_DEPS := \
   $(ART_GTEST_dex2oat_environment_tests_HOST_DEPS)
 ART_GTEST_dex2oat_test_TARGET_DEPS := \
+  $(ART_GTEST_dex2oat_environment_tests_TARGET_DEPS)
+
+ART_GTEST_dex2oat_image_test_HOST_DEPS := \
+  $(ART_GTEST_dex2oat_environment_tests_HOST_DEPS)
+ART_GTEST_dex2oat_image_test_TARGET_DEPS := \
   $(ART_GTEST_dex2oat_environment_tests_TARGET_DEPS)
 
 # TODO: document why this is needed.
@@ -664,6 +670,9 @@ ART_GTEST_image_space_test_TARGET_DEPS :=
 ART_GTEST_dex2oat_test_DEX_DEPS :=
 ART_GTEST_dex2oat_test_HOST_DEPS :=
 ART_GTEST_dex2oat_test_TARGET_DEPS :=
+ART_GTEST_dex2oat_image_test_DEX_DEPS :=
+ART_GTEST_dex2oat_image_test_HOST_DEPS :=
+ART_GTEST_dex2oat_image_test_TARGET_DEPS :=
 ART_GTEST_object_test_DEX_DEPS :=
 ART_GTEST_proxy_test_DEX_DEPS :=
 ART_GTEST_reflection_test_DEX_DEPS :=
