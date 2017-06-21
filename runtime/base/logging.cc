@@ -34,6 +34,55 @@
 
 namespace art {
 
+// We test here that the runtime-debug-checks are actually a no-op constexpr false in release
+// builds, as we can't check that in gtests (which are always debug).
+
+#ifdef NDEBUG
+namespace {
+DECLARE_RUNTIME_DEBUG_FLAG(kTestForConstexpr);
+static_assert(!kTestForConstexpr, "Issue with DECLARE_RUNTIME_DEBUG_FLAG in NDEBUG.");
+}
+#endif
+
+// Implementation of runtime debug flags. This should be compile-time optimized away in release
+// builds.
+namespace {
+bool gSlowEnabled = false;  // Default for slow flags is "off."
+
+// Use a function with a static to ensure our vector storage doesn't have initialization order
+// issues.
+std::vector<bool*>& GetFlagPtrs() {
+  static std::vector<bool*> g_flag_ptrs;
+  return g_flag_ptrs;
+}
+
+bool RegisterRuntimeDebugFlagImpl(bool* flag_ptr) {
+  GetFlagPtrs().push_back(flag_ptr);
+  return gSlowEnabled;
+}
+
+void SetRuntimeDebugFlagsEnabledImpl(bool enabled) {
+  gSlowEnabled = enabled;
+  for (bool* flag_ptr : GetFlagPtrs()) {
+    *flag_ptr = enabled;
+  }
+}
+
+}  // namespace
+
+bool RegisterRuntimeDebugFlag(bool* flag_ptr) {
+  if (kIsDebugBuild) {
+    return RegisterRuntimeDebugFlagImpl(flag_ptr);
+  }
+  return false;
+}
+
+void SetRuntimeDebugFlagsEnabled(bool enabled) {
+  if (kIsDebugBuild) {
+    SetRuntimeDebugFlagsEnabledImpl(enabled);
+  }
+}
+
 LogVerbosity gLogVerbosity;
 
 unsigned int gAborting = 0;

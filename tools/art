@@ -24,6 +24,7 @@ LAUNCH_WRAPPER=
 LIBART=libart.so
 JIT_PROFILE="no"
 VERBOSE="no"
+EXTRA_OPTIONS=""
 
 # Follow all sym links to get the program name.
 if [ z"$BASH_SOURCE" != z ]; then
@@ -147,6 +148,8 @@ while [[ "$1" = "-"* ]]; do
     ;& # Fallthrough
   --debug)
     LIBART="libartd.so"
+    # Expect that debug mode wants all checks.
+    EXTRA_OPTIONS="${EXTRA_OPTIONS} -XX:SlowDebug=true"
     ;;
   --gdb)
     LIBART="libartd.so"
@@ -203,7 +206,6 @@ fi
 
 LIBDIR="$(find_libdir $ART_BINARY_PATH)"
 LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
-EXTRA_OPTIONS=""
 
 # If ANDROID_DATA is the system ANDROID_DATA or is not set, use our own,
 # and ensure we delete it at the end.

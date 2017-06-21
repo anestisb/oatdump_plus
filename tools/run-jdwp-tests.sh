@@ -154,7 +154,7 @@ debuggee_args="$debuggee_args -Xusejit:$use_jit"
 if [[ $debug == "yes" ]]; then
   art="$art -d"
   art_debugee="$art_debugee -d"
-  vm_args="$vm_args --vm-arg -XXlib:libartd.so"
+  vm_args="$vm_args --vm-arg -XXlib:libartd.so --vm-arg -XX:SlowDebug=true"
 fi
 if [[ $verbose == "yes" ]]; then
   # Enable JDWP logs in the debuggee.

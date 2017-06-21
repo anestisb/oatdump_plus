@@ -18,6 +18,7 @@
 
 #include <sstream>
 
+#include "base/logging.h"
 #include "base/stringpiece.h"
 #include "debugger.h"
 #include "gc/heap.h"
@@ -306,6 +307,10 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-XX:ThreadSuspendTimeout=_")  // in ms
           .WithType<MillisecondsToNanoseconds>()  // store as ns
           .IntoKey(M::ThreadSuspendTimeout)
+      .Define("-XX:SlowDebug=_")
+          .WithType<bool>()
+          .WithValueMap({{"false", false}, {"true", true}})
+          .IntoKey(M::SlowDebug)
       .Ignore({
           "-ea", "-da", "-enableassertions", "-disableassertions", "--runtime-arg", "-esa",
           "-dsa", "-enablesystemassertions", "-disablesystemassertions", "-Xrs", "-Xint:_",
@@ -517,6 +522,8 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
 
   MaybeOverrideVerbosity();
 
+  SetRuntimeDebugFlagsEnabled(args.Get(M::SlowDebug));
+
   // -Xprofile:
   Trace::SetDefaultClockSource(args.GetOrDefault(M::ProfileClock));
 
@@ -704,6 +711,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:LargeObjectSpace={disabled,map,freelist}\n");
   UsageMessage(stream, "  -XX:LargeObjectThreshold=N\n");
   UsageMessage(stream, "  -XX:DumpNativeStackOnSigQuit=booleanvalue\n");
+  UsageMessage(stream, "  -XX:SlowDebug={false,true}\n");
   UsageMessage(stream, "  -Xmethod-trace\n");
   UsageMessage(stream, "  -Xmethod-trace-file:filename");
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");
