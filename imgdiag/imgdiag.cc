@@ -254,7 +254,7 @@ class ImgDiagDumper {
       uint8_t* remote_ptr = &remote_contents_[offset];
 
       if (memcmp(local_ptr, remote_ptr, kPageSize) != 0) {
-        different_pages++;
+        ++*different_pages;
 
         // Count the number of 32-bit integers that are different.
         for (size_t i = 0; i < kPageSize / sizeof(uint32_t); ++i) {
@@ -262,7 +262,7 @@ class ImgDiagDumper {
           const uint32_t* local_ptr_int32 = reinterpret_cast<const uint32_t*>(local_ptr);
 
           if (remote_ptr_int32[i] != local_ptr_int32[i]) {
-            different_int32s++;
+            ++*different_int32s;
           }
         }
       }
@@ -286,7 +286,7 @@ class ImgDiagDumper {
       page_idx = (offset + page_off_begin) / kPageSize;
       if (*local_ptr != *remote_ptr) {
         // Track number of bytes that are different
-        different_bytes++;
+        ++*different_bytes;
       }
 
       // Independently count the # of dirty pages on the remote side
@@ -307,7 +307,7 @@ class ImgDiagDumper {
           os << error_msg;
           return false;
         } else if (dirtiness > 0) {
-          (*dirty_pages)++;
+          ++*dirty_pages;
           dirty_page_set_local->insert(dirty_page_set_local->end(), virtual_page_idx);
         }
 
@@ -315,11 +315,11 @@ class ImgDiagDumper {
         bool is_private = page_count == 1;
 
         if (page_count == 1) {
-          (*private_pages)++;
+          ++*private_pages;
         }
 
         if (is_dirty && is_private) {
-          (*private_dirty_pages)++;
+          ++*private_dirty_pages;
         }
       }
     }
@@ -556,7 +556,7 @@ class ImgDiagDumper {
             if (region_data->field_dirty_count->find(i) != region_data->field_dirty_count->end()) {
               dirty_count = (*region_data->field_dirty_count)[i];
             }
-            (*region_data->field_dirty_count)[i] = dirty_count;
+            (*region_data->field_dirty_count)[i] = dirty_count + 1;
           }
         }
 
