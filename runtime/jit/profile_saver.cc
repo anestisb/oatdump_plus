@@ -188,7 +188,9 @@ class GetMethodsVisitor : public ClassVisitor {
       startup_method_samples_(startup_method_samples) {}
 
   virtual bool operator()(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
+    if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass) ||
+        !klass->IsResolved() ||
+        klass->IsErroneousResolved()) {
       return true;
     }
     for (ArtMethod& method : klass->GetMethods(kRuntimePointerSize)) {
