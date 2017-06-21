@@ -4,7 +4,7 @@ class java.lang.Object
 Max locals: 3
 Argument size: 1
 Location start: 0
-Location end: 40
+Location end: 39
 Is native: false
 Is obsolete: false
 Is synthetic: false
