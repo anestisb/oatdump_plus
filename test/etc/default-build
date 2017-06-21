@@ -349,7 +349,7 @@ else
 
     if [ "${HAS_SRC_MULTIDEX}" = "true" ]; then
       mkdir classes2
-      ${JAVAC} -implicit:none -classpath src -d classes2 `find src-multidex -name '*.java'`
+      ${JAVAC} ${JAVAC_ARGS} -implicit:none -classpath src -d classes2 `find src-multidex -name '*.java'`
       if [ ${NEED_DEX} = "true" ]; then
         make_dex classes2
       fi
