@@ -158,6 +158,10 @@ art_global_defaults {
         // The static analyzer treats DCHECK as always enabled; we sometimes get
         // false positives when we use DCHECKs with code that relies on NDEBUG.
         "-extra-arg=-UNDEBUG",
+        // clang-tidy complains about functions like:
+        // void foo() { CHECK(kIsFooEnabled); /* do foo... */ }
+        // not being marked noreturn if kIsFooEnabled is false.
+        "-extra-arg=-Wno-missing-noreturn",
     ],
 }
 
