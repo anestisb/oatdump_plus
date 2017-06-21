@@ -30,6 +30,13 @@ else
   HAS_SRC=false
 fi
 
+# .java files in src-art get compiled with libcore on the bootclasspath
+if [ -d src-art ]; then
+  HAS_SRC_ART=true
+else
+  HAS_SRC_ART=false
+fi
+
 if [ -d src2 ]; then
   HAS_SRC2=true
 else
@@ -225,6 +232,20 @@ function desugar() {
   "$DESUGAR" --core-only $desugar_args "$@"
 }
 
+# Like regular javac but includes libcore on the bootclasspath.
+function javac_with_bootclasspath {
+  local javac_args=--mode=host
+  if [[ $BUILD_MODE == target ]]; then
+    javac_args=--mode=target
+  fi
+
+  if [[ $DEV_MODE == yes ]]; then
+    javac_args="$javac_args --show-commands"
+  fi
+
+  "$ANDROID_BUILD_TOP/art/tools/javac-helper.sh" --core-only $javac_args "$@"
+}
+
 # Make a "dex" file given a directory of classes in $1.
 # Also calls desugar on the classes first to convert lambdas.
 function make_dex() {
@@ -247,12 +268,20 @@ function make_dex() {
   ${DX} -JXmx256m ${DX_VM_FLAGS} --debug --dex --dump-to=${name}.lst --output=${name}.dex --dump-width=1000 ${DX_FLAGS} "${dx_input}"
 }
 
+# Print the directory name only if it exists.
+function maybe_dir() {
+  local dirname="$1"
+  if [[ -d "$dirname" ]]; then
+    echo "$dirname"
+  fi
+}
+
 if [ -e classes.dex ]; then
   zip $TEST_NAME.jar classes.dex
   exit 0
 fi
 
-if ! [ "${HAS_SRC}" = "true" ] && ! [ "${HAS_SRC2}" = "true" ]; then
+if ! [ "${HAS_SRC}" = "true" ] && ! [ "${HAS_SRC2}" = "true" ] && ! [ "${HAS_SRC_ART}" = "true" ]; then
   # No src directory? Then forget about trying to run dx.
   SKIP_DX_MERGER="true"
 fi
@@ -280,16 +309,16 @@ if [ ${HAS_SRC_DEX2OAT_UNRESOLVED} = "true" ]; then
 else
   if [ ${USE_JACK} = "true" ]; then
     # Jack toolchain
-    if [ "${HAS_SRC}" = "true" ]; then
+    if [[ "$HAS_SRC" == true || "$HAS_SRC_ART" == true ]]; then
       if [ "${HAS_SRC_MULTIDEX}" = "true" ]; then
         # Compile src and src-multidex in the same .jack file. We will apply multidex partitioning
         # when creating the output .dex file.
-        ${JACK} ${JACK_ARGS} --output-jack src.jack src src src-multidex
+        ${JACK} ${JACK_ARGS} --output-jack src.jack $(maybe_dir src) src-multidex $(maybe_dir src-art)
         jack_extra_args="${jack_extra_args} -D jack.dex.output.policy=minimal-multidex"
         jack_extra_args="${jack_extra_args} -D jack.preprocessor=true"
         jack_extra_args="${jack_extra_args} -D jack.preprocessor.file=multidex.jpp"
       else
-        ${JACK} ${JACK_ARGS} --output-jack src.jack src
+        ${JACK} ${JACK_ARGS} --output-jack src.jack $(maybe_dir src) $(maybe_dir src-art)
       fi
       jack_extra_args="${jack_extra_args} --import src.jack"
     fi
@@ -303,7 +332,7 @@ else
     fi
 
     # Compile jack files into a DEX file.
-    if [ "${HAS_SRC}" = "true" ] || [ "${HAS_SRC2}" = "true" ]; then
+    if [ "${HAS_SRC}" = "true" ] || [ "${HAS_SRC2}" = "true" ] || [ "${HAS_SRC_ART}" ]; then
       ${JACK} ${JACK_ARGS} ${jack_extra_args} --output-dex .
     fi
   else
@@ -311,6 +340,11 @@ else
     if [ "${HAS_SRC}" = "true" ]; then
       mkdir classes
       ${JAVAC} ${JAVAC_ARGS} -implicit:none -classpath src-multidex -d classes `find src -name '*.java'`
+    fi
+
+    if [ "${HAS_SRC_ART}" = "true" ]; then
+      mkdir -p classes
+      javac_with_bootclasspath ${JAVAC_ARGS} -implicit:none -classpath src-multidex -d classes `find src-art -name '*.java'`
     fi
 
     if [ "${HAS_SRC_MULTIDEX}" = "true" ]; then
@@ -326,7 +360,7 @@ else
       ${JAVAC} ${JAVAC_ARGS} -d classes `find src2 -name '*.java'`
     fi
 
-    if [ "${HAS_SRC}" = "true" ] || [ "${HAS_SRC2}" = "true" ]; then
+    if [[ "${HAS_SRC}" == "true" || "${HAS_SRC2}" == "true" || "${HAS_SRC_ART}" == "true" ]]; then
       if [ ${NEED_DEX} = "true" -a ${SKIP_DX_MERGER} = "false" ]; then
         make_dex classes
       fi
