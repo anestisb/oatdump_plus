@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_READ_BARRIER_H_
 #define ART_RUNTIME_READ_BARRIER_H_
 
+#include "base/logging.h"
 #include "base/mutex.h"
 #include "base/macros.h"
 #include "gc_root.h"
@@ -37,10 +38,13 @@ class ArtMethod;
 
 class ReadBarrier {
  public:
-  // Enable the to-space invariant checks.
-  static constexpr bool kEnableToSpaceInvariantChecks = kIsDebugBuild;
-  // Enable the read barrier checks.
-  static constexpr bool kEnableReadBarrierInvariantChecks = kIsDebugBuild;
+  // Enable the to-space invariant checks. This is slow and happens very often. Do not enable in
+  // fast-debug environment.
+  DECLARE_RUNTIME_DEBUG_FLAG(kEnableToSpaceInvariantChecks);
+
+  // Enable the read barrier checks. This is slow and happens very often. Do not enable in
+  // fast-debug environment.
+  DECLARE_RUNTIME_DEBUG_FLAG(kEnableReadBarrierInvariantChecks);
 
   // It's up to the implementation whether the given field gets updated whereas the return value
   // must be an updated reference unless kAlwaysUpdateField is true.

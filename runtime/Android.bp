@@ -193,6 +193,7 @@ cc_defaults {
         "plugin.cc",
         "primitive.cc",
         "quick_exception_handler.cc",
+        "read_barrier.cc",
         "reference_table.cc",
         "reflection.cc",
         "runtime.cc",

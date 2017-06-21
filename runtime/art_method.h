@@ -22,6 +22,7 @@
 #include "base/bit_utils.h"
 #include "base/casts.h"
 #include "base/enums.h"
+#include "base/logging.h"
 #include "dex_file.h"
 #include "gc_root.h"
 #include "modifiers.h"
@@ -56,7 +57,8 @@ class String;
 
 class ArtMethod FINAL {
  public:
-  static constexpr bool kCheckDeclaringClassState = kIsDebugBuild;
+  // Should the class state be checked on sensitive operations?
+  DECLARE_RUNTIME_DEBUG_FLAG(kCheckDeclaringClassState);
 
   // The runtime dex_method_index is kDexNoIndex. To lower dependencies, we use this
   // constexpr, and ensure that the value is correct in art_method.cc.
