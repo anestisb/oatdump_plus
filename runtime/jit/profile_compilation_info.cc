@@ -1154,6 +1154,8 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
   // Note that the number of elements should be very small, so this should not
   // be a performance issue.
   for (const DexFileData* other_dex_data : other.info_) {
+    // verify_checksum is false because we want to differentiate between a missing dex data and
+    // a mismatched checksum.
     const DexFileData* dex_data = FindDexData(other_dex_data->profile_key,
                                               0u,
                                               /* verify_checksum */ false);
@@ -1251,11 +1253,11 @@ std::unique_ptr<ProfileCompilationInfo::OfflineProfileMethodInfo> ProfileCompila
     uint32_t dex_checksum,
     uint16_t dex_method_index) const {
   MethodHotness hotness(GetMethodHotness(dex_location, dex_checksum, dex_method_index));
-  const InlineCacheMap* inline_caches = hotness.GetInlineCacheMap();
-  if (inline_caches == nullptr) {
+  if (!hotness.IsHot()) {
     return nullptr;
   }
-
+  const InlineCacheMap* inline_caches = hotness.GetInlineCacheMap();
+  DCHECK(inline_caches != nullptr);
   std::unique_ptr<OfflineProfileMethodInfo> pmi(new OfflineProfileMethodInfo(inline_caches));
 
   pmi->dex_references.resize(info_.size());
@@ -1594,6 +1596,38 @@ ProfileCompilationInfo::DexFileData::FindOrAddMethod(uint16_t method_index) {
   return &(method_map.FindOrAdd(
       method_index,
       InlineCacheMap(std::less<uint16_t>(), arena_->Adapter(kArenaAllocProfile)))->second);
+}
+
+// Mark a method as executed at least once.
+void ProfileCompilationInfo::DexFileData::AddMethod(MethodHotness::Flag flags, size_t index) {
+  if ((flags & MethodHotness::kFlagStartup) != 0) {
+    method_bitmap.StoreBit(MethodBitIndex(/*startup*/ true, index), /*value*/ true);
+  }
+  if ((flags & MethodHotness::kFlagPostStartup) != 0) {
+    method_bitmap.StoreBit(MethodBitIndex(/*startup*/ false, index), /*value*/ true);
+  }
+  if ((flags & MethodHotness::kFlagHot) != 0) {
+    method_map.FindOrAdd(
+        index,
+        InlineCacheMap(std::less<uint16_t>(), arena_->Adapter(kArenaAllocProfile)));
+  }
+}
+
+ProfileCompilationInfo::MethodHotness ProfileCompilationInfo::DexFileData::GetHotnessInfo(
+    uint32_t dex_method_index) const {
+  MethodHotness ret;
+  if (method_bitmap.LoadBit(MethodBitIndex(/*startup*/ true, dex_method_index))) {
+    ret.AddFlag(MethodHotness::kFlagStartup);
+  }
+  if (method_bitmap.LoadBit(MethodBitIndex(/*startup*/ false, dex_method_index))) {
+    ret.AddFlag(MethodHotness::kFlagPostStartup);
+  }
+  auto it = method_map.find(dex_method_index);
+  if (it != method_map.end()) {
+    ret.SetInlineCacheMap(&it->second);
+    ret.AddFlag(MethodHotness::kFlagHot);
+  }
+  return ret;
 }
 
 ProfileCompilationInfo::DexPcData*

@@ -868,8 +868,8 @@ TEST_F(ProfileCompilationInfoTest, SampledMethodsTest) {
   test_info.AddMethodIndex(Hotness::kFlagStartup, kDex2, kChecksum2, 2, kNumMethods);
   test_info.AddMethodIndex(Hotness::kFlagPostStartup, kDex2, kChecksum2, 4, kNumMethods);
   auto run_test = [](const ProfileCompilationInfo& info) {
-    EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 2).HasAnyFlags());
-    EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 4).HasAnyFlags());
+    EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 2).IsInProfile());
+    EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 4).IsInProfile());
     EXPECT_TRUE(info.GetMethodHotness(kDex1, kChecksum1, 1).IsStartup());
     EXPECT_FALSE(info.GetMethodHotness(kDex1, kChecksum1, 3).IsStartup());
     EXPECT_TRUE(info.GetMethodHotness(kDex1, kChecksum1, 5).IsPostStartup());
@@ -931,9 +931,9 @@ TEST_F(ProfileCompilationInfoTest, SampledMethodsTest) {
     }
     EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), 6)).IsPostStartup());
     // Check that methods that shouldn't have been touched are OK.
-    EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), 0)).HasAnyFlags());
-    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 4)).HasAnyFlags());
-    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 7)).HasAnyFlags());
+    EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), 0)).IsInProfile());
+    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 4)).IsInProfile());
+    EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 7)).IsInProfile());
     EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 1)).IsPostStartup());
     EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 4)).IsStartup());
     EXPECT_FALSE(info.GetMethodHotness(MethodReference(dex.get(), 6)).IsStartup());

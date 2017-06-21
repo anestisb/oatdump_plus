@@ -1557,7 +1557,7 @@ void DexLayout::LayoutStringData(const DexFile* dex_file) {
             (method->GetAccessFlags() & kAccConstructor) != 0 &&
             (method->GetAccessFlags() & kAccStatic) != 0;
         const bool method_executed = is_clinit ||
-            info_->GetMethodHotness(MethodReference(dex_file, method_id->GetIndex())).HasAnyFlags();
+            info_->GetMethodHotness(MethodReference(dex_file, method_id->GetIndex())).IsInProfile();
         if (!method_executed) {
           continue;
         }
@@ -1712,7 +1712,7 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
           state = kCodeItemStateExecStartupOnly;
         } else if (is_clinit) {
           state = kCodeItemStateClinit;
-        } else if (hotness.HasAnyFlags()) {
+        } else if (hotness.IsInProfile()) {
           state = kCodeItemStateExec;
         }
         code_items[state].insert(code_item);

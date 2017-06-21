@@ -849,7 +849,7 @@ class ProfMan FINAL {
       if (!profile->AddMethodIndex(static_cast<Hotness::Flag>(flags), ref)) {
         return false;
       }
-      DCHECK(profile->GetMethodHotness(ref).HasAnyFlags());
+      DCHECK(profile->GetMethodHotness(ref).IsInProfile());
     }
     return true;
   }
