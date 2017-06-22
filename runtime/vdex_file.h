@@ -65,7 +65,8 @@ class VdexFile {
 
    private:
     static constexpr uint8_t kVdexMagic[] = { 'v', 'd', 'e', 'x' };
-    static constexpr uint8_t kVdexVersion[] = { '0', '0', '5', '\0' };  // access flags
+    // Last update: Disable in-place vdex update
+    static constexpr uint8_t kVdexVersion[] = { '0', '0', '6', '\0' };
 
     uint8_t magic_[4];
     uint8_t version_[4];
