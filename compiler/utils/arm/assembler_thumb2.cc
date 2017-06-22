@@ -324,7 +324,7 @@ void Thumb2Assembler::PatchCFI() {
 
 inline int16_t Thumb2Assembler::BEncoding16(int32_t offset, Condition cond) {
   DCHECK_ALIGNED(offset, 2);
-  int16_t encoding = B15 | B14;
+  int16_t encoding = static_cast<int16_t>(B15 | B14);
   if (cond != AL) {
     DCHECK(IsInt<9>(offset));
     encoding |= B12 |  (static_cast<int32_t>(cond) << 8) | ((offset >> 1) & 0xff);

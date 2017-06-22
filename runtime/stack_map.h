@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_STACK_MAP_H_
 #define ART_RUNTIME_STACK_MAP_H_
 
+#include <limits>
+
 #include "arch/code_offset.h"
 #include "base/bit_vector.h"
 #include "base/bit_utils.h"
@@ -1259,7 +1261,10 @@ class InvokeInfo {
 
 // Most of the fields are encoded as ULEB128 to save space.
 struct CodeInfoEncoding {
-  static constexpr uint32_t kInvalidSize = static_cast<size_t>(-1);
+  using SizeType = uint32_t;
+
+  static constexpr SizeType kInvalidSize = std::numeric_limits<SizeType>::max();
+
   // Byte sized tables go first to avoid unnecessary alignment bits.
   ByteSizedTable dex_register_map;
   ByteSizedTable location_catalog;
@@ -1285,7 +1290,7 @@ struct CodeInfoEncoding {
       inline_info = BitEncodingTable<InlineInfoEncoding>();
     }
     cache_header_size =
-        dchecked_integral_cast<uint32_t>(ptr - reinterpret_cast<const uint8_t*>(data));
+        dchecked_integral_cast<SizeType>(ptr - reinterpret_cast<const uint8_t*>(data));
     ComputeTableOffsets();
   }
 
@@ -1332,9 +1337,9 @@ struct CodeInfoEncoding {
  private:
   // Computed fields (not serialized).
   // Header size in bytes, cached to avoid needing to re-decoding the encoding in HeaderSize.
-  uint32_t cache_header_size = kInvalidSize;
+  SizeType cache_header_size = kInvalidSize;
   // Non header size in bytes, cached to avoid needing to re-decoding the encoding in NonHeaderSize.
-  uint32_t cache_non_header_size = kInvalidSize;
+  SizeType cache_non_header_size = kInvalidSize;
 };
 
 /**
