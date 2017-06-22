@@ -606,13 +606,10 @@
             "004-ReferenceMap",
             "004-StackWalk",
             "089-many-methods",
-            "580-checker-string-fact-intrinsics",
-            "616-cha-interface-default",
             "636-wrong-static-access",
             "910-methods",
             "911-get-stack-trace",
             "913-heaps",
-            "948-change-annotations",
             "953-invoke-polymorphic-compiler",
             "958-methodhandle-stackframe"
         ],
