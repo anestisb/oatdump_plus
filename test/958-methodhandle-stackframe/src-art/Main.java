@@ -86,7 +86,7 @@ public class Main {
           new Class<?>[] { boolean.class, char.class, short.class, int.class, long.class,
             float.class, double.class, String.class, Object.class }));
 
-    DelegatingTransformer delegate = new DelegatingTransformer(specialFunctionHandle);
+    MethodHandle delegate = new DelegatingTransformer(specialFunctionHandle);
 
     // Test an exact invoke.
     //

@@ -603,12 +603,11 @@
     },
     {
         "tests": [
-            "953-invoke-polymorphic-compiler",
-            "958-methodhandle-stackframe"
+            "953-invoke-polymorphic-compiler"
         ],
-        "description": "The tests above fail with --build-with-javac-dx.",
+        "description": "Test throws VerifyError when run with --build-with-javac-dx.",
         "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
-        "bug": "b/37636792"
+        "bug": "b/62722425"
     },
     {
         "tests": [
