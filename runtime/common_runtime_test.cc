@@ -405,6 +405,8 @@ void CommonRuntimeTestImpl::SetUp() {
   options.push_back(std::make_pair(min_heap_string, nullptr));
   options.push_back(std::make_pair(max_heap_string, nullptr));
   options.push_back(std::make_pair("-XX:SlowDebug=true", nullptr));
+  static bool gSlowDebugTestFlag = false;
+  RegisterRuntimeDebugFlag(&gSlowDebugTestFlag);
 
   callbacks_.reset(new NoopCompilerCallbacks());
 
@@ -435,6 +437,9 @@ void CommonRuntimeTestImpl::SetUp() {
   java_lang_dex_file_ = boot_class_path_[0];
 
   FinalizeSetup();
+
+  // Ensure that we're really running with debug checks enabled.
+  CHECK(gSlowDebugTestFlag);
 }
 
 void CommonRuntimeTestImpl::FinalizeSetup() {
