@@ -967,6 +967,7 @@ void HInstructionList::AddInstruction(HInstruction* instruction) {
     DCHECK(last_instruction_ == nullptr);
     first_instruction_ = last_instruction_ = instruction;
   } else {
+    DCHECK(last_instruction_ != nullptr);
     last_instruction_->next_ = instruction;
     instruction->previous_ = last_instruction_;
     last_instruction_ = instruction;
