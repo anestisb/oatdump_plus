@@ -375,6 +375,25 @@ LOCAL_REQUIRED_MODULES := \
 # For nosy apps, we provide a fake library that avoids namespace issues and gives some warnings.
 LOCAL_REQUIRED_MODULES += libart_fake
 
+# Potentially add in debug variants:
+#
+# * We will never add them if PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD = false.
+# * We will always add them if PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD = true.
+# * Otherwise, we will add them by default to userdebug and eng builds.
+ifneq (false,$(PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD))
+ifneq (,$(filter userdebug eng,$(PRODUCT_TARGET_BUILD_VARIANT)))
+  PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD := true
+endif
+ifeq (true,$(PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD))
+LOCAL_REQUIRED_MODULES += \
+    libartd \
+    libartd-compiler \
+    libopenjdkjvmd \
+    libopenjdkjvmtid \
+
+endif
+endif
+
 include $(BUILD_PHONY_PACKAGE)
 
 # The art-tools package depends on helpers and tools that are useful for developers and on-device
