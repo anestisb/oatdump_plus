@@ -21,7 +21,7 @@ From top
  baz (IIILart/ControlData;)Ljava/lang/Object; 9 34
  bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
- doTest ()V 38 25
+ doTest ()V 34 25
  run ()V 0 25
 ---------
  print (Ljava/lang/Thread;II)V 0 38
@@ -41,7 +41,7 @@ From top
  baz (IIILart/ControlData;)Ljava/lang/Object; 9 34
  bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
- doTest ()V 42 26
+ doTest ()V 38 26
  run ()V 0 25
 ---------
  getStackTrace (Ljava/lang/Thread;II)[[Ljava/lang/String; -1 -2
@@ -62,7 +62,7 @@ From bottom
  baz (IIILart/ControlData;)Ljava/lang/Object; 9 34
  bar (IIILart/ControlData;)J 0 26
  foo (IIILart/ControlData;)I 0 21
- doTest ()V 65 32
+ doTest ()V 60 32
  run ()V 0 25
 ---------
  bar (IIILart/ControlData;)J 0 26
@@ -360,7 +360,7 @@ Signal Catcher
 Test911
  getAllStackTraces (I)[[Ljava/lang/Object; -1 -2
  printAll (I)V 0 75
- doTest ()V 128 59
+ doTest ()V 122 59
  run ()V 24 37
 
 ---------
@@ -595,7 +595,7 @@ Signal Catcher
 Test911
  getAllStackTraces (I)[[Ljava/lang/Object; -1 -2
  printAll (I)V 0 75
- doTest ()V 133 61
+ doTest ()V 127 61
  run ()V 24 37
 
 ---------
@@ -627,7 +627,7 @@ ThreadListTraces Thread 8
 Test911
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 68
- doTest ()V 116 54
+ doTest ()V 112 54
  run ()V 32 41
 
 ---------
@@ -674,7 +674,7 @@ ThreadListTraces Thread 8
 Test911
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 68
- doTest ()V 121 56
+ doTest ()V 117 56
  run ()V 32 41
 
 ---------
@@ -789,7 +789,7 @@ ThreadListTraces Thread 8
 4
 JVMTI_ERROR_ILLEGAL_ARGUMENT
 [public static native java.lang.Object[] art.Frames.getFrameLocation(java.lang.Thread,int), ffffffff]
-[public static void art.Frames.doTestSameThread(), 38]
+[public static void art.Frames.doTestSameThread(), 35]
 [public static void art.Frames.doTest() throws java.lang.Exception, 0]
 [public void art.Test911$1.run(), 28]
 JVMTI_ERROR_NO_MORE_FRAMES
