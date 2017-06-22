@@ -92,7 +92,7 @@ fi
 export JACK="$JACK -g -cp $JACK_CLASSPATH"
 
 # Allow changing DESUGAR script to something else, or to disable it with DESUGAR=false.
-if [ -z "$DESUGAR"]; then
+if [ -z "$DESUGAR" ]; then
   export DESUGAR="$ANDROID_BUILD_TOP/art/tools/desugar.sh"
 fi
 
