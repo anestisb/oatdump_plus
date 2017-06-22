@@ -161,12 +161,15 @@ class HLoopOptimization : public HOptimization {
                            /*out*/ int32_t* use_count);
   bool IsUsedOutsideLoop(HLoopInformation* loop_info,
                          HInstruction* instruction);
-  bool TryReplaceWithLastValue(HInstruction* instruction, HBasicBlock* block);
+  bool TryReplaceWithLastValue(HLoopInformation* loop_info,
+                               HInstruction* instruction,
+                               HBasicBlock* block);
   bool TryAssignLastValue(HLoopInformation* loop_info,
                           HInstruction* instruction,
                           HBasicBlock* block,
                           bool collect_loop_uses);
   void RemoveDeadInstructions(const HInstructionList& list);
+  bool CanRemoveCycle();  // Whether the current 'iset_' is removable.
 
   // Compiler driver (to query ISA features).
   const CompilerDriver* compiler_driver_;
