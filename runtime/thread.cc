@@ -1402,15 +1402,35 @@ class BarrierClosure : public Closure {
   Barrier barrier_;
 };
 
-void Thread::RequestSynchronousCheckpoint(Closure* function) {
+bool Thread::RequestSynchronousCheckpoint(Closure* function) {
   if (this == Thread::Current()) {
     // Asked to run on this thread. Just run.
     function->Run(this);
-    return;
+    return true;
   }
   Thread* self = Thread::Current();
 
   // The current thread is not this thread.
+
+  if (GetState() == ThreadState::kTerminated) {
+    return false;
+  }
+
+  // Note: we're holding the thread-list lock. The thread cannot die at this point.
+  struct ScopedThreadListLockUnlock {
+    explicit ScopedThreadListLockUnlock(Thread* self_in) RELEASE(*Locks::thread_list_lock_)
+        : self_thread(self_in) {
+      Locks::thread_list_lock_->AssertHeld(self_thread);
+      Locks::thread_list_lock_->Unlock(self_thread);
+    }
+
+    ~ScopedThreadListLockUnlock() ACQUIRE(*Locks::thread_list_lock_) {
+      Locks::thread_list_lock_->AssertNotHeld(self_thread);
+      Locks::thread_list_lock_->Lock(self_thread);
+    }
+
+    Thread* self_thread;
+  };
 
   for (;;) {
     // If this thread is runnable, try to schedule a checkpoint. Do some gymnastics to not hold the
@@ -1423,8 +1443,11 @@ void Thread::RequestSynchronousCheckpoint(Closure* function) {
         installed = RequestCheckpoint(&barrier_closure);
       }
       if (installed) {
+        // Relinquish the thread-list lock, temporarily. We should not wait holding any locks.
+        ScopedThreadListLockUnlock stllu(self);
+        ScopedThreadSuspension sts(self, ThreadState::kWaiting);
         barrier_closure.Wait(self);
-        return;
+        return true;
       }
       // Fall-through.
     }
@@ -1433,7 +1456,6 @@ void Thread::RequestSynchronousCheckpoint(Closure* function) {
     // Note: ModifySuspendCountInternal also expects the thread_list_lock to be held in
     //       certain situations.
     {
-      MutexLock mu(self, *Locks::thread_list_lock_);
       MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
 
       if (!ModifySuspendCount(self, +1, nullptr, false)) {
@@ -1443,16 +1465,19 @@ void Thread::RequestSynchronousCheckpoint(Closure* function) {
       }
     }
 
-    while (GetState() == ThreadState::kRunnable) {
-      // We became runnable again. Wait till the suspend triggered in ModifySuspendCount
-      // moves us to suspended.
-      sched_yield();
+    {
+      ScopedThreadListLockUnlock stllu(self);
+      ScopedThreadSuspension sts(self, ThreadState::kWaiting);
+      while (GetState() == ThreadState::kRunnable) {
+        // We became runnable again. Wait till the suspend triggered in ModifySuspendCount
+        // moves us to suspended.
+        sched_yield();
+      }
+
+      function->Run(this);
     }
 
-    function->Run(this);
-
     {
-      MutexLock mu(self, *Locks::thread_list_lock_);
       MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
 
       DCHECK_NE(GetState(), ThreadState::kRunnable);
@@ -1460,7 +1485,7 @@ void Thread::RequestSynchronousCheckpoint(Closure* function) {
       DCHECK(updated);
     }
 
-    return;  // We're done, break out of the loop.
+    return true;  // We're done, break out of the loop.
   }
 }
 
