@@ -603,9 +603,6 @@
     },
     {
         "tests": [
-            "004-ReferenceMap",
-            "004-StackWalk",
-            "089-many-methods",
             "636-wrong-static-access",
             "910-methods",
             "911-get-stack-trace",
