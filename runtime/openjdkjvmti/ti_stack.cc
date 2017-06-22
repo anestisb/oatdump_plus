@@ -205,7 +205,12 @@ struct GetStackTraceDirectClosure : public art::Closure {
   size_t index = 0;
 };
 
-static jvmtiError GetThread(JNIEnv* env, jthread java_thread, art::Thread** thread) {
+static jvmtiError GetThread(JNIEnv* env,
+                            art::ScopedObjectAccessAlreadyRunnable& soa,
+                            jthread java_thread,
+                            art::Thread** thread)
+    REQUIRES_SHARED(art::Locks::mutator_lock_)  // Needed for FromManagedThread.
+    REQUIRES(art::Locks::thread_list_lock_) {   // Needed for FromManagedThread.
   if (java_thread == nullptr) {
     *thread = art::Thread::Current();
     if (*thread == nullptr) {
@@ -220,8 +225,6 @@ static jvmtiError GetThread(JNIEnv* env, jthread java_thread, art::Thread** thre
     }
 
     // TODO: Need non-aborting call here, to return JVMTI_ERROR_INVALID_THREAD.
-    art::ScopedObjectAccess soa(art::Thread::Current());
-    art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
     *thread = art::Thread::FromManagedThread(soa, java_thread);
     if (*thread == nullptr) {
       return ERR(THREAD_NOT_ALIVE);
@@ -236,8 +239,16 @@ jvmtiError StackUtil::GetStackTrace(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED,
                                     jint max_frame_count,
                                     jvmtiFrameInfo* frame_buffer,
                                     jint* count_ptr) {
+  // It is not great that we have to hold these locks for so long, but it is necessary to ensure
+  // that the thread isn't dying on us.
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+
   art::Thread* thread;
-  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(), java_thread, &thread);
+  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(),
+                                      soa,
+                                      java_thread,
+                                      &thread);
   if (thread_error != ERR(NONE)) {
     return thread_error;
   }
@@ -675,8 +686,17 @@ struct GetFrameCountClosure : public art::Closure {
 jvmtiError StackUtil::GetFrameCount(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                     jthread java_thread,
                                     jint* count_ptr) {
+  // It is not great that we have to hold these locks for so long, but it is necessary to ensure
+  // that the thread isn't dying on us.
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+
   art::Thread* thread;
-  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(), java_thread, &thread);
+  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(),
+                                      soa,
+                                      java_thread,
+                                      &thread);
+
   if (thread_error != ERR(NONE)) {
     return thread_error;
   }
@@ -745,8 +765,16 @@ jvmtiError StackUtil::GetFrameLocation(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                        jint depth,
                                        jmethodID* method_ptr,
                                        jlocation* location_ptr) {
+  // It is not great that we have to hold these locks for so long, but it is necessary to ensure
+  // that the thread isn't dying on us.
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+
   art::Thread* thread;
-  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(), java_thread, &thread);
+  jvmtiError thread_error = GetThread(art::Thread::Current()->GetJniEnv(),
+                                      soa,
+                                      java_thread,
+                                      &thread);
   if (thread_error != ERR(NONE)) {
     return thread_error;
   }
