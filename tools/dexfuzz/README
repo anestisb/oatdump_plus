@@ -139,7 +139,9 @@ InstructionDuplicator 80
 InstructionSwapper 80
 NewMethodCaller 10
 NonsenseStringPrinter 10
+OppositeBranchChanger 40
 PoolIndexChanger 30
+RandomBranchChanger 30
 RandomInstructionGenerator 30
 SwitchBranchShifter 30
 TryBlockShifter 40
