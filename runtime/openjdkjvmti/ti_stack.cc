@@ -359,8 +359,8 @@ jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
           self, thread->GetPeerFromOtherThread());
       thread_peers.push_back(peer);
 
-      frames.emplace_back();
-      return &frames.back();
+      frames.emplace_back(new std::vector<jvmtiFrameInfo>());
+      return frames.back().get();
     }
 
     art::Mutex mutex;
@@ -371,7 +371,7 @@ jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
     // "thread_peers" contains global references to their peers.
     std::vector<jthread> thread_peers;
 
-    std::vector<std::vector<jvmtiFrameInfo>> frames;
+    std::vector<std::unique_ptr<std::vector<jvmtiFrameInfo>>> frames;
   };
 
   AllStackTracesData data;
@@ -396,7 +396,7 @@ jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
     jvmtiStackInfo& stack_info = stack_info_array.get()[index];
     memset(&stack_info, 0, sizeof(jvmtiStackInfo));
 
-    const std::vector<jvmtiFrameInfo>& thread_frames = data.frames[index];
+    const std::vector<jvmtiFrameInfo>& thread_frames = *data.frames[index].get();
 
     // For the time being, set the thread to null. We'll fix it up in the second stage.
     stack_info.thread = nullptr;
@@ -503,8 +503,8 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
           threads.push_back(thread);
           thread_list_indices.push_back(index);
 
-          frames.emplace_back();
-          return &frames.back();
+          frames.emplace_back(new std::vector<jvmtiFrameInfo>());
+          return frames.back().get();
         }
       }
       return nullptr;
@@ -521,7 +521,7 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
     std::vector<art::Thread*> threads;
     std::vector<size_t> thread_list_indices;
 
-    std::vector<std::vector<jvmtiFrameInfo>> frames;
+    std::vector<std::unique_ptr<std::vector<jvmtiFrameInfo>>> frames;
   };
 
   SelectStackTracesData data;
@@ -558,7 +558,7 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
     memset(&stack_info, 0, sizeof(jvmtiStackInfo));
 
     art::Thread* self = data.threads[index];
-    const std::vector<jvmtiFrameInfo>& thread_frames = data.frames[index];
+    const std::vector<jvmtiFrameInfo>& thread_frames = *data.frames[index].get();
 
     // For the time being, set the thread to null. We don't have good ScopedLocalRef
     // infrastructure.
