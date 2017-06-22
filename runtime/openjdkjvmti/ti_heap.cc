@@ -1392,7 +1392,9 @@ jvmtiError HeapUtil::GetLoadedClasses(jvmtiEnv* env,
 
     bool operator()(art::ObjPtr<art::mirror::Class> klass)
         OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
-      classes_.push_back(self_->GetJniEnv()->AddLocalReference<jclass>(klass));
+      if (klass->IsLoaded() || klass->IsErroneous()) {
+        classes_.push_back(self_->GetJniEnv()->AddLocalReference<jclass>(klass));
+      }
       return true;
     }
 
