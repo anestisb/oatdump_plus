@@ -483,10 +483,15 @@ struct AbortState {
 };
 
 void Runtime::Abort(const char* msg) {
-  gAborting++;  // set before taking any locks
+  auto old_value = gAborting.fetch_add(1);  // set before taking any locks
 
 #ifdef ART_TARGET_ANDROID
-  android_set_abort_message(msg);
+  if (old_value == 0) {
+    // Only set the first abort message.
+    android_set_abort_message(msg);
+  }
+#else
+  UNUSED(old_value);
 #endif
 
   // Ensure that we don't have multiple threads trying to abort at once,
