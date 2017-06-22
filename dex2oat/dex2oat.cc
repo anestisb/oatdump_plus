@@ -867,6 +867,15 @@ class Dex2Oat FINAL {
       Usage("Profile file should not be specified with both --profile-file-fd and --profile-file");
     }
 
+    if (have_profile_file || have_profile_fd) {
+      if (compiled_classes_filename_ != nullptr ||
+          compiled_classes_zip_filename_ != nullptr ||
+          image_classes_filename_ != nullptr ||
+          image_classes_zip_filename_ != nullptr) {
+        Usage("Profile based image creation is not supported with image or compiled classes");
+      }
+    }
+
     if (!parser_options->oat_symbols.empty()) {
       oat_unstripped_ = std::move(parser_options->oat_symbols);
     }
@@ -1456,7 +1465,7 @@ class Dex2Oat FINAL {
   }
 
   void LoadClassProfileDescriptors() {
-    if (profile_compilation_info_ != nullptr && IsAppImage()) {
+    if (profile_compilation_info_ != nullptr && IsImage()) {
       Runtime* runtime = Runtime::Current();
       CHECK(runtime != nullptr);
       // Filter out class path classes since we don't want to include these in the image.

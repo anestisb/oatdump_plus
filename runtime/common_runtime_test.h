@@ -126,7 +126,7 @@ class CommonRuntimeTestImpl {
 
   std::unique_ptr<const DexFile> LoadExpectSingleDexFile(const char* location);
 
-  void ClearDirectory(const char* dirpath);
+  void ClearDirectory(const char* dirpath, bool recursive = true);
 
   std::string GetTestAndroidRoot();
 
