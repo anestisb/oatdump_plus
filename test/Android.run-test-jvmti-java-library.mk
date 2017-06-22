@@ -34,6 +34,7 @@ LOCAL_SRC_FILES += \
   905-object-free/src/art/Test905.java \
   906-iterate-heap/src/art/Test906.java \
   907-get-loaded-classes/src/art/Test907.java \
+    907-get-loaded-classes/src/art/Cerr.java \
   908-gc-start-finish/src/art/Test908.java \
   910-methods/src/art/Test910.java \
   911-get-stack-trace/src/art/Test911.java \
