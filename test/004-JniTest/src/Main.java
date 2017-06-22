@@ -24,6 +24,11 @@ import dalvik.annotation.optimization.FastNative;
 public class Main {
     public static void main(String[] args) {
         System.loadLibrary(args[0]);
+
+        if (!isSlowDebug()) {
+          throw new RuntimeException("Slow-debug flags unexpectedly off.");
+        }
+
         testFindClassOnAttachedNativeThread();
         testFindFieldOnAttachedNativeThread();
         testReflectFieldGetFromAttachedNativeThreadNative();
@@ -307,6 +312,8 @@ public class Main {
         }
       }
     }
+
+    private static native boolean isSlowDebug();
 }
 
 @FunctionalInterface

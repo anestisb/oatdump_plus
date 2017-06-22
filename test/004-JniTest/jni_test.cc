@@ -775,5 +775,18 @@ static jint Java_Main_intCriticalNativeMethod(jint a, jint b, jint c) {
   return a + b + c;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isSlowDebug(JNIEnv*, jclass) {
+  // Return whether slow-debug is on. Only relevant for debug builds.
+  if (kIsDebugBuild) {
+    // Register a dummy flag and get the default value it should be initialized with.
+    static bool dummy_flag = false;
+    dummy_flag = RegisterRuntimeDebugFlag(&dummy_flag);
+
+    return dummy_flag ? JNI_TRUE : JNI_FALSE;
+  }
+  // To pass the Java-side test, just so "on" for release builds.
+  return JNI_TRUE;
+}
+
 }  // namespace art
 
