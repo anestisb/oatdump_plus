@@ -603,7 +603,6 @@
     },
     {
         "tests": [
-            "636-wrong-static-access",
             "953-invoke-polymorphic-compiler",
             "958-methodhandle-stackframe"
         ],

@@ -403,8 +403,20 @@ if [ ${HAS_SRC_EX} = "true" ]; then
       # Restore previous "classes.dex" so it can be zipped.
       mv classes-1.dex classes.dex
   else
+    # Build src-ex into classes-ex.
+    # Includes 'src', 'src-art' source when compiling classes-ex, but exclude their .class files.
+    if [[ "${HAS_SRC}" == "true" ]]; then
+      mkdir -p classes-tmp-for-ex
+      ${JAVAC} ${JAVAC_ARGS} -d classes-tmp-for-ex `find src -name '*.java'`
+      src_tmp_for_ex="-cp classes-tmp-for-ex"
+    fi
+    if [[ "${HAS_SRC_ART}" == "true" ]]; then
+      mkdir -p classes-tmp-for-ex
+      javac_with_bootclasspath ${JAVAC_ARGS} -d classes-tmp-for-ex `find src-art -name '*.java'`
+      src_tmp_for_ex="-cp classes-tmp-for-ex"
+    fi
     mkdir classes-ex
-    ${JAVAC} ${JAVAC_ARGS} -d classes-ex -cp classes `find src-ex -name '*.java'`
+    ${JAVAC} ${JAVAC_ARGS} -d classes-ex $src_tmp_for_ex `find src-ex -name '*.java'`
     if [ ${NEED_DEX} = "true" ]; then
       make_dex classes-ex
 
