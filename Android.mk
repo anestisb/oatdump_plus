@@ -351,6 +351,47 @@ valgrind-test-art-target64: valgrind-test-art-target-gtest64
 
 endif  # art_test_bother
 
+#######################
+# Fake packages for ART
+
+# The art-runtime package depends on the core ART libraries and binaries. It exists so we can
+# manipulate the set of things shipped, e.g., add debug versions and so on.
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := art-runtime
+
+# Base requirements.
+LOCAL_REQUIRED_MODULES := \
+    dalvikvm \
+    dex2oat \
+    dexoptanalyzer \
+    libart \
+    libart-compiler \
+    libopenjdkjvm \
+    libopenjdkjvmti \
+    patchoat \
+    profman \
+
+# For nosy apps, we provide a fake library that avoids namespace issues and gives some warnings.
+LOCAL_REQUIRED_MODULES += libart_fake
+
+include $(BUILD_PHONY_PACKAGE)
+
+# The art-tools package depends on helpers and tools that are useful for developers and on-device
+# investigations.
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := art-tools
+LOCAL_REQUIRED_MODULES := \
+    ahat \
+    dexdiag \
+    dexdump \
+    dexlist \
+    hprof-conv \
+    oatdump \
+
+include $(BUILD_PHONY_PACKAGE)
+
 ####################################################################################################
 # Fake packages to ensure generation of libopenjdkd when one builds with mm/mmm/mmma.
 #
