@@ -465,7 +465,7 @@ static int DexDiagMain(int argc, char* argv[]) {
   }
 
   // Art specific set up.
-  InitLogging(argv, Runtime::Aborter);
+  InitLogging(argv, Runtime::Abort);
   MemMap::Init();
 
 #ifdef ART_TARGET_ANDROID

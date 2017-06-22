@@ -485,6 +485,10 @@ struct AbortState {
 void Runtime::Abort(const char* msg) {
   gAborting++;  // set before taking any locks
 
+#ifdef ART_TARGET_ANDROID
+  android_set_abort_message(msg);
+#endif
+
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
   MutexLock mu(Thread::Current(), *Locks::abort_lock_);
@@ -570,7 +574,7 @@ void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
 bool Runtime::ParseOptions(const RuntimeOptions& raw_options,
                            bool ignore_unrecognized,
                            RuntimeArgumentMap* runtime_options) {
-  InitLogging(/* argv */ nullptr, Aborter);  // Calls Locks::Init() as a side effect.
+  InitLogging(/* argv */ nullptr, Abort);  // Calls Locks::Init() as a side effect.
   bool parsed = ParsedOptions::Parse(raw_options, ignore_unrecognized, runtime_options);
   if (!parsed) {
     LOG(ERROR) << "Failed to parse options";
@@ -2356,14 +2360,6 @@ void Runtime::RemoveSystemWeakHolder(gc::AbstractSystemWeakHolder* holder) {
   if (it != system_weak_holders_.end()) {
     system_weak_holders_.erase(it);
   }
-}
-
-NO_RETURN
-void Runtime::Aborter(const char* abort_message) {
-#ifdef ART_TARGET_ANDROID
-  android_set_abort_message(abort_message);
-#endif
-  Runtime::Abort(abort_message);
 }
 
 RuntimeCallbacks* Runtime::GetRuntimeCallbacks() {
