@@ -612,6 +612,9 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   void IlvrW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void IlvrD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
 
+  // Helper for replicating floating point value in all destination elements.
+  void ReplicateFPToVectorRegister(VectorRegister dst, FRegister src, bool is_double);
+
   // Higher level composite instructions.
   void LoadConst32(Register rd, int32_t value);
   void LoadConst64(Register reg_hi, Register reg_lo, int64_t value);

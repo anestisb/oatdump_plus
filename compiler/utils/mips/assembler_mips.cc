@@ -2904,6 +2904,17 @@ void MipsAssembler::IlvrD(VectorRegister wd, VectorRegister ws, VectorRegister w
                 static_cast<FRegister>(wt));
 }
 
+void MipsAssembler::ReplicateFPToVectorRegister(VectorRegister dst,
+                                                FRegister src,
+                                                bool is_double) {
+  // Float or double in FPU register Fx can be considered as 0th element in vector register Wx.
+  if (is_double) {
+    SplatiD(dst, static_cast<VectorRegister>(src), 0);
+  } else {
+    SplatiW(dst, static_cast<VectorRegister>(src), 0);
+  }
+}
+
 void MipsAssembler::LoadConst32(Register rd, int32_t value) {
   if (IsUint<16>(value)) {
     // Use OR with (unsigned) immediate to encode 16b unsigned int.
