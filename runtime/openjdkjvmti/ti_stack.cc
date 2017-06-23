@@ -39,6 +39,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "art_jvmti.h"
+#include "barrier.h"
 #include "base/bit_utils.h"
 #include "base/enums.h"
 #include "base/mutex.h"
@@ -299,13 +300,20 @@ jvmtiError StackUtil::GetStackTrace(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED,
 
 template <typename Data>
 struct GetAllStackTracesVectorClosure : public art::Closure {
-  GetAllStackTracesVectorClosure(size_t stop, Data* data_) : stop_input(stop), data(data_) {}
+  GetAllStackTracesVectorClosure(size_t stop, Data* data_)
+      : barrier(0), stop_input(stop), data(data_) {}
 
   void Run(art::Thread* thread) OVERRIDE
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!data->mutex) {
     art::Thread* self = art::Thread::Current();
+    Work(thread, self);
+    barrier.Pass(self);
+  }
 
+  void Work(art::Thread* thread, art::Thread* self)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(!data->mutex) {
     // Skip threads that are still starting.
     if (thread->IsStillStarting()) {
       return;
@@ -324,9 +332,22 @@ struct GetAllStackTracesVectorClosure : public art::Closure {
     visitor.WalkStack(/* include_transitions */ false);
   }
 
+  art::Barrier barrier;
   const size_t stop_input;
   Data* data;
 };
+
+template <typename Data>
+static void RunCheckpointAndWait(Data* data, size_t max_frame_count) {
+  GetAllStackTracesVectorClosure<Data> closure(max_frame_count, data);
+  size_t barrier_count = art::Runtime::Current()->GetThreadList()->RunCheckpoint(&closure, nullptr);
+  if (barrier_count == 0) {
+    return;
+  }
+  art::Thread* self = art::Thread::Current();
+  art::ScopedThreadStateChange tsc(self, art::ThreadState::kWaitingForCheckPointsToRun);
+  closure.barrier.Increment(self, barrier_count);
+}
 
 jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
                                         jint max_frame_count,
@@ -375,9 +396,7 @@ jvmtiError StackUtil::GetAllStackTraces(jvmtiEnv* env,
   };
 
   AllStackTracesData data;
-  GetAllStackTracesVectorClosure<AllStackTracesData> closure(
-      static_cast<size_t>(max_frame_count), &data);
-  art::Runtime::Current()->GetThreadList()->RunCheckpoint(&closure, nullptr);
+  RunCheckpointAndWait(&data, static_cast<size_t>(max_frame_count));
 
   art::Thread* current = art::Thread::Current();
 
@@ -538,9 +557,7 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
     data.handles.push_back(hs.NewHandle(soa.Decode<art::mirror::Object>(thread_list[i])));
   }
 
-  GetAllStackTracesVectorClosure<SelectStackTracesData> closure(
-      static_cast<size_t>(max_frame_count), &data);
-  art::Runtime::Current()->GetThreadList()->RunCheckpoint(&closure, nullptr);
+  RunCheckpointAndWait(&data, static_cast<size_t>(max_frame_count));
 
   // Convert the data into our output format.
 
