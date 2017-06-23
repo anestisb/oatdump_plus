@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "android-base/logging.h"
 #include "base/stl_util_identity.h"
 
 namespace art {
@@ -278,7 +279,8 @@ struct VariantMap {
     auto* new_value = new TValue(value);
 
     Remove(key);
-    storage_map_.insert({{key.Clone(), new_value}});
+    bool inserted = storage_map_.insert({key.Clone(), new_value}).second;
+    DCHECK(inserted);  // ensure key.Clone() does not leak memory.
   }
 
   // Set a value for a given key, only if there was no previous value before.
