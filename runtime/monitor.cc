@@ -401,31 +401,28 @@ void Monitor::Lock(Thread* self) {
       if (original_owner_thread_id != 0u) {
         // Woken from contention.
         if (log_contention) {
-          uint32_t original_owner_tid = 0;
-          std::string original_owner_name;
-          {
+          uint64_t wait_ms = MilliTime() - wait_start_ms;
+          uint32_t sample_percent;
+          if (wait_ms >= lock_profiling_threshold_) {
+            sample_percent = 100;
+          } else {
+            sample_percent = 100 * wait_ms / lock_profiling_threshold_;
+          }
+          if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
+            // Reacquire mutator_lock_ for logging.
+            ScopedObjectAccess soa(self);
+            // Acquire thread-list lock to find thread and keep it from dying until we're done.
             MutexLock mu2(Thread::Current(), *Locks::thread_list_lock_);
+
             // Re-find the owner in case the thread got killed.
             Thread* original_owner = Runtime::Current()->GetThreadList()->FindThreadByThreadId(
                 original_owner_thread_id);
-            // Do not do any work that requires the mutator lock.
-            if (original_owner != nullptr) {
-              original_owner_tid = original_owner->GetTid();
-              original_owner->GetThreadName(original_owner_name);
-            }
-          }
 
-          if (original_owner_tid != 0u) {
-            uint64_t wait_ms = MilliTime() - wait_start_ms;
-            uint32_t sample_percent;
-            if (wait_ms >= lock_profiling_threshold_) {
-              sample_percent = 100;
-            } else {
-              sample_percent = 100 * wait_ms / lock_profiling_threshold_;
-            }
-            if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
-              // Reacquire mutator_lock_ for logging.
-              ScopedObjectAccess soa(self);
+            if (original_owner != nullptr) {
+              pid_t original_owner_tid = original_owner->GetTid();
+              std::string original_owner_name;
+              original_owner->GetThreadName(original_owner_name);
+
               if (wait_ms > kLongWaitMs && owners_method != nullptr) {
                 uint32_t pc;
                 ArtMethod* m = self->GetCurrentMethod(&pc);
