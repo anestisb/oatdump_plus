@@ -228,7 +228,6 @@ class Monitor {
                                           ArtMethod* owners_method,
                                           uint32_t owners_dex_pc,
                                           size_t num_waiters)
-      REQUIRES(!Locks::thread_list_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Wait on a monitor until timeout, interrupt, or notification.  Used for Object.wait() and
