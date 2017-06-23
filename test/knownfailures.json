@@ -143,15 +143,6 @@
                        "complete test) JDWP must be set up."]
     },
     {
-        "tests": "131-structural-change",
-        "variant": "debug",
-        "description": ["131 is an old test. The functionality has been",
-                        "implemented at an earlier stage and is checked",
-                        "in tests 138. Blacklisted for debug builds since",
-                        "these builds have duplicate classes checks which",
-                        "punt to interpreter"]
-    },
-    {
         "tests": "138-duplicate-classes-check",
         "variant": "ndebug",
         "description": ["Turned on for debug builds since debug builds have",

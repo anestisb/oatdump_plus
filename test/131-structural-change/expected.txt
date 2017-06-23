@@ -1,3 +1,0 @@
-JNI_OnLoad called
-Should really reach here.
-Done.
