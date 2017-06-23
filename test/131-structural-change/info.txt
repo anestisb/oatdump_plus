@@ -1,1 +1,0 @@
-Check whether a structural change in a (non-native) multi-dex scenario is detected.
