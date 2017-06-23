@@ -127,7 +127,7 @@ class DexoptAnalyzer FINAL {
     original_argc = argc;
     original_argv = argv;
 
-    InitLogging(argv, Runtime::Aborter);
+    InitLogging(argv, Runtime::Abort);
     // Skip over the command name.
     argv++;
     argc--;

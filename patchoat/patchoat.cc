@@ -783,7 +783,7 @@ static int patchoat_image(TimingLogger& timings,
 }
 
 static int patchoat(int argc, char **argv) {
-  InitLogging(argv, Runtime::Aborter);
+  InitLogging(argv, Runtime::Abort);
   MemMap::Init();
   const bool debug = kIsDebugBuild;
   orig_argc = argc;

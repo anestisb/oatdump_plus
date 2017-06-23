@@ -295,7 +295,7 @@ struct CmdlineArgs {
 template <typename Args = CmdlineArgs>
 struct CmdlineMain {
   int Main(int argc, char** argv) {
-    InitLogging(argv, Runtime::Aborter);
+    InitLogging(argv, Runtime::Abort);
     std::unique_ptr<Args> args = std::unique_ptr<Args>(CreateArguments());
     args_ = args.get();
 

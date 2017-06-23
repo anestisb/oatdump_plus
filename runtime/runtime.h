@@ -649,9 +649,6 @@ class Runtime {
     return cha_;
   }
 
-  NO_RETURN
-  static void Aborter(const char* abort_message);
-
   void AttachAgent(const std::string& agent_arg);
 
   const std::list<ti::Agent>& GetAgents() const {

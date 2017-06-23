@@ -85,7 +85,7 @@ void SetRuntimeDebugFlagsEnabled(bool enabled) {
 
 LogVerbosity gLogVerbosity;
 
-unsigned int gAborting = 0;
+std::atomic<unsigned int> gAborting(0);
 
 static std::unique_ptr<std::string> gCmdLine;
 static std::unique_ptr<std::string> gProgramInvocationName;
