@@ -16,4 +16,4 @@
 
 package art;
 
-public class Test2 {}
+public class Target2 {}
