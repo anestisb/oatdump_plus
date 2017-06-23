@@ -344,6 +344,23 @@ void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
 // Optimization.
 //
 
+bool HLoopOptimization::CanRemoveCycle() {
+  for (HInstruction* i : *iset_) {
+    // We can never remove instructions that have environment
+    // uses when we compile 'debuggable'.
+    if (i->HasEnvironmentUses() && graph_->IsDebuggable()) {
+      return false;
+    }
+    // A deoptimization should never have an environment input removed.
+    for (const HUseListNode<HEnvironment*>& use : i->GetEnvUses()) {
+      if (use.GetUser()->GetHolder()->IsDeoptimize()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 void HLoopOptimization::SimplifyInduction(LoopNode* node) {
   HBasicBlock* header = node->loop_info->GetHeader();
   HBasicBlock* preheader = node->loop_info->GetPreHeader();
@@ -357,10 +374,15 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
     iset_->clear();  // prepare phi induction
     if (TrySetPhiInduction(phi, /*restrict_uses*/ true) &&
         TryAssignLastValue(node->loop_info, phi, preheader, /*collect_loop_uses*/ false)) {
-      for (HInstruction* i : *iset_) {
-        RemoveFromCycle(i);
+      // Note that it's ok to have replaced uses after the loop with the last value, without
+      // being able to remove the cycle. Environment uses (which are the reason we may not be
+      // able to remove the cycle) within the loop will still hold the right value.
+      if (CanRemoveCycle()) {
+        for (HInstruction* i : *iset_) {
+          RemoveFromCycle(i);
+        }
+        simplified_ = true;
       }
-      simplified_ = true;
     }
   }
 }
@@ -1350,11 +1372,10 @@ bool HLoopOptimization::IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
   return true;
 }
 
-bool HLoopOptimization::TryReplaceWithLastValue(HInstruction* instruction, HBasicBlock* block) {
-  // Try to replace outside uses with the last value. Environment uses can consume this
-  // value too, since any first true use is outside the loop (although this may imply
-  // that de-opting may look "ahead" a bit on the phi value). If there are only environment
-  // uses, the value is dropped altogether, since the computations have no effect.
+bool HLoopOptimization::TryReplaceWithLastValue(HLoopInformation* loop_info,
+                                                HInstruction* instruction,
+                                                HBasicBlock* block) {
+  // Try to replace outside uses with the last value.
   if (induction_range_.CanGenerateLastValue(instruction)) {
     HInstruction* replacement = induction_range_.GenerateLastValue(instruction, graph_, block);
     const HUseList<HInstruction*>& uses = instruction->GetUses();
@@ -1363,6 +1384,11 @@ bool HLoopOptimization::TryReplaceWithLastValue(HInstruction* instruction, HBasi
       size_t index = it->GetIndex();
       ++it;  // increment before replacing
       if (iset_->find(user) == iset_->end()) {  // not excluded?
+        if (kIsDebugBuild) {
+          // We have checked earlier in 'IsOnlyUsedAfterLoop' that the use is after the loop.
+          HLoopInformation* other_loop_info = user->GetBlock()->GetLoopInformation();
+          CHECK(other_loop_info == nullptr || !other_loop_info->IsIn(*loop_info));
+        }
         user->ReplaceInput(replacement, index);
         induction_range_.Replace(user, instruction, replacement);  // update induction
       }
@@ -1373,9 +1399,13 @@ bool HLoopOptimization::TryReplaceWithLastValue(HInstruction* instruction, HBasi
       size_t index = it->GetIndex();
       ++it;  // increment before replacing
       if (iset_->find(user->GetHolder()) == iset_->end()) {  // not excluded?
-        user->RemoveAsUserOfInput(index);
-        user->SetRawEnvAt(index, replacement);
-        replacement->AddEnvUseAt(user, index);
+        HLoopInformation* other_loop_info = user->GetHolder()->GetBlock()->GetLoopInformation();
+        // Only update environment uses after the loop.
+        if (other_loop_info == nullptr || !other_loop_info->IsIn(*loop_info)) {
+          user->RemoveAsUserOfInput(index);
+          user->SetRawEnvAt(index, replacement);
+          replacement->AddEnvUseAt(user, index);
+        }
       }
     }
     induction_simplication_count_++;
@@ -1394,7 +1424,7 @@ bool HLoopOptimization::TryAssignLastValue(HLoopInformation* loop_info,
   int32_t use_count = 0;
   return IsOnlyUsedAfterLoop(loop_info, instruction, collect_loop_uses, &use_count) &&
       (use_count == 0 ||
-       (!IsEarlyExit(loop_info) && TryReplaceWithLastValue(instruction, block)));
+       (!IsEarlyExit(loop_info) && TryReplaceWithLastValue(loop_info, instruction, block)));
 }
 
 void HLoopOptimization::RemoveDeadInstructions(const HInstructionList& list) {
