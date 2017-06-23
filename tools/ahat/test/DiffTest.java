@@ -20,7 +20,6 @@ import com.android.ahat.heapdump.AhatHeap;
 import com.android.ahat.heapdump.AhatInstance;
 import com.android.ahat.heapdump.AhatSnapshot;
 import com.android.ahat.heapdump.Diff;
-import com.android.ahat.heapdump.FieldValue;
 import com.android.tools.perflib.heap.hprof.HprofClassDump;
 import com.android.tools.perflib.heap.hprof.HprofConstant;
 import com.android.tools.perflib.heap.hprof.HprofDumpRecord;
@@ -128,36 +127,5 @@ public class DiffTest {
 
     // Diffing should not crash.
     Diff.snapshots(snapshot, snapshot);
-  }
-
-  @Test
-  public void diffFields() {
-    List<FieldValue> a = new ArrayList<FieldValue>();
-    a.add(new FieldValue("n0", "t0", null));
-    a.add(new FieldValue("n2", "t2", null));
-    a.add(new FieldValue("n3", "t3", null));
-    a.add(new FieldValue("n4", "t4", null));
-    a.add(new FieldValue("n5", "t5", null));
-    a.add(new FieldValue("n6", "t6", null));
-
-    List<FieldValue> b = new ArrayList<FieldValue>();
-    b.add(new FieldValue("n0", "t0", null));
-    b.add(new FieldValue("n1", "t1", null));
-    b.add(new FieldValue("n2", "t2", null));
-    b.add(new FieldValue("n3", "t3", null));
-    b.add(new FieldValue("n5", "t5", null));
-    b.add(new FieldValue("n6", "t6", null));
-    b.add(new FieldValue("n7", "t7", null));
-
-    Diff.fields(a, b);
-    assertEquals(8, a.size());
-    assertEquals(8, b.size());
-    for (int i = 0; i < 8; i++) {
-      assertEquals(a.get(i), b.get(i).getBaseline());
-      assertEquals(b.get(i), a.get(i).getBaseline());
-    }
-    assertTrue(a.get(1).isPlaceHolder());
-    assertTrue(a.get(7).isPlaceHolder());
-    assertTrue(b.get(4).isPlaceHolder());
   }
 }

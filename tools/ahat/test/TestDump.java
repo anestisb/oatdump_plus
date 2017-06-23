@@ -118,9 +118,9 @@ public class TestDump {
   private Value getDumpedValue(String name, AhatSnapshot snapshot) {
     AhatClassObj main = snapshot.findClass("Main");
     AhatInstance stuff = null;
-    for (FieldValue fields : main.getStaticFieldValues()) {
-      if ("stuff".equals(fields.getName())) {
-        stuff = fields.getValue().asAhatInstance();
+    for (FieldValue field : main.getStaticFieldValues()) {
+      if ("stuff".equals(field.name)) {
+        stuff = field.value.asAhatInstance();
       }
     }
     return stuff.getField(name);

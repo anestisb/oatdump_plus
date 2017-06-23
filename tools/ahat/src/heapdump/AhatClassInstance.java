@@ -54,8 +54,8 @@ public class AhatClassInstance extends AhatInstance {
 
   @Override public Value getField(String fieldName) {
     for (FieldValue field : mFieldValues) {
-      if (fieldName.equals(field.getName())) {
-        return field.getValue();
+      if (fieldName.equals(field.name)) {
+        return field.value;
       }
     }
     return null;
