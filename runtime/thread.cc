@@ -1467,11 +1467,13 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function) {
 
     {
       ScopedThreadListLockUnlock stllu(self);
-      ScopedThreadSuspension sts(self, ThreadState::kWaiting);
-      while (GetState() == ThreadState::kRunnable) {
-        // We became runnable again. Wait till the suspend triggered in ModifySuspendCount
-        // moves us to suspended.
-        sched_yield();
+      {
+        ScopedThreadSuspension sts(self, ThreadState::kWaiting);
+        while (GetState() == ThreadState::kRunnable) {
+          // We became runnable again. Wait till the suspend triggered in ModifySuspendCount
+          // moves us to suspended.
+          sched_yield();
+        }
       }
 
       function->Run(this);
@@ -1483,6 +1485,13 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function) {
       DCHECK_NE(GetState(), ThreadState::kRunnable);
       bool updated = ModifySuspendCount(self, -1, nullptr, false);
       DCHECK(updated);
+    }
+
+    {
+      // Imitate ResumeAll, the thread may be waiting on Thread::resume_cond_ since we raised its
+      // suspend count. Now the suspend_count_ is lowered so we must do the broadcast.
+      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+      Thread::resume_cond_->Broadcast(self);
     }
 
     return true;  // We're done, break out of the loop.
