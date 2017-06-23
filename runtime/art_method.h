@@ -451,7 +451,11 @@ class ArtMethod FINAL {
   }
 
   ProfilingInfo* GetProfilingInfo(PointerSize pointer_size) {
-    DCHECK(!IsNative());
+    // Don't do a read barrier in the DCHECK, as GetProfilingInfo is called in places
+    // where the declaring class is treated as a weak reference (accessing it with
+    // a read barrier would either prevent unloading the class, or crash the runtime if
+    // the GC wants to unload it).
+    DCHECK(!IsNative<kWithoutReadBarrier>());
     return reinterpret_cast<ProfilingInfo*>(GetDataPtrSize(pointer_size));
   }
 
