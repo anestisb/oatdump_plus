@@ -79,8 +79,10 @@ fi
 # Print the file path (relative to $TOP) to the classes.jar of each boot jar in the intermediates directory.
 intermediates_dir=$(get_build_var "$intermediates_env_var")
 
-# turn the file path into an absolute path
-intermediates_dir=$(readlink -f $TOP/$intermediates_dir)
+# turn the file path into an absolute path if needed
+pushd "$TOP" >/dev/null
+intermediates_dir=$(readlink -m "$intermediates_dir")
+popd >/dev/null
 
 for jar in $boot_jars_list; do
   echo "$intermediates_dir/JAVA_LIBRARIES/${jar}_intermediates/classes.jar"
