@@ -621,6 +621,100 @@ TEST_F(ProfileAssistantTest, TestProfileCreationGenerateMethods) {
   EXPECT_GT(method_count, 0u);
 }
 
+TEST_F(ProfileAssistantTest, TestBootImageProfile) {
+  const std::string core_dex = GetLibCoreDexFileNames()[0];
+
+  std::vector<ScratchFile> profiles;
+
+  // In image with enough clean occurrences.
+  const std::string kCleanClass = "Ljava/lang/CharSequence;";
+  // In image with enough dirty occurrences.
+  const std::string kDirtyClass = "Ljava/lang/Object;";
+  // Not in image becauseof not enough occurrences.
+  const std::string kUncommonCleanClass = "Ljava/lang/Process;";
+  const std::string kUncommonDirtyClass = "Ljava/lang/Package;";
+  // Method that is hot.
+  // Also adds the class through inference since it is in each dex.
+  const std::string kHotMethod = "Ljava/lang/Comparable;->compareTo(Ljava/lang/Object;)I";
+  // Method that doesn't add the class since its only in one profile. Should still show up in the
+  // boot profile.
+  const std::string kOtherMethod = "Ljava/util/HashMap;-><init>()V";
+
+  // Thresholds for this test.
+  static const size_t kDirtyThreshold = 3;
+  static const size_t kCleanThreshold = 2;
+
+  // Create a bunch of boot profiles.
+  std::string dex1 =
+      kCleanClass + "\n" +
+      kDirtyClass + "\n" +
+      kUncommonCleanClass + "\n" +
+      "H" + kHotMethod + "\n" +
+      kUncommonDirtyClass;
+  profiles.emplace_back(ScratchFile());
+  EXPECT_TRUE(CreateProfile(dex1, profiles.back().GetFilename(), core_dex));
+
+  // Create a bunch of boot profiles.
+  std::string dex2 =
+      kCleanClass + "\n" +
+      kDirtyClass + "\n" +
+      "P" + kHotMethod + "\n" +
+      kUncommonDirtyClass;
+  profiles.emplace_back(ScratchFile());
+  EXPECT_TRUE(CreateProfile(dex2, profiles.back().GetFilename(), core_dex));
+
+  // Create a bunch of boot profiles.
+  std::string dex3 =
+      "S" + kHotMethod + "\n" +
+      "P" + kOtherMethod + "\n" +
+      kDirtyClass + "\n";
+  profiles.emplace_back(ScratchFile());
+  EXPECT_TRUE(CreateProfile(dex3, profiles.back().GetFilename(), core_dex));
+
+  // Generate the boot profile.
+  ScratchFile out_profile;
+  std::vector<std::string> args;
+  args.push_back(GetProfmanCmd());
+  args.push_back("--generate-boot-image-profile");
+  args.push_back("--boot-image-class-threshold=" + std::to_string(kDirtyThreshold));
+  args.push_back("--boot-image-clean-class-threshold=" + std::to_string(kCleanThreshold));
+  args.push_back("--reference-profile-file=" + out_profile.GetFilename());
+  args.push_back("--apk=" + core_dex);
+  args.push_back("--dex-location=" + core_dex);
+  for (const ScratchFile& profile : profiles) {
+    args.push_back("--profile-file=" + profile.GetFilename());
+  }
+  std::string error;
+  EXPECT_EQ(ExecAndReturnCode(args, &error), 0) << error;
+  ASSERT_EQ(0, out_profile.GetFile()->Flush());
+  ASSERT_TRUE(out_profile.GetFile()->ResetOffset());
+
+  // Verify the boot profile contents.
+  std::string output_file_contents;
+  EXPECT_TRUE(DumpClassesAndMethods(out_profile.GetFilename(), &output_file_contents));
+  // Common classes, should be in the classes of the profile.
+  EXPECT_NE(output_file_contents.find(kCleanClass + "\n"), std::string::npos)
+      << output_file_contents;
+  EXPECT_NE(output_file_contents.find(kDirtyClass + "\n"), std::string::npos)
+      << output_file_contents;
+  // Uncommon classes, should not fit preloaded class criteria and should not be in the profile.
+  EXPECT_EQ(output_file_contents.find(kUncommonCleanClass + "\n"), std::string::npos)
+      << output_file_contents;
+  EXPECT_EQ(output_file_contents.find(kUncommonDirtyClass + "\n"), std::string::npos)
+      << output_file_contents;
+  // Inferred class from a method common to all three profiles.
+  EXPECT_NE(output_file_contents.find("Ljava/lang/Comparable;\n"), std::string::npos)
+      << output_file_contents;
+  // Aggregated methods hotness information.
+  EXPECT_NE(output_file_contents.find("HSP" + kHotMethod), std::string::npos)
+      << output_file_contents;
+  EXPECT_NE(output_file_contents.find(kOtherMethod), std::string::npos)
+      << output_file_contents;
+  // Not inferred class, method is only in one profile.
+  EXPECT_EQ(output_file_contents.find("Ljava/util/HashMap;\n"), std::string::npos)
+      << output_file_contents;
+}
+
 TEST_F(ProfileAssistantTest, TestProfileCreationOneNotMatched) {
   // Class names put here need to be in sorted order.
   std::vector<std::string> class_names = {

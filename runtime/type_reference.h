@@ -37,6 +37,15 @@ struct TypeReference {
   dex::TypeIndex type_index;
 };
 
+struct TypeReferenceComparator {
+  bool operator()(TypeReference mr1, TypeReference mr2) const {
+    if (mr1.dex_file != mr2.dex_file) {
+      return mr1.dex_file < mr2.dex_file;
+    }
+    return mr1.type_index < mr2.type_index;
+  }
+};
+
 // Compare the actual referenced type names. Used for type reference deduplication.
 struct TypeReferenceValueComparator {
   bool operator()(TypeReference tr1, TypeReference tr2) const {

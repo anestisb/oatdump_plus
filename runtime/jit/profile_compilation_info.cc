@@ -1148,7 +1148,8 @@ int ProfileCompilationInfo::InflateBuffer(const uint8_t* in_buffer,
   return ret;
 }
 
-bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
+bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other,
+                                       bool merge_classes) {
   // First verify that all checksums match. This will avoid adding garbage to
   // the current profile info.
   // Note that the number of elements should be very small, so this should not
@@ -1194,8 +1195,10 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
     DCHECK(dex_data != nullptr);
 
     // Merge the classes.
-    dex_data->class_set.insert(other_dex_data->class_set.begin(),
-                               other_dex_data->class_set.end());
+    if (merge_classes) {
+      dex_data->class_set.insert(other_dex_data->class_set.begin(),
+                                 other_dex_data->class_set.end());
+    }
 
     // Merge the methods and the inline caches.
     for (const auto& other_method_it : other_dex_data->method_map) {
@@ -1237,6 +1240,18 @@ ProfileCompilationInfo::MethodHotness ProfileCompilationInfo::GetMethodHotness(
   return dex_data != nullptr
       ? dex_data->GetHotnessInfo(method_ref.dex_method_index)
       : MethodHotness();
+}
+
+bool ProfileCompilationInfo::AddMethodHotness(const MethodReference& method_ref,
+                                              const MethodHotness& hotness) {
+  DexFileData* dex_data = GetOrAddDexFileData(method_ref.dex_file);
+  if (dex_data != nullptr) {
+    // TODO: Add inline caches.
+    dex_data->AddMethod(static_cast<MethodHotness::Flag>(hotness.GetFlags()),
+                        method_ref.dex_method_index);
+    return true;
+  }
+  return false;
 }
 
 ProfileCompilationInfo::MethodHotness ProfileCompilationInfo::GetMethodHotness(
