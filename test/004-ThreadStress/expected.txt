@@ -9,3 +9,14 @@ Finishing worker
 Finishing worker
 Finishing worker
 Finishing worker
+JNI_OnLoad called
+Starting worker for N
+Starting worker for N
+Starting worker for N
+Starting worker for N
+Starting worker for N
+Finishing worker
+Finishing worker
+Finishing worker
+Finishing worker
+Finishing worker

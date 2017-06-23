@@ -1064,7 +1064,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   oat_file_manager_ = new OatFileManager;
 
   Thread::SetSensitiveThreadHook(runtime_options.GetOrDefault(Opt::HookIsSensitiveThread));
-  Monitor::Init(runtime_options.GetOrDefault(Opt::LockProfThreshold));
+  Monitor::Init(runtime_options.GetOrDefault(Opt::LockProfThreshold),
+                runtime_options.GetOrDefault(Opt::StackDumpLockProfThreshold));
 
   boot_class_path_string_ = runtime_options.ReleaseOrDefault(Opt::BootClassPath);
   class_path_string_ = runtime_options.ReleaseOrDefault(Opt::ClassPath);
