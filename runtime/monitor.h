@@ -55,7 +55,7 @@ class Monitor {
 
   ~Monitor();
 
-  static void Init(uint32_t lock_profiling_threshold);
+  static void Init(uint32_t lock_profiling_threshold, uint32_t stack_dump_lock_profiling_threshold);
 
   // Return the thread id of the lock owner or 0 when there is no owner.
   static uint32_t GetLockOwnerThreadId(mirror::Object* obj)
@@ -273,6 +273,7 @@ class Monitor {
   ALWAYS_INLINE static void AtraceMonitorUnlock();
 
   static uint32_t lock_profiling_threshold_;
+  static uint32_t stack_dump_lock_profiling_threshold_;
 
   Mutex monitor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 

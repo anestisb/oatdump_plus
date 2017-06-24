@@ -16,3 +16,7 @@
 
 # Enable lock contention logging.
 ${RUN} --runtime-option -Xlockprofthreshold:10 "${@}"
+
+# Run locks-only mode with stack-dump lock profiling. Reduce the number of total operations from
+# the default 1000 to 100.
+${RUN} --runtime-option -Xlockprofthreshold:10 --runtime-option -Xstackdumplockprofthreshold:20 "${@}" Main --locks-only -o 100

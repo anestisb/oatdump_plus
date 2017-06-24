@@ -232,7 +232,7 @@ public class Main implements Runnable {
         public boolean perform() {
             synchronized (lock) {
                 try {
-                    Thread.sleep((int)(Math.random()*10));
+                    Thread.sleep((int)(Math.random() * 50 + 50));
                 } catch (InterruptedException ignored) {
                 }
             }
