@@ -602,6 +602,20 @@
     },
     {
         "tests": [
+            "458-checker-instruct-simplification",
+            "536-checker-intrinsic-optimization",
+            "565-checker-doublenegbitwise",
+            "567-checker-compare",
+            "586-checker-null-array-get",
+            "593-checker-boolean-2-integral-conv",
+            "633-checker-rtp-getclass"
+        ],
+        "description": "Checker tests failing when run with --build-with-javac-dx.",
+        "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
+        "bug": "b/62950048"
+    },
+    {
+        "tests": [
             "536-checker-needs-access-check",
             "537-checker-inline-and-unverified",
             "569-checker-pattern-replacement",

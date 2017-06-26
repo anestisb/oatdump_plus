@@ -749,7 +749,7 @@ export TEST_NAME=`basename ${test_dir}`
 # Tests named '<number>-checker-*' will also have their CFGs verified with
 # Checker when compiled with Optimizing on host.
 if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
-  if [ "$runtime" = "art" -a "$image_suffix" = "" -a "$USE_JACK" = "true" ]; then
+  if [ "$runtime" = "art" -a "$image_suffix" = "" ]; then
     # In no-prebuild or no-image mode, the compiler only quickens so disable the checker.
     if [ "$prebuild_mode" = "yes" -a "$have_image" = "yes" ]; then
       run_checker="yes"
