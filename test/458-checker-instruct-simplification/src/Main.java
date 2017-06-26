@@ -982,17 +982,18 @@ public class Main {
    */
 
   /// CHECK-START: long Main.$noinline$NotNot1(long) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Not1:j\d+>>     Not [<<Arg>>]
-  /// CHECK-DAG:     <<Not2:j\d+>>     Not [<<Not1>>]
-  /// CHECK-DAG:                       Return [<<Not2>>]
+  /// CHECK-DAG:     <<Arg:j\d+>>       ParameterValue
+  /// CHECK-DAG:     <<ConstNeg1:j\d+>> LongConstant -1
+  /// CHECK-DAG:     <<Not1:j\d+>>      Xor [<<Arg>>,<<ConstNeg1>>]
+  /// CHECK-DAG:     <<Not2:j\d+>>      Xor [<<Not1>>,<<ConstNeg1>>]
+  /// CHECK-DAG:                        Return [<<Not2>>]
 
   /// CHECK-START: long Main.$noinline$NotNot1(long) instruction_simplifier (after)
   /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
   /// CHECK-DAG:                       Return [<<Arg>>]
 
   /// CHECK-START: long Main.$noinline$NotNot1(long) instruction_simplifier (after)
-  /// CHECK-NOT:                       Not
+  /// CHECK-NOT:                       Xor
 
   public static long $noinline$NotNot1(long arg) {
     if (doThrow) { throw new Error(); }
@@ -1000,11 +1001,12 @@ public class Main {
   }
 
   /// CHECK-START: int Main.$noinline$NotNot2(int) instruction_simplifier (before)
-  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Not1:i\d+>>     Not [<<Arg>>]
-  /// CHECK-DAG:     <<Not2:i\d+>>     Not [<<Not1>>]
-  /// CHECK-DAG:     <<Add:i\d+>>      Add [<<Not2>>,<<Not1>>]
-  /// CHECK-DAG:                       Return [<<Add>>]
+  /// CHECK-DAG:     <<Arg:i\d+>>       ParameterValue
+  /// CHECK-DAG:     <<ConstNeg1:i\d+>> IntConstant -1
+  /// CHECK-DAG:     <<Not1:i\d+>>      Xor [<<Arg>>,<<ConstNeg1>>]
+  /// CHECK-DAG:     <<Not2:i\d+>>      Xor [<<Not1>>,<<ConstNeg1>>]
+  /// CHECK-DAG:     <<Add:i\d+>>       Add [<<Not2>>,<<Not1>>]
+  /// CHECK-DAG:                        Return [<<Add>>]
 
   /// CHECK-START: int Main.$noinline$NotNot2(int) instruction_simplifier (after)
   /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
@@ -1015,6 +1017,9 @@ public class Main {
   /// CHECK-START: int Main.$noinline$NotNot2(int) instruction_simplifier (after)
   /// CHECK:                           Not
   /// CHECK-NOT:                       Not
+
+  /// CHECK-START: int Main.$noinline$NotNot2(int) instruction_simplifier (after)
+  /// CHECK-NOT:                       Xor
 
   public static int $noinline$NotNot2(int arg) {
     if (doThrow) { throw new Error(); }
@@ -1180,30 +1185,46 @@ public class Main {
 
   /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
-  /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
-  /// CHECK-DAG:     <<Result:z\d+>>    InvokeStaticOrDirect
-  /// CHECK-DAG:     <<NotResult:i\d+>> Xor [<<Result>>,<<Const1>>]
-  /// CHECK-DAG:                        Return [<<NotResult>>]
+  /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 0
+  /// CHECK-DAG:     <<Result:z\d+>>    InvokeStaticOrDirect method_name:Main.NegateValue
+  /// CHECK-DAG:     <<NotResult:z\d+>> NotEqual [<<Result>>,<<Const1>>]
+  /// CHECK-DAG:                        If [<<NotResult>>]
+
+  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier (after)
+  /// CHECK-NOT:                        NotEqual
 
   /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier (after)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
-  /// CHECK-DAG:     <<Result:z\d+>>    InvokeStaticOrDirect
-  /// CHECK-DAG:     <<NotResult:z\d+>> BooleanNot [<<Result>>]
-  /// CHECK-DAG:                        Return [<<NotResult>>]
+  /// CHECK-DAG:     <<Result:z\d+>>    InvokeStaticOrDirect method_name:Main.NegateValue
+  /// CHECK-DAG:     <<Const0:i\d+>>    IntConstant 0
+  /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
+  /// CHECK-DAG:     <<Phi:i\d+>>       Phi [<<Const1>>,<<Const0>>]
+  /// CHECK-DAG:                        Return [<<Phi>>]
 
   /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier$after_inlining (before)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
-  /// CHECK-DAG:     <<NotArg:z\d+>>    BooleanNot [<<Arg>>]
-  /// CHECK-DAG:     <<NotNotArg:z\d+>> BooleanNot [<<NotArg>>]
-  /// CHECK-DAG:                        Return [<<NotNotArg>>]
+  /// CHECK-NOT:                        BooleanNot [<<Arg>>]
+  /// CHECK-NOT:                        Phi
+
+  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier$after_inlining (before)
+  /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
+  /// CHECK-DAG:     <<Const0:i\d+>>    IntConstant 0
+  /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
+  /// CHECK-DAG:     <<Sel:i\d+>>       Select [<<Const1>>,<<Const0>>,<<Arg>>]
+  /// CHECK-DAG:     <<Sel2:i\d+>>      Select [<<Const1>>,<<Const0>>,<<Sel>>]
+  /// CHECK-DAG:                        Return [<<Sel2>>]
 
   /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier$after_inlining (after)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
-  /// CHECK-DAG:     <<NotArg:z\d+>>    BooleanNot [<<Arg>>]
-  /// CHECK-DAG:                        Return [<<Arg>>]
+  /// CHECK:                            BooleanNot [<<Arg>>]
+  /// CHECK-NEXT:                       Goto
+
+  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier$after_inlining (after)
+  /// CHECK-NOT:                        Select
 
   /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) dead_code_elimination$final (after)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
+  /// CHECK-NOT:                        BooleanNot [<<Arg>>]
   /// CHECK-DAG:                        Return [<<Arg>>]
 
   public static boolean NegateValue(boolean arg) {
@@ -1882,12 +1903,34 @@ public class Main {
     }
   }
 
-  public static int $noinline$runSmaliTestConst(String name, int arg) {
+  public static boolean $noinline$runSmaliTestBoolean(String name, boolean input) {
+    if (doThrow) { throw new Error(); }
+    try {
+      Class<?> c = Class.forName("SmaliTests");
+      Method m = c.getMethod(name, boolean.class);
+      return (Boolean) m.invoke(null, input);
+    } catch (Exception ex) {
+      throw new Error(ex);
+    }
+  }
+
+  public static int $noinline$runSmaliTestInt(String name, int arg) {
     if (doThrow) { throw new Error(); }
     try {
       Class<?> c = Class.forName("SmaliTests");
       Method m = c.getMethod(name, int.class);
       return (Integer) m.invoke(null, arg);
+    } catch (Exception ex) {
+      throw new Error(ex);
+    }
+  }
+
+  public static long $noinline$runSmaliTestLong(String name, long arg) {
+    if (doThrow) { throw new Error(); }
+    try {
+      Class<?> c = Class.forName("SmaliTests");
+      Method m = c.getMethod(name, long.class);
+      return (Long) m.invoke(null, arg);
     } catch (Exception ex) {
       throw new Error(ex);
     }
@@ -2188,7 +2231,9 @@ public class Main {
     assertIntEquals(1, $noinline$NegSub1(arg, arg + 1));
     assertIntEquals(1, $noinline$NegSub2(arg, arg + 1));
     assertLongEquals(arg, $noinline$NotNot1(arg));
+    assertLongEquals(arg, $noinline$runSmaliTestLong("NotNot1", arg));
     assertIntEquals(-1, $noinline$NotNot2(arg));
+    assertIntEquals(-1, $noinline$runSmaliTestInt("NotNot2", arg));
     assertIntEquals(-(arg + arg + 1), $noinline$SubNeg1(arg, arg + 1));
     assertIntEquals(-(arg + arg + 1), $noinline$SubNeg2(arg, arg + 1));
     assertLongEquals(-(2 * arg + 1), $noinline$SubNeg3(arg, arg + 1));
@@ -2197,7 +2242,9 @@ public class Main {
     assertBooleanEquals(false, $noinline$NotEqualBoolVsIntConst(false));
     assertBooleanEquals(false, $noinline$NotEqualBoolVsIntConst(false));
     assertBooleanEquals(true, $noinline$NotNotBool(true));
+    assertBooleanEquals(true, $noinline$runSmaliTestBoolean("NotNotBool", true));
     assertBooleanEquals(false, $noinline$NotNotBool(false));
+    assertBooleanEquals(false, $noinline$runSmaliTestBoolean("NotNotBool", false));
     assertFloatEquals(50.0f, $noinline$Div2(100.0f));
     assertDoubleEquals(75.0, $noinline$Div2(150.0));
     assertFloatEquals(-400.0f, $noinline$DivMP25(100.0f));
@@ -2309,11 +2356,11 @@ public class Main {
       }
     }
 
-    assertIntEquals(0, $noinline$runSmaliTestConst("AddSubConst", 1));
-    assertIntEquals(3, $noinline$runSmaliTestConst("SubAddConst", 2));
-    assertIntEquals(-16, $noinline$runSmaliTestConst("SubSubConst1", 3));
-    assertIntEquals(-5, $noinline$runSmaliTestConst("SubSubConst2", 4));
-    assertIntEquals(26, $noinline$runSmaliTestConst("SubSubConst3", 5));
+    assertIntEquals(0, $noinline$runSmaliTestInt("AddSubConst", 1));
+    assertIntEquals(3, $noinline$runSmaliTestInt("SubAddConst", 2));
+    assertIntEquals(-16, $noinline$runSmaliTestInt("SubSubConst1", 3));
+    assertIntEquals(-5, $noinline$runSmaliTestInt("SubSubConst2", 4));
+    assertIntEquals(26, $noinline$runSmaliTestInt("SubSubConst3", 5));
     assertIntEquals(0x5e6f7808, $noinline$intUnnecessaryShiftMasking(0xabcdef01, 3));
     assertIntEquals(0x5e6f7808, $noinline$intUnnecessaryShiftMasking(0xabcdef01, 3 + 32));
     assertLongEquals(0xffffffffffffeaf3L, $noinline$longUnnecessaryShiftMasking(0xabcdef0123456789L, 50));
