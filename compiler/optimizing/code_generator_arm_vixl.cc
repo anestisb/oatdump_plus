@@ -2557,21 +2557,28 @@ void InstructionCodeGeneratorARMVIXL::GenerateCompareTestAndBranch(HCondition* c
   if (CanGenerateTest(condition, codegen_->GetAssembler())) {
     vixl32::Label* non_fallthrough_target;
     bool invert;
+    bool emit_both_branches;
 
     if (true_target_in == nullptr) {
+      // The true target is fallthrough.
       DCHECK(false_target_in != nullptr);
       non_fallthrough_target = false_target_in;
       invert = true;
+      emit_both_branches = false;
     } else {
       non_fallthrough_target = true_target_in;
       invert = false;
+      // Either the false target is fallthrough, or there is no fallthrough
+      // and both branches must be emitted.
+      emit_both_branches = (false_target_in != nullptr);
     }
 
     const auto cond = GenerateTest(condition, invert, codegen_);
 
     __ B(cond.first, non_fallthrough_target);
 
-    if (false_target_in != nullptr && false_target_in != non_fallthrough_target) {
+    if (emit_both_branches) {
+      // No target falls through, we need to branch.
       __ B(false_target_in);
     }
 
