@@ -393,6 +393,7 @@ cc_defaults {
         "626-const-class-linking/clear_dex_cache_types.cc",
         "642-fp-callees/fp_callees.cc",
         "647-jni-get-field-id/get_field_id.cc",
+        "656-annotation-lookup-generic-jni/test.cc"
     ],
     shared_libs: [
         "libbacktrace",
