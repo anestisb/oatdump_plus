@@ -634,7 +634,7 @@ public class Main {
   /// CHECK-DAG:     <<Null:l\d+>>  NullConstant
   /// CHECK-DAG:     <<Phi:l\d+>>   Phi [<<Arg>>,<<Null>>] klass:SubclassA
   /// CHECK-DAG:     <<NCPhi:l\d+>> NullCheck [<<Phi>>]
-  /// CHECK-DAG:                    InvokeVirtual [<<NCPhi>>] method_name:Super.hashCode
+  /// CHECK-DAG:                    InvokeVirtual [<<NCPhi>>] method_name:java.lang.Object.hashCode
 
   public void testThisArgumentMoreSpecific(boolean cond) {
     // Inlining method from Super will build it with `this` typed as Super.
@@ -655,7 +655,7 @@ public class Main {
   /// CHECK-START: void Main.testExplicitArgumentMoreSpecific(SubclassA) inliner (after)
   /// CHECK-DAG:     <<Arg:l\d+>>   ParameterValue klass:SubclassA
   /// CHECK-DAG:     <<NCArg:l\d+>> NullCheck [<<Arg>>] klass:SubclassA
-  /// CHECK-DAG:                    InvokeVirtual [<<NCArg>>] method_name:Super.hashCode
+  /// CHECK-DAG:                    InvokeVirtual [<<NCArg>>] method_name:java.lang.Object.hashCode
 
   public void testExplicitArgumentMoreSpecific(SubclassA obj) {
     // Inlining a method will build it with reference types from its signature,
