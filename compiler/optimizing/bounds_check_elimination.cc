@@ -1121,6 +1121,66 @@ class BCEVisitor : public HGraphVisitor {
     }
   }
 
+  void VisitRem(HRem* instruction) OVERRIDE {
+    HInstruction* left = instruction->GetLeft();
+    HInstruction* right = instruction->GetRight();
+
+    // Handle 'i % CONST' format expression in array index, e.g:
+    //   array[i % 20];
+    if (right->IsIntConstant()) {
+      int32_t right_const = std::abs(right->AsIntConstant()->GetValue());
+      if (right_const == 0) {
+        return;
+      }
+      // The sign of divisor CONST doesn't affect the sign final value range.
+      // For example:
+      // if (i > 0) {
+      //   array[i % 10];  // index value range [0, 9]
+      //   array[i % -10]; // index value range [0, 9]
+      // }
+      ValueRange* right_range = new (GetGraph()->GetArena()) ValueRange(
+          GetGraph()->GetArena(),
+          ValueBound(nullptr, 1 - right_const),
+          ValueBound(nullptr, right_const - 1));
+
+      ValueRange* left_range = LookupValueRange(left, left->GetBlock());
+      if (left_range != nullptr) {
+        right_range = left_range->Narrow(right_range);
+      }
+      AssignRange(instruction->GetBlock(), instruction, right_range);
+      return;
+    }
+
+    // Handle following pattern:
+    // i0 NullCheck
+    // i1 ArrayLength[i0]
+    // i2 DivByZeroCheck [i1]  <-- right
+    // i3 Rem [i5, i2]         <-- we are here.
+    // i4 BoundsCheck [i3,i1]
+    if (right->IsDivZeroCheck()) {
+      // if array_length can pass div-by-zero check,
+      // array_length must be > 0.
+      right = right->AsDivZeroCheck()->InputAt(0);
+    }
+
+    // Handle 'i % array.length' format expression in array index, e.g:
+    //   array[(i+7) % array.length];
+    if (right->IsArrayLength()) {
+      ValueBound lower = ValueBound::Min();  // ideally, lower should be '1-array_length'.
+      ValueBound upper = ValueBound(right, -1);  // array_length - 1
+      ValueRange* right_range = new (GetGraph()->GetArena()) ValueRange(
+          GetGraph()->GetArena(),
+          lower,
+          upper);
+      ValueRange* left_range = LookupValueRange(left, left->GetBlock());
+      if (left_range != nullptr) {
+        right_range = left_range->Narrow(right_range);
+      }
+      AssignRange(instruction->GetBlock(), instruction, right_range);
+      return;
+    }
+  }
+
   void VisitNewArray(HNewArray* new_array) OVERRIDE {
     HInstruction* len = new_array->GetLength();
     if (!len->IsIntConstant()) {

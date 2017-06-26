@@ -951,4 +951,152 @@ TEST_F(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   ASSERT_TRUE(IsRemoved(bounds_check6));
 }
 
+// int[] array = new int[10];
+// for (int i=0; i<200; i++) {
+//   array[i%10] = 10;            // Can eliminate
+//   array[i%1] = 10;             // Can eliminate
+//   array[i%200] = 10;           // Cannot eliminate
+//   array[i%-10] = 10;           // Can eliminate
+//   array[i%array.length] = 10;  // Can eliminate
+//   array[param_i%10] = 10;      // Can't eliminate, when param_i < 0
+// }
+TEST_F(BoundsCheckEliminationTest, ModArrayBoundsElimination) {
+  HBasicBlock* entry = new (&allocator_) HBasicBlock(graph_);
+  graph_->AddBlock(entry);
+  graph_->SetEntryBlock(entry);
+  HInstruction* param_i = new (&allocator_)
+      HParameterValue(graph_->GetDexFile(), dex::TypeIndex(0), 0, Primitive::kPrimInt);
+  entry->AddInstruction(param_i);
+
+  HInstruction* constant_0 = graph_->GetIntConstant(0);
+  HInstruction* constant_1 = graph_->GetIntConstant(1);
+  HInstruction* constant_10 = graph_->GetIntConstant(10);
+  HInstruction* constant_200 = graph_->GetIntConstant(200);
+  HInstruction* constant_minus_10 = graph_->GetIntConstant(-10);
+
+  HBasicBlock* block = new (&allocator_) HBasicBlock(graph_);
+  graph_->AddBlock(block);
+  entry->AddSuccessor(block);
+  // We pass a bogus constant for the class to avoid mocking one.
+  HInstruction* new_array = new (&allocator_) HNewArray(constant_10, constant_10, 0);
+  block->AddInstruction(new_array);
+  block->AddInstruction(new (&allocator_) HGoto());
+
+  HBasicBlock* loop_header = new (&allocator_) HBasicBlock(graph_);
+  HBasicBlock* loop_body = new (&allocator_) HBasicBlock(graph_);
+  HBasicBlock* exit = new (&allocator_) HBasicBlock(graph_);
+
+  graph_->AddBlock(loop_header);
+  graph_->AddBlock(loop_body);
+  graph_->AddBlock(exit);
+  block->AddSuccessor(loop_header);
+  loop_header->AddSuccessor(exit);       // true successor
+  loop_header->AddSuccessor(loop_body);  // false successor
+  loop_body->AddSuccessor(loop_header);
+
+  HPhi* phi = new (&allocator_) HPhi(&allocator_, 0, 0, Primitive::kPrimInt);
+  HInstruction* cmp = new (&allocator_) HGreaterThanOrEqual(phi, constant_200);
+  HInstruction* if_inst = new (&allocator_) HIf(cmp);
+  loop_header->AddPhi(phi);
+  loop_header->AddInstruction(cmp);
+  loop_header->AddInstruction(if_inst);
+  phi->AddInput(constant_0);
+
+  //////////////////////////////////////////////////////////////////////////////////
+  // LOOP BODY:
+  // array[i % 10] = 10;
+  HRem* i_mod_10 = new (&allocator_) HRem(Primitive::kPrimInt, phi, constant_10, 0);
+  HBoundsCheck* bounds_check_i_mod_10 = new (&allocator_) HBoundsCheck(i_mod_10, constant_10, 0);
+  HInstruction* array_set = new (&allocator_) HArraySet(
+      new_array, bounds_check_i_mod_10, constant_10, Primitive::kPrimInt, 0);
+  loop_body->AddInstruction(i_mod_10);
+  loop_body->AddInstruction(bounds_check_i_mod_10);
+  loop_body->AddInstruction(array_set);
+
+  // array[i % 1] = 10;
+  HRem* i_mod_1 = new (&allocator_) HRem(Primitive::kPrimInt, phi, constant_1, 0);
+  HBoundsCheck* bounds_check_i_mod_1 = new (&allocator_) HBoundsCheck(i_mod_1, constant_10, 0);
+  array_set = new (&allocator_) HArraySet(
+      new_array, bounds_check_i_mod_1, constant_10, Primitive::kPrimInt, 0);
+  loop_body->AddInstruction(i_mod_1);
+  loop_body->AddInstruction(bounds_check_i_mod_1);
+  loop_body->AddInstruction(array_set);
+
+  // array[i % 200] = 10;
+  HRem* i_mod_200 = new (&allocator_) HRem(Primitive::kPrimInt, phi, constant_1, 0);
+  HBoundsCheck* bounds_check_i_mod_200 = new (&allocator_) HBoundsCheck(i_mod_200, constant_10, 0);
+  array_set = new (&allocator_) HArraySet(
+      new_array, bounds_check_i_mod_200, constant_10, Primitive::kPrimInt, 0);
+  loop_body->AddInstruction(i_mod_200);
+  loop_body->AddInstruction(bounds_check_i_mod_200);
+  loop_body->AddInstruction(array_set);
+
+  // array[i % -10] = 10;
+  HRem* i_mod_minus_10 = new (&allocator_) HRem(Primitive::kPrimInt, phi, constant_minus_10, 0);
+  HBoundsCheck* bounds_check_i_mod_minus_10 = new (&allocator_) HBoundsCheck(
+      i_mod_minus_10, constant_10, 0);
+  array_set = new (&allocator_) HArraySet(
+      new_array, bounds_check_i_mod_minus_10, constant_10, Primitive::kPrimInt, 0);
+  loop_body->AddInstruction(i_mod_minus_10);
+  loop_body->AddInstruction(bounds_check_i_mod_minus_10);
+  loop_body->AddInstruction(array_set);
+
+  // array[i%array.length] = 10;
+  HNullCheck* null_check = new (&allocator_) HNullCheck(new_array, 0);
+  HArrayLength* array_length = new (&allocator_) HArrayLength(null_check, 0);
+  HRem* i_mod_array_length = new (&allocator_) HRem(Primitive::kPrimInt, phi, array_length, 0);
+  HBoundsCheck* bounds_check_i_mod_array_len = new (&allocator_) HBoundsCheck(
+      i_mod_array_length, array_length, 0);
+  array_set = new (&allocator_) HArraySet(
+      null_check, bounds_check_i_mod_array_len, constant_10, Primitive::kPrimInt, 0);
+  loop_body->AddInstruction(null_check);
+  loop_body->AddInstruction(array_length);
+  loop_body->AddInstruction(i_mod_array_length);
+  loop_body->AddInstruction(bounds_check_i_mod_array_len);
+  loop_body->AddInstruction(array_set);
+
+  // array[param_i % 10] = 10;
+  HRem* param_i_mod_10 = new (&allocator_) HRem(Primitive::kPrimInt, param_i, constant_10, 0);
+  HBoundsCheck* bounds_check_param_i_mod_10 = new (&allocator_) HBoundsCheck(
+      param_i_mod_10, constant_10, 0);
+  array_set = new (&allocator_) HArraySet(
+      new_array, bounds_check_param_i_mod_10, constant_10, Primitive::kPrimInt, 0);
+  loop_body->AddInstruction(param_i_mod_10);
+  loop_body->AddInstruction(bounds_check_param_i_mod_10);
+  loop_body->AddInstruction(array_set);
+
+  // array[param_i%array.length] = 10;
+  null_check = new (&allocator_) HNullCheck(new_array, 0);
+  array_length = new (&allocator_) HArrayLength(null_check, 0);
+  HRem* param_i_mod_array_length = new (&allocator_) HRem(
+      Primitive::kPrimInt, param_i, array_length, 0);
+  HBoundsCheck* bounds_check_param_i_mod_array_len = new (&allocator_) HBoundsCheck(
+      param_i_mod_array_length, array_length, 0);
+  array_set = new (&allocator_) HArraySet(
+      null_check, bounds_check_param_i_mod_array_len, constant_10, Primitive::kPrimInt, 0);
+  loop_body->AddInstruction(null_check);
+  loop_body->AddInstruction(array_length);
+  loop_body->AddInstruction(param_i_mod_array_length);
+  loop_body->AddInstruction(bounds_check_param_i_mod_array_len);
+  loop_body->AddInstruction(array_set);
+
+  // i++;
+  HInstruction* add = new (&allocator_) HAdd(Primitive::kPrimInt, phi, constant_1);
+  loop_body->AddInstruction(add);
+  loop_body->AddInstruction(new (&allocator_) HGoto());
+  phi->AddInput(add);
+  //////////////////////////////////////////////////////////////////////////////////
+
+  exit->AddInstruction(new (&allocator_) HExit());
+
+  RunBCE();
+
+  ASSERT_TRUE(IsRemoved(bounds_check_i_mod_10));
+  ASSERT_TRUE(IsRemoved(bounds_check_i_mod_1));
+  ASSERT_TRUE(IsRemoved(bounds_check_i_mod_200));
+  ASSERT_TRUE(IsRemoved(bounds_check_i_mod_minus_10));
+  ASSERT_TRUE(IsRemoved(bounds_check_i_mod_array_len));
+  ASSERT_FALSE(IsRemoved(bounds_check_param_i_mod_10));
+}
+
 }  // namespace art
