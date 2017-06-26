@@ -45,14 +45,12 @@ public class Main {
     }
 
     public static boolean $opt$noinline$testNoInline() {
-        boolean result = true;
         try {
-            result = (null instanceof InaccessibleClass);
-            throw new Error("Unreachable");
+            return null instanceof InaccessibleClass;
         } catch (IllegalAccessError e) {
             // expected
         }
-        return result;
+        return false;
     }
 
     public static boolean $opt$inline$testInline() {
