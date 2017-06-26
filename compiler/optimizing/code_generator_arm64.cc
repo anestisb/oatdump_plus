@@ -3563,9 +3563,6 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
                                                           size_t condition_input_index,
                                                           vixl::aarch64::Label* true_target,
                                                           vixl::aarch64::Label* false_target) {
-  // FP branching requires both targets to be explicit. If either of the targets
-  // is nullptr (fallthrough) use and bind `fallthrough_target` instead.
-  vixl::aarch64::Label fallthrough_target;
   HInstruction* cond = instruction->InputAt(condition_input_index);
 
   if (true_target == nullptr && false_target == nullptr) {
@@ -3665,10 +3662,6 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
   // was already emitted (case 2) and we need to emit a jump to `false_target`.
   if (true_target != nullptr && false_target != nullptr) {
     __ B(false_target);
-  }
-
-  if (fallthrough_target.IsLinked()) {
-    __ Bind(&fallthrough_target);
   }
 }
 

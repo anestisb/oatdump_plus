@@ -2522,21 +2522,28 @@ void InstructionCodeGeneratorARM::GenerateCompareTestAndBranch(HCondition* condi
   if (CanGenerateTest(condition, codegen_->GetAssembler())) {
     Label* non_fallthrough_target;
     bool invert;
+    bool emit_both_branches;
 
     if (true_target_in == nullptr) {
+      // The true target is fallthrough.
       DCHECK(false_target_in != nullptr);
       non_fallthrough_target = false_target_in;
       invert = true;
+      emit_both_branches = false;
     } else {
+      // Either the false target is fallthrough, or there is no fallthrough
+      // and both branches must be emitted.
       non_fallthrough_target = true_target_in;
       invert = false;
+      emit_both_branches = (false_target_in != nullptr);
     }
 
     const auto cond = GenerateTest(condition, invert, codegen_);
 
     __ b(non_fallthrough_target, cond.first);
 
-    if (false_target_in != nullptr && false_target_in != non_fallthrough_target) {
+    if (emit_both_branches) {
+      // No target falls through, we need to branch.
       __ b(false_target_in);
     }
 
