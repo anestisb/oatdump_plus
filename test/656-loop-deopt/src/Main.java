@@ -32,6 +32,15 @@ public class Main {
     $noinline$loopIncrement(new Main());
     ensureJitCompiled(Main.class, "$noinline$loopIncrement");
     $noinline$loopIncrement(new SubMain());
+
+    $noinline$objectReturned(new Main());
+    ensureJitCompiled(Main.class, "$noinline$objectReturned");
+    Object o = $noinline$objectReturned(new SubMain());
+    // We used to get 0xebadde09 in 'o' here and therefore crash
+    // both interpreter and compiled code.
+    if (o instanceof Cloneable) {
+      System.out.println("Unexpected object type " + o.getClass());
+    }
   }
 
   public boolean doCheck() {
@@ -59,7 +68,7 @@ public class Main {
   public static void $noinline$objectUpdate(Main m) {
     Object o = new Object();
     // We used to kill 'o' when the inline cache of 'doCheck' only
-    // contains 'Main' (which makes the only branch using 'a' dead).
+    // contains 'Main' (which makes the only branch using 'o' dead).
     // So the deoptimization at the inline cache was incorrectly assuming
     // 'o' was dead.
     // This lead to a NPE on the 'toString' call just after deoptimizing.
@@ -82,14 +91,36 @@ public class Main {
     // 'k' was 5000.
     for (int i = 0; i < 5000; i++, k++) {
       if (m.doCheck()) {
-        // We make this branch the only true user of the 'a' phi. All other uses
-        // of 'a' are phi updates.
+        // We make this branch the only true user of the 'k' phi. All other uses
+        // of 'k' are phi updates.
         myIntStatic = k;
       }
     }
     if (k != 5000) {
       throw new Error("Expected 5000, got " + k);
     }
+  }
+
+  public static Object $noinline$objectReturned(Main m) {
+    Object o = new Object();
+    // We used to kill 'o' when the inline cache of 'doCheck' only
+    // contains 'Main' (which makes the only branch using 'o' dead).
+    // So the deoptimization at the inline cache was incorrectly assuming
+    // 'o' was dead.
+    // We also need to make 'o' escape through a return instruction, as mterp
+    // executes the same code for return and return-object, and the 0xebadde09
+    // sentinel for dead value is only pushed to non-object dex registers.
+    Object myReturnValue = null;
+    for (int i = 0; i < 5000; i++) {
+      if (m.doCheck()) {
+        // We make this branch the only true user of the 'o' phi. All other uses
+        // of 'o' are phi updates.
+        myReturnValue = o;
+      } else if (myIntStatic == 42) {
+        o = m;
+      }
+    }
+    return myReturnValue;
   }
 
   public static int myIntStatic = 0;
