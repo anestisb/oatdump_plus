@@ -23,4 +23,4 @@ mkdir -p ./src
 ./util-src/generate_java.py ./src ./expected.txt
 
 # dx runs out of memory with default 256M, give it more memory.
-./default-build "$@" --experimental default-methods --dx-vm-option -JXmx512M
+./default-build "$@" --experimental default-methods --dx-vm-option -JXmx1024M
