@@ -1,0 +1,5 @@
+Non-regression test for b/38454151, where the invocation of a native
+method with an annotatation through Generic JNI would crash the
+Generic JNI trampoline because it would throw and exception when
+trying to resolve the annotation (during the CriticalNative/FastNative
+optimization annotation lookup).
