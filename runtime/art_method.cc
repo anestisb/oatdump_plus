@@ -403,15 +403,19 @@ bool ArtMethod::IsOverridableByDefaultMethod() {
 
 bool ArtMethod::IsAnnotatedWithFastNative() {
   return IsAnnotatedWith(WellKnownClasses::dalvik_annotation_optimization_FastNative,
-                         DexFile::kDexVisibilityBuild);
+                         DexFile::kDexVisibilityBuild,
+                         /* lookup_in_resolved_boot_classes */ true);
 }
 
 bool ArtMethod::IsAnnotatedWithCriticalNative() {
   return IsAnnotatedWith(WellKnownClasses::dalvik_annotation_optimization_CriticalNative,
-                         DexFile::kDexVisibilityBuild);
+                         DexFile::kDexVisibilityBuild,
+                         /* lookup_in_resolved_boot_classes */ true);
 }
 
-bool ArtMethod::IsAnnotatedWith(jclass klass, uint32_t visibility) {
+bool ArtMethod::IsAnnotatedWith(jclass klass,
+                                uint32_t visibility,
+                                bool lookup_in_resolved_boot_classes) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   StackHandleScope<1> shs(self);
@@ -420,10 +424,8 @@ bool ArtMethod::IsAnnotatedWith(jclass klass, uint32_t visibility) {
   DCHECK(annotation->IsAnnotation());
   Handle<mirror::Class> annotation_handle(shs.NewHandle(annotation));
 
-  // Note: Resolves any method annotations' classes as a side-effect.
-  // -- This seems allowed by the spec since it says we can preload any classes
-  //    referenced by another classes's constant pool table.
-  return annotations::IsMethodAnnotationPresent(this, annotation_handle, visibility);
+  return annotations::IsMethodAnnotationPresent(
+      this, annotation_handle, visibility, lookup_in_resolved_boot_classes);
 }
 
 static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file,

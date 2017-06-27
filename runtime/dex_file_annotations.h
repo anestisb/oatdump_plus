@@ -65,8 +65,15 @@ bool GetParametersMetadataForMethod(ArtMethod* method,
     REQUIRES_SHARED(Locks::mutator_lock_);
 mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForMethod(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_);
-bool IsMethodAnnotationPresent(ArtMethod* method, Handle<mirror::Class> annotation_class,
-                               uint32_t visibility = DexFile::kDexVisibilityRuntime)
+// Check whether `method` is annotated with `annotation_class`.
+// If `lookup_in_resolved_boot_classes` is true, look up any of the
+// method's annotations' classes in the bootstrap class loader's
+// resolved types; if it is false (default value), resolve them as a
+// side effect.
+bool IsMethodAnnotationPresent(ArtMethod* method,
+                               Handle<mirror::Class> annotation_class,
+                               uint32_t visibility = DexFile::kDexVisibilityRuntime,
+                               bool lookup_in_resolved_boot_classes = false)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Class annotations.
