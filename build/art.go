@@ -19,8 +19,6 @@ import (
 	"android/soong/cc"
 	"fmt"
 	"sync"
-
-	"github.com/google/blueprint"
 )
 
 var supportedArches = []string{"arm", "arm64", "mips", "mips64", "x86", "x86_64"}
@@ -266,67 +264,67 @@ func init() {
 	android.RegisterModuleType("art_debug_defaults", artDebugDefaultsFactory)
 }
 
-func artGlobalDefaultsFactory() (blueprint.Module, []interface{}) {
-	module, props := artDefaultsFactory()
+func artGlobalDefaultsFactory() android.Module {
+	module := artDefaultsFactory()
 	android.AddLoadHook(module, globalDefaults)
 
-	return module, props
+	return module
 }
 
-func artDebugDefaultsFactory() (blueprint.Module, []interface{}) {
-	module, props := artDefaultsFactory()
+func artDebugDefaultsFactory() android.Module {
+	module := artDefaultsFactory()
 	android.AddLoadHook(module, debugDefaults)
 
-	return module, props
+	return module
 }
 
-func artDefaultsFactory() (blueprint.Module, []interface{}) {
+func artDefaultsFactory() android.Module {
 	c := &codegenProperties{}
-	module, props := cc.DefaultsFactory(c)
+	module := cc.DefaultsFactory(c)
 	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c, true) })
 
-	return module, props
+	return module
 }
 
-func artLibrary() (blueprint.Module, []interface{}) {
+func artLibrary() android.Module {
 	library, _ := cc.NewLibrary(android.HostAndDeviceSupported)
-	module, props := library.Init()
+	module := library.Init()
 
-	props = installCodegenCustomizer(module, props, true)
+	installCodegenCustomizer(module, true)
 
-	return module, props
+	return module
 }
 
-func artBinary() (blueprint.Module, []interface{}) {
+func artBinary() android.Module {
 	binary, _ := cc.NewBinary(android.HostAndDeviceSupported)
-	module, props := binary.Init()
+	module := binary.Init()
 
 	android.AddLoadHook(module, customLinker)
 	android.AddLoadHook(module, prefer32Bit)
-	return module, props
+	return module
 }
 
-func artTest() (blueprint.Module, []interface{}) {
+func artTest() android.Module {
 	test := cc.NewTest(android.HostAndDeviceSupported)
-	module, props := test.Init()
+	module := test.Init()
 
-	props = installCodegenCustomizer(module, props, false)
+	installCodegenCustomizer(module, false)
 
 	android.AddLoadHook(module, customLinker)
 	android.AddLoadHook(module, prefer32Bit)
 	android.AddInstallHook(module, testInstall)
-	return module, props
+	return module
 }
 
-func artTestLibrary() (blueprint.Module, []interface{}) {
+func artTestLibrary() android.Module {
 	test := cc.NewTestLibrary(android.HostAndDeviceSupported)
-	module, props := test.Init()
+	module := test.Init()
 
-	props = installCodegenCustomizer(module, props, false)
+	installCodegenCustomizer(module, false)
 
 	android.AddLoadHook(module, prefer32Bit)
 	android.AddInstallHook(module, testInstall)
-	return module, props
+	return module
 }
 
 func envDefault(ctx android.BaseContext, key string, defaultValue string) string {
