@@ -1611,13 +1611,37 @@ END \name
 .endm
 
 // Generate the allocation entrypoints for each allocator.
-GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
+GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_TLAB_ALLOCATORS
+// Comment out allocators that have mips64 specific asm.
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED8(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED16(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED32(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED64(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_tlab, RegionTLAB)
+
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED8(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED16(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED32(_tlab, TLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED64(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_tlab, TLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_tlab, TLAB)
 
 // A hand-written override for:
 //   GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_rosalloc, RosAlloc)
 //   GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_rosalloc, RosAlloc)
-.macro ART_QUICK_ALLOC_OBJECT_ROSALLOC c_name, cxx_name
-ENTRY \c_name
+.macro ART_QUICK_ALLOC_OBJECT_ROSALLOC c_name, cxx_name, isInitialized
+ENTRY_NO_GP \c_name
     # Fast path rosalloc allocation
     # a0: type
     # s1: Thread::Current
@@ -1637,6 +1661,11 @@ ENTRY \c_name
     li     $a5, ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE      # Check if size is for a thread local
                                                             # allocation. Also does the initialized
                                                             # and finalizable checks.
+    # When isInitialized == 0, then the class is potentially not yet initialized.
+    # If the class is not yet initialized, the object size will be very large to force the branch
+    # below to be taken.
+    #
+    # See InitializeClassVisitors in class-inl.h for more details.
     bltuc  $a5, $t1, .Lslow_path_\c_name
 
     # Compute the rosalloc bracket index from the size. Since the size is already aligned we can
@@ -1667,7 +1696,7 @@ ENTRY \c_name
 
     # Push the new object onto the thread local allocation stack and increment the thread local
     # allocation stack top.
-    sd     $v0, 0($t3)
+    sw     $v0, 0($t3)
     daddiu $t3, $t3, COMPRESSED_REFERENCE_SIZE
     sd     $t3, THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET($s1)
 
@@ -1676,12 +1705,17 @@ ENTRY \c_name
     addiu  $a5, $a5, -1
     sw     $a5, (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)($t2)
 
+.if \isInitialized == 0
+    # This barrier is only necessary when the allocation also requires a class initialization check.
+    #
+    # If the class is already observably initialized, then new-instance allocations are protected
+    # from publishing by the compiler which inserts its own StoreStore barrier.
     sync                                         # Fence.
-
-    jalr   $zero, $ra
-    .cpreturn                                    # Restore gp from t8 in branch delay slot.
+.endif
+    jic    $ra, 0
 
 .Lslow_path_\c_name:
+    SETUP_GP
     SETUP_SAVE_REFS_ONLY_FRAME
     jal    \cxx_name
     move   $a1 ,$s1                              # Pass self as argument.
@@ -1689,11 +1723,180 @@ ENTRY \c_name
 END \c_name
 .endm
 
-ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_resolved_rosalloc, artAllocObjectFromCodeResolvedRosAlloc
-ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, artAllocObjectFromCodeInitializedRosAlloc
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_resolved_rosalloc, artAllocObjectFromCodeResolvedRosAlloc, /* isInitialized */ 0
+ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, artAllocObjectFromCodeInitializedRosAlloc, /* isInitialized */ 1
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB)
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB)
+// The common fast path code for art_quick_alloc_object_resolved/initialized_tlab
+// and art_quick_alloc_object_resolved/initialized_region_tlab.
+//
+// a0: type, s1(rSELF): Thread::Current
+// Need to preserve a0 to the slow path.
+//
+// If isInitialized=1 then the compiler assumes the object's class has already been initialized.
+// If isInitialized=0 the compiler can only assume it's been at least resolved.
+.macro ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH slowPathLabel isInitialized
+    ld     $v0, THREAD_LOCAL_POS_OFFSET(rSELF)         # Load thread_local_pos.
+    ld     $a2, THREAD_LOCAL_END_OFFSET(rSELF)         # Load thread_local_end.
+    lwu    $t0, MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET($a0)  # Load the object size.
+    daddu  $a3, $v0, $t0                               # Add object size to tlab pos.
+
+    # When isInitialized == 0, then the class is potentially not yet initialized.
+    # If the class is not yet initialized, the object size will be very large to force the branch
+    # below to be taken.
+    #
+    # See InitializeClassVisitors in class-inl.h for more details.
+    bltuc  $a2, $a3, \slowPathLabel                    # Check if it fits, overflow works since the
+                                                       # tlab pos and end are 32 bit values.
+    # "Point of no slow path". Won't go to the slow path from here on.
+    sd     $a3, THREAD_LOCAL_POS_OFFSET(rSELF)         # Store new thread_local_pos.
+    ld     $a2, THREAD_LOCAL_OBJECTS_OFFSET(rSELF)     # Increment thread_local_objects.
+    daddiu $a2, $a2, 1
+    sd     $a2, THREAD_LOCAL_OBJECTS_OFFSET(rSELF)
+    POISON_HEAP_REF $a0
+    sw     $a0, MIRROR_OBJECT_CLASS_OFFSET($v0)        # Store the class pointer.
+
+.if \isInitialized == 0
+    # This barrier is only necessary when the allocation also requires a class initialization check.
+    #
+    # If the class is already observably initialized, then new-instance allocations are protected
+    # from publishing by the compiler which inserts its own StoreStore barrier.
+    sync                                               # Fence.
+.endif
+    jic    $ra, 0
+.endm
+
+// The common code for art_quick_alloc_object_resolved/initialized_tlab
+// and art_quick_alloc_object_resolved/initialized_region_tlab.
+.macro GENERATE_ALLOC_OBJECT_TLAB name, entrypoint, isInitialized
+ENTRY_NO_GP \name
+    # Fast path tlab allocation.
+    # a0: type, s1(rSELF): Thread::Current.
+    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lslow_path_\name, \isInitialized
+.Lslow_path_\name:
+    SETUP_GP
+    SETUP_SAVE_REFS_ONLY_FRAME                         # Save callee saves in case of GC.
+    jal    \entrypoint                                 # (mirror::Class*, Thread*)
+    move   $a1, rSELF                                  # Pass Thread::Current.
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END \name
+.endm
+
+GENERATE_ALLOC_OBJECT_TLAB art_quick_alloc_object_resolved_region_tlab, artAllocObjectFromCodeResolvedRegionTLAB, /* isInitialized */ 0
+GENERATE_ALLOC_OBJECT_TLAB art_quick_alloc_object_initialized_region_tlab, artAllocObjectFromCodeInitializedRegionTLAB, /* isInitialized */ 1
+GENERATE_ALLOC_OBJECT_TLAB art_quick_alloc_object_resolved_tlab, artAllocObjectFromCodeResolvedTLAB, /* isInitialized */ 0
+GENERATE_ALLOC_OBJECT_TLAB art_quick_alloc_object_initialized_tlab, artAllocObjectFromCodeInitializedTLAB, /* isInitialized */ 1
+
+// The common fast path code for art_quick_alloc_array_resolved/initialized_tlab
+// and art_quick_alloc_array_resolved/initialized_region_tlab.
+//
+// a0: type, a1: component_count, a2: total_size, s1(rSELF): Thread::Current.
+// Need to preserve a0 and a1 to the slow path.
+.macro ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE slowPathLabel
+    dli    $a3, OBJECT_ALIGNMENT_MASK_TOGGLED64        # Apply alignemnt mask (addr + 7) & ~7.
+    and    $a2, $a2, $a3                               # The mask must be 64 bits to keep high
+                                                       # bits in case of overflow.
+    # Negative sized arrays are handled here since a1 holds a zero extended 32 bit value.
+    # Negative ints become large 64 bit unsigned ints which will always be larger than max signed
+    # 32 bit int. Since the max shift for arrays is 3, it can not become a negative 64 bit int.
+    dli    $a3, MIN_LARGE_OBJECT_THRESHOLD
+    bgeuc  $a2, $a3, \slowPathLabel                    # Possibly a large object, go slow path.
+
+    ld     $v0, THREAD_LOCAL_POS_OFFSET(rSELF)         # Load thread_local_pos.
+    ld     $t1, THREAD_LOCAL_END_OFFSET(rSELF)         # Load thread_local_end.
+    dsubu  $t2, $t1, $v0                               # Compute the remaining buffer size.
+    bltuc  $t2, $a2, \slowPathLabel                    # Check tlab for space, note that we use
+                                                       # (end - begin) to handle negative size
+                                                       # arrays. It is assumed that a negative size
+                                                       # will always be greater unsigned than region
+                                                       # size.
+
+    # "Point of no slow path". Won't go to the slow path from here on.
+    daddu  $a2, $v0, $a2                               # Add object size to tlab pos.
+    sd     $a2, THREAD_LOCAL_POS_OFFSET(rSELF)         # Store new thread_local_pos.
+    ld     $a2, THREAD_LOCAL_OBJECTS_OFFSET(rSELF)     # Increment thread_local_objects.
+    daddiu $a2, $a2, 1
+    sd     $a2, THREAD_LOCAL_OBJECTS_OFFSET(rSELF)
+    POISON_HEAP_REF $a0
+    sw     $a0, MIRROR_OBJECT_CLASS_OFFSET($v0)        # Store the class pointer.
+    sw     $a1, MIRROR_ARRAY_LENGTH_OFFSET($v0)        # Store the array length.
+
+    jic    $ra, 0
+.endm
+
+.macro GENERATE_ALLOC_ARRAY_TLAB name, entrypoint, size_setup
+ENTRY_NO_GP \name
+    # Fast path array allocation for region tlab allocation.
+    # a0: mirror::Class* type
+    # a1: int32_t component_count
+    # s1(rSELF): Thread::Current
+    dext   $a4, $a1, 0, 32                             # Create zero-extended component_count. Value
+                                                       # in a1 is preserved in a case of slow path.
+    \size_setup .Lslow_path_\name
+    ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE .Lslow_path_\name
+.Lslow_path_\name:
+    # a0: mirror::Class* type
+    # a1: int32_t component_count
+    # a2: Thread* self
+    SETUP_GP
+    SETUP_SAVE_REFS_ONLY_FRAME                         # Save callee saves in case of GC.
+    jal    \entrypoint
+    move   $a2, rSELF                                  # Pass Thread::Current.
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END \name
+.endm
+
+.macro COMPUTE_ARRAY_SIZE_UNKNOWN slow_path
+    # Array classes are never finalizable or uninitialized, no need to check.
+    lwu    $a3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET($a0) # Load component type.
+    UNPOISON_HEAP_REF $a3
+    lw     $a3, MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET($a3)
+    dsrl   $a3, $a3, PRIMITIVE_TYPE_SIZE_SHIFT_SHIFT   # Component size shift is in high 16 bits.
+    dsllv  $a2, $a4, $a3                               # Calculate data size.
+                                                       # Add array data offset and alignment.
+    daddiu $a2, $a2, (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
+#if MIRROR_WIDE_ARRAY_DATA_OFFSET != MIRROR_INT_ARRAY_DATA_OFFSET + 4
+#error Long array data offset must be 4 greater than int array data offset.
+#endif
+
+    daddiu $a3, $a3, 1                                 # Add 4 to the length only if the component
+    andi   $a3, $a3, 4                                 # size shift is 3 (for 64 bit alignment).
+    daddu  $a2, $a2, $a3
+.endm
+
+.macro COMPUTE_ARRAY_SIZE_8 slow_path
+    # Add array data offset and alignment.
+    daddiu $a2, $a4, (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
+.endm
+
+.macro COMPUTE_ARRAY_SIZE_16 slow_path
+    dsll   $a2, $a4, 1
+    # Add array data offset and alignment.
+    daddiu $a2, $a2, (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
+.endm
+
+.macro COMPUTE_ARRAY_SIZE_32 slow_path
+    dsll   $a2, $a4, 2
+    # Add array data offset and alignment.
+    daddiu $a2, $a2, (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
+.endm
+
+.macro COMPUTE_ARRAY_SIZE_64 slow_path
+    dsll   $a2, $a4, 3
+    # Add array data offset and alignment.
+    daddiu $a2, $a2, (MIRROR_WIDE_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
+.endm
+
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_UNKNOWN
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved8_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_8
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_16
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved32_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_32
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_64
+
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_UNKNOWN
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved8_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_8
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_16
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved32_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_32
+GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, artAllocArrayFromCodeResolvedTLAB, COMPUTE_ARRAY_SIZE_64
 
 // Macro for string and type resolution and initialization.
 // $a0 is both input and output.
