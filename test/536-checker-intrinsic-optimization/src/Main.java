@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Method;
 
 public class Main {
   public static boolean doThrow = false;
@@ -83,7 +84,9 @@ public class Main {
     }
 
     assertCharEquals('7', $opt$noinline$stringCharAtCatch("0123456789", 7));
+    assertCharEquals('7', $noinline$runSmaliTest("stringCharAtCatch", "0123456789", 7));
     assertCharEquals('\0', $opt$noinline$stringCharAtCatch("0123456789", 10));
+    assertCharEquals('\0', $noinline$runSmaliTest("stringCharAtCatch","0123456789", 10));
 
     assertIntEquals('a' + 'b' + 'c', $opt$noinline$stringSumChars("abc"));
     assertIntEquals('a' + 'b' + 'c', $opt$noinline$stringSumLeadingChars("abcdef", 3));
@@ -166,17 +169,21 @@ public class Main {
   }
 
   /// CHECK-START: char Main.$opt$noinline$stringCharAtCatch(java.lang.String, int) instruction_simplifier (before)
+  /// CHECK-DAG:  <<Int:i\d+>>      IntConstant 0
   /// CHECK-DAG:  <<Char:c\d+>>     InvokeVirtual intrinsic:StringCharAt
-  /// CHECK-DAG:                    Return [<<Char>>]
+  /// CHECK-DAG:  <<Phi:i\d+>>      Phi [<<Char>>,<<Int>>]
+  /// CHECK-DAG:                    Return [<<Phi>>]
 
   /// CHECK-START: char Main.$opt$noinline$stringCharAtCatch(java.lang.String, int) instruction_simplifier (after)
   /// CHECK-DAG:  <<String:l\d+>>   ParameterValue
   /// CHECK-DAG:  <<Pos:i\d+>>      ParameterValue
+  /// CHECK-DAG:  <<Int:i\d+>>      IntConstant 0
   /// CHECK-DAG:  <<NullCk:l\d+>>   NullCheck [<<String>>]
   /// CHECK-DAG:  <<Length:i\d+>>   ArrayLength [<<NullCk>>] is_string_length:true
   /// CHECK-DAG:  <<Bounds:i\d+>>   BoundsCheck [<<Pos>>,<<Length>>] is_string_char_at:true
   /// CHECK-DAG:  <<Char:c\d+>>     ArrayGet [<<NullCk>>,<<Bounds>>] is_string_char_at:true
-  /// CHECK-DAG:                    Return [<<Char>>]
+  /// CHECK-DAG:  <<Phi:i\d+>>      Phi [<<Char>>,<<Int>>]
+  /// CHECK-DAG:                    Return [<<Phi>>]
 
   /// CHECK-START: char Main.$opt$noinline$stringCharAtCatch(java.lang.String, int) instruction_simplifier (after)
   /// CHECK-NOT:                    InvokeVirtual intrinsic:StringCharAt
@@ -421,4 +428,14 @@ public class Main {
 
   static String myString;
   static Object myObject;
+
+  public static char $noinline$runSmaliTest(String name, String str, int pos) {
+    try {
+      Class<?> c = Class.forName("SmaliTests");
+      Method m = c.getMethod(name, String.class, int.class);
+      return (Character) m.invoke(null, str, pos);
+    } catch (Exception ex) {
+      throw new Error(ex);
+    }
+  }
 }

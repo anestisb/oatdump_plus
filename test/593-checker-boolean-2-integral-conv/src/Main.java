@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Method;
+
 public class Main {
 
   public static void main(String args[]) {
@@ -22,8 +24,10 @@ public class Main {
     expectEqualsChar((char)1, booleanToChar(true));
     expectEqualsInt(1, booleanToInt(true));
     expectEqualsLong(1L, booleanToLong(true));
+    expectEqualsLong(1L, $noinline$runSmaliTest("booleanToLong", true));
 
     expectEqualsInt(1, longToIntOfBoolean());
+    expectEqualsInt(1, $noinline$runSmaliTest("longToIntOfBoolean"));
 
     System.out.println("passed");
   }
@@ -132,26 +136,34 @@ public class Main {
 
   /// CHECK-START: long Main.booleanToLong(boolean) builder (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
-  /// CHECK-DAG:     <<Zero:i\d+>>          IntConstant 0
-  /// CHECK-DAG:     <<One:i\d+>>           IntConstant 1
-  /// CHECK-DAG:     <<Cond:z\d+>>          Equal [<<Arg>>,<<Zero>>]
+  /// CHECK-DAG:     <<IZero:i\d+>>         IntConstant 0
+  /// CHECK-DAG:     <<Zero:j\d+>>          LongConstant 0
+  /// CHECK-DAG:     <<One:j\d+>>           LongConstant 1
+  /// CHECK-DAG:     <<Cond:z\d+>>          Equal [<<Arg>>,<<IZero>>]
   /// CHECK-DAG:                            If [<<Cond>>]
-  /// CHECK-DAG:     <<Phi:i\d+>>           Phi [<<One>>,<<Zero>>]
-  /// CHECK-DAG:     <<IToJ:j\d+>>          TypeConversion [<<Phi>>]
-  /// CHECK-DAG:                            Return [<<IToJ>>]
+  /// CHECK-DAG:     <<Phi:j\d+>>           Phi [<<One>>,<<Zero>>]
+  /// CHECK-DAG:                            Return [<<Phi>>]
+
+  /// CHECK-START: long Main.booleanToLong(boolean) select_generator (after)
+  /// CHECK-NOT:                            IntConstant
+  /// CHECK-NOT:                            Equal
+  /// CHECK-NOT:                            If
+  /// CHECK-NOT:                            Phi
 
   /// CHECK-START: long Main.booleanToLong(boolean) select_generator (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
-  /// CHECK-DAG:     <<Zero:i\d+>>          IntConstant 0
-  /// CHECK-DAG:     <<One:i\d+>>           IntConstant 1
-  /// CHECK-DAG:     <<Sel:i\d+>>           Select [<<Zero>>,<<One>>,<<Arg>>]
-  /// CHECK-DAG:     <<IToJ:j\d+>>          TypeConversion [<<Sel>>]
-  /// CHECK-DAG:                            Return [<<IToJ>>]
+  /// CHECK-DAG:     <<Zero:j\d+>>          LongConstant 0
+  /// CHECK-DAG:     <<One:j\d+>>           LongConstant 1
+  /// CHECK-DAG:     <<Sel:j\d+>>           Select [<<Zero>>,<<One>>,<<Arg>>]
+  /// CHECK-DAG:                            Return [<<Sel>>]
 
-  /// CHECK-START: long Main.booleanToLong(boolean) instruction_simplifier$after_bce (after)
-  /// CHECK:         <<Arg:z\d+>>           ParameterValue
-  /// CHECK-DAG:     <<ZToJ:j\d+>>          TypeConversion [<<Arg>>]
-  /// CHECK-DAG:                            Return [<<ZToJ>>]
+  // As of now, the code is not optimized any further than the above.
+  // TODO: Re-enable checks below after simplifier is updated to handle this pattern: b/63064517
+
+  // CHECK-START: long Main.booleanToLong(boolean) instruction_simplifier$after_bce (after)
+  // CHECK:         <<Arg:z\d+>>           ParameterValue
+  // CHECK-DAG:     <<ZToJ:j\d+>>          TypeConversion [<<Arg>>]
+  // CHECK-DAG:                            Return [<<ZToJ>>]
 
   static long booleanToLong(boolean b) {
     return b ? 1 : 0;
@@ -166,29 +178,36 @@ public class Main {
 
   /// CHECK-START: int Main.longToIntOfBoolean() inliner (after)
   /// CHECK-DAG:     <<Method:[ij]\d+>>     CurrentMethod
-  /// CHECK-DAG:     <<Zero:i\d+>>          IntConstant 0
-  /// CHECK-DAG:     <<One:i\d+>>           IntConstant 1
+  /// CHECK-DAG:     <<Zero:j\d+>>          LongConstant 0
+  /// CHECK-DAG:     <<One:j\d+>>           LongConstant 1
   /// CHECK-DAG:     <<Sget:z\d+>>          StaticFieldGet
   /// CHECK-DAG:                            If [<<Sget>>]
-  /// CHECK-DAG:     <<Phi:i\d+>>           Phi [<<One>>,<<Zero>>]
-  /// CHECK-DAG:     <<IToJ:j\d+>>          TypeConversion [<<Phi>>]
-  /// CHECK-DAG:     <<JToI:i\d+>>          TypeConversion [<<IToJ>>]
+  /// CHECK-DAG:     <<Phi:j\d+>>           Phi [<<One>>,<<Zero>>]
+  /// CHECK-DAG:     <<JToI:i\d+>>          TypeConversion [<<Phi>>]
   /// CHECK-DAG:                            Return [<<JToI>>]
+
+  /// CHECK-START: long Main.booleanToLong(boolean) select_generator (after)
+  /// CHECK-NOT:                            IntConstant
+  /// CHECK-NOT:                            Equal
+  /// CHECK-NOT:                            If
+  /// CHECK-NOT:                            Phi
 
   /// CHECK-START: int Main.longToIntOfBoolean() select_generator (after)
   /// CHECK-DAG:     <<Method:[ij]\d+>>     CurrentMethod
-  /// CHECK-DAG:     <<Zero:i\d+>>          IntConstant 0
-  /// CHECK-DAG:     <<One:i\d+>>           IntConstant 1
+  /// CHECK-DAG:     <<Zero:j\d+>>          LongConstant 0
+  /// CHECK-DAG:     <<One:j\d+>>           LongConstant 1
   /// CHECK-DAG:     <<Sget:z\d+>>          StaticFieldGet
-  /// CHECK-DAG:     <<Sel:i\d+>>           Select [<<Zero>>,<<One>>,<<Sget>>]
-  /// CHECK-DAG:     <<IToJ:j\d+>>          TypeConversion [<<Sel>>]
-  /// CHECK-DAG:     <<JToI:i\d+>>          TypeConversion [<<IToJ>>]
+  /// CHECK-DAG:     <<Sel:j\d+>>           Select [<<Zero>>,<<One>>,<<Sget>>]
+  /// CHECK-DAG:     <<JToI:i\d+>>          TypeConversion [<<Sel>>]
   /// CHECK-DAG:                            Return [<<JToI>>]
 
-  /// CHECK-START: int Main.longToIntOfBoolean() instruction_simplifier$after_bce (after)
-  /// CHECK-DAG:     <<Method:[ij]\d+>>     CurrentMethod
-  /// CHECK-DAG:     <<Sget:z\d+>>          StaticFieldGet
-  /// CHECK-DAG:                            Return [<<Sget>>]
+  // As of now, the code is not optimized any further than the above.
+  // TODO: Re-enable checks below after simplifier is updated to handle this pattern: b/63064517
+
+  // CHECK-START: int Main.longToIntOfBoolean() instruction_simplifier$after_bce (after)
+  // CHECK-DAG:     <<Method:[ij]\d+>>     CurrentMethod
+  // CHECK-DAG:     <<Sget:z\d+>>          StaticFieldGet
+  // CHECK-DAG:                            Return [<<Sget>>]
 
   static int longToIntOfBoolean() {
     long l = booleanToLong(booleanField);
@@ -223,6 +242,26 @@ public class Main {
   private static void expectEqualsLong(long expected, long result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static long $noinline$runSmaliTest(String name, boolean input) {
+    try {
+      Class<?> c = Class.forName("SmaliTests");
+      Method m = c.getMethod(name, boolean.class);
+      return (Long) m.invoke(null, input);
+    } catch (Exception ex) {
+      throw new Error(ex);
+    }
+  }
+
+  public static int $noinline$runSmaliTest(String name) {
+    try {
+      Class<?> c = Class.forName("SmaliTests");
+      Method m = c.getMethod(name);
+      return (Integer) m.invoke(null);
+    } catch (Exception ex) {
+      throw new Error(ex);
     }
   }
 
