@@ -4107,6 +4107,10 @@ verifier::FailureKind ClassLinker::VerifyClass(
     }
   }
 
+  VLOG(class_linker) << "Beginning verification for class: "
+                     << klass->PrettyDescriptor()
+                     << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+
   // Verify super class.
   StackHandleScope<2> hs(self);
   MutableHandle<mirror::Class> supertype(hs.NewHandle(klass->GetSuperClass()));
@@ -4161,6 +4165,13 @@ verifier::FailureKind ClassLinker::VerifyClass(
   const DexFile& dex_file = *klass->GetDexCache()->GetDexFile();
   mirror::Class::Status oat_file_class_status(mirror::Class::kStatusNotReady);
   bool preverified = VerifyClassUsingOatFile(dex_file, klass.Get(), oat_file_class_status);
+
+  VLOG(class_linker) << "Class preverified status for class "
+                     << klass->PrettyDescriptor()
+                     << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
+                     << ": "
+                     << preverified;
+
   // If the oat file says the class had an error, re-run the verifier. That way we will get a
   // precise error message. To ensure a rerun, test:
   //     mirror::Class::IsErroneous(oat_file_class_status) => !preverified
