@@ -602,7 +602,6 @@
     },
     {
         "tests": [
-            "458-checker-instruct-simplification",
             "536-checker-intrinsic-optimization",
             "565-checker-doublenegbitwise",
             "567-checker-compare",
