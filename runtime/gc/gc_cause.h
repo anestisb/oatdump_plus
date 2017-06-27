@@ -24,6 +24,8 @@ namespace gc {
 
 // What caused the GC?
 enum GcCause {
+  // Invalid GC cause used as a placeholder.
+  kGcCauseNone,
   // GC triggered by a failed allocation. Thread doing allocation is blocked waiting for GC before
   // retrying allocation.
   kGcCauseForAlloc,
