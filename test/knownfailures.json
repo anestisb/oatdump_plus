@@ -603,7 +603,6 @@
     {
         "tests": [
             "567-checker-compare",
-            "586-checker-null-array-get",
             "633-checker-rtp-getclass"
         ],
         "description": "Checker tests failing when run with --build-with-javac-dx.",

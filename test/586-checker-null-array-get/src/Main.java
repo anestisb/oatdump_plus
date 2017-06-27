@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
+
 class Test1 {
   int[] iarr;
 }
@@ -29,6 +32,18 @@ public class Main {
   public static Test1 getNullTest1() { return null; }
   public static Test2 getNullTest2() { return null; }
 
+  public static void $noinline$runSmaliTest(String name) throws Throwable {
+    try {
+      Class<?> c = Class.forName("SmaliTests");
+      Method m = c.getMethod(name);
+      m.invoke(null);
+    } catch (InvocationTargetException ex) {
+      throw ex.getCause(); // re-raise expected exception.
+    } catch (Exception ex) {
+      throw new Error(ex);
+    }
+  }
+
   public static void main(String[] args) {
     try {
       foo();
@@ -42,6 +57,15 @@ public class Main {
     } catch (NullPointerException e) {
       // Expected.
     }
+    try {
+      $noinline$runSmaliTest("bar");
+      throw new Error("Expected NullPointerException");
+    } catch (NullPointerException e) {
+      // Expected.
+    } catch (Throwable t) {
+      throw new Error("Unexpected Throwable", t);
+    }
+
     try {
       test1();
       throw new Error("Expected NullPointerException");
@@ -62,7 +86,8 @@ public class Main {
 
   /// CHECK-START: void Main.bar() load_store_elimination (after)
   /// CHECK-DAG: <<Null:l\d+>>       NullConstant
-  /// CHECK-DAG: <<BoundType:l\d+>>  BoundType [<<Null>>]
+  /// CHECK-DAG: <<BoundFirst:l\d+>> BoundType [<<Null>>]
+  /// CHECK-DAG: <<BoundType:l\d+>>  BoundType [<<BoundFirst>>]
   /// CHECK-DAG: <<CheckL:l\d+>>     NullCheck [<<BoundType>>]
   /// CHECK-DAG: <<GetL0:l\d+>>      ArrayGet [<<CheckL>>,{{i\d+}}]
   /// CHECK-DAG: <<GetL1:l\d+>>      ArrayGet [<<CheckL>>,{{i\d+}}]
