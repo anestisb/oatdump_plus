@@ -25,6 +25,7 @@ public class Trace {
                                           Method exitMethod,
                                           Method fieldAccess,
                                           Method fieldModify,
+                                          Method singleStep,
                                           Thread thr);
   public static native void disableTracing(Thread thr);
 
@@ -32,14 +33,20 @@ public class Trace {
                                         Method fieldAccess,
                                         Method fieldModify,
                                         Thread thr) {
-    enableTracing(methodClass, null, null, fieldAccess, fieldModify, thr);
+    enableTracing(methodClass, null, null, fieldAccess, fieldModify, null, thr);
   }
 
   public static void enableMethodTracing(Class<?> methodClass,
                                          Method entryMethod,
                                          Method exitMethod,
                                          Thread thr) {
-    enableTracing(methodClass, entryMethod, exitMethod, null, null, thr);
+    enableTracing(methodClass, entryMethod, exitMethod, null, null, null, thr);
+  }
+
+  public static void enableSingleStepTracing(Class<?> methodClass,
+                                             Method singleStep,
+                                             Thread thr) {
+    enableTracing(methodClass, null, null, null, null, singleStep, thr);
   }
 
   public static native void watchFieldAccess(Field f);

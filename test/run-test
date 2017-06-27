@@ -145,6 +145,7 @@ gc_verify="false"
 gc_stress="false"
 jvmti_trace_stress="false"
 jvmti_field_stress="false"
+jvmti_step_stress="false"
 jvmti_redefine_stress="false"
 strace="false"
 always_clean="no"
@@ -241,6 +242,9 @@ while true; do
     elif [ "x$1" = "x--gcstress" ]; then
         basic_verify="true"
         gc_stress="true"
+        shift
+    elif [ "x$1" = "x--jvmti-step-stress" ]; then
+        jvmti_step_stress="true"
         shift
     elif [ "x$1" = "x--jvmti-redefine-stress" ]; then
         jvmti_redefine_stress="true"
@@ -464,6 +468,9 @@ fi
 if [ "$jvmti_redefine_stress" = "true" ]; then
     run_args="${run_args} --no-app-image --jvmti-redefine-stress"
 fi
+if [ "$jvmti_step_stress" = "true" ]; then
+    run_args="${run_args} --no-app-image --jvmti-step-stress"
+fi
 if [ "$jvmti_field_stress" = "true" ]; then
     run_args="${run_args} --no-app-image --jvmti-field-stress"
 fi
@@ -679,6 +686,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --gcstress            Run with gc stress testing"
         echo "    --gcverify            Run with gc verification"
         echo "    --jvmti-trace-stress  Run with jvmti method tracing stress testing"
+        echo "    --jvmti-step-stress   Run with jvmti single step stress testing"
         echo "    --jvmti-redefine-stress"
         echo "                          Run with jvmti method redefinition stress testing"
         echo "    --always-clean        Delete the test files even if the test fails."
