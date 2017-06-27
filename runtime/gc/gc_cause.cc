@@ -25,6 +25,7 @@ namespace gc {
 
 const char* PrettyCause(GcCause cause) {
   switch (cause) {
+    case kGcCauseNone: return "None";
     case kGcCauseForAlloc: return "Alloc";
     case kGcCauseBackground: return "Background";
     case kGcCauseExplicit: return "Explicit";

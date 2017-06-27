@@ -214,6 +214,7 @@ Heap::Heap(size_t initial_size,
       disable_thread_flip_count_(0),
       thread_flip_running_(false),
       collector_type_running_(kCollectorTypeNone),
+      last_gc_cause_(kGcCauseNone),
       thread_running_gc_(nullptr),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -1458,6 +1459,7 @@ void Heap::StartGC(Thread* self, GcCause cause, CollectorType collector_type) {
   // Ensure there is only one GC at a time.
   WaitForGcToCompleteLocked(cause, self);
   collector_type_running_ = collector_type;
+  last_gc_cause_ = cause;
   thread_running_gc_ = self;
 }
 
@@ -3537,6 +3539,7 @@ collector::GcType Heap::WaitForGcToComplete(GcCause cause, Thread* self) {
 
 collector::GcType Heap::WaitForGcToCompleteLocked(GcCause cause, Thread* self) {
   collector::GcType last_gc_type = collector::kGcTypeNone;
+  GcCause last_gc_cause = kGcCauseNone;
   uint64_t wait_start = NanoTime();
   while (collector_type_running_ != kCollectorTypeNone) {
     if (self != task_processor_->GetRunningThread()) {
@@ -3551,12 +3554,13 @@ collector::GcType Heap::WaitForGcToCompleteLocked(GcCause cause, Thread* self) {
     // We must wait, change thread state then sleep on gc_complete_cond_;
     gc_complete_cond_->Wait(self);
     last_gc_type = last_gc_type_;
+    last_gc_cause = last_gc_cause_;
   }
   uint64_t wait_time = NanoTime() - wait_start;
   total_wait_time_ += wait_time;
   if (wait_time > long_pause_log_threshold_) {
-    LOG(INFO) << "WaitForGcToComplete blocked for " << PrettyDuration(wait_time)
-        << " for cause " << cause;
+    LOG(INFO) << "WaitForGcToComplete blocked " << cause << " on " << last_gc_cause << " for "
+              << PrettyDuration(wait_time);
   }
   if (self != task_processor_->GetRunningThread()) {
     // The current thread is about to run a collection. If the thread

@@ -1189,8 +1189,11 @@ class Heap {
   // Task processor, proxies heap trim requests to the daemon threads.
   std::unique_ptr<TaskProcessor> task_processor_;
 
-  // True while the garbage collector is running.
+  // Collector type of the running GC.
   volatile CollectorType collector_type_running_ GUARDED_BY(gc_complete_lock_);
+
+  // Cause of the last running GC.
+  volatile GcCause last_gc_cause_ GUARDED_BY(gc_complete_lock_);
 
   // The thread currently running the GC.
   volatile Thread* thread_running_gc_ GUARDED_BY(gc_complete_lock_);
