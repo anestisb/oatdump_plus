@@ -49,17 +49,24 @@ class Verification {
                          mirror::Object* ref,
                          bool fatal) const REQUIRES_SHARED(Locks::mutator_lock_);
 
-
   // Return true if the klass is likely to be a valid mirror::Class.
   bool IsValidClass(const void* klass) const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Does not allow null.
+  // Does not allow null, checks alignment.
   bool IsValidHeapObjectAddress(const void* addr, space::Space** out_space = nullptr) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Find the first path to the target from the root set. Should be called while paused since
   // visiting roots is not safe otherwise.
   std::string FirstPathFromRootSet(ObjPtr<mirror::Object> target) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Does not check alignment, used by DumpRAMAroundAddress.
+  bool IsAddressInHeapSpace(const void* addr, space::Space** out_space = nullptr) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Dump bytes of RAM before and after an address.
+  std::string DumpRAMAroundAddress(uintptr_t addr, uintptr_t bytes) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:

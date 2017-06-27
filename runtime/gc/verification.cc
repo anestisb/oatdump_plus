@@ -26,6 +26,28 @@
 namespace art {
 namespace gc {
 
+std::string Verification::DumpRAMAroundAddress(uintptr_t addr, uintptr_t bytes) const {
+  const uintptr_t dump_start = addr - bytes;
+  const uintptr_t dump_end = addr + bytes;
+  std::ostringstream oss;
+  if (dump_start < dump_end &&
+      IsAddressInHeapSpace(reinterpret_cast<const void*>(dump_start)) &&
+      IsAddressInHeapSpace(reinterpret_cast<const void*>(dump_end - 1))) {
+    oss << " adjacent_ram=";
+    for (uintptr_t p = dump_start; p < dump_end; ++p) {
+      if (p == addr) {
+        // Marker of where the address is.
+        oss << "|";
+      }
+      uint8_t* ptr = reinterpret_cast<uint8_t*>(p);
+      oss << std::hex << std::setfill('0') << std::setw(2) << static_cast<uintptr_t>(*ptr);
+    }
+  } else {
+    oss << " <invalid address>";
+  }
+  return oss.str();
+}
+
 std::string Verification::DumpObjectInfo(const void* addr, const char* tag) const {
   std::ostringstream oss;
   oss << tag << "=" << addr;
@@ -51,23 +73,7 @@ std::string Verification::DumpObjectInfo(const void* addr, const char* tag) cons
           card_table->GetCard(reinterpret_cast<const mirror::Object*>(addr)));
     }
     // Dump adjacent RAM.
-    const uintptr_t uint_addr = reinterpret_cast<uintptr_t>(addr);
-    static constexpr size_t kBytesBeforeAfter = 2 * kObjectAlignment;
-    const uintptr_t dump_start = uint_addr - kBytesBeforeAfter;
-    const uintptr_t dump_end = uint_addr + kBytesBeforeAfter;
-    if (dump_start < dump_end &&
-        IsValidHeapObjectAddress(reinterpret_cast<const void*>(dump_start)) &&
-        IsValidHeapObjectAddress(reinterpret_cast<const void*>(dump_end - kObjectAlignment))) {
-      oss << " adjacent_ram=";
-      for (uintptr_t p = dump_start; p < dump_end; ++p) {
-        if (p == uint_addr) {
-          // Marker of where the object is.
-          oss << "|";
-        }
-        uint8_t* ptr = reinterpret_cast<uint8_t*>(p);
-        oss << std::hex << std::setfill('0') << std::setw(2) << static_cast<uintptr_t>(*ptr);
-      }
-    }
+    oss << DumpRAMAroundAddress(reinterpret_cast<uintptr_t>(addr), 4 * kObjectAlignment);
   } else {
     oss << " <invalid address>";
   }
@@ -91,12 +97,15 @@ void Verification::LogHeapCorruption(ObjPtr<mirror::Object> holder,
   if (holder != nullptr) {
     mirror::Class* holder_klass = holder->GetClass<kVerifyNone, kWithoutReadBarrier>();
     if (IsValidClass(holder_klass)) {
-      oss << "field_offset=" << offset.Uint32Value();
+      oss << " field_offset=" << offset.Uint32Value();
       ArtField* field = holder->FindFieldByOffset(offset);
       if (field != nullptr) {
         oss << " name=" << field->GetName();
       }
     }
+    mirror::HeapReference<mirror::Object>* addr = holder->GetFieldObjectReferenceAddr(offset);
+    oss << " reference addr"
+        << DumpRAMAroundAddress(reinterpret_cast<uintptr_t>(addr), 4 * kObjectAlignment);
   }
 
   if (fatal) {
@@ -106,10 +115,7 @@ void Verification::LogHeapCorruption(ObjPtr<mirror::Object> holder,
   }
 }
 
-bool Verification::IsValidHeapObjectAddress(const void* addr, space::Space** out_space) const {
-  if (!IsAligned<kObjectAlignment>(addr)) {
-    return false;
-  }
+bool Verification::IsAddressInHeapSpace(const void* addr, space::Space** out_space) const {
   space::Space* const space = heap_->FindSpaceFromAddress(addr);
   if (space != nullptr) {
     if (out_space != nullptr) {
@@ -118,6 +124,10 @@ bool Verification::IsValidHeapObjectAddress(const void* addr, space::Space** out
     return true;
   }
   return false;
+}
+
+bool Verification::IsValidHeapObjectAddress(const void* addr, space::Space** out_space) const {
+  return IsAligned<kObjectAlignment>(addr) && IsAddressInHeapSpace(addr, out_space);
 }
 
 bool Verification::IsValidClass(const void* addr) const {
