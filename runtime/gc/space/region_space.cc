@@ -449,21 +449,14 @@ bool RegionSpace::AllocNewTlab(Thread* self, size_t min_bytes) {
   MutexLock mu(self, region_lock_);
   RevokeThreadLocalBuffersLocked(self);
   // Retain sufficient free regions for full evacuation.
-  if ((num_non_free_regions_ + 1) * 2 > num_regions_) {
-    return false;
-  }
-  for (size_t i = 0; i < num_regions_; ++i) {
-    Region* r = &regions_[i];
-    if (r->IsFree()) {
-      r->Unfree(this, time_);
-      ++num_non_free_regions_;
-      r->SetNewlyAllocated();
-      r->SetTop(r->End());
-      r->is_a_tlab_ = true;
-      r->thread_ = self;
-      self->SetTlab(r->Begin(), r->Begin() + min_bytes, r->End());
-      return true;
-    }
+
+  Region* r = AllocateRegion(/*for_evac*/ false);
+  if (r != nullptr) {
+    r->is_a_tlab_ = true;
+    r->thread_ = self;
+    r->SetTop(r->End());
+    self->SetTlab(r->Begin(), r->Begin() + min_bytes, r->End());
+    return true;
   }
   return false;
 }
@@ -541,6 +534,62 @@ size_t RegionSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable
     }
   }
   return num_bytes;
+}
+
+void RegionSpace::Region::Clear(bool zero_and_release_pages) {
+  top_.StoreRelaxed(begin_);
+  state_ = RegionState::kRegionStateFree;
+  type_ = RegionType::kRegionTypeNone;
+  objects_allocated_.StoreRelaxed(0);
+  alloc_time_ = 0;
+  live_bytes_ = static_cast<size_t>(-1);
+  if (zero_and_release_pages) {
+    ZeroAndReleasePages(begin_, end_ - begin_);
+  }
+  is_newly_allocated_ = false;
+  is_a_tlab_ = false;
+  thread_ = nullptr;
+}
+
+RegionSpace::Region* RegionSpace::AllocateRegion(bool for_evac) {
+  if (!for_evac && (num_non_free_regions_ + 1) * 2 > num_regions_) {
+    return nullptr;
+  }
+  for (size_t i = 0; i < num_regions_; ++i) {
+    Region* r = &regions_[i];
+    if (r->IsFree()) {
+      r->Unfree(this, time_);
+      ++num_non_free_regions_;
+      if (!for_evac) {
+        // Evac doesn't count as newly allocated.
+        r->SetNewlyAllocated();
+      }
+      return r;
+    }
+  }
+  return nullptr;
+}
+
+void RegionSpace::Region::MarkAsAllocated(RegionSpace* region_space, uint32_t alloc_time) {
+  DCHECK(IsFree());
+  alloc_time_ = alloc_time;
+  region_space->AdjustNonFreeRegionLimit(idx_);
+  type_ = RegionType::kRegionTypeToSpace;
+}
+
+void RegionSpace::Region::Unfree(RegionSpace* region_space, uint32_t alloc_time) {
+  MarkAsAllocated(region_space, alloc_time);
+  state_ = RegionState::kRegionStateAllocated;
+}
+
+void RegionSpace::Region::UnfreeLarge(RegionSpace* region_space, uint32_t alloc_time) {
+  MarkAsAllocated(region_space, alloc_time);
+  state_ = RegionState::kRegionStateLarge;
+}
+
+void RegionSpace::Region::UnfreeLargeTail(RegionSpace* region_space, uint32_t alloc_time) {
+  MarkAsAllocated(region_space, alloc_time);
+  state_ = RegionState::kRegionStateLargeTail;
 }
 
 }  // namespace space
