@@ -40,8 +40,10 @@ Disassembler* Disassembler::Create(InstructionSet instruction_set, DisassemblerO
     return new arm::DisassemblerArm(options);
   } else if (instruction_set == kArm64) {
     return new arm64::DisassemblerArm64(options);
-  } else if (instruction_set == kMips || instruction_set == kMips64) {
-    return new mips::DisassemblerMips(options);
+  } else if (instruction_set == kMips) {
+    return new mips::DisassemblerMips(options, /* is_o32_abi */ true);
+  } else if (instruction_set == kMips64) {
+    return new mips::DisassemblerMips(options, /* is_o32_abi */ false);
   } else if (instruction_set == kX86) {
     return new x86::DisassemblerX86(options, false);
   } else if (instruction_set == kX86_64) {

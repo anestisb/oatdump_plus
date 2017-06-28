@@ -26,11 +26,13 @@ namespace mips {
 
 class DisassemblerMips FINAL : public Disassembler {
  public:
-  explicit DisassemblerMips(DisassemblerOptions* options)
+  explicit DisassemblerMips(DisassemblerOptions* options, bool is_o32_abi)
       : Disassembler(options),
         last_ptr_(nullptr),
-        last_instr_(0) {}
+        last_instr_(0),
+        is_o32_abi_(is_o32_abi) {}
 
+  const char* RegName(uint32_t reg);
   size_t Dump(std::ostream& os, const uint8_t* begin) OVERRIDE;
   void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
 
@@ -39,6 +41,7 @@ class DisassemblerMips FINAL : public Disassembler {
   // Needed to produce more readable disassembly of certain 2-instruction sequences.
   const uint8_t* last_ptr_;
   uint32_t last_instr_;
+  const bool is_o32_abi_;
 
   DISALLOW_COPY_AND_ASSIGN(DisassemblerMips);
 };

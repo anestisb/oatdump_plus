@@ -340,7 +340,7 @@ public class Main {
 
   /// CHECK-START-MIPS: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
   /// CHECK:          InvokeVirtual {{.*\.equals.*}} intrinsic:StringEquals
-  /// CHECK-NOT:      beq r0,
+  /// CHECK-NOT:      beq zero,
   /// CHECK-NOT:      beqz
   /// CHECK-NOT:      beqzc
   // Terminate the scope for the CHECK-NOT search at the class field or length comparison,
