@@ -29,6 +29,9 @@ namespace space {
 // value of the region size, evaculate the region.
 static constexpr uint kEvaculateLivePercentThreshold = 75U;
 
+// If we protect the cleared regions.
+static constexpr bool kProtectClearedRegions = true;
+
 MemMap* RegionSpace::CreateMemMap(const std::string& name, size_t capacity,
                                   uint8_t* requested_begin) {
   CHECK_ALIGNED(capacity, kRegionSize);
@@ -546,6 +549,9 @@ void RegionSpace::Region::Clear(bool zero_and_release_pages) {
   if (zero_and_release_pages) {
     ZeroAndReleasePages(begin_, end_ - begin_);
   }
+  if (kProtectClearedRegions) {
+    mprotect(begin_, end_ - begin_, PROT_NONE);
+  }
   is_newly_allocated_ = false;
   is_a_tlab_ = false;
   thread_ = nullptr;
@@ -575,6 +581,9 @@ void RegionSpace::Region::MarkAsAllocated(RegionSpace* region_space, uint32_t al
   alloc_time_ = alloc_time;
   region_space->AdjustNonFreeRegionLimit(idx_);
   type_ = RegionType::kRegionTypeToSpace;
+  if (kProtectClearedRegions) {
+    mprotect(Begin(), kRegionSize, PROT_READ | PROT_WRITE);
+  }
 }
 
 void RegionSpace::Region::Unfree(RegionSpace* region_space, uint32_t alloc_time) {
