@@ -48,58 +48,32 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
   mirror::Object* obj;
   if (LIKELY(num_bytes <= kRegionSize)) {
     // Non-large object.
-    if (!kForEvac) {
-      obj = current_region_->Alloc(num_bytes, bytes_allocated, usable_size,
-                                   bytes_tl_bulk_allocated);
-    } else {
-      DCHECK(evac_region_ != nullptr);
-      obj = evac_region_->Alloc(num_bytes, bytes_allocated, usable_size,
-                                bytes_tl_bulk_allocated);
-    }
+    obj = (kForEvac ? evac_region_ : current_region_)->Alloc(num_bytes,
+                                                             bytes_allocated,
+                                                             usable_size,
+                                                             bytes_tl_bulk_allocated);
     if (LIKELY(obj != nullptr)) {
       return obj;
     }
     MutexLock mu(Thread::Current(), region_lock_);
     // Retry with current region since another thread may have updated it.
-    if (!kForEvac) {
-      obj = current_region_->Alloc(num_bytes, bytes_allocated, usable_size,
-                                   bytes_tl_bulk_allocated);
-    } else {
-      obj = evac_region_->Alloc(num_bytes, bytes_allocated, usable_size,
-                                bytes_tl_bulk_allocated);
-    }
+    obj = (kForEvac ? evac_region_ : current_region_)->Alloc(num_bytes,
+                                                             bytes_allocated,
+                                                             usable_size,
+                                                             bytes_tl_bulk_allocated);
     if (LIKELY(obj != nullptr)) {
       return obj;
     }
-    if (!kForEvac) {
-      // Retain sufficient free regions for full evacuation.
-      if ((num_non_free_regions_ + 1) * 2 > num_regions_) {
-        return nullptr;
+    Region* r = AllocateRegion(kForEvac);
+    if (LIKELY(r != nullptr)) {
+      if (kForEvac) {
+        evac_region_ = r;
+      } else {
+        current_region_ = r;
       }
-      for (size_t i = 0; i < num_regions_; ++i) {
-        Region* r = &regions_[i];
-        if (r->IsFree()) {
-          r->Unfree(this, time_);
-          r->SetNewlyAllocated();
-          ++num_non_free_regions_;
-          obj = r->Alloc(num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
-          CHECK(obj != nullptr);
-          current_region_ = r;
-          return obj;
-        }
-      }
-    } else {
-      for (size_t i = 0; i < num_regions_; ++i) {
-        Region* r = &regions_[i];
-        if (r->IsFree()) {
-          r->Unfree(this, time_);
-          ++num_non_free_regions_;
-          obj = r->Alloc(num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
-          CHECK(obj != nullptr);
-          evac_region_ = r;
-          return obj;
-        }
-      }
+      obj = r->Alloc(num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
+      CHECK(obj != nullptr);
+      return obj;
     }
   } else {
     // Large object.

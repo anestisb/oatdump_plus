@@ -284,20 +284,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       return type_;
     }
 
-    void Clear(bool zero_and_release_pages) {
-      top_.StoreRelaxed(begin_);
-      state_ = RegionState::kRegionStateFree;
-      type_ = RegionType::kRegionTypeNone;
-      objects_allocated_.StoreRelaxed(0);
-      alloc_time_ = 0;
-      live_bytes_ = static_cast<size_t>(-1);
-      if (zero_and_release_pages) {
-        ZeroAndReleasePages(begin_, end_ - begin_);
-      }
-      is_newly_allocated_ = false;
-      is_a_tlab_ = false;
-      thread_ = nullptr;
-    }
+    void Clear(bool zero_and_release_pages);
 
     ALWAYS_INLINE mirror::Object* Alloc(size_t num_bytes, size_t* bytes_allocated,
                                         size_t* usable_size,
@@ -315,31 +302,16 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
 
     // Given a free region, declare it non-free (allocated).
     void Unfree(RegionSpace* region_space, uint32_t alloc_time)
-        REQUIRES(region_space->region_lock_) {
-      DCHECK(IsFree());
-      state_ = RegionState::kRegionStateAllocated;
-      type_ = RegionType::kRegionTypeToSpace;
-      alloc_time_ = alloc_time;
-      region_space->AdjustNonFreeRegionLimit(idx_);
-    }
+        REQUIRES(region_space->region_lock_);
 
     void UnfreeLarge(RegionSpace* region_space, uint32_t alloc_time)
-        REQUIRES(region_space->region_lock_) {
-      DCHECK(IsFree());
-      state_ = RegionState::kRegionStateLarge;
-      type_ = RegionType::kRegionTypeToSpace;
-      alloc_time_ = alloc_time;
-      region_space->AdjustNonFreeRegionLimit(idx_);
-    }
+        REQUIRES(region_space->region_lock_);
 
     void UnfreeLargeTail(RegionSpace* region_space, uint32_t alloc_time)
-        REQUIRES(region_space->region_lock_) {
-      DCHECK(IsFree());
-      state_ = RegionState::kRegionStateLargeTail;
-      type_ = RegionType::kRegionTypeToSpace;
-      alloc_time_ = alloc_time;
-      region_space->AdjustNonFreeRegionLimit(idx_);
-    }
+        REQUIRES(region_space->region_lock_);
+
+    void MarkAsAllocated(RegionSpace* region_space, uint32_t alloc_time)
+        REQUIRES(region_space->region_lock_);
 
     void SetNewlyAllocated() {
       is_newly_allocated_ = true;
@@ -538,6 +510,8 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       }
     }
   }
+
+  Region* AllocateRegion(bool for_evac) REQUIRES(region_lock_);
 
   Mutex region_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
