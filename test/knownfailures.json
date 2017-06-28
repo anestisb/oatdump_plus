@@ -602,8 +602,7 @@
     },
     {
         "tests": [
-            "567-checker-compare",
-            "633-checker-rtp-getclass"
+            "567-checker-compare"
         ],
         "description": "Checker tests failing when run with --build-with-javac-dx.",
         "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
