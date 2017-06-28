@@ -116,14 +116,15 @@ class HLoopOptimization : public HOptimization {
   void OptimizeInnerLoop(LoopNode* node);
 
   // Vectorization analysis and synthesis.
-  bool CanVectorize(LoopNode* node, HBasicBlock* block, int64_t trip_count);
+  bool ShouldVectorize(LoopNode* node, HBasicBlock* block, int64_t trip_count);
   void Vectorize(LoopNode* node, HBasicBlock* block, HBasicBlock* exit, int64_t trip_count);
   void GenerateNewLoop(LoopNode* node,
                        HBasicBlock* block,
                        HBasicBlock* new_preheader,
                        HInstruction* lo,
                        HInstruction* hi,
-                       HInstruction* step);
+                       HInstruction* step,
+                       uint32_t unroll);
   bool VectorizeDef(LoopNode* node, HInstruction* instruction, bool generate_code);
   bool VectorizeUse(LoopNode* node,
                     HInstruction* instruction,
@@ -133,10 +134,11 @@ class HLoopOptimization : public HOptimization {
   bool TrySetVectorType(Primitive::Type type, /*out*/ uint64_t* restrictions);
   bool TrySetVectorLength(uint32_t length);
   void GenerateVecInv(HInstruction* org, Primitive::Type type);
-  void GenerateVecSub(HInstruction* org, HInstruction* off);
+  void GenerateVecSub(HInstruction* org, HInstruction* offset);
   void GenerateVecMem(HInstruction* org,
                       HInstruction* opa,
                       HInstruction* opb,
+                      HInstruction* offset,
                       Primitive::Type type);
   void GenerateVecOp(HInstruction* org,
                      HInstruction* opa,
@@ -150,6 +152,11 @@ class HLoopOptimization : public HOptimization {
                                 bool generate_code,
                                 Primitive::Type type,
                                 uint64_t restrictions);
+
+  // Vectorization heuristics.
+  bool IsVectorizationProfitable(int64_t trip_count);
+  void SetPeelingCandidate(int64_t trip_count);
+  uint32_t GetUnrollingFactor(HBasicBlock* block, int64_t trip_count);
 
   // Helpers.
   bool TrySetPhiInduction(HPhi* phi, bool restrict_uses);
@@ -208,20 +215,25 @@ class HLoopOptimization : public HOptimization {
   // Contents reside in phase-local heap memory.
   ArenaSet<ArrayReference>* vector_refs_;
 
+  // Dynamic loop peeling candidate for alignment.
+  const ArrayReference* vector_peeling_candidate_;
+
+  // Dynamic data dependence test of the form a != b.
+  HInstruction* vector_runtime_test_a_;
+  HInstruction* vector_runtime_test_b_;
+
   // Mapping used during vectorization synthesis for both the scalar peeling/cleanup
-  // loop (simd_ is false) and the actual vector loop (simd_ is true). The data
+  // loop (mode is kSequential) and the actual vector loop (mode is kVector). The data
   // structure maps original instructions into the new instructions.
   // Contents reside in phase-local heap memory.
   ArenaSafeMap<HInstruction*, HInstruction*>* vector_map_;
 
   // Temporary vectorization bookkeeping.
+  VectorMode vector_mode_;  // synthesis mode
   HBasicBlock* vector_preheader_;  // preheader of the new loop
   HBasicBlock* vector_header_;  // header of the new loop
   HBasicBlock* vector_body_;  // body of the new loop
-  HInstruction* vector_runtime_test_a_;
-  HInstruction* vector_runtime_test_b_;  // defines a != b runtime test
-  HPhi* vector_phi_;  // the Phi representing the normalized loop index
-  VectorMode vector_mode_;  // selects synthesis mode
+  HInstruction* vector_index_;  // normalized index of the new loop
 
   friend class LoopOptimizationTest;
 
