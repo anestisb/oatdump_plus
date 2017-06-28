@@ -676,5 +676,12 @@
         "description": [ "Flake on gcstress" ],
         "bug": "b/62562923",
         "variant": "gcstress & jit & target"
+    },
+    {
+        "tests": ["004-JniTest"],
+        "description": [ "Tests failing with --build-with-javac-dx since the new annotation",
+                         "lookup changes" ],
+        "bug": "b/63089991",
+        "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"}
     }
 ]
