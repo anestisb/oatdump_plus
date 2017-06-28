@@ -368,8 +368,6 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   void Bind(HBasicBlock* block) OVERRIDE;
 
-  void Move32(Location destination, Location source);
-  void Move64(Location destination, Location source);
   void MoveConstant(Location location, HConstant* c);
 
   size_t GetWordSize() const OVERRIDE { return kMipsWordSize; }
