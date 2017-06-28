@@ -54,6 +54,11 @@ TEST_F(VerificationTest, IsValidHeapObjectAddress) {
   Handle<mirror::String> string(
       hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "test")));
   EXPECT_TRUE(v->IsValidHeapObjectAddress(string.Get()));
+  // Address in the heap that isn't aligned.
+  const void* unaligned_address =
+      reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(string.Get()) + 1);
+  EXPECT_TRUE(v->IsAddressInHeapSpace(unaligned_address));
+  EXPECT_FALSE(v->IsValidHeapObjectAddress(unaligned_address));
   EXPECT_TRUE(v->IsValidHeapObjectAddress(string->GetClass()));
   const uintptr_t uint_klass = reinterpret_cast<uintptr_t>(string->GetClass());
   // Not actually a valid object but the verification can't know that. Guaranteed to be inside a
