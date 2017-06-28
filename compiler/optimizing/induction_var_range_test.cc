@@ -770,8 +770,8 @@ TEST_F(InductionVarRangeTest, ConstantTripCountUp) {
   EXPECT_TRUE(range_.IsFinite(loop_header_->GetLoopInformation(), &tc));
   EXPECT_EQ(1000, tc);
   HInstruction* offset = nullptr;
-  EXPECT_TRUE(range_.IsUnitStride(phi, phi, &offset));
-  EXPECT_TRUE(offset == nullptr);
+  EXPECT_TRUE(range_.IsUnitStride(phi, phi, graph_, &offset));
+  ExpectInt(0, offset);
   HInstruction* tce = range_.GenerateTripCount(
       loop_header_->GetLoopInformation(), graph_, loop_preheader_);
   ASSERT_TRUE(tce != nullptr);
@@ -826,7 +826,7 @@ TEST_F(InductionVarRangeTest, ConstantTripCountDown) {
   EXPECT_TRUE(range_.IsFinite(loop_header_->GetLoopInformation(), &tc));
   EXPECT_EQ(1000, tc);
   HInstruction* offset = nullptr;
-  EXPECT_FALSE(range_.IsUnitStride(phi, phi, &offset));
+  EXPECT_FALSE(range_.IsUnitStride(phi, phi, graph_, &offset));
   HInstruction* tce = range_.GenerateTripCount(
       loop_header_->GetLoopInformation(), graph_, loop_preheader_);
   ASSERT_TRUE(tce != nullptr);
@@ -908,8 +908,8 @@ TEST_F(InductionVarRangeTest, SymbolicTripCountUp) {
   EXPECT_TRUE(range_.IsFinite(loop_header_->GetLoopInformation(), &tc));
   EXPECT_EQ(0, tc);  // unknown
   HInstruction* offset = nullptr;
-  EXPECT_TRUE(range_.IsUnitStride(phi, phi, &offset));
-  EXPECT_TRUE(offset == nullptr);
+  EXPECT_TRUE(range_.IsUnitStride(phi, phi, graph_, &offset));
+  ExpectInt(0, offset);
   HInstruction* tce = range_.GenerateTripCount(
       loop_header_->GetLoopInformation(), graph_, loop_preheader_);
   ASSERT_TRUE(tce != nullptr);
@@ -994,7 +994,7 @@ TEST_F(InductionVarRangeTest, SymbolicTripCountDown) {
   EXPECT_TRUE(range_.IsFinite(loop_header_->GetLoopInformation(), &tc));
   EXPECT_EQ(0, tc);  // unknown
   HInstruction* offset = nullptr;
-  EXPECT_FALSE(range_.IsUnitStride(phi, phi, &offset));
+  EXPECT_FALSE(range_.IsUnitStride(phi, phi, graph_, &offset));
   HInstruction* tce = range_.GenerateTripCount(
       loop_header_->GetLoopInformation(), graph_, loop_preheader_);
   ASSERT_TRUE(tce != nullptr);
