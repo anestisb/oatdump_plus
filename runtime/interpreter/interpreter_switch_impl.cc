@@ -196,7 +196,20 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE_RESULT_OBJECT:
-        PREAMBLE();
+        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
+          // Special case the preamble to save and restore the result object. It could move
+          // during DexPcMovedEvent.
+          // Note that ideally we should have the result object be visible to GC as soon as it
+          // is returned, but that involves pretty heave surgery to the interpreter and the runtime
+          // that it may not be worth it. The way it is currently written, there is an implicit
+          // assumption the result register is updated last in the leaf method, and all methods
+          // in-between just return.
+          StackHandleScope<1> hs(self);
+          Handle<mirror::Object> result_object(hs.NewHandle(result_register.GetL()));
+          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
+                                           shadow_frame.GetMethod(), dex_pc);
+          result_register.SetL(result_object.Get());
+        }
         shadow_frame.SetVRegReference(inst->VRegA_11x(inst_data), result_register.GetL());
         inst = inst->Next_1xx();
         break;
