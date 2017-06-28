@@ -1533,4 +1533,15 @@ TEST_F(ClassLinkerMethodHandlesTest, TestResolveMethodTypes) {
   ASSERT_TRUE(method1_type.Get() != method2_type.Get());
 }
 
+// Verify that ClassLinker's CreateWellknownClassLoader works as expected
+// by creating a chain of class loaders with various dex files.
+TEST_F(ClassLinkerTest, CreateWellKnownClassLoader) {
+  // LoadDexIn*ClassLoader methods already assert that the parent loader is the expected one.
+  // No need to check again.
+  jobject class_loader_a = LoadDexInPathClassLoader("MyClass", nullptr);
+  jobject class_loader_b = LoadDexInDelegateLastClassLoader("Nested", class_loader_a);
+  jobject class_loader_c = LoadDexInPathClassLoader("MultiDex", class_loader_b);
+  LoadDexInDelegateLastClassLoader("Interfaces", class_loader_c);
+}
+
 }  // namespace art
