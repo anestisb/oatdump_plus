@@ -89,7 +89,8 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
                            CompilerFilter::Filter filter,
                            const std::vector<std::string>& extra_args = {},
                            bool expect_success = true,
-                           bool use_fd = false) {
+                           bool use_fd = false,
+                           std::function<void(const OatFile&)> check_oat = [](const OatFile&) {}) {
     std::string error_msg;
     int status = GenerateOdexForTestWithStatus(dex_location,
                                                odex_location,
@@ -113,6 +114,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
       ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
 
       CheckFilter(filter, odex_file->GetCompilerFilter());
+      check_oat(*(odex_file.get()));
     } else {
       ASSERT_FALSE(success) << output_;
 
@@ -893,6 +895,125 @@ TEST_F(Dex2oatReturnCodeTest, TestCreateRuntime) {
   TEST_DISABLED_FOR_MEMORY_TOOL();  // b/19100793
   int status = RunTest({ "--boot-image=/this/does/not/exist/yolo.oat" });
   EXPECT_EQ(static_cast<int>(dex2oat::ReturnCode::kCreateRuntime), WEXITSTATUS(status)) << output_;
+}
+
+class Dex2oatClassLoaderContextTest : public Dex2oatTest {
+ protected:
+  void RunTest(const char* class_loader_context,
+               const char* expected_classpath_key,
+               bool expected_success,
+               bool use_second_source = false) {
+    std::string dex_location = GetUsedDexLocation();
+    std::string odex_location = GetUsedOatLocation();
+
+    Copy(use_second_source ? GetDexSrc2() : GetDexSrc1(), dex_location);
+
+    std::string error_msg;
+    std::vector<std::string> extra_args;
+    if (class_loader_context != nullptr) {
+      extra_args.push_back(std::string("--class-loader-context=") + class_loader_context);
+    }
+    auto check_oat = [expected_classpath_key](const OatFile& oat_file) {
+      ASSERT_TRUE(expected_classpath_key != nullptr);
+      const char* classpath = oat_file.GetOatHeader().GetStoreValueByKey(OatHeader::kClassPathKey);
+      ASSERT_TRUE(classpath != nullptr);
+      ASSERT_STREQ(expected_classpath_key, classpath);
+    };
+
+    GenerateOdexForTest(dex_location,
+                        odex_location,
+                        CompilerFilter::kQuicken,
+                        extra_args,
+                        expected_success,
+                        /*use_fd*/ false,
+                        check_oat);
+  }
+
+  std::string GetUsedDexLocation() {
+    return GetScratchDir() + "/Context.jar";
+  }
+
+  std::string GetUsedOatLocation() {
+    return GetOdexDir() + "/Context.odex";
+  }
+
+  const char* kEmptyClassPathKey = "";
+};
+
+TEST_F(Dex2oatClassLoaderContextTest, InvalidContext) {
+  RunTest("Invalid[]", /*expected_classpath_key*/ nullptr, /*expected_success*/ false);
+}
+
+TEST_F(Dex2oatClassLoaderContextTest, EmptyContext) {
+  RunTest("PCL[]", kEmptyClassPathKey, /*expected_success*/ true);
+}
+
+TEST_F(Dex2oatClassLoaderContextTest, SpecialContext) {
+  RunTest(OatFile::kSpecialSharedLibrary,
+          OatFile::kSpecialSharedLibrary,
+          /*expected_success*/ true);
+}
+
+TEST_F(Dex2oatClassLoaderContextTest, ContextWithTheSourceDexFiles) {
+  std::string context = "PCL[" + GetUsedDexLocation() + "]";
+  RunTest(context.c_str(), kEmptyClassPathKey, /*expected_success*/ true);
+}
+
+TEST_F(Dex2oatClassLoaderContextTest, ContextWithOtherDexFiles) {
+  std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles("Nested");
+  std::string expected_classpath_key =
+      OatFile::EncodeDexFileDependencies(MakeNonOwningPointerVector(dex_files), "");
+
+  std::string context = "PCL[" + dex_files[0]->GetLocation() + "]";
+  RunTest(context.c_str(), expected_classpath_key.c_str(), true);
+}
+
+TEST_F(Dex2oatClassLoaderContextTest, ContextWithStrippedDexFiles) {
+  std::string stripped_classpath = GetScratchDir() + "/stripped_classpath.jar";
+  Copy(GetStrippedDexSrc1(), stripped_classpath);
+
+  std::string context = "PCL[" + stripped_classpath + "]";
+  // Expect an empty context because stripped dex files cannot be open.
+  RunTest(context.c_str(), /*expected_classpath_key*/ "" , /*expected_success*/ true);
+}
+
+TEST_F(Dex2oatClassLoaderContextTest, ContextWithStrippedDexFilesBackedByOdex) {
+  std::string stripped_classpath = GetScratchDir() + "/stripped_classpath.jar";
+  std::string odex_for_classpath = GetOdexDir() + "/stripped_classpath.odex";
+
+  Copy(GetDexSrc1(), stripped_classpath);
+
+  GenerateOdexForTest(stripped_classpath,
+                      odex_for_classpath,
+                      CompilerFilter::kQuicken,
+                      {},
+                      true);
+
+  // Strip the dex file
+  Copy(GetStrippedDexSrc1(), stripped_classpath);
+
+  std::string context = "PCL[" + stripped_classpath + "]";
+  std::string expected_classpath;
+  {
+    // Open the oat file to get the expected classpath.
+    OatFileAssistant oat_file_assistant(stripped_classpath.c_str(), kRuntimeISA, false);
+    std::unique_ptr<OatFile> oat_file(oat_file_assistant.GetBestOatFile());
+    std::vector<std::unique_ptr<const DexFile>> oat_dex_files =
+        OatFileAssistant::LoadDexFiles(*oat_file, stripped_classpath.c_str());
+    expected_classpath = OatFile::EncodeDexFileDependencies(
+        MakeNonOwningPointerVector(oat_dex_files), "");
+  }
+
+  RunTest(context.c_str(),
+          expected_classpath.c_str(),
+          /*expected_success*/ true,
+          /*use_second_source*/ true);
+}
+
+TEST_F(Dex2oatClassLoaderContextTest, ContextWithNotExistentDexFiles) {
+  std::string context = "PCL[does_not_exists.dex]";
+  // Expect an empty context because stripped dex files cannot be open.
+  RunTest(context.c_str(), kEmptyClassPathKey, /*expected_success*/ true);
 }
 
 }  // namespace art

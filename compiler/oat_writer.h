@@ -153,7 +153,7 @@ class OatWriter {
       const VdexFile& vdex_file,
       const char* location,
       CreateTypeLookupTable create_type_lookup_table = CreateTypeLookupTable::kDefault);
-  dchecked_vector<const char*> GetSourceLocations() const;
+  dchecked_vector<std::string> GetSourceLocations() const;
 
   // Write raw dex files to the vdex file, mmap the file and open the dex files from it.
   // Supporting data structures are written into the .rodata section of the oat file.

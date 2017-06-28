@@ -49,6 +49,7 @@
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
+#include "class_loader_context.h"
 #include "compiler.h"
 #include "compiler_callbacks.h"
 #include "debug/elf_debug_writer.h"
@@ -399,6 +400,27 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      --dump-cfg.");
   UsageError("");
   UsageError("  --classpath-dir=<directory-path>: directory used to resolve relative class paths.");
+  UsageError("");
+  UsageError("  --class-loader-context=<string spec>: a string specifying the intended");
+  UsageError("      runtime loading context for the compiled dex files.");
+  UsageError("      ");
+  UsageError("      It describes how the class loader chain should be built in order to ensure");
+  UsageError("      classes are resolved during dex2aot as they would be resolved at runtime.");
+  UsageError("      This spec will be encoded in the oat file. If at runtime the dex file is");
+  UsageError("      loaded in a different context, the oat file will be rejected.");
+  UsageError("      ");
+  UsageError("      The chain is interpreted in the natural 'parent order', meaning that class");
+  UsageError("      loader 'i+1' will be the parent of class loader 'i'.");
+  UsageError("      The compilation sources will be added to the classpath of the last class");
+  UsageError("      loader. This allows the compiled dex files to be loaded at runtime in");
+  UsageError("      a class loader that contains other dex files as well (e.g. shared libraries).");
+  UsageError("      ");
+  UsageError("      Note that the compiler will be tolerant if the source dex files specified");
+  UsageError("      with --dex-file are found in the classpath. The source dex files will be");
+  UsageError("      removed from any class loader's classpath possibly resulting in empty");
+  UsageError("      class loaders.");
+  UsageError("      ");
+  UsageError("      Example: --classloader-spec=PCL[lib1.dex:lib2.dex];DLC[lib3.dex]");
   UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
@@ -1271,6 +1293,12 @@ class Dex2Oat FINAL {
         force_determinism_ = true;
       } else if (option.starts_with("--classpath-dir=")) {
         classpath_dir_ = option.substr(strlen("--classpath-dir=")).data();
+      } else if (option.starts_with("--class-loader-context=")) {
+        class_loader_context_ = ClassLoaderContext::Create(
+            option.substr(strlen("--class-loader-context=")).data());
+        if (class_loader_context_== nullptr) {
+          Usage("Option --class-loader-context has an incorrect format: %s", option.data());
+        }
       } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
         Usage("Unknown argument %s", option.data());
       }
@@ -1542,25 +1570,45 @@ class Dex2Oat FINAL {
       }
 
       // Open dex files for class path.
-      std::vector<std::string> class_path_locations =
-          GetClassPathLocations(runtime_->GetClassPathString());
-      OpenClassPathFiles(class_path_locations,
-                         &class_path_files_,
-                         &opened_oat_files_,
-                         runtime_->GetInstructionSet(),
-                         classpath_dir_);
-
-      // Store the classpath we have right now.
-      std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
-      std::string encoded_class_path;
-      if (class_path_locations.size() == 1 &&
-          class_path_locations[0] == OatFile::kSpecialSharedLibrary) {
-        // When passing the special shared library as the classpath, it is the only path.
-        encoded_class_path = OatFile::kSpecialSharedLibrary;
-      } else {
-        encoded_class_path = OatFile::EncodeDexFileDependencies(class_path_files, classpath_dir_);
+      if (class_loader_context_ == nullptr) {
+        // TODO(calin): Temporary workaround while we transition to use
+        // --class-loader-context instead of --runtime-arg -cp
+        if (runtime_->GetClassPathString().empty()) {
+          class_loader_context_ = std::unique_ptr<ClassLoaderContext>(
+              new ClassLoaderContext());
+        } else {
+          std::string spec = runtime_->GetClassPathString() == OatFile::kSpecialSharedLibrary
+              ? OatFile::kSpecialSharedLibrary
+              : "PCL[" + runtime_->GetClassPathString() + "]";
+          class_loader_context_ = ClassLoaderContext::Create(spec);
+        }
       }
-      key_value_store_->Put(OatHeader::kClassPathKey, encoded_class_path);
+      CHECK(class_loader_context_ != nullptr);
+      DCHECK_EQ(oat_writers_.size(), 1u);
+
+      // Note: Ideally we would reject context where the source dex files are also
+      // specified in the classpath (as it doesn't make sense). However this is currently
+      // needed for non-prebuild tests and benchmarks which expects on the fly compilation.
+      // Also, for secondary dex files we do not have control on the actual classpath.
+      // Instead of aborting, remove all the source location from the context classpaths.
+      if (class_loader_context_->RemoveLocationsFromClassPaths(
+            oat_writers_[0]->GetSourceLocations())) {
+        LOG(WARNING) << "The source files to be compiled are also in the classpath.";
+      }
+
+      // We need to open the dex files before encoding the context in the oat file.
+      // (because the encoding adds the dex checksum...)
+      // TODO(calin): consider redesigning this so we don't have to open the dex files before
+      // creating the actual class loader.
+      if (!class_loader_context_->OpenDexFiles(runtime_->GetInstructionSet(), classpath_dir_)) {
+        // Do not abort if we couldn't open files from the classpath. They might be
+        // apks without dex files and right now are opening flow will fail them.
+        LOG(WARNING) << "Failed to open classpath dex files";
+      }
+
+      // Store the class loader context in the oat header.
+      key_value_store_->Put(OatHeader::kClassPathKey,
+                            class_loader_context_->EncodeContextForOatFile(classpath_dir_));
     }
 
     // Now that we have finalized key_value_store_, start writing the oat file.
@@ -1656,17 +1704,7 @@ class Dex2Oat FINAL {
       if (kSaveDexInput) {
         SaveDexInput();
       }
-
-      // Handle and ClassLoader creation needs to come after Runtime::Create.
-      ScopedObjectAccess soa(self);
-
-      // Classpath: first the class-path given.
-      std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
-
-      // Then the dex files we'll compile. Thus we'll resolve the class-path first.
-      class_path_files.insert(class_path_files.end(), dex_files_.begin(), dex_files_.end());
-
-      class_loader_ = class_linker->CreatePathClassLoader(self, class_path_files);
+      class_loader_ = class_loader_context_->CreateClassLoader(dex_files_);
     }
 
     // Ensure opened dex files are writable for dex-to-dex transformations.
@@ -1721,7 +1759,12 @@ class Dex2Oat FINAL {
 
     if (!no_inline_filters.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
+      std::vector<const DexFile*> class_path_files;
+      if (!IsBootImage()) {
+        // The class loader context is used only for apps.
+        class_path_files = class_loader_context_->FlattenOpenedDexFiles();
+      }
+
       std::vector<const std::vector<const DexFile*>*> dex_file_vectors = {
           &class_linker->GetBootClassPath(),
           &class_path_files,
@@ -2224,8 +2267,8 @@ class Dex2Oat FINAL {
     DCHECK(!IsBootImage());
     DCHECK_EQ(oat_writers_.size(), 1u);
     std::vector<std::string> dex_files_canonical_locations;
-    for (const char* location : oat_writers_[0]->GetSourceLocations()) {
-      dex_files_canonical_locations.push_back(DexFile::GetDexCanonicalLocation(location));
+    for (const std::string& location : oat_writers_[0]->GetSourceLocations()) {
+      dex_files_canonical_locations.push_back(DexFile::GetDexCanonicalLocation(location.c_str()));
     }
 
     std::vector<std::string> parsed;
@@ -2238,48 +2281,6 @@ class Dex2Oat FINAL {
     });
     parsed.erase(kept_it, parsed.end());
     return parsed;
-  }
-
-  // Opens requested class path files and appends them to opened_dex_files. If the dex files have
-  // been stripped, this opens them from their oat files and appends them to opened_oat_files.
-  static void OpenClassPathFiles(std::vector<std::string>& class_path_locations,
-                                 std::vector<std::unique_ptr<const DexFile>>* opened_dex_files,
-                                 std::vector<std::unique_ptr<OatFile>>* opened_oat_files,
-                                 InstructionSet isa,
-                                 std::string& classpath_dir) {
-    DCHECK(opened_dex_files != nullptr) << "OpenClassPathFiles dex out-param is nullptr";
-    DCHECK(opened_oat_files != nullptr) << "OpenClassPathFiles oat out-param is nullptr";
-    for (std::string& location : class_path_locations) {
-      // Stop early if we detect the special shared library, which may be passed as the classpath
-      // for dex2oat when we want to skip the shared libraries check.
-      if (location == OatFile::kSpecialSharedLibrary) {
-        break;
-      }
-      // If path is relative, append it to the provided base directory.
-      if (!classpath_dir.empty() && location[0] != '/') {
-        location = classpath_dir + '/' + location;
-      }
-      static constexpr bool kVerifyChecksum = true;
-      std::string error_msg;
-      if (!DexFile::Open(
-          location.c_str(), location.c_str(), kVerifyChecksum, &error_msg, opened_dex_files)) {
-        // If we fail to open the dex file because it's been stripped, try to open the dex file
-        // from its corresponding oat file.
-        OatFileAssistant oat_file_assistant(location.c_str(), isa, false);
-        std::unique_ptr<OatFile> oat_file(oat_file_assistant.GetBestOatFile());
-        if (oat_file == nullptr) {
-          LOG(WARNING) << "Failed to open dex file and associated oat file for '" << location
-                       << "': " << error_msg;
-        } else {
-          std::vector<std::unique_ptr<const DexFile>> oat_dex_files =
-              oat_file_assistant.LoadDexFiles(*oat_file, location.c_str());
-          opened_oat_files->push_back(std::move(oat_file));
-          opened_dex_files->insert(opened_dex_files->end(),
-                                   std::make_move_iterator(oat_dex_files.begin()),
-                                   std::make_move_iterator(oat_dex_files.end()));
-        }
-      }
-    }
   }
 
   bool PrepareImageClasses() {
@@ -2737,8 +2738,8 @@ class Dex2Oat FINAL {
 
   std::unique_ptr<Runtime> runtime_;
 
-  // Ownership for the class path files.
-  std::vector<std::unique_ptr<const DexFile>> class_path_files_;
+  // The spec describing how the class loader should be setup for compilation.
+  std::unique_ptr<ClassLoaderContext> class_loader_context_;
 
   size_t thread_count_;
   uint64_t start_ns_;
@@ -2792,9 +2793,9 @@ class Dex2Oat FINAL {
   std::unique_ptr<CompilerDriver> driver_;
 
   std::vector<std::unique_ptr<MemMap>> opened_dex_files_maps_;
-  std::vector<std::unique_ptr<OatFile>> opened_oat_files_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 
+  // Note that this might contain pointers owned by class_loader_context_.
   std::vector<const DexFile*> no_inline_from_dex_files_;
 
   bool dump_stats_;
