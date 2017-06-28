@@ -83,20 +83,20 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 	//       the debug version. So make the gap consistent (and adjust for the worst).
 	if len(ctx.AConfig().SanitizeDevice()) > 0 || len(ctx.AConfig().SanitizeHost()) > 0 {
 		cflags = append(cflags,
-				"-DART_STACK_OVERFLOW_GAP_arm=8192",
-				"-DART_STACK_OVERFLOW_GAP_arm64=8192",
-				"-DART_STACK_OVERFLOW_GAP_mips=16384",
-				"-DART_STACK_OVERFLOW_GAP_mips64=16384",
-				"-DART_STACK_OVERFLOW_GAP_x86=16384",
-				"-DART_STACK_OVERFLOW_GAP_x86_64=20480")
+			"-DART_STACK_OVERFLOW_GAP_arm=8192",
+			"-DART_STACK_OVERFLOW_GAP_arm64=8192",
+			"-DART_STACK_OVERFLOW_GAP_mips=16384",
+			"-DART_STACK_OVERFLOW_GAP_mips64=16384",
+			"-DART_STACK_OVERFLOW_GAP_x86=16384",
+			"-DART_STACK_OVERFLOW_GAP_x86_64=20480")
 	} else {
 		cflags = append(cflags,
-				"-DART_STACK_OVERFLOW_GAP_arm=8192",
-				"-DART_STACK_OVERFLOW_GAP_arm64=8192",
-				"-DART_STACK_OVERFLOW_GAP_mips=16384",
-				"-DART_STACK_OVERFLOW_GAP_mips64=16384",
-				"-DART_STACK_OVERFLOW_GAP_x86=8192",
-				"-DART_STACK_OVERFLOW_GAP_x86_64=8192")
+			"-DART_STACK_OVERFLOW_GAP_arm=8192",
+			"-DART_STACK_OVERFLOW_GAP_arm64=8192",
+			"-DART_STACK_OVERFLOW_GAP_mips=16384",
+			"-DART_STACK_OVERFLOW_GAP_mips64=16384",
+			"-DART_STACK_OVERFLOW_GAP_x86=8192",
+			"-DART_STACK_OVERFLOW_GAP_x86_64=8192")
 	}
 
 	return cflags, asflags
@@ -168,10 +168,10 @@ func globalDefaults(ctx android.LoadHookContext) {
 				Cflags []string
 			}
 		}
-		Cflags  []string
-		Asflags []string
+		Cflags   []string
+		Asflags  []string
 		Sanitize struct {
-		  Recover []string
+			Recover []string
 		}
 	}
 
@@ -182,7 +182,7 @@ func globalDefaults(ctx android.LoadHookContext) {
 
 	if envTrue(ctx, "ART_DEX_FILE_ACCESS_TRACKING") {
 		p.Cflags = append(p.Cflags, "-DART_DEX_FILE_ACCESS_TRACKING")
-		p.Sanitize.Recover = []string {
+		p.Sanitize.Recover = []string{
 			"address",
 		}
 	}
