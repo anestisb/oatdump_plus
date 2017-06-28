@@ -61,6 +61,19 @@ DEFINE_RUNTIME_DEBUG_FLAG(ArtMethod, kCheckDeclaringClassState);
 static_assert(ArtMethod::kRuntimeMethodDexMethodIndex == DexFile::kDexNoIndex,
               "Wrong runtime-method dex method index");
 
+ArtMethod* ArtMethod::GetCanonicalMethod(PointerSize pointer_size) {
+  if (LIKELY(!IsDefault())) {
+    return this;
+  } else {
+    mirror::Class* declaring_class = GetDeclaringClass();
+    ArtMethod* ret = declaring_class->FindDeclaredVirtualMethod(declaring_class->GetDexCache(),
+                                                                GetDexMethodIndex(),
+                                                                pointer_size);
+    DCHECK(ret != nullptr);
+    return ret;
+  }
+}
+
 ArtMethod* ArtMethod::GetNonObsoleteMethod() {
   DCHECK_EQ(kRuntimePointerSize, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
   if (LIKELY(!IsObsolete())) {

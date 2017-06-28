@@ -483,6 +483,12 @@ class ArtMethod FINAL {
     }
   }
 
+  // Takes a method and returns a 'canonical' one if the method is default (and therefore
+  // potentially copied from some other class). For example, this ensures that the debugger does not
+  // get confused as to which method we are in.
+  ArtMethod* GetCanonicalMethod(PointerSize pointer_size = kRuntimePointerSize)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   ArtMethod* GetSingleImplementation(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
