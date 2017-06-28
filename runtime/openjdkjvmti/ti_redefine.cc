@@ -64,6 +64,7 @@
 #include "object_lock.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
+#include "ti_breakpoint.h"
 #include "ti_class_loader.h"
 #include "transform.h"
 #include "verifier/method_verifier.h"
@@ -380,7 +381,7 @@ jvmtiError Redefiner::RedefineClassesDirect(ArtJvmTiEnv* env,
   art::jit::ScopedJitSuspend suspend_jit;
   // Get shared mutator lock so we can lock all the classes.
   art::ScopedObjectAccess soa(self);
-  Redefiner r(runtime, self, error_msg);
+  Redefiner r(env, runtime, self, error_msg);
   for (const ArtClassDefinition& def : definitions) {
     // Only try to transform classes that have been modified.
     if (def.IsModified()) {
@@ -1200,6 +1201,10 @@ bool Redefiner::ClassRedefinition::FinishRemainingAllocations(
   return true;
 }
 
+void Redefiner::ClassRedefinition::UnregisterJvmtiBreakpoints() {
+  BreakpointUtil::RemoveBreakpointsInClass(driver_->env_, GetMirrorClass());
+}
+
 void Redefiner::ClassRedefinition::UnregisterBreakpoints() {
   DCHECK(art::Dbg::IsDebuggerActive());
   art::JDWP::JdwpState* state = art::Dbg::GetJdwpState();
@@ -1342,6 +1347,7 @@ jvmtiError Redefiner::Run() {
     // TODO Rewrite so we don't do a stack walk for each and every class.
     redef.FindAndAllocateObsoleteMethods(klass);
     redef.UpdateClass(klass, data.GetNewDexCache(), data.GetOriginalDexFile());
+    redef.UnregisterJvmtiBreakpoints();
   }
   RestoreObsoleteMethodMapsIfUnneeded(holder);
   // TODO We should check for if any of the redefined methods are intrinsic methods here and, if any

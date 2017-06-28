@@ -48,6 +48,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread-current-inl.h"
 #include "thread_list.h"
+#include "ti_breakpoint.h"
 #include "ti_class.h"
 #include "ti_dump.h"
 #include "ti_field.h"
@@ -619,20 +620,17 @@ class JvmtiFunctions {
     return ERR(NOT_IMPLEMENTED);
   }
 
-  static jvmtiError SetBreakpoint(jvmtiEnv* env,
-                                  jmethodID method ATTRIBUTE_UNUSED,
-                                  jlocation location ATTRIBUTE_UNUSED) {
+
+  static jvmtiError SetBreakpoint(jvmtiEnv* env, jmethodID method, jlocation location) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_generate_breakpoint_events);
-    return ERR(NOT_IMPLEMENTED);
+    return BreakpointUtil::SetBreakpoint(env, method, location);
   }
 
-  static jvmtiError ClearBreakpoint(jvmtiEnv* env,
-                                    jmethodID method ATTRIBUTE_UNUSED,
-                                    jlocation location ATTRIBUTE_UNUSED) {
+  static jvmtiError ClearBreakpoint(jvmtiEnv* env, jmethodID method, jlocation location) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_generate_breakpoint_events);
-    return ERR(NOT_IMPLEMENTED);
+    return BreakpointUtil::ClearBreakpoint(env, method, location);
   }
 
   static jvmtiError SetFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field) {

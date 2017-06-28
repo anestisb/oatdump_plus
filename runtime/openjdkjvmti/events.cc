@@ -423,14 +423,30 @@ class JvmtiMethodTraceListener FINAL : public art::instrumentation::Instrumentat
     }
   }
 
-  // Call-back for when the dex pc moves in a method. We don't currently have any events associated
-  // with this.
-  void DexPcMoved(art::Thread* self ATTRIBUTE_UNUSED,
+  // Call-back for when the dex pc moves in a method.
+  void DexPcMoved(art::Thread* self,
                   art::Handle<art::mirror::Object> this_object ATTRIBUTE_UNUSED,
-                  art::ArtMethod* method ATTRIBUTE_UNUSED,
-                  uint32_t new_dex_pc ATTRIBUTE_UNUSED)
+                  art::ArtMethod* method,
+                  uint32_t new_dex_pc)
       REQUIRES_SHARED(art::Locks::mutator_lock_) OVERRIDE {
-    return;
+    DCHECK(!method->IsRuntimeMethod());
+    // Default methods might be copied to multiple classes. We need to get the canonical version of
+    // this method so that we can check for breakpoints correctly.
+    // TODO We should maybe do this on other events to ensure that we are consistent WRT default
+    // methods. This could interact with obsolete methods if we ever let interface redefinition
+    // happen though.
+    method = method->GetCanonicalMethod();
+    art::JNIEnvExt* jnienv = self->GetJniEnv();
+    jmethodID jmethod = art::jni::EncodeArtMethod(method);
+    jlocation location = static_cast<jlocation>(new_dex_pc);
+    // Step event is reported first according to the spec.
+    if (event_handler_->IsEventEnabledAnywhere(ArtJvmtiEvent::kSingleStep)) {
+      RunEventCallback<ArtJvmtiEvent::kSingleStep>(self, jnienv, jmethod, location);
+    }
+    // Next we do the Breakpoint events. The Dispatch code will filter the individual
+    if (event_handler_->IsEventEnabledAnywhere(ArtJvmtiEvent::kBreakpoint)) {
+      RunEventCallback<ArtJvmtiEvent::kBreakpoint>(self, jnienv, jmethod, location);
+    }
   }
 
   // Call-back for when we read from a field.
@@ -563,6 +579,9 @@ static uint32_t GetInstrumentationEventsFor(ArtJvmtiEvent event) {
       return art::instrumentation::Instrumentation::kFieldWritten;
     case ArtJvmtiEvent::kFieldAccess:
       return art::instrumentation::Instrumentation::kFieldRead;
+    case ArtJvmtiEvent::kBreakpoint:
+    case ArtJvmtiEvent::kSingleStep:
+      return art::instrumentation::Instrumentation::kDexPcMoved;
     default:
       LOG(FATAL) << "Unknown event ";
       return 0;
@@ -580,6 +599,8 @@ static void SetupTraceListener(JvmtiMethodTraceListener* listener,
                                        art::gc::kCollectorTypeInstrumentation);
   art::ScopedSuspendAll ssa("jvmti method tracing installation");
   if (enable) {
+    // TODO Depending on the features being used we should be able to avoid deoptimizing everything
+    // like we do here.
     if (!instr->AreAllMethodsDeoptimized()) {
       instr->EnableMethodTracing("jvmti-tracing", /*needs_interpreter*/true);
     }
@@ -601,6 +622,17 @@ void EventHandler::HandleEventType(ArtJvmtiEvent event, bool enable) {
       SetupGcPauseTracking(gc_pause_listener_.get(), event, enable);
       return;
 
+    case ArtJvmtiEvent::kBreakpoint:
+    case ArtJvmtiEvent::kSingleStep: {
+      ArtJvmtiEvent other = (event == ArtJvmtiEvent::kBreakpoint) ? ArtJvmtiEvent::kSingleStep
+                                                                  : ArtJvmtiEvent::kBreakpoint;
+      // We only need to do anything if there isn't already a listener installed/held-on by the
+      // other jvmti event that uses DexPcMoved.
+      if (!IsEventEnabledAnywhere(other)) {
+        SetupTraceListener(method_trace_listener_.get(), event, enable);
+      }
+      return;
+    }
     case ArtJvmtiEvent::kMethodEntry:
     case ArtJvmtiEvent::kMethodExit:
     case ArtJvmtiEvent::kFieldAccess:

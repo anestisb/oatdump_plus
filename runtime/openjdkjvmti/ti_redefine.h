@@ -199,6 +199,8 @@ class Redefiner {
     void ReleaseDexFile() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
     void UnregisterBreakpoints() REQUIRES_SHARED(art::Locks::mutator_lock_);
+    // This should be done with all threads suspended.
+    void UnregisterJvmtiBreakpoints() REQUIRES(art::Locks::mutator_lock_);
 
    private:
     Redefiner* driver_;
@@ -208,6 +210,7 @@ class Redefiner {
     art::ArrayRef<const unsigned char> original_dex_file_;
   };
 
+  ArtJvmTiEnv* env_;
   jvmtiError result_;
   art::Runtime* runtime_;
   art::Thread* self_;
@@ -216,10 +219,12 @@ class Redefiner {
   // mirror::Class difficult and confusing.
   std::string* error_msg_;
 
-  Redefiner(art::Runtime* runtime,
+  Redefiner(ArtJvmTiEnv* env,
+            art::Runtime* runtime,
             art::Thread* self,
             std::string* error_msg)
-      : result_(ERR(INTERNAL)),
+      : env_(env),
+        result_(ERR(INTERNAL)),
         runtime_(runtime),
         self_(self),
         redefinitions_(),

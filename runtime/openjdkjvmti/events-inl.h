@@ -22,6 +22,7 @@
 #include "events.h"
 #include "jni_internal.h"
 #include "ScopedLocalRef.h"
+#include "ti_breakpoint.h"
 
 #include "art_jvmti.h"
 
@@ -213,6 +214,32 @@ inline void EventHandler::DispatchEvent(ArtJvmTiEnv* env, art::Thread* thread, A
     FnType* callback = impl::GetCallback<kEvent>(env);
     if (callback != nullptr) {
       (*callback)(env, args...);
+    }
+  }
+}
+
+// Need to give custom specializations for Breakpoint since it needs to filter out which particular
+// methods/dex_pcs agents get notified on.
+template <>
+inline void EventHandler::DispatchEvent<ArtJvmtiEvent::kBreakpoint>(art::Thread* thread,
+                                                                    JNIEnv* jnienv,
+                                                                    jthread jni_thread,
+                                                                    jmethodID jmethod,
+                                                                    jlocation location) const {
+  art::ArtMethod* method = art::jni::DecodeArtMethod(jmethod);
+  for (ArtJvmTiEnv* env : envs) {
+    // Search for a breakpoint on this particular method and location.
+    if (env != nullptr &&
+        ShouldDispatch<ArtJvmtiEvent::kBreakpoint>(env, thread) &&
+        env->breakpoints.find({method, location}) != env->breakpoints.end()) {
+      // We temporarily clear any pending exceptions so the event can call back into java code.
+      ScopedLocalRef<jthrowable> thr(jnienv, jnienv->ExceptionOccurred());
+      jnienv->ExceptionClear();
+      auto callback = impl::GetCallback<ArtJvmtiEvent::kBreakpoint>(env);
+      (*callback)(env, jnienv, jni_thread, jmethod, location);
+      if (thr.get() != nullptr && !jnienv->ExceptionCheck()) {
+        jnienv->Throw(thr.get());
+      }
     }
   }
 }

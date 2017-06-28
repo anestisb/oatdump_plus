@@ -27,6 +27,7 @@ cc_defaults {
            "fixed_up_dex_file.cc",
            "object_tagging.cc",
            "OpenjdkJvmTi.cc",
+           "ti_breakpoint.cc",
            "ti_class.cc",
            "ti_class_definition.cc",
            "ti_class_loader.cc",
