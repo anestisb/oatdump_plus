@@ -1550,6 +1550,12 @@ uint32_t HLoopOptimization::GetUnrollingFactor(HBasicBlock* block, int64_t trip_
 //
 
 bool HLoopOptimization::TrySetPhiInduction(HPhi* phi, bool restrict_uses) {
+  // Special case Phis that have equivalent in a debuggable setup. Our graph checker isn't
+  // smart enough to follow strongly connected components (and it's probably not worth
+  // it to make it so). See b/33775412.
+  if (graph_->IsDebuggable() && phi->HasEquivalentPhi()) {
+    return false;
+  }
   DCHECK(iset_->empty());
   ArenaSet<HInstruction*>* set = induction_range_.LookupCycle(phi);
   if (set != nullptr) {
