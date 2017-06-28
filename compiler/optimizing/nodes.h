@@ -2612,6 +2612,16 @@ class HPhi FINAL : public HVariableInputSizeInstruction {
         && other->AsPhi()->GetRegNumber() == GetRegNumber();
   }
 
+  bool HasEquivalentPhi() const {
+    if (GetPrevious() != nullptr && GetPrevious()->AsPhi()->GetRegNumber() == GetRegNumber()) {
+      return true;
+    }
+    if (GetNext() != nullptr && GetNext()->AsPhi()->GetRegNumber() == GetRegNumber()) {
+      return true;
+    }
+    return false;
+  }
+
   // Returns the next equivalent phi (starting from the current one) or null if there is none.
   // An equivalent phi is a phi having the same dex register and type.
   // It assumes that phis with the same dex register are adjacent.
