@@ -883,7 +883,8 @@ class Dex2oatReturnCodeTest : public Dex2oatTest {
   }
 };
 
-TEST_F(Dex2oatReturnCodeTest, TestCreateRuntime) {
+// Disabled test due to b/37318304.
+TEST_F(Dex2oatReturnCodeTest, DISABLED_TestCreateRuntime) {
   int status = RunTest({ "--boot-image=/this/does/not/exist/yolo.oat" });
   EXPECT_EQ(static_cast<int>(dex2oat::ReturnCode::kCreateRuntime), WEXITSTATUS(status)) << output_;
 }
