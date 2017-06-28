@@ -2410,6 +2410,19 @@ ClassPathEntry FindInClassPath(const char* descriptor,
   return ClassPathEntry(nullptr, nullptr);
 }
 
+// Returns true if the given class loader is either a PathClassLoader or a DexClassLoader.
+// (they both have the same behaviour with respect to class lockup order)
+static bool IsPathOrDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                   Handle<mirror::ClassLoader> class_loader)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  mirror::Class* class_loader_class = class_loader->GetClass();
+  return
+      (class_loader_class ==
+          soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader)) ||
+      (class_loader_class ==
+          soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DexClassLoader));
+}
+
 bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
                                                 Thread* self,
                                                 const char* descriptor,
@@ -2418,44 +2431,18 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
                                                 ObjPtr<mirror::Class>* result) {
   // Termination case: boot class-loader.
   if (IsBootClassLoader(soa, class_loader.Get())) {
-    // The boot class loader, search the boot class path.
-    ClassPathEntry pair = FindInClassPath(descriptor, hash, boot_class_path_);
-    if (pair.second != nullptr) {
-      ObjPtr<mirror::Class> klass = LookupClass(self, descriptor, hash, nullptr);
-      if (klass != nullptr) {
-        *result = EnsureResolved(self, descriptor, klass);
-      } else {
-        *result = DefineClass(self,
-                              descriptor,
-                              hash,
-                              ScopedNullHandle<mirror::ClassLoader>(),
-                              *pair.first,
-                              *pair.second);
-      }
-      if (*result == nullptr) {
-        CHECK(self->IsExceptionPending()) << descriptor;
-        self->ClearException();
-      }
-    } else {
-      *result = nullptr;
-    }
+    *result = FindClassInBootClassLoaderClassPath(self, descriptor, hash);
     return true;
   }
 
-  // Unsupported class-loader?
-  if (soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader) !=
-      class_loader->GetClass()) {
-    // PathClassLoader is the most common case, so it's the one we check first. For secondary dex
-    // files, we also check DexClassLoader here.
-    if (soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DexClassLoader) !=
-        class_loader->GetClass()) {
-      *result = nullptr;
-      return false;
-    }
+  // Check that we support the class loader.
+  if (!IsPathOrDexClassLoader(soa, class_loader)) {
+    *result = nullptr;
+    return false;
   }
 
   // Handles as RegisterDexFile may allocate dex caches (and cause thread suspension).
-  StackHandleScope<4> hs(self);
+  StackHandleScope<1> hs(self);
   Handle<mirror::ClassLoader> h_parent(hs.NewHandle(class_loader->GetParent()));
   bool recursive_result = FindClassInBaseDexClassLoader(soa,
                                                         self,
@@ -2463,9 +2450,9 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
                                                         hash,
                                                         h_parent,
                                                         result);
-
   if (!recursive_result) {
-    // Something wrong up the chain.
+    // One of the parents is not supported.
+    *result = nullptr;
     return false;
   }
 
@@ -2474,10 +2461,47 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
     return true;
   }
 
-  // Handle this step.
-  // Handle as if this is the child PathClassLoader.
-  // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
-  // We need to get the DexPathList and loop through it.
+  // Search the current class loader classpath.
+  *result = FindClassInBaseDexClassLoaderClassPath(soa, descriptor, hash, class_loader);
+  return true;
+}
+
+// Finds the class in the boot class loader.
+// If the class is found the method returns the resolved class. Otherwise it returns null.
+ObjPtr<mirror::Class> ClassLinker::FindClassInBootClassLoaderClassPath(Thread* self,
+                                                                       const char* descriptor,
+                                                                       size_t hash) {
+  ObjPtr<mirror::Class> result = nullptr;
+  ClassPathEntry pair = FindInClassPath(descriptor, hash, boot_class_path_);
+  if (pair.second != nullptr) {
+    ObjPtr<mirror::Class> klass = LookupClass(self, descriptor, hash, nullptr);
+    if (klass != nullptr) {
+      result = EnsureResolved(self, descriptor, klass);
+    } else {
+      result = DefineClass(self,
+                           descriptor,
+                           hash,
+                           ScopedNullHandle<mirror::ClassLoader>(),
+                           *pair.first,
+                           *pair.second);
+    }
+    if (result == nullptr) {
+      CHECK(self->IsExceptionPending()) << descriptor;
+      self->ClearException();
+    }
+  }
+  return result;
+}
+
+ObjPtr<mirror::Class> ClassLinker::FindClassInBaseDexClassLoaderClassPath(
+    ScopedObjectAccessAlreadyRunnable& soa,
+    const char* descriptor,
+    size_t hash,
+    Handle<mirror::ClassLoader> class_loader) {
+  CHECK(IsPathOrDexClassLoader(soa, class_loader))
+      << "Unexpected class loader for descriptor " << descriptor;
+
+  Thread* self = soa.Self();
   ArtField* const cookie_field =
       jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
   ArtField* const dex_file_field =
@@ -2489,10 +2513,11 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
     ObjPtr<mirror::Object> dex_elements_obj =
         jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
-        GetObject(dex_path_list);
+            GetObject(dex_path_list);
     // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
     // at the mCookie which is a DexFile vector.
     if (dex_elements_obj != nullptr) {
+      StackHandleScope<1> hs(self);
       Handle<mirror::ObjectArray<mirror::Object>> dex_elements =
           hs.NewHandle(dex_elements_obj->AsObjectArray<mirror::Object>());
       for (int32_t i = 0; i < dex_elements->GetLength(); ++i) {
@@ -2518,19 +2543,18 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
                 OatDexFile::FindClassDef(*cp_dex_file, descriptor, hash);
             if (dex_class_def != nullptr) {
               ObjPtr<mirror::Class> klass = DefineClass(self,
-                                                 descriptor,
-                                                 hash,
-                                                 class_loader,
-                                                 *cp_dex_file,
-                                                 *dex_class_def);
+                                                        descriptor,
+                                                        hash,
+                                                        class_loader,
+                                                        *cp_dex_file,
+                                                        *dex_class_def);
               if (klass == nullptr) {
                 CHECK(self->IsExceptionPending()) << descriptor;
                 self->ClearException();
                 // TODO: Is it really right to break here, and not check the other dex files?
-                return true;
+                return nullptr;
               }
-              *result = klass;
-              return true;
+              return klass;
             }
           }
         }
@@ -2538,9 +2562,7 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
     }
     self->AssertNoPendingException();
   }
-
-  // Result is still null from the parent call, no need to set it again...
-  return true;
+  return nullptr;
 }
 
 mirror::Class* ClassLinker::FindClass(Thread* self,

@@ -819,6 +819,27 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
+  // Finds the class in the classpath of the given class loader. It only searches the class loader
+  // dex files and does not recurse into its parent.
+  // The method checks that the provided class loader is either a PathClassLoader or a
+  // DexClassLoader.
+  // If the class is found the method returns the resolved class. Otherwise it returns null.
+  ObjPtr<mirror::Class> FindClassInBaseDexClassLoaderClassPath(
+          ScopedObjectAccessAlreadyRunnable& soa,
+          const char* descriptor,
+          size_t hash,
+          Handle<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_);
+
+  // Finds the class in the boot class loader.
+  // If the class is found the method returns the resolved class. Otherwise it returns null.
+  ObjPtr<mirror::Class> FindClassInBootClassLoaderClassPath(Thread* self,
+                                                            const char* descriptor,
+                                                            size_t hash)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_);
+
   // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
   // by the given 'class_loader'. Uses the provided hash for the descriptor.
   mirror::Class* LookupClass(Thread* self,
