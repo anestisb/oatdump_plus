@@ -64,13 +64,22 @@ namespace interpreter {
   }
 
 // Code to run before each dex instruction.
-#define PREAMBLE()                                                                              \
-  do {                                                                                          \
-    if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                       \
-      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),  \
-                                       shadow_frame.GetMethod(), dex_pc);                       \
+#define PREAMBLE_SAVE(save_ref)                                                                      \
+  {                                                                                             \
+    if (UNLIKELY(instrumentation->HasDexPcListeners()) &&                                       \
+        UNLIKELY(!DoDexPcMoveEvent(self,                                                        \
+                                   code_item,                                                   \
+                                   shadow_frame,                                                \
+                                   dex_pc,                                                      \
+                                   instrumentation,                                             \
+                                   save_ref))) {                                                \
+      HANDLE_PENDING_EXCEPTION();                                                               \
+      break;                                                                                    \
     }                                                                                           \
-  } while (false)
+  }                                                                                             \
+  do {} while (false)
+
+#define PREAMBLE() PREAMBLE_SAVE(nullptr)
 
 #define BRANCH_INSTRUMENTATION(offset)                                                         \
   do {                                                                                         \
@@ -103,6 +112,43 @@ namespace interpreter {
       self->AllowThreadSuspension();                                                           \
     }                                                                                          \
   } while (false)
+
+// Unlike most other events the DexPcMovedEvent can be sent when there is a pending exception (if
+// the next instruction is MOVE_EXCEPTION). This means it needs to be handled carefully to be able
+// to detect exceptions thrown by the DexPcMovedEvent itself. These exceptions could be thrown by
+// jvmti-agents while handling breakpoint or single step events. We had to move this into its own
+// function because it was making ExecuteSwitchImpl have too large a stack.
+static bool DoDexPcMoveEvent(Thread* self,
+                             const DexFile::CodeItem* code_item,
+                             const ShadowFrame& shadow_frame,
+                             uint32_t dex_pc,
+                             const instrumentation::Instrumentation* instrumentation,
+                             JValue* save_ref)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(instrumentation->HasDexPcListeners());
+  StackHandleScope<2> hs(self);
+  Handle<mirror::Throwable> thr(hs.NewHandle(self->GetException()));
+  mirror::Object* null_obj = nullptr;
+  HandleWrapper<mirror::Object> h(
+      hs.NewHandleWrapper(LIKELY(save_ref == nullptr) ? &null_obj : save_ref->GetGCRoot()));
+  self->ClearException();
+  instrumentation->DexPcMovedEvent(self,
+                                   shadow_frame.GetThisObject(code_item->ins_size_),
+                                   shadow_frame.GetMethod(),
+                                   dex_pc);
+  if (UNLIKELY(self->IsExceptionPending())) {
+    // We got a new exception in the dex-pc-moved event. We just let this exception replace the old
+    // one.
+    // TODO It would be good to add the old exception to the suppressed exceptions of the new one if
+    // possible.
+    return false;
+  } else {
+    if (UNLIKELY(!thr.IsNull())) {
+      self->SetException(thr.Get());
+    }
+    return true;
+  }
+}
 
 template<bool do_access_check, bool transaction_active>
 JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
@@ -198,20 +244,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE_RESULT_OBJECT:
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          // Special case the preamble to save and restore the result object. It could move
-          // during DexPcMovedEvent.
-          // Note that ideally we should have the result object be visible to GC as soon as it
-          // is returned, but that involves pretty heave surgery to the interpreter and the runtime
-          // that it may not be worth it. The way it is currently written, there is an implicit
-          // assumption the result register is updated last in the leaf method, and all methods
-          // in-between just return.
-          StackHandleScope<1> hs(self);
-          Handle<mirror::Object> result_object(hs.NewHandle(result_register.GetL()));
-          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                           shadow_frame.GetMethod(), dex_pc);
-          result_register.SetL(result_object.Get());
-        }
+        PREAMBLE_SAVE(&result_register);
         shadow_frame.SetVRegReference(inst->VRegA_11x(inst_data), result_register.GetL());
         inst = inst->Next_1xx();
         break;
