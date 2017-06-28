@@ -68,7 +68,7 @@ if $using_jack; then
 fi
 
 if [[ $mode == "host" ]]; then
-  make_command="make $j_arg $showcommands build-art-host-tests $common_targets"
+  make_command="make $j_arg $showcommands build-art-host-tests $common_targets dx-tests"
   make_command+=" ${out_dir}/host/linux-x86/lib/libjavacoretests.so "
   make_command+=" ${out_dir}/host/linux-x86/lib64/libjavacoretests.so"
 elif [[ $mode == "target" ]]; then
