@@ -38,6 +38,9 @@ static void SetupCommonRetransform();
 static void SetupCommonRedefine();
 static void SetupCommonTransform();
 
+// Taken from art/runtime/modifiers.h
+static constexpr uint32_t kAccStatic =       0x0008;  // field, method, ic
+
 template <bool is_redefine>
 static void throwCommonRedefinitionError(jvmtiEnv* jvmti,
                                          JNIEnv* env,
@@ -68,22 +71,6 @@ static void throwCommonRedefinitionError(jvmtiEnv* jvmti,
   jvmti->Deallocate(reinterpret_cast<unsigned char*>(error));
   env->ThrowNew(env->FindClass("java/lang/Exception"), message.c_str());
 }
-
-namespace common_trace {
-
-// Taken from art/runtime/modifiers.h
-static constexpr uint32_t kAccStatic =       0x0008;  // field, method, ic
-
-struct TraceData {
-  jclass test_klass;
-  jmethodID enter_method;
-  jmethodID exit_method;
-  jmethodID field_access;
-  jmethodID field_modify;
-  bool in_callback;
-  bool access_watch_on_load;
-  bool modify_watch_on_load;
-};
 
 static jobject GetJavaField(jvmtiEnv* jvmti, JNIEnv* env, jclass field_klass, jfieldID f) {
   jint mods = 0;
@@ -173,6 +160,221 @@ static jobject GetJavaValue(jvmtiEnv* jvmtienv,
   jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fname));
   jvmtienv->Deallocate(reinterpret_cast<unsigned char*>(fgen));
   return GetJavaValueByType(env, type[0], value);
+}
+
+namespace common_breakpoint {
+
+struct BreakpointData {
+  jclass test_klass;
+  jmethodID breakpoint_method;
+  bool in_callback;
+  bool allow_recursive;
+};
+
+extern "C" void breakpointCB(jvmtiEnv* jvmti,
+                             JNIEnv* jnienv,
+                             jthread thread,
+                             jmethodID method,
+                             jlocation location) {
+  BreakpointData* data = nullptr;
+  if (JvmtiErrorToException(jnienv, jvmti,
+                            jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  if (data->in_callback && !data->allow_recursive) {
+    return;
+  }
+  data->in_callback = true;
+  jobject method_arg = GetJavaMethod(jvmti, jnienv, method);
+  jnienv->CallStaticVoidMethod(data->test_klass,
+                               data->breakpoint_method,
+                               thread,
+                               method_arg,
+                               static_cast<jlong>(location));
+  jnienv->DeleteLocalRef(method_arg);
+  data->in_callback = false;
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Breakpoint_getLineNumberTableNative(
+    JNIEnv* env,
+    jclass k ATTRIBUTE_UNUSED,
+    jobject target) {
+  jmethodID method = env->FromReflectedMethod(target);
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+  jint nlines;
+  jvmtiLineNumberEntry* lines = nullptr;
+  if (JvmtiErrorToException(env, jvmti_env,
+                            jvmti_env->GetLineNumberTable(method, &nlines, &lines))) {
+    return nullptr;
+  }
+  jintArray lines_array = env->NewIntArray(nlines);
+  if (env->ExceptionCheck()) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(lines));
+    return nullptr;
+  }
+  jlongArray locs_array = env->NewLongArray(nlines);
+  if (env->ExceptionCheck()) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(lines));
+    return nullptr;
+  }
+  ScopedLocalRef<jclass> object_class(env, env->FindClass("java/lang/Object"));
+  if (env->ExceptionCheck()) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(lines));
+    return nullptr;
+  }
+  jobjectArray ret = env->NewObjectArray(2, object_class.get(), nullptr);
+  if (env->ExceptionCheck()) {
+    jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(lines));
+    return nullptr;
+  }
+  jint* temp_lines = env->GetIntArrayElements(lines_array, /*isCopy*/nullptr);
+  jlong* temp_locs = env->GetLongArrayElements(locs_array, /*isCopy*/nullptr);
+  for (jint i = 0; i < nlines; i++) {
+    temp_lines[i] = lines[i].line_number;
+    temp_locs[i] = lines[i].start_location;
+  }
+  env->ReleaseIntArrayElements(lines_array, temp_lines, 0);
+  env->ReleaseLongArrayElements(locs_array, temp_locs, 0);
+  env->SetObjectArrayElement(ret, 0, locs_array);
+  env->SetObjectArrayElement(ret, 1, lines_array);
+  jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(lines));
+  return ret;
+}
+
+extern "C" JNIEXPORT jlong JNICALL Java_art_Breakpoint_getStartLocation(JNIEnv* env,
+                                                                        jclass k ATTRIBUTE_UNUSED,
+                                                                        jobject target) {
+  jmethodID method = env->FromReflectedMethod(target);
+  if (env->ExceptionCheck()) {
+    return 0;
+  }
+  jlong start = 0;
+  jlong end = end;
+  JvmtiErrorToException(env, jvmti_env, jvmti_env->GetMethodLocation(method, &start, &end));
+  return start;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_clearBreakpoint(JNIEnv* env,
+                                                                      jclass k ATTRIBUTE_UNUSED,
+                                                                      jobject target,
+                                                                      jlocation location) {
+  jmethodID method = env->FromReflectedMethod(target);
+  if (env->ExceptionCheck()) {
+    return;
+  }
+  JvmtiErrorToException(env, jvmti_env, jvmti_env->ClearBreakpoint(method, location));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_setBreakpoint(JNIEnv* env,
+                                                                    jclass k ATTRIBUTE_UNUSED,
+                                                                    jobject target,
+                                                                    jlocation location) {
+  jmethodID method = env->FromReflectedMethod(target);
+  if (env->ExceptionCheck()) {
+    return;
+  }
+  JvmtiErrorToException(env, jvmti_env, jvmti_env->SetBreakpoint(method, location));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_startBreakpointWatch(
+    JNIEnv* env,
+    jclass k ATTRIBUTE_UNUSED,
+    jclass method_klass,
+    jobject method,
+    jboolean allow_recursive,
+    jthread thr) {
+  BreakpointData* data = nullptr;
+  if (JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->Allocate(sizeof(BreakpointData),
+                                                reinterpret_cast<unsigned char**>(&data)))) {
+    return;
+  }
+  memset(data, 0, sizeof(BreakpointData));
+  data->test_klass = reinterpret_cast<jclass>(env->NewGlobalRef(method_klass));
+  data->breakpoint_method = env->FromReflectedMethod(method);
+  data->in_callback = false;
+  data->allow_recursive = allow_recursive;
+
+  void* old_data = nullptr;
+  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->GetEnvironmentLocalStorage(&old_data))) {
+    return;
+  } else if (old_data != nullptr) {
+    ScopedLocalRef<jclass> rt_exception(env, env->FindClass("java/lang/RuntimeException"));
+    env->ThrowNew(rt_exception.get(), "Environment already has local storage set!");
+    return;
+  }
+  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->SetEnvironmentLocalStorage(data))) {
+    return;
+  }
+  jvmtiEventCallbacks cb;
+  memset(&cb, 0, sizeof(cb));
+  cb.Breakpoint = breakpointCB;
+  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->SetEventCallbacks(&cb, sizeof(cb)))) {
+    return;
+  }
+  if (JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                JVMTI_EVENT_BREAKPOINT,
+                                                                thr))) {
+    return;
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_stopBreakpointWatch(
+    JNIEnv* env,
+    jclass k ATTRIBUTE_UNUSED,
+    jthread thr) {
+  if (JvmtiErrorToException(env, jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                                                JVMTI_EVENT_BREAKPOINT,
+                                                                thr))) {
+    return;
+  }
+}
+
+}  // namespace common_breakpoint
+
+namespace common_trace {
+
+struct TraceData {
+  jclass test_klass;
+  jmethodID enter_method;
+  jmethodID exit_method;
+  jmethodID field_access;
+  jmethodID field_modify;
+  jmethodID single_step;
+  bool in_callback;
+  bool access_watch_on_load;
+  bool modify_watch_on_load;
+};
+
+static void singleStepCB(jvmtiEnv* jvmti,
+                         JNIEnv* jnienv,
+                         jthread thread,
+                         jmethodID method,
+                         jlocation location) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(jnienv, jvmti,
+                            jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  if (data->in_callback) {
+    return;
+  }
+  CHECK(data->single_step != nullptr);
+  data->in_callback = true;
+  jobject method_arg = GetJavaMethod(jvmti, jnienv, method);
+  jnienv->CallStaticVoidMethod(data->test_klass,
+                               data->single_step,
+                               thread,
+                               method_arg,
+                               static_cast<jlong>(location));
+  jnienv->DeleteLocalRef(method_arg);
+  data->in_callback = false;
 }
 
 static void fieldAccessCB(jvmtiEnv* jvmti,
@@ -481,6 +683,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableTracing(
     jobject exit,
     jobject field_access,
     jobject field_modify,
+    jobject single_step,
     jthread thr) {
   TraceData* data = nullptr;
   if (JvmtiErrorToException(env,
@@ -495,8 +698,17 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableTracing(
   data->exit_method = exit != nullptr ? env->FromReflectedMethod(exit) : nullptr;
   data->field_access = field_access != nullptr ? env->FromReflectedMethod(field_access) : nullptr;
   data->field_modify = field_modify != nullptr ? env->FromReflectedMethod(field_modify) : nullptr;
+  data->single_step = single_step != nullptr ? env->FromReflectedMethod(single_step) : nullptr;
   data->in_callback = false;
 
+  void* old_data = nullptr;
+  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->GetEnvironmentLocalStorage(&old_data))) {
+    return;
+  } else if (old_data != nullptr) {
+    ScopedLocalRef<jclass> rt_exception(env, env->FindClass("java/lang/RuntimeException"));
+    env->ThrowNew(rt_exception.get(), "Environment already has local storage set!");
+    return;
+  }
   if (JvmtiErrorToException(env, jvmti_env, jvmti_env->SetEnvironmentLocalStorage(data))) {
     return;
   }
@@ -508,6 +720,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableTracing(
   cb.FieldAccess = fieldAccessCB;
   cb.FieldModification = fieldModificationCB;
   cb.ClassPrepare = classPrepareCB;
+  cb.SingleStep = singleStepCB;
   if (JvmtiErrorToException(env, jvmti_env, jvmti_env->SetEventCallbacks(&cb, sizeof(cb)))) {
     return;
   }
@@ -543,6 +756,14 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableTracing(
                                                                 thr))) {
     return;
   }
+  if (single_step != nullptr &&
+      JvmtiErrorToException(env,
+                            jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
+                                                                JVMTI_EVENT_SINGLE_STEP,
+                                                                thr))) {
+    return;
+  }
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Trace_disableTracing(
@@ -568,6 +789,12 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_disableTracing(
   if (JvmtiErrorToException(env, jvmti_env,
                             jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                                                 JVMTI_EVENT_METHOD_EXIT,
+                                                                thr))) {
+    return;
+  }
+  if (JvmtiErrorToException(env, jvmti_env,
+                            jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
+                                                                JVMTI_EVENT_SINGLE_STEP,
                                                                 thr))) {
     return;
   }

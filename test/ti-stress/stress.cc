@@ -17,6 +17,7 @@
 #include <jni.h>
 #include <stdio.h>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <memory>
 #include <stdio.h>
@@ -40,6 +41,7 @@ struct StressData {
   bool trace_stress;
   bool redefine_stress;
   bool field_stress;
+  bool step_stress;
 };
 
 static void WriteToFile(const std::string& fname, jint data_len, const unsigned char* data) {
@@ -586,6 +588,21 @@ void JNICALL ClassPrepareHook(jvmtiEnv* jvmtienv,
   }
 }
 
+void JNICALL SingleStepHook(jvmtiEnv* jvmtienv,
+                            JNIEnv* env,
+                            jthread thread,
+                            jmethodID method,
+                            jlocation location) {
+  ScopedThreadInfo info(jvmtienv, env, thread);
+  ScopedMethodInfo method_info(jvmtienv, env, method);
+  if (!method_info.Init()) {
+    LOG(ERROR) << "Unable to get method info!";
+    return;
+  }
+  LOG(INFO) << "Single step at location: 0x" << std::setw(8) << std::setfill('0') << std::hex
+            << location << " in method " << method_info << " thread: " << info.GetName();
+}
+
 // The hook we are using.
 void JNICALL ClassFileLoadHookSecretNoOp(jvmtiEnv* jvmti,
                                          JNIEnv* jni_env ATTRIBUTE_UNUSED,
@@ -645,6 +662,8 @@ static void ReadOptions(StressData* data, char* options) {
     std::string cur = GetOption(ops);
     if (cur == "trace") {
       data->trace_stress = true;
+    } else if (cur == "step") {
+      data->step_stress = true;
     } else if (cur == "field") {
       data->field_stress = true;
     } else if (cur == "redefine") {
@@ -776,6 +795,7 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
   cb.FieldAccess = FieldAccessHook;
   cb.FieldModification = FieldModificationHook;
   cb.ClassPrepare = ClassPrepareHook;
+  cb.SingleStep = SingleStepHook;
   if (jvmti->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
     LOG(ERROR) << "Unable to set class file load hook cb!";
     return 1;
@@ -834,6 +854,13 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
       return 1;
     }
     if (!WatchAllFields(vm, jvmti)) {
+      return 1;
+    }
+  }
+  if (data->step_stress) {
+    if (jvmti->SetEventNotificationMode(JVMTI_ENABLE,
+                                        JVMTI_EVENT_SINGLE_STEP,
+                                        nullptr) != JVMTI_ERROR_NONE) {
       return 1;
     }
   }

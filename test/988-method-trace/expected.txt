@@ -1,4 +1,4 @@
-.<= public static native void art.Trace.enableTracing(java.lang.Class,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.Thread) -> <null: null>
+.<= public static native void art.Trace.enableTracing(java.lang.Class,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.Thread) -> <null: null>
 <= public static void art.Trace.enableMethodTracing(java.lang.Class,java.lang.reflect.Method,java.lang.reflect.Method,java.lang.Thread) -> <null: null>
 => art.Test988$IterOp()
 .=> public java.lang.Object()

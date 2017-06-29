@@ -34,6 +34,7 @@
 
 #include <memory>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 
 #include <jni.h>
@@ -46,10 +47,12 @@
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
 #include "jvmti.h"
+#include "ti_breakpoint.h"
 
 namespace art {
 class ArtField;
-}
+class ArtMethod;
+}  // namespace art
 
 namespace openjdkjvmti {
 
@@ -75,6 +78,9 @@ struct ArtJvmTiEnv : public jvmtiEnv {
   // good enough maybe since you probably want either a few or all/almost all of them.
   std::unordered_set<art::ArtField*> access_watched_fields;
   std::unordered_set<art::ArtField*> modify_watched_fields;
+
+  // Set of breakpoints is unique to each jvmtiEnv.
+  std::unordered_set<Breakpoint> breakpoints;
 
   ArtJvmTiEnv(art::JavaVMExt* runtime, EventHandler* event_handler);
 
@@ -223,10 +229,10 @@ const jvmtiCapabilities kPotentialCapabilities = {
     .can_get_source_debug_extension                  = 1,
     .can_access_local_variables                      = 0,
     .can_maintain_original_method_order              = 0,
-    .can_generate_single_step_events                 = 0,
+    .can_generate_single_step_events                 = 1,
     .can_generate_exception_events                   = 0,
     .can_generate_frame_pop_events                   = 0,
-    .can_generate_breakpoint_events                  = 0,
+    .can_generate_breakpoint_events                  = 1,
     .can_suspend                                     = 0,
     .can_redefine_any_class                          = 0,
     .can_get_current_thread_cpu_time                 = 0,

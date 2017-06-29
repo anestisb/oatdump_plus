@@ -77,25 +77,10 @@ static uint16_t CappedAllocRecordCount(size_t alloc_record_count) {
   return alloc_record_count;
 }
 
-// Takes a method and returns a 'canonical' one if the method is default (and therefore potentially
-// copied from some other class). This ensures that the debugger does not get confused as to which
-// method we are in.
-static ArtMethod* GetCanonicalMethod(ArtMethod* m)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (LIKELY(!m->IsDefault())) {
-    return m;
-  } else {
-    mirror::Class* declaring_class = m->GetDeclaringClass();
-    return declaring_class->FindDeclaredVirtualMethod(declaring_class->GetDexCache(),
-                                                      m->GetDexMethodIndex(),
-                                                      kRuntimePointerSize);
-  }
-}
-
 class Breakpoint : public ValueObject {
  public:
   Breakpoint(ArtMethod* method, uint32_t dex_pc, DeoptimizationRequest::Kind deoptimization_kind)
-    : method_(GetCanonicalMethod(method)),
+    : method_(method->GetCanonicalMethod(kRuntimePointerSize)),
       dex_pc_(dex_pc),
       deoptimization_kind_(deoptimization_kind) {
     CHECK(deoptimization_kind_ == DeoptimizationRequest::kNothing ||
@@ -125,7 +110,7 @@ class Breakpoint : public ValueObject {
   // Returns true if the method of this breakpoint and the passed in method should be considered the
   // same. That is, they are either the same method or they are copied from the same method.
   bool IsInMethod(ArtMethod* m) const REQUIRES_SHARED(Locks::mutator_lock_) {
-    return method_ == GetCanonicalMethod(m);
+    return method_ == m->GetCanonicalMethod(kRuntimePointerSize);
   }
 
  private:
@@ -1367,7 +1352,8 @@ JDWP::FieldId Dbg::ToFieldId(const ArtField* f) {
 
 static JDWP::MethodId ToMethodId(ArtMethod* m)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(GetCanonicalMethod(m)));
+  return static_cast<JDWP::MethodId>(
+      reinterpret_cast<uintptr_t>(m->GetCanonicalMethod(kRuntimePointerSize)));
 }
 
 static ArtField* FromFieldId(JDWP::FieldId fid)
@@ -2887,7 +2873,7 @@ static void SetEventLocation(JDWP::EventLocation* location, ArtMethod* m, uint32
   if (m == nullptr) {
     memset(location, 0, sizeof(*location));
   } else {
-    location->method = GetCanonicalMethod(m);
+    location->method = m->GetCanonicalMethod(kRuntimePointerSize);
     location->dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint32_t>(-1) : dex_pc;
   }
 }
