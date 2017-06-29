@@ -40,7 +40,7 @@ CompilerOptions::CompilerOptions()
       implicit_so_checks_(true),
       implicit_suspend_checks_(false),
       compile_pic_(false),
-      verbose_methods_(nullptr),
+      verbose_methods_(),
       abort_on_hard_verifier_failure_(false),
       init_failure_output_(nullptr),
       dump_cfg_file_name_(""),
@@ -53,58 +53,6 @@ CompilerOptions::CompilerOptions()
 CompilerOptions::~CompilerOptions() {
   // The destructor looks empty but it destroys a PassManagerOptions object. We keep it here
   // because we don't want to include the PassManagerOptions definition from the header file.
-}
-
-CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
-                                 size_t huge_method_threshold,
-                                 size_t large_method_threshold,
-                                 size_t small_method_threshold,
-                                 size_t tiny_method_threshold,
-                                 size_t num_dex_methods_threshold,
-                                 size_t inline_max_code_units,
-                                 const std::vector<const DexFile*>* no_inline_from,
-                                 double top_k_profile_threshold,
-                                 bool debuggable,
-                                 bool generate_debug_info,
-                                 bool implicit_null_checks,
-                                 bool implicit_so_checks,
-                                 bool implicit_suspend_checks,
-                                 bool compile_pic,
-                                 const std::vector<std::string>* verbose_methods,
-                                 std::ostream* init_failure_output,
-                                 bool abort_on_hard_verifier_failure,
-                                 const std::string& dump_cfg_file_name,
-                                 bool dump_cfg_append,
-                                 bool force_determinism,
-                                 RegisterAllocator::Strategy regalloc_strategy,
-                                 const std::vector<std::string>* passes_to_run)
-    : compiler_filter_(compiler_filter),
-      huge_method_threshold_(huge_method_threshold),
-      large_method_threshold_(large_method_threshold),
-      small_method_threshold_(small_method_threshold),
-      tiny_method_threshold_(tiny_method_threshold),
-      num_dex_methods_threshold_(num_dex_methods_threshold),
-      inline_max_code_units_(inline_max_code_units),
-      no_inline_from_(no_inline_from),
-      boot_image_(false),
-      app_image_(false),
-      top_k_profile_threshold_(top_k_profile_threshold),
-      debuggable_(debuggable),
-      generate_debug_info_(generate_debug_info),
-      generate_mini_debug_info_(kDefaultGenerateMiniDebugInfo),
-      generate_build_id_(false),
-      implicit_null_checks_(implicit_null_checks),
-      implicit_so_checks_(implicit_so_checks),
-      implicit_suspend_checks_(implicit_suspend_checks),
-      compile_pic_(compile_pic),
-      verbose_methods_(verbose_methods),
-      abort_on_hard_verifier_failure_(abort_on_hard_verifier_failure),
-      init_failure_output_(init_failure_output),
-      dump_cfg_file_name_(dump_cfg_file_name),
-      dump_cfg_append_(dump_cfg_append),
-      force_determinism_(force_determinism),
-      register_allocation_strategy_(regalloc_strategy),
-      passes_to_run_(passes_to_run) {
 }
 
 void CompilerOptions::ParseHugeMethodMax(const StringPiece& option, UsageFn Usage) {
@@ -204,6 +152,11 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     dump_cfg_append_ = true;
   } else if (option.starts_with("--register-allocation-strategy=")) {
     ParseRegisterAllocationStrategy(option, Usage);
+  } else if (option.starts_with("--verbose-methods=")) {
+    // TODO: rather than switch off compiler logging, make all VLOG(compiler) messages
+    //       conditional on having verbose methods.
+    gLogVerbosity.compiler = false;
+    Split(option.substr(strlen("--verbose-methods=")).ToString(), ',', &verbose_methods_);
   } else {
     // Option not recognized.
     return false;
