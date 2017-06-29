@@ -594,14 +594,6 @@
     },
     {
         "tests": [
-            "953-invoke-polymorphic-compiler"
-        ],
-        "description": "Test throws VerifyError when run with --build-with-javac-dx.",
-        "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
-        "bug": "b/62722425"
-    },
-    {
-        "tests": [
             "567-checker-compare"
         ],
         "description": "Checker tests failing when run with --build-with-javac-dx.",
