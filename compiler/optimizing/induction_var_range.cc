@@ -373,21 +373,23 @@ bool InductionVarRange::IsFinite(HLoopInformation* loop, /*out*/ int64_t* tc) co
 
 bool InductionVarRange::IsUnitStride(HInstruction* context,
                                      HInstruction* instruction,
+                                     HGraph* graph,
                                      /*out*/ HInstruction** offset) const {
   HLoopInformation* loop = nullptr;
   HInductionVarAnalysis::InductionInfo* info = nullptr;
   HInductionVarAnalysis::InductionInfo* trip = nullptr;
   if (HasInductionInfo(context, instruction, &loop, &info, &trip)) {
     if (info->induction_class == HInductionVarAnalysis::kLinear &&
-        info->op_b->operation == HInductionVarAnalysis::kFetch &&
         !HInductionVarAnalysis::IsNarrowingLinear(info)) {
       int64_t stride_value = 0;
       if (IsConstant(info->op_a, kExact, &stride_value) && stride_value == 1) {
         int64_t off_value = 0;
-        if (IsConstant(info->op_b, kExact, &off_value) && off_value == 0) {
-          *offset = nullptr;
-        } else {
+        if (IsConstant(info->op_b, kExact, &off_value)) {
+          *offset = graph->GetConstant(info->op_b->type, off_value);
+        } else if (info->op_b->operation == HInductionVarAnalysis::kFetch) {
           *offset = info->op_b->fetch;
+        } else {
+          return false;
         }
         return true;
       }

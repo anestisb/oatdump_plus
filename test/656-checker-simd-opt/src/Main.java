@@ -46,6 +46,37 @@ public class Main {
     }
   }
 
+  /// CHECK-START: void Main.stencil(int[], int[], int) loop_optimization (before)
+  /// CHECK-DAG: <<CP1:i\d+>>   IntConstant 1                        loop:none
+  /// CHECK-DAG: <<CM1:i\d+>>   IntConstant -1                       loop:none
+  /// CHECK-DAG: <<Phi:i\d+>>   Phi                                  loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Add1:i\d+>>  Add [<<Phi>>,<<CM1>>]                loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Get1:i\d+>>  ArrayGet [{{l\d+}},<<Add1>>]         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Get2:i\d+>>  ArrayGet [{{l\d+}},<<Phi>>]          loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Add2:i\d+>>  Add [<<Get1>>,<<Get2>>]              loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Add3:i\d+>>  Add [<<Phi>>,<<CP1>>]                loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Get3:i\d+>>  ArrayGet [{{l\d+}},<<Add3>>]         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Add4:i\d+>>  Add [<<Add2>>,<<Get3>>]              loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:                ArraySet [{{l\d+}},<<Phi>>,<<Add4>>] loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-ARM64: void Main.stencil(int[], int[], int) loop_optimization (after)
+  /// CHECK-DAG: <<CP1:i\d+>>   IntConstant 1                         loop:none
+  /// CHECK-DAG: <<CP2:i\d+>>   IntConstant 2                         loop:none
+  /// CHECK-DAG: <<Phi:i\d+>>   Phi                                   loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Add1:i\d+>>  Add [<<Phi>>,<<CP1>>]                 loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Get1:d\d+>>  VecLoad [{{l\d+}},<<Phi>>]            loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Get2:d\d+>>  VecLoad [{{l\d+}},<<Add1>>]           loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Add2:d\d+>>  VecAdd [<<Get1>>,<<Get2>>]            loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Add3:i\d+>>  Add [<<Phi>>,<<CP2>>]                 loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Get3:d\d+>>  VecLoad [{{l\d+}},<<Add3>>]           loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Add4:d\d+>>  VecAdd [<<Add2>>,<<Get3>>]            loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:                VecStore [{{l\d+}},<<Add1>>,<<Add4>>] loop:<<Loop>>      outer_loop:none
+  private static void stencil(int[] a, int[] b, int n) {
+    for (int i = 1; i < n - 1; i++) {
+      a[i] = b[i - 1] + b[i] + b[i + 1];
+    }
+  }
+
   public static void main(String[] args) {
     float[] x = new float[100];
     float[] y = new float[100];
@@ -57,6 +88,18 @@ public class Main {
     for (int i = 0; i < 100; i++) {
       expectEquals(5.0f, x[i]);
       expectEquals(2.0f, y[i]);
+    }
+    int[] a = new int[100];
+    int[] b = new int[100];
+    for (int i = 0; i < 100; i++) {
+      a[i] = 0;
+      b[i] = i;
+    }
+    stencil(a, b, 100);
+    for (int i = 1; i < 99; i++) {
+      int e = i + i + i;
+      expectEquals(e, a[i]);
+      expectEquals(i, b[i]);
     }
     System.out.println("passed");
   }

@@ -163,6 +163,7 @@ class InductionVarRange {
    */
   bool IsUnitStride(HInstruction* context,
                     HInstruction* instruction,
+                    HGraph* graph,
                     /*out*/ HInstruction** offset) const;
 
   /**
