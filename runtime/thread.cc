@@ -234,9 +234,6 @@ static size_t FixStackSize(size_t stack_size) {
   return stack_size;
 }
 
-// Global variable to prevent the compiler optimizing away the page reads for the stack.
-byte dont_optimize_this;
-
 // Install a protected region in the stack.  This is used to trigger a SIGSEGV if a stack
 // overflow is detected.  It is located right below the stack_begin_.
 //
@@ -254,20 +251,47 @@ void Thread::InstallImplicitProtection() {
   byte* stack_top = reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(&stack_himem) &
       ~(kPageSize - 1));    // Page containing current top of stack.
 
-  // First remove the protection on the protected region as will want to read and
-  // write it.  This may fail (on the first attempt when the stack is not mapped)
-  // but we ignore that.
+  // There is a little complexity here that deserves a special mention.  On some
+  // architectures, the stack is created using a VM_GROWSDOWN flag
+  // to prevent memory being allocated when it's not needed.  This flag makes the
+  // kernel only allocate memory for the stack by growing down in memory.  Because we
+  // want to put an mprotected region far away from that at the stack top, we need
+  // to make sure the pages for the stack are mapped in before we call mprotect.
+  //
+  // The failed mprotect in UnprotectStack is an indication of a thread with VM_GROWSDOWN
+  // with a non-mapped stack (usually only the main thread).
+  //
+  // We map in the stack by reading every page from the stack bottom (highest address)
+  // to the stack top. (We then madvise this away.) This must be done by reading from the
+  // current stack pointer downwards.
+
+  // (Defensively) first remove the protection on the protected region as we'll want to read
+  // and write it. Ignore errors.
   UnprotectStack();
 
-  // Map in the stack.  This must be done by reading from the
-  // current stack pointer downwards as the stack may be mapped using VM_GROWSDOWN
-  // in the kernel.  Any access more than a page below the current SP might cause
-  // a segv.
+  VLOG(threads) << "Need to map in stack for thread at " << std::hex <<
+      static_cast<void*>(pregion);
 
-  // Read every page from the high address to the low.
-  for (byte* p = stack_top; p >= pregion; p -= kPageSize) {
-    dont_optimize_this = *p;
-  }
+  struct RecurseDownStack {
+    // This function has an intentionally large stack size.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wframe-larger-than="
+    __attribute__((noinline))
+    static void Touch(uintptr_t target) {
+      volatile size_t zero = 0;
+      // Use a large local volatile array to ensure a large frame size. Do not use anything close
+      // to a full page for ASAN. It would be nice to ensure the frame size is at most a page, but
+      // there is no pragma support for this.
+      volatile char space[kPageSize - 256];
+      char sink __attribute__((__unused__)) = space[zero];
+      if (reinterpret_cast<uintptr_t>(space) >= target + kPageSize) {
+        Touch(target);
+      }
+      zero *= 2;  // Try to avoid tail recursion.
+    }
+#pragma GCC diagnostic pop
+  };
+  RecurseDownStack::Touch(reinterpret_cast<uintptr_t>(pregion));
 
   VLOG(threads) << "installing stack protected region at " << std::hex <<
       static_cast<void*>(pregion) << " to " <<
