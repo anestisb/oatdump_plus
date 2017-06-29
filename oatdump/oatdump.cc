@@ -3466,7 +3466,7 @@ struct OatdumpArgs : public CmdlineArgs {
         "      Example: --image=/system/framework/boot.art\n"
         "\n"
         "  --app-image=<file.art>: specifies an input app image. Must also have a specified\n"
-        " boot image and app oat file.\n"
+        " boot image (with --image) and app oat file (with --app-oat).\n"
         "      Example: --app-image=app.art\n"
         "\n"
         "  --app-oat=<file.odex>: specifies an input app oat.\n"
