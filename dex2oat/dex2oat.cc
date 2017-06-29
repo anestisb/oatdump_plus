@@ -925,8 +925,6 @@ class Dex2Oat FINAL {
         break;
     }
 
-    compiler_options_->verbose_methods_ = verbose_methods_.empty() ? nullptr : &verbose_methods_;
-
     if (!IsBootImage() && multi_image_) {
       Usage("--multi-image can only be used when creating boot images");
     }
@@ -1262,11 +1260,6 @@ class Dex2Oat FINAL {
         app_image_file_name_ = option.substr(strlen("--app-image-file=")).data();
       } else if (option.starts_with("--app-image-fd=")) {
         ParseUintOption(option, "--app-image-fd", &app_image_fd_, Usage);
-      } else if (option.starts_with("--verbose-methods=")) {
-        // TODO: rather than switch off compiler logging, make all VLOG(compiler) messages
-        //       conditional on having verbost methods.
-        gLogVerbosity.compiler = false;
-        Split(option.substr(strlen("--verbose-methods=")).ToString(), ',', &verbose_methods_);
       } else if (option == "--multi-image") {
         multi_image_ = true;
       } else if (option.starts_with("--no-inline-from=")) {
@@ -2804,7 +2797,6 @@ class Dex2Oat FINAL {
 
   std::vector<const DexFile*> no_inline_from_dex_files_;
 
-  std::vector<std::string> verbose_methods_;
   bool dump_stats_;
   bool dump_passes_;
   bool dump_timing_;

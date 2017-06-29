@@ -52,30 +52,6 @@ class CompilerOptions FINAL {
   CompilerOptions();
   ~CompilerOptions();
 
-  CompilerOptions(CompilerFilter::Filter compiler_filter,
-                  size_t huge_method_threshold,
-                  size_t large_method_threshold,
-                  size_t small_method_threshold,
-                  size_t tiny_method_threshold,
-                  size_t num_dex_methods_threshold,
-                  size_t inline_max_code_units,
-                  const std::vector<const DexFile*>* no_inline_from,
-                  double top_k_profile_threshold,
-                  bool debuggable,
-                  bool generate_debug_info,
-                  bool implicit_null_checks,
-                  bool implicit_so_checks,
-                  bool implicit_suspend_checks,
-                  bool compile_pic,
-                  const std::vector<std::string>* verbose_methods,
-                  std::ostream* init_failure_output,
-                  bool abort_on_hard_verifier_failure,
-                  const std::string& dump_cfg_file_name,
-                  bool dump_cfg_append,
-                  bool force_determinism,
-                  RegisterAllocator::Strategy regalloc_strategy,
-                  const std::vector<std::string>* passes_to_run);
-
   CompilerFilter::Filter GetCompilerFilter() const {
     return compiler_filter_;
   }
@@ -163,6 +139,10 @@ class CompilerOptions FINAL {
     return debuggable_;
   }
 
+  void SetDebuggable(bool value) {
+    debuggable_ = value;
+  }
+
   bool GetNativeDebuggable() const {
     return GetDebuggable() && GetGenerateDebugInfo();
   }
@@ -211,11 +191,11 @@ class CompilerOptions FINAL {
   }
 
   bool HasVerboseMethods() const {
-    return verbose_methods_ != nullptr && !verbose_methods_->empty();
+    return !verbose_methods_.empty();
   }
 
   bool IsVerboseMethod(const std::string& pretty_method) const {
-    for (const std::string& cur_method : *verbose_methods_) {
+    for (const std::string& cur_method : verbose_methods_) {
       if (pretty_method.find(cur_method) != std::string::npos) {
         return true;
       }
@@ -299,7 +279,7 @@ class CompilerOptions FINAL {
   bool compile_pic_;
 
   // Vector of methods to have verbose output enabled for.
-  const std::vector<std::string>* verbose_methods_;
+  std::vector<std::string> verbose_methods_;
 
   // Abort compilation with an error if we find a class that fails verification with a hard
   // failure.
