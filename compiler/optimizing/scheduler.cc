@@ -109,6 +109,10 @@ void SchedulingGraph::AddDependencies(HInstruction* instruction, bool is_schedul
     // barrier depend on it.
     for (HInstruction* other = instruction->GetNext(); other != nullptr; other = other->GetNext()) {
       SchedulingNode* other_node = GetNode(other);
+      CHECK(other_node != nullptr)
+          << other->DebugName()
+          << " is in block " << other->GetBlock()->GetBlockId()
+          << ", and expected in block " << instruction->GetBlock()->GetBlockId();
       bool other_is_barrier = other_node->IsSchedulingBarrier();
       if (is_scheduling_barrier || other_is_barrier) {
         AddOtherDependency(other_node, instruction_node);
@@ -377,6 +381,10 @@ void HScheduler::Schedule(HBasicBlock* block) {
   scheduling_graph_.Clear();
   for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* instruction = it.Current();
+    CHECK_EQ(instruction->GetBlock(), block)
+        << instruction->DebugName()
+        << " is in block " << instruction->GetBlock()->GetBlockId()
+        << ", and expected in block " << block->GetBlockId();
     SchedulingNode* node = scheduling_graph_.AddNode(instruction, IsSchedulingBarrier(instruction));
     CalculateLatency(node);
     scheduling_nodes.push_back(node);
