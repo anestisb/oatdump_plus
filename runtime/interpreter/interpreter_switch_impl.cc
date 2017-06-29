@@ -17,7 +17,6 @@
 #include "interpreter_switch_impl.h"
 
 #include "base/enums.h"
-#include "base/memory_tool.h"
 #include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "jit/jit.h"
@@ -119,15 +118,12 @@ namespace interpreter {
 // to detect exceptions thrown by the DexPcMovedEvent itself. These exceptions could be thrown by
 // jvmti-agents while handling breakpoint or single step events. We had to move this into its own
 // function because it was making ExecuteSwitchImpl have too large a stack.
-#ifdef ADDRESS_SANITIZER
-NO_INLINE
-#endif  // ADDRESS_SANITIZER
-static bool DoDexPcMoveEvent(Thread* self,
-                             const DexFile::CodeItem* code_item,
-                             const ShadowFrame& shadow_frame,
-                             uint32_t dex_pc,
-                             const instrumentation::Instrumentation* instrumentation,
-                             JValue* save_ref)
+NO_INLINE static bool DoDexPcMoveEvent(Thread* self,
+                                       const DexFile::CodeItem* code_item,
+                                       const ShadowFrame& shadow_frame,
+                                       uint32_t dex_pc,
+                                       const instrumentation::Instrumentation* instrumentation,
+                                       JValue* save_ref)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(instrumentation->HasDexPcListeners());
   StackHandleScope<2> hs(self);
