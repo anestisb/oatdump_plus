@@ -22,6 +22,7 @@ include $(CLEAR_VARS)
 LOCAL_SHIM_CLASSES := \
   902-hello-transformation/src/art/Redefinition.java \
   903-hello-tagging/src/art/Main.java \
+  989-method-trace-throw/src/art/Trace.java \
 
 LOCAL_SRC_FILES := $(LOCAL_SHIM_CLASSES)
 
@@ -77,6 +78,12 @@ LOCAL_SRC_FILES += \
   984-obsolete-invoke/src/art/Test984.java \
   985-re-obsolete/src/art/Test985.java \
   986-native-method-bind/src/art/Test986.java \
+  988-method-trace/src/art/Test988.java \
+  989-method-trace-throw/src/art/Test989.java \
+  990-field-trace/src/art/Test990.java \
+  991-field-trace-2/src/art/Test991.java \
+  992-source-data/src/art/Test992.java \
+    992-source-data/src/art/Target2.java \
 
 JVMTI_RUN_TEST_GENERATED_NUMBERS := \
   901 \
@@ -119,6 +126,11 @@ JVMTI_RUN_TEST_GENERATED_NUMBERS := \
   984 \
   985 \
   986 \
+  988 \
+  989 \
+  990 \
+  991 \
+  992 \
 
 # Try to enforce that the directories correspond to the Java files we pull in.
 JVMTI_RUN_TEST_DIR_CHECK := $(sort $(foreach DIR,$(JVMTI_RUN_TEST_GENERATED_NUMBERS), \

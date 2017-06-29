@@ -25,7 +25,7 @@ public class Test992 {
   public static void run() {
     doTest(Test992.class);
     doTest(Target1.class);
-    doTest(Test2.class);
+    doTest(Target2.class);
     doTest(Integer.TYPE);
     doTest(Integer.class);
     doTest(Object.class);

@@ -31,6 +31,7 @@ public class Test988 {
 
     // Methods with non-deterministic output that should not be printed.
     static Set<Method> NON_DETERMINISTIC_OUTPUT_METHODS = new HashSet<>();
+    static Set<Method> NON_DETERMINISTIC_OUTPUT_TYPE_METHODS = new HashSet<>();
 
     static {
       try {
@@ -39,6 +40,7 @@ public class Test988 {
       } catch (Exception e) {}
       try {
         NON_DETERMINISTIC_OUTPUT_METHODS.add(Thread.class.getDeclaredMethod("currentThread"));
+        NON_DETERMINISTIC_OUTPUT_TYPE_METHODS.add(Thread.class.getDeclaredMethod("currentThread"));
       } catch (Exception e) {}
     }
 
@@ -66,7 +68,16 @@ public class Test988 {
         return arrayToString(val);
       } else if (val instanceof Throwable) {
         StringWriter w = new StringWriter();
-        ((Throwable) val).printStackTrace(new PrintWriter(w));
+        Throwable thr = ((Throwable) val);
+        w.write(thr.getClass().getName() + ": " + thr.getMessage() + "\n");
+        for (StackTraceElement e : thr.getStackTrace()) {
+          if (e.getClassName().startsWith("art.")) {
+            w.write("\t" + e + "\n");
+          } else {
+            w.write("\t<additional hidden frames>\n");
+            break;
+          }
+        }
         return w.toString();
       } else {
         return val.toString();
@@ -134,8 +145,16 @@ public class Test988 {
             if (val != null) {
               klass = val.getClass();
             }
+            String klass_print;
+            if (klass == null) {
+              klass_print =  "null";
+            } else if (NON_DETERMINISTIC_OUTPUT_TYPE_METHODS.contains(m)) {
+              klass_print = "<non-deterministic>";
+            } else {
+              klass_print = klass.toString();
+            }
             System.out.println(
-                whitespace(cnt) + "<= " + m + " -> <" + klass + ": " + print + ">");
+                whitespace(cnt) + "<= " + m + " -> <" + klass_print + ": " + print + ">");
         }
     }
 
