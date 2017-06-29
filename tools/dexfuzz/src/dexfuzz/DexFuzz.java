@@ -34,7 +34,7 @@ import dexfuzz.listeners.UpdatingConsoleListener;
  */
 public class DexFuzz {
   private static int majorVersion = 1;
-  private static int minorVersion = 1;
+  private static int minorVersion = 2;
   private static int seedChangeVersion = 0;
 
   /**
