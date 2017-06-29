@@ -4064,7 +4064,10 @@ verifier::FailureKind ClassLinker::VerifyClass(
     while (old_status == mirror::Class::kStatusVerifying ||
         old_status == mirror::Class::kStatusVerifyingAtRuntime) {
       lock.WaitIgnoringInterrupts();
-      CHECK(klass->IsErroneous() || (klass->GetStatus() > old_status))
+      // WaitIgnoringInterrupts can still receive an interrupt and return early, in this
+      // case we may see the same status again. b/62912904. This is why the check is
+      // greater or equal.
+      CHECK(klass->IsErroneous() || (klass->GetStatus() >= old_status))
           << "Class '" << klass->PrettyClass()
           << "' performed an illegal verification state transition from " << old_status
           << " to " << klass->GetStatus();
