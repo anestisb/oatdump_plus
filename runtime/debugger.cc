@@ -2446,7 +2446,7 @@ JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspen
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   Thread* thread = thread_list->SuspendThreadByPeer(peer.get(),
                                                     request_suspension,
-                                                    /* debug_suspension */ true,
+                                                    SuspendReason::kForDebugger,
                                                     &timed_out);
   if (thread != nullptr) {
     return JDWP::ERR_NONE;
@@ -2477,7 +2477,7 @@ void Dbg::ResumeThread(JDWP::ObjectId thread_id) {
     needs_resume = thread->GetDebugSuspendCount() > 0;
   }
   if (needs_resume) {
-    Runtime::Current()->GetThreadList()->Resume(thread, true);
+    Runtime::Current()->GetThreadList()->Resume(thread, SuspendReason::kForDebugger);
   }
 }
 
@@ -3694,7 +3694,7 @@ class ScopedDebuggerThreadSuspension {
           ThreadList* const thread_list = Runtime::Current()->GetThreadList();
           suspended_thread = thread_list->SuspendThreadByPeer(thread_peer,
                                                               /* request_suspension */ true,
-                                                              /* debug_suspension */ true,
+                                                              SuspendReason::kForDebugger,
                                                               &timed_out);
         }
         if (suspended_thread == nullptr) {
@@ -3718,7 +3718,7 @@ class ScopedDebuggerThreadSuspension {
 
   ~ScopedDebuggerThreadSuspension() {
     if (other_suspend_) {
-      Runtime::Current()->GetThreadList()->Resume(thread_, true);
+      Runtime::Current()->GetThreadList()->Resume(thread_, SuspendReason::kForDebugger);
     }
   }
 
@@ -4040,7 +4040,7 @@ JDWP::JdwpError Dbg::PrepareInvokeMethod(uint32_t request_id, JDWP::ObjectId thr
     thread_list->UndoDebuggerSuspensions();
   } else {
     VLOG(jdwp) << "      Resuming event thread only";
-    thread_list->Resume(targetThread, true);
+    thread_list->Resume(targetThread, SuspendReason::kForDebugger);
   }
 
   return JDWP::ERR_NONE;

@@ -330,12 +330,12 @@ inline void Thread::PoisonObjectPointersIfDebug() {
 inline bool Thread::ModifySuspendCount(Thread* self,
                                        int delta,
                                        AtomicInteger* suspend_barrier,
-                                       bool for_debugger) {
+                                       SuspendReason reason) {
   if (delta > 0 && ((kUseReadBarrier && this != self) || suspend_barrier != nullptr)) {
     // When delta > 0 (requesting a suspend), ModifySuspendCountInternal() may fail either if
     // active_suspend_barriers is full or we are in the middle of a thread flip. Retry in a loop.
     while (true) {
-      if (LIKELY(ModifySuspendCountInternal(self, delta, suspend_barrier, for_debugger))) {
+      if (LIKELY(ModifySuspendCountInternal(self, delta, suspend_barrier, reason))) {
         return true;
       } else {
         // Failure means the list of active_suspend_barriers is full or we are in the middle of a
@@ -354,7 +354,7 @@ inline bool Thread::ModifySuspendCount(Thread* self,
       }
     }
   } else {
-    return ModifySuspendCountInternal(self, delta, suspend_barrier, for_debugger);
+    return ModifySuspendCountInternal(self, delta, suspend_barrier, reason);
   }
 }
 

@@ -461,6 +461,7 @@ gensrcs {
         "object_callbacks.h",
         "process_state.h",
         "stack.h",
+        "suspend_reason.h",
         "thread.h",
         "thread_state.h",
         "ti/agent.h",
