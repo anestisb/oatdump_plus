@@ -197,7 +197,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
           HInstruction* instruction = environment->GetInstructionAt(i);
           bool should_be_live = ShouldBeLiveForEnvironment(current, instruction);
           if (should_be_live) {
-            DCHECK(instruction->HasSsaIndex());
+            CHECK(instruction->HasSsaIndex()) << instruction->DebugName();
             live_in->SetBit(instruction->GetSsaIndex());
           }
           if (instruction != nullptr) {
