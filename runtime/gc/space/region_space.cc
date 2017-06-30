@@ -251,6 +251,13 @@ void RegionSpace::SetFromSpace(accounting::ReadBarrierTable* rb_table, bool forc
   evac_region_ = &full_region_;
 }
 
+static void ZeroAndProtectRegion(uint8_t* begin, uint8_t* end) {
+  ZeroAndReleasePages(begin, end - begin);
+  if (kProtectClearedRegions) {
+    mprotect(begin, end - begin, PROT_NONE);
+  }
+}
+
 void RegionSpace::ClearFromSpace(uint64_t* cleared_bytes, uint64_t* cleared_objects) {
   DCHECK(cleared_bytes != nullptr);
   DCHECK(cleared_objects != nullptr);
@@ -269,7 +276,7 @@ void RegionSpace::ClearFromSpace(uint64_t* cleared_bytes, uint64_t* cleared_obje
   auto clear_region = [&clear_block_begin, &clear_block_end](Region* r) {
     r->Clear(/*zero_and_release_pages*/false);
     if (clear_block_end != r->Begin()) {
-      ZeroAndReleasePages(clear_block_begin, clear_block_end - clear_block_begin);
+      ZeroAndProtectRegion(clear_block_begin, clear_block_end);
       clear_block_begin = r->Begin();
     }
     clear_block_end = r->End();
@@ -548,10 +555,7 @@ void RegionSpace::Region::Clear(bool zero_and_release_pages) {
   alloc_time_ = 0;
   live_bytes_ = static_cast<size_t>(-1);
   if (zero_and_release_pages) {
-    ZeroAndReleasePages(begin_, end_ - begin_);
-  }
-  if (kProtectClearedRegions) {
-    mprotect(begin_, end_ - begin_, PROT_NONE);
+    ZeroAndProtectRegion(begin_, end_);
   }
   is_newly_allocated_ = false;
   is_a_tlab_ = false;
