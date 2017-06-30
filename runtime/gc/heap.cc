@@ -2678,6 +2678,10 @@ collector::GarbageCollector* Heap::Compact(space::ContinuousMemMapAllocSpace* ta
   }
 }
 
+void Heap::TraceHeapSize(size_t heap_size) {
+  ATRACE_INT("Heap size (KB)", heap_size / KB);
+}
+
 collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
                                                GcCause gc_cause,
                                                bool clear_soft_references) {
@@ -2726,8 +2730,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
     ++self->GetStats()->gc_for_alloc_count;
   }
   const uint64_t bytes_allocated_before_gc = GetBytesAllocated();
-  // Approximate heap size.
-  ATRACE_INT("Heap size (KB)", bytes_allocated_before_gc / KB);
 
   if (gc_type == NonStickyGcType()) {
     // Move all bytes from new_native_bytes_allocated_ to
@@ -3632,6 +3634,8 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran,
   // We know what our utilization is at this moment.
   // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
   const uint64_t bytes_allocated = GetBytesAllocated();
+  // Trace the new heap size after the GC is finished.
+  TraceHeapSize(bytes_allocated);
   uint64_t target_size;
   collector::GcType gc_type = collector_ran->GetGcType();
   const double multiplier = HeapGrowthMultiplier();  // Use the multiplier to grow more for

@@ -1089,6 +1089,8 @@ class Heap {
     return growth_limit_ / 2;
   }
 
+  void TraceHeapSize(size_t heap_size);
+
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_ GUARDED_BY(Locks::mutator_lock_);
 
