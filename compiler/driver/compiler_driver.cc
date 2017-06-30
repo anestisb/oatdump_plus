@@ -2244,6 +2244,10 @@ class InitializeClassVisitor : public CompilationVisitor {
     mirror::Class::Status old_status = klass->GetStatus();;
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
+      // Don't initialize classes in boot space when compiling app image
+      if (is_app_image && klass->IsBootStrapClassLoaded()) {
+        return;
+      }
       // Attempt to initialize the class but bail if we either need to initialize the super-class
       // or static fields.
       manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, false);
@@ -2261,12 +2265,19 @@ class InitializeClassVisitor : public CompilationVisitor {
         ObjectLock<mirror::Class> lock(soa.Self(), h_klass);
         // Attempt to initialize allowing initialization of parent classes but still not static
         // fields.
-        manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
+        // Initialize dependencies first only for app image, to make TryInitialize recursive.
+        bool is_superclass_initialized = !is_app_image ? true :
+            InitializeDependencies(klass, class_loader, soa.Self());
+        if (!is_app_image || (is_app_image && is_superclass_initialized)) {
+          manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
+        }
+        // Otherwise it's in app image but superclasses can't be initialized, no need to proceed.
         old_status = klass->GetStatus();
         // If the class was not initialized, we can proceed to see if we can initialize static
         // fields.
         if (!klass->IsInitialized() &&
             (is_app_image || is_boot_image) &&
+            is_superclass_initialized &&
             manager_->GetCompiler()->IsImageClass(descriptor)) {
           bool can_init_static_fields = false;
           if (is_boot_image) {
@@ -2278,8 +2289,6 @@ class InitializeClassVisitor : public CompilationVisitor {
             CHECK(is_app_image);
             // The boot image case doesn't need to recursively initialize the dependencies with
             // special logic since the class linker already does this.
-            bool is_superclass_initialized =
-                InitializeDependencies(klass, class_loader, soa.Self());
             can_init_static_fields =
                 !soa.Self()->IsExceptionPending() &&
                 is_superclass_initialized &&
