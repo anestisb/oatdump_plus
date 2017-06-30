@@ -1191,10 +1191,10 @@ static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREA
 bool Thread::ModifySuspendCountInternal(Thread* self,
                                         int delta,
                                         AtomicInteger* suspend_barrier,
-                                        bool for_debugger) {
+                                        SuspendReason reason) {
   if (kIsDebugBuild) {
     DCHECK(delta == -1 || delta == +1 || delta == -tls32_.debug_suspend_count)
-          << delta << " " << tls32_.debug_suspend_count << " " << this;
+          << reason << " " << delta << " " << tls32_.debug_suspend_count << " " << this;
     DCHECK_GE(tls32_.suspend_count, tls32_.debug_suspend_count) << this;
     Locks::thread_suspend_count_lock_->AssertHeld(self);
     if (this != self && !IsSuspended()) {
@@ -1230,8 +1230,12 @@ bool Thread::ModifySuspendCountInternal(Thread* self,
   }
 
   tls32_.suspend_count += delta;
-  if (for_debugger) {
-    tls32_.debug_suspend_count += delta;
+  switch (reason) {
+    case SuspendReason::kForDebugger:
+      tls32_.debug_suspend_count += delta;
+      break;
+    case SuspendReason::kInternal:
+      break;
   }
 
   if (tls32_.suspend_count == 0) {
@@ -1471,7 +1475,7 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function) {
     {
       MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
 
-      if (!ModifySuspendCount(self, +1, nullptr, false)) {
+      if (!ModifySuspendCount(self, +1, nullptr, SuspendReason::kInternal)) {
         // Just retry the loop.
         sched_yield();
         continue;
@@ -1496,7 +1500,7 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function) {
       MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
 
       DCHECK_NE(GetState(), ThreadState::kRunnable);
-      bool updated = ModifySuspendCount(self, -1, nullptr, false);
+      bool updated = ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
       DCHECK(updated);
     }
 

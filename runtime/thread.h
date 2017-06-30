@@ -40,6 +40,7 @@
 #include "managed_stack.h"
 #include "offsets.h"
 #include "runtime_stats.h"
+#include "suspend_reason.h"
 #include "thread_state.h"
 
 class BacktraceMap;
@@ -244,7 +245,7 @@ class Thread {
   bool ModifySuspendCount(Thread* self,
                           int delta,
                           AtomicInteger* suspend_barrier,
-                          bool for_debugger)
+                          SuspendReason reason)
       WARN_UNUSED
       REQUIRES(Locks::thread_suspend_count_lock_);
 
@@ -1300,7 +1301,7 @@ class Thread {
   bool ModifySuspendCountInternal(Thread* self,
                                   int delta,
                                   AtomicInteger* suspend_barrier,
-                                  bool for_debugger)
+                                  SuspendReason reason)
       WARN_UNUSED
       REQUIRES(Locks::thread_suspend_count_lock_);
 
