@@ -22,8 +22,6 @@ import (
 	"android/soong/android"
 	"sort"
 	"strings"
-
-	"github.com/google/blueprint"
 )
 
 func codegen(ctx android.LoadHookContext, c *codegenProperties, library bool) {
@@ -159,10 +157,8 @@ func defaultDeviceCodegenArches(ctx android.LoadHookContext) []string {
 	return ret
 }
 
-func installCodegenCustomizer(module blueprint.Module, props []interface{}, library bool) []interface{} {
+func installCodegenCustomizer(module android.Module, library bool) {
 	c := &codegenProperties{}
 	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c, library) })
-	props = append(props, c)
-
-	return props
+	module.AddProperties(c)
 }
