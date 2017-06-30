@@ -110,7 +110,12 @@ class JNICFITest : public CFITest {
   }
 
 #ifdef ART_ENABLE_CODEGEN_arm
+// Run the tests for ARM only with Baker read barriers, as the
+// expected generated code contains a Marking Register refresh
+// instruction.
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
 TEST_ISA(kThumb2)
+#endif
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_arm64

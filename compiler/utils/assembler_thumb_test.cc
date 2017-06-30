@@ -1643,6 +1643,10 @@ void EmitAndCheck(JniAssemblerType* assembler, const char* testname) {
 #define __ assembler.
 
 TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
+  // Run the test only with Baker read barriers, as the expected
+  // generated code contains a Marking Register refresh instruction.
+  TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();
+
   const bool is_static = true;
   const bool is_synchronized = false;
   const bool is_critical_native = false;

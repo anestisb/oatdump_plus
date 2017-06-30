@@ -80,12 +80,16 @@ static const vixl::aarch32::Register kMethodRegister = vixl::aarch32::r0;
 
 static const vixl::aarch32::Register kCoreAlwaysSpillRegister = vixl::aarch32::r5;
 
-// Callee saves core registers r5, r6, r7, r8, r10, r11, and lr.
+// Callee saves core registers r5, r6, r7, r8 (except when emitting Baker
+// read barriers, where it is used as Marking Register), r10, r11, and lr.
 static const vixl::aarch32::RegisterList kCoreCalleeSaves = vixl::aarch32::RegisterList::Union(
     vixl::aarch32::RegisterList(vixl::aarch32::r5,
                                 vixl::aarch32::r6,
-                                vixl::aarch32::r7,
-                                vixl::aarch32::r8),
+                                vixl::aarch32::r7),
+    // Do not consider r8 as a callee-save register with Baker read barriers.
+    ((kEmitCompilerReadBarrier && kUseBakerReadBarrier)
+         ? vixl::aarch32::RegisterList()
+         : vixl::aarch32::RegisterList(vixl::aarch32::r8)),
     vixl::aarch32::RegisterList(vixl::aarch32::r10,
                                 vixl::aarch32::r11,
                                 vixl::aarch32::lr));

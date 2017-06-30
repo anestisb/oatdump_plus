@@ -199,6 +199,24 @@ static void EmitGrayCheckAndFastPath(arm::ArmVIXLAssembler& assembler,
   // Note: The fake dependency is unnecessary for the slow path.
 }
 
+// Load the read barrier introspection entrypoint in register `entrypoint`
+static void LoadReadBarrierMarkIntrospectionEntrypoint(arm::ArmVIXLAssembler& assembler,
+                                                       vixl::aarch32::Register entrypoint) {
+  using vixl::aarch32::MemOperand;
+  using vixl::aarch32::ip;
+  // Thread Register.
+  const vixl::aarch32::Register tr = vixl::aarch32::r9;
+
+  // The register where the read barrier introspection entrypoint is loaded
+  // is fixed: `Thumb2RelativePatcher::kBakerCcEntrypointRegister` (R4).
+  DCHECK_EQ(entrypoint.GetCode(), Thumb2RelativePatcher::kBakerCcEntrypointRegister);
+  // entrypoint = Thread::Current()->pReadBarrierMarkReg12, i.e. pReadBarrierMarkIntrospection.
+  DCHECK_EQ(ip.GetCode(), 12u);
+  const int32_t entry_point_offset =
+      Thread::ReadBarrierMarkEntryPointsOffset<kArmPointerSize>(ip.GetCode());
+  __ Ldr(entrypoint, MemOperand(tr, entry_point_offset));
+}
+
 void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& assembler,
                                                          uint32_t encoded_data) {
   using namespace vixl::aarch32;  // NOLINT(build/namespaces)
@@ -233,6 +251,7 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
       const int32_t ldr_offset = /* Thumb state adjustment (LR contains Thumb state). */ -1 +
                                  raw_ldr_offset;
       Register ep_reg(kBakerCcEntrypointRegister);
+      LoadReadBarrierMarkIntrospectionEntrypoint(assembler, ep_reg);
       if (width == BakerReadBarrierWidth::kWide) {
         MemOperand ldr_half_address(lr, ldr_offset + 2);
         __ Ldrh(ip, ldr_half_address);        // Load the LDR immediate half-word with "Rt | imm12".
@@ -278,8 +297,10 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
       MemOperand ldr_address(lr, ldr_offset + 2);
       __ Ldrb(ip, ldr_address);               // Load the LDR (register) byte with "00 | imm2 | Rm",
                                               // i.e. Rm+32 because the scale in imm2 is 2.
-      Register ep_reg(kBakerCcEntrypointRegister);  // Insert ip to the entrypoint address to create
-      __ Bfi(ep_reg, ip, 3, 6);               // a switch case target based on the index register.
+      Register ep_reg(kBakerCcEntrypointRegister);
+      LoadReadBarrierMarkIntrospectionEntrypoint(assembler, ep_reg);
+      __ Bfi(ep_reg, ip, 3, 6);               // Insert ip to the entrypoint address to create
+                                              // a switch case target based on the index register.
       __ Mov(ip, base_reg);                   // Move the base register to ip0.
       __ Bx(ep_reg);                          // Jump to the entrypoint's array switch case.
       break;
@@ -309,9 +330,10 @@ void Thumb2RelativePatcher::CompileBakerReadBarrierThunk(arm::ArmVIXLAssembler& 
                     " the highest bits and the 'forwarding address' state to have all bits set");
       __ Cmp(ip, Operand(0xc0000000));
       __ B(hs, &forwarding_address);
+      Register ep_reg(kBakerCcEntrypointRegister);
+      LoadReadBarrierMarkIntrospectionEntrypoint(assembler, ep_reg);
       // Adjust the art_quick_read_barrier_mark_introspection address in kBakerCcEntrypointRegister
       // to art_quick_read_barrier_mark_introspection_gc_roots.
-      Register ep_reg(kBakerCcEntrypointRegister);
       int32_t entrypoint_offset = (width == BakerReadBarrierWidth::kWide)
           ? BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_WIDE_ENTRYPOINT_OFFSET
           : BAKER_MARK_INTROSPECTION_GC_ROOT_LDR_NARROW_ENTRYPOINT_OFFSET;

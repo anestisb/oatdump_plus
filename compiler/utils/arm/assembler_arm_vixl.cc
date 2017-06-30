@@ -37,7 +37,10 @@ namespace arm {
 #define ___   vixl_masm_.
 #endif
 
+// Thread register definition.
 extern const vixl32::Register tr(TR);
+// Marking register definition.
+extern const vixl32::Register mr(MR);
 
 void ArmVIXLAssembler::FinalizeCode() {
   vixl_masm_.FinalizeCode();

@@ -247,6 +247,12 @@ class CheckJniAbortCatcher {
     return; \
   }
 
+#define TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS() \
+  if (!kEmitCompilerReadBarrier || !kUseBakerReadBarrier) { \
+    printf("WARNING: TEST DISABLED FOR GC WITHOUT BAKER READ BARRIER\n"); \
+    return; \
+  }
+
 #define TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS() \
   if (!kHostStaticBuildEnabled) { \
     printf("WARNING: TEST DISABLED FOR NON-STATIC HOST BUILDS\n"); \

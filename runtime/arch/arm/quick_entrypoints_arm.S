@@ -67,6 +67,9 @@
      * Runtime::CreateCalleeSaveMethod(kSaveRefsOnly).
      */
 .macro SETUP_SAVE_REFS_ONLY_FRAME rTemp
+    // Note: We could avoid saving R8 in the case of Baker read
+    // barriers, as it is overwritten by REFRESH_MARKING_REGISTER
+    // later; but it's not worth handling this special case.
     push {r5-r8, r10-r11, lr}                     @ 7 words of callee saves
     .cfi_adjust_cfa_offset 28
     .cfi_rel_offset r5, 0
@@ -93,6 +96,9 @@
 .macro RESTORE_SAVE_REFS_ONLY_FRAME
     add sp, #4               @ bottom word holds Method*
     .cfi_adjust_cfa_offset -4
+    // Note: Likewise, we could avoid restoring R8 in the case of Baker
+    // read barriers, as it is overwritten by REFRESH_MARKING_REGISTER
+    // later; but it's not worth handling this special case.
     pop {r5-r8, r10-r11, lr} @ 7 words of callee saves
     .cfi_restore r5
     .cfi_restore r6
@@ -104,16 +110,14 @@
     .cfi_adjust_cfa_offset -28
 .endm
 
-.macro RESTORE_SAVE_REFS_ONLY_FRAME_AND_RETURN
-    RESTORE_SAVE_REFS_ONLY_FRAME
-    bx  lr                   @ return
-.endm
-
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveRefsAndArgs).
      */
 .macro SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY
+    // Note: We could avoid saving R8 in the case of Baker read
+    // barriers, as it is overwritten by REFRESH_MARKING_REGISTER
+    // later; but it's not worth handling this special case.
     push {r1-r3, r5-r8, r10-r11, lr}   @ 10 words of callee saves and args.
     .cfi_adjust_cfa_offset 40
     .cfi_rel_offset r1, 0
@@ -156,6 +160,9 @@
     .cfi_adjust_cfa_offset -8
     vpop {s0-s15}
     .cfi_adjust_cfa_offset -64
+    // Note: Likewise, we could avoid restoring X20 in the case of Baker
+    // read barriers, as it is overwritten by REFRESH_MARKING_REGISTER
+    // later; but it's not worth handling this special case.
     pop {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
     .cfi_restore r1
     .cfi_restore r2
@@ -263,6 +270,17 @@
     .cfi_adjust_cfa_offset -52
 .endm
 
+// Macro to refresh the Marking Register (R8).
+//
+// This macro must be called at the end of functions implementing
+// entrypoints that possibly (directly or indirectly) perform a
+// suspend check (before they return).
+.macro REFRESH_MARKING_REGISTER
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+    ldr rMR, [rSELF, #THREAD_IS_GC_MARKING_OFFSET]
+#endif
+.endm
+
 .macro RETURN_IF_RESULT_IS_ZERO
     cbnz   r0, 1f              @ result non-zero branch over
     bx     lr                  @ return
@@ -359,6 +377,7 @@ ENTRY \name
     mov    r1, r9                        @ pass Thread::Current
     bl     \entrypoint                   @ (uint32_t field_idx, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     \return
 END \name
 .endm
@@ -370,6 +389,7 @@ ENTRY \name
     mov    r2, r9                        @ pass Thread::Current
     bl     \entrypoint                   @ (field_idx, Object*, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     \return
 END \name
 .endm
@@ -381,6 +401,7 @@ ENTRY \name
     mov    r3, r9                        @ pass Thread::Current
     bl     \entrypoint                   @ (field_idx, Object*, new_val, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME         @ TODO: we can clearly save an add here
+    REFRESH_MARKING_REGISTER
     \return
 END \name
 .endm
@@ -464,6 +485,8 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFr
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
      * pointing back to the original caller.
+     *
+     * Clobbers IP (R12).
      */
 .macro INVOKE_TRAMPOLINE_BODY cxx_name
     .extern \cxx_name
@@ -473,6 +496,7 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFr
     bl     \cxx_name                      @ (method_idx, this, Thread*, SP)
     mov    r12, r1                        @ save Method*->code_
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    REFRESH_MARKING_REGISTER
     cbz    r0, 1f                         @ did we find the target? if not go to exception delivery
     bx     r12                            @ tail call to target
 1:
@@ -549,6 +573,8 @@ ENTRY art_quick_invoke_stub_internal
     mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
 #endif
 
+    REFRESH_MARKING_REGISTER
+
     ldr    ip, [r0, #ART_METHOD_QUICK_CODE_OFFSET_32]  @ get pointer to the code
     blx    ip                              @ call the method
 
@@ -580,7 +606,8 @@ ENTRY art_quick_osr_stub
     mov    r11, sp                         @ Save the stack pointer
     mov    r10, r1                         @ Save size of stack
     ldr    r9, [r11, #40]                  @ Move managed thread pointer into r9
-    mov    r8, r2                          @ Save the pc to call
+    REFRESH_MARKING_REGISTER
+    mov    r6, r2                          @ Save the pc to call
     sub    r7, sp, #12                     @ Reserve space for stack pointer,
                                            @    JValue* result, and ArtMethod* slot.
     and    r7, #0xFFFFFFF0                 @ Align stack pointer
@@ -612,7 +639,7 @@ ENTRY art_quick_osr_stub
 .Losr_entry:
     sub r10, r10, #4
     str lr, [sp, r10]                     @ Store link register per the compiler ABI
-    bx r8
+    bx r6
 END art_quick_osr_stub
 
     /*
@@ -624,6 +651,7 @@ ARM_ENTRY art_quick_do_long_jump
     ldr  r14, [r0, #56]   @ (LR from gprs_ 56=4*14)
     add  r0, r0, #12      @ increment r0 to skip gprs_[0..2] 12=4*3
     ldm  r0, {r3-r13}     @ load remaining gprs from argument gprs_
+    REFRESH_MARKING_REGISTER
     ldr  r0, [r0, #-12]   @ load r0 value
     mov  r1, #0           @ clear result register r1
     bx   r2               @ do long jump
@@ -677,6 +705,7 @@ ENTRY art_quick_lock_object
     mov    r1, r9                     @ pass Thread::Current
     bl     artLockObjectFromCode      @ (Object* obj, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_lock_object
@@ -686,6 +715,7 @@ ENTRY art_quick_lock_object_no_inline
     mov    r1, r9                     @ pass Thread::Current
     bl     artLockObjectFromCode      @ (Object* obj, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_lock_object_no_inline
@@ -743,6 +773,7 @@ ENTRY art_quick_unlock_object
     mov    r1, r9                     @ pass Thread::Current
     bl     artUnlockObjectFromCode    @ (Object* obj, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_unlock_object
@@ -753,6 +784,7 @@ ENTRY art_quick_unlock_object_no_inline
     mov    r1, r9                     @ pass Thread::Current
     bl     artUnlockObjectFromCode    @ (Object* obj, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_unlock_object_no_inline
@@ -921,6 +953,7 @@ ENTRY \name
     mov    r1, r9                     @ pass Thread::Current
     bl     \entrypoint     @ (uint32_t type_idx, Method* method, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     \return
 END \name
 .endm
@@ -933,6 +966,7 @@ ENTRY \name
     mov    r2, r9                     @ pass Thread::Current
     bl     \entrypoint     @ (uint32_t type_idx, Method* method, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     \return
 END \name
 .endm
@@ -946,6 +980,7 @@ ENTRY \name
     @ (uint32_t type_idx, Method* method, int32_t component_count, Thread*)
     bl     \entrypoint
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     \return
 END \name
 .endm
@@ -961,6 +996,7 @@ ENTRY \name
     add    sp, #16                    @ strip the extra frame
     .cfi_adjust_cfa_offset -16
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     \return
 END \name
 .endm
@@ -975,6 +1011,7 @@ ENTRY \name
     cbz    r0, 1f                     @ If result is null, deliver the OOME.
     .cfi_remember_state
     RESTORE_SAVE_EVERYTHING_FRAME_KEEP_R0
+    REFRESH_MARKING_REGISTER
     bx     lr
     .cfi_restore_state
 1:
@@ -986,6 +1023,9 @@ ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_static_storage, artInitial
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
+
+// Note: Functions `art{Get,Set}<Kind>{Static,Instance>FromCompiledCode` are
+// defined by macros in runtime/entrypoints/quick/quick_field_entrypoints.cc.
 
     /*
      * Called by managed code to resolve a static field and load a non-wide value.
@@ -1006,6 +1046,7 @@ ENTRY art_quick_get64_static
     bl     artGet64StaticFromCompiledCode        @ (uint32_t field_idx, Thread*)
     ldr    r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     cbnz   r2, 1f                        @ success if no exception pending
     bx     lr                            @ return on success
 1:
@@ -1031,6 +1072,7 @@ ENTRY art_quick_get64_instance
     bl     artGet64InstanceFromCompiledCode      @ (field_idx, Object*, Thread*)
     ldr    r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     cbnz   r2, 1f                        @ success if no exception pending
     bx     lr                            @ return on success
 1:
@@ -1066,6 +1108,7 @@ ENTRY art_quick_set64_instance
     add    sp, #16                       @ release out args
     .cfi_adjust_cfa_offset -16
     RESTORE_SAVE_REFS_ONLY_FRAME         @ TODO: we can clearly save an add here
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_set64_instance
@@ -1080,6 +1123,7 @@ ENTRY art_quick_set64_static
     add    sp, #16                        @ release out args
     .cfi_adjust_cfa_offset -16
     RESTORE_SAVE_REFS_ONLY_FRAME          @ TODO: we can clearly save an add here
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_set64_static
@@ -1223,6 +1267,7 @@ ENTRY \c_name
     mov    r1, r9                     @ pass Thread::Current
     bl     \cxx_name                  @ (mirror::Class* cls, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \c_name
 .endm
@@ -1315,6 +1360,7 @@ ENTRY \name
     mov    r1, r9                                             // Pass Thread::Current.
     bl     \entrypoint                                        // (mirror::Class* klass, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \name
 .endm
@@ -1386,6 +1432,7 @@ ENTRY \name
     mov    r2, r9                  // pass Thread::Current
     bl     \entrypoint
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \name
 .endm
@@ -1462,8 +1509,8 @@ END \name
     add    r2, r2, #(MIRROR_WIDE_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
 .endm
 
-# TODO(ngeoffray): art_quick_alloc_array_resolved_region_tlab is not used for arm, remove
-# the entrypoint once all backends have been updated to use the size variants.
+// TODO(ngeoffray): art_quick_alloc_array_resolved_region_tlab is not used for arm, remove
+// the entrypoint once all backends have been updated to use the size variants.
 GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_UNKNOWN
 GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved8_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_8
 GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved16_region_tlab, artAllocArrayFromCodeResolvedRegionTLAB, COMPUTE_ARRAY_SIZE_16
@@ -1492,6 +1539,7 @@ ENTRY art_quick_test_suspend
     mov    r0, rSELF
     bl     artTestSuspendFromCode               @ (Thread*)
     RESTORE_SAVE_EVERYTHING_FRAME
+    REFRESH_MARKING_REGISTER
     bx     lr
 END art_quick_test_suspend
 
@@ -1499,7 +1547,9 @@ ENTRY art_quick_implicit_suspend
     mov    r0, rSELF
     SETUP_SAVE_REFS_ONLY_FRAME r1             @ save callee saves for stack crawl
     bl     artTestSuspendFromCode             @ (Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME_AND_RETURN
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
+    bx     lr
 END art_quick_implicit_suspend
 
     /*
@@ -1518,6 +1568,7 @@ ENTRY art_quick_proxy_invoke_handler
     add     sp, #(FRAME_SIZE_SAVE_REFS_AND_ARGS - FRAME_SIZE_SAVE_REFS_ONLY)
     .cfi_adjust_cfa_offset -(FRAME_SIZE_SAVE_REFS_AND_ARGS - FRAME_SIZE_SAVE_REFS_ONLY)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     cbnz    r2, 1f                 @ success if no exception is pending
     vmov    d0, r0, r1             @ store into fpr, for when it's a fpr return...
     bx      lr                     @ return on success
@@ -1567,8 +1618,9 @@ ENTRY art_quick_resolution_trampoline
     blx     artQuickResolutionTrampoline  @ (Method* called, receiver, Thread*, SP)
     cbz     r0, 1f                 @ is code pointer null? goto exception
     mov     r12, r0
-    ldr  r0, [sp, #0]              @ load resolved method in r0
+    ldr     r0, [sp, #0]           @ load resolved method in r0
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    REFRESH_MARKING_REGISTER
     bx      r12                    @ tail-call into actual code
 1:
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
@@ -1649,6 +1701,7 @@ ENTRY art_quick_generic_jni_trampoline
     add     sp, #FRAME_SIZE_SAVE_REFS_AND_ARGS-FRAME_SIZE_SAVE_REFS_ONLY
     .cfi_adjust_cfa_offset -(FRAME_SIZE_SAVE_REFS_AND_ARGS-FRAME_SIZE_SAVE_REFS_ONLY)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
 
     // store into fpr, for when it's a fpr return...
     vmov d0, r0, r1
@@ -1675,6 +1728,7 @@ ENTRY art_quick_to_interpreter_bridge
     add     sp, #(FRAME_SIZE_SAVE_REFS_AND_ARGS - FRAME_SIZE_SAVE_REFS_ONLY)
     .cfi_adjust_cfa_offset -(FRAME_SIZE_SAVE_REFS_AND_ARGS - FRAME_SIZE_SAVE_REFS_ONLY)
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     cbnz    r2, 1f                 @ success if no exception is pending
     vmov    d0, r0, r1             @ store into fpr, for when it's a fpr return...
     bx      lr                     @ return on success
@@ -1705,6 +1759,7 @@ ENTRY art_quick_instrumentation_entry
     mov   r12, r0        @ r12 holds reference to code
     ldr   r0, [sp, #4]   @ restore r0
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    REFRESH_MARKING_REGISTER
     blx   r12            @ call method with lr set to art_quick_instrumentation_exit
 @ Deliberate fall-through into art_quick_instrumentation_exit.
     .type art_quick_instrumentation_exit, #function
@@ -1734,6 +1789,7 @@ art_quick_instrumentation_exit:
     .cfi_restore r0
     .cfi_restore r1
     RESTORE_SAVE_REFS_ONLY_FRAME
+    REFRESH_MARKING_REGISTER
     cbz   r2, .Ldo_deliver_instrumentation_exception
                          @ Deliver exception if we got nullptr as function.
     bx    r2             @ Otherwise, return
@@ -1787,7 +1843,7 @@ END art_quick_deoptimize_from_compiled_code
      */
     /* mul-long vAA, vBB, vCC */
 ENTRY art_quick_mul_long
-    push    {r9 - r10}
+    push    {r9-r10}
     .cfi_adjust_cfa_offset 8
     .cfi_rel_offset r9, 0
     .cfi_rel_offset r10, 4
@@ -1797,7 +1853,7 @@ ENTRY art_quick_mul_long
     add     r10, r2, r10                @  r10<- r10 + low(ZxW + (YxX))
     mov     r0,r9
     mov     r1,r10
-    pop     {r9 - r10}
+    pop     {r9-r10}
     .cfi_adjust_cfa_offset -8
     .cfi_restore r9
     .cfi_restore r10
@@ -2544,6 +2600,7 @@ ENTRY art_quick_invoke_polymorphic
     add     sp, #8
     .cfi_adjust_cfa_offset -8
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    REFRESH_MARKING_REGISTER
     RETURN_OR_DELIVER_PENDING_EXCEPTION_REG r2
 
 .macro HANDLER_TABLE_OFFSET handler_label
