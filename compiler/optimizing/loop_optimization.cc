@@ -1097,6 +1097,23 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
   switch (compiler_driver_->GetInstructionSet()) {
     case kArm:
     case kThumb2:
+      // Allow vectorization for all ARM devices, because Android assumes that
+      // ARM 32-bit always supports advanced SIMD.
+      switch (type) {
+        case Primitive::kPrimBoolean:
+        case Primitive::kPrimByte:
+          *restrictions |= kNoDiv;
+          return TrySetVectorLength(8);
+        case Primitive::kPrimChar:
+        case Primitive::kPrimShort:
+          *restrictions |= kNoDiv | kNoStringCharAt;
+          return TrySetVectorLength(4);
+        case Primitive::kPrimInt:
+          *restrictions |= kNoDiv;
+          return TrySetVectorLength(2);
+        default:
+          break;
+      }
       return false;
     case kArm64:
       // Allow vectorization for all ARM devices, because Android assumes that
