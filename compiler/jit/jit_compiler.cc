@@ -100,6 +100,10 @@ JitCompiler::JitCompiler() {
   // Set debuggability based on the runtime value.
   compiler_options_->SetDebuggable(Runtime::Current()->IsJavaDebuggable());
 
+  // Special case max code units for inlining, whose default is "unset" (implictly
+  // meaning no limit).
+  compiler_options_->SetInlineMaxCodeUnits(CompilerOptions::kDefaultInlineMaxCodeUnits);
+
   const InstructionSet instruction_set = kRuntimeISA;
   for (const StringPiece option : Runtime::Current()->GetCompilerOptions()) {
     VLOG(compiler) << "JIT compiler option " << option;
