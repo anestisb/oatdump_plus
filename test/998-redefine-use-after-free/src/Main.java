@@ -17,7 +17,7 @@
 import java.lang.reflect.*;
 
 public class Main {
-  public static final String TEST_NAME = "988-redefine-use-after-free";
+  public static final String TEST_NAME = "998-redefine-use-after-free";
   public static final int REPS = 1000;
   public static final int STEP = 100;
 
