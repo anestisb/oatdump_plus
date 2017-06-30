@@ -20,7 +20,6 @@
 #include "base/logging.h"
 #include "base/macros.h"
 
-#include "common_helper.h"
 #include "jni_binder.h"
 #include "jvmti_helper.h"
 #include "test_env.h"
@@ -31,6 +30,18 @@
 #include "983-source-transform-verify/source_transform.h"
 
 namespace art {
+
+namespace common_redefine {
+jint OnLoad(JavaVM* vm, char* options, void* reserved);
+}  // namespace common_redefine
+
+namespace common_retransform {
+jint OnLoad(JavaVM* vm, char* options, void* reserved);
+}  // namespace common_retransform
+
+namespace common_transform {
+jint OnLoad(JavaVM* vm, char* options, void* reserved);
+}  // namespace common_transform
 
 namespace {
 
