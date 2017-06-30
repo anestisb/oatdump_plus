@@ -433,6 +433,9 @@ jvmtiError ThreadUtil::GetThreadState(jvmtiEnv* env ATTRIBUTE_UNUSED,
   if (native_thread->IsInterrupted()) {
     jvmti_state |= JVMTI_THREAD_STATE_INTERRUPTED;
   }
+  if (native_thread->IsSuspended()) {
+    jvmti_state |= JVMTI_THREAD_STATE_SUSPENDED;
+  }
 
   // Java state is derived from nativeGetState.
   // Note: Our implementation assigns "runnable" to suspended. As such, we will have slightly
@@ -603,6 +606,202 @@ jvmtiError ThreadUtil::RunAgentThread(jvmtiEnv* jvmti_env,
   data.release();
 
   return ERR(NONE);
+}
+
+// Suspends the current thread if it has any suspend requests on it.
+static void SuspendCheck(art::Thread* self)
+    REQUIRES(!art::Locks::mutator_lock_, !art::Locks::user_code_suspension_lock_) {
+  art::ScopedObjectAccess soa(self);
+  // Really this is only needed if we are in FastJNI and actually have the mutator_lock_ already.
+  self->FullSuspendCheck();
+}
+
+jvmtiError ThreadUtil::SuspendOther(art::Thread* self,
+                                    jthread target_jthread,
+                                    art::Thread* target) {
+  // Loop since we need to bail out and try again if we would end up getting suspended while holding
+  // the user_code_suspension_lock_ due to a SuspendReason::kForUserCode. In this situation we
+  // release the lock, wait to get resumed and try again.
+  do {
+    // Suspend ourself if we have any outstanding suspends. This is so we won't suspend due to
+    // another SuspendThread in the middle of suspending something else potentially causing a
+    // deadlock. We need to do this in the loop because if we ended up back here then we had
+    // outstanding SuspendReason::kForUserCode suspensions and we should wait for them to be cleared
+    // before continuing.
+    SuspendCheck(self);
+    art::MutexLock mu(self, *art::Locks::user_code_suspension_lock_);
+    {
+      art::MutexLock thread_list_mu(self, *art::Locks::thread_suspend_count_lock_);
+      // Make sure we won't be suspended in the middle of holding the thread_suspend_count_lock_ by
+      // a user-code suspension. We retry and do another SuspendCheck to clear this.
+      if (self->GetUserCodeSuspendCount() != 0) {
+        continue;
+      } else if (target->GetUserCodeSuspendCount() != 0) {
+        return ERR(THREAD_SUSPENDED);
+      }
+    }
+    bool timeout = true;
+    while (timeout) {
+      art::ThreadState state = target->GetState();
+      if (state == art::ThreadState::kTerminated || state == art::ThreadState::kStarting) {
+        return ERR(THREAD_NOT_ALIVE);
+      }
+      target = art::Runtime::Current()->GetThreadList()->SuspendThreadByPeer(
+          target_jthread,
+          /* request_suspension */ true,
+          art::SuspendReason::kForUserCode,
+          &timeout);
+      if (target == nullptr && !timeout) {
+        // TODO It would be good to get more information about why exactly the thread failed to
+        // suspend.
+        return ERR(INTERNAL);
+      }
+    }
+    return OK;
+  } while (true);
+  UNREACHABLE();
+}
+
+jvmtiError ThreadUtil::SuspendSelf(art::Thread* self) {
+  CHECK(self == art::Thread::Current());
+  {
+    art::MutexLock mu(self, *art::Locks::user_code_suspension_lock_);
+    art::MutexLock thread_list_mu(self, *art::Locks::thread_suspend_count_lock_);
+    if (self->GetUserCodeSuspendCount() != 0) {
+      // This can only happen if we race with another thread to suspend 'self' and we lose.
+      return ERR(THREAD_SUSPENDED);
+    }
+    // We shouldn't be able to fail this.
+    if (!self->ModifySuspendCount(self, +1, nullptr, art::SuspendReason::kForUserCode)) {
+      // TODO More specific error would be nice.
+      return ERR(INTERNAL);
+    }
+  }
+  // Once we have requested the suspend we actually go to sleep. We need to do this after releasing
+  // the suspend_lock to make sure we can be woken up. This call gains the mutator lock causing us
+  // to go to sleep until we are resumed.
+  SuspendCheck(self);
+  return OK;
+}
+
+jvmtiError ThreadUtil::SuspendThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread thread) {
+  art::Thread* self = art::Thread::Current();
+  art::Thread* target;
+  {
+    art::ScopedObjectAccess soa(self);
+    target = GetNativeThread(thread, soa);
+  }
+  if (target == nullptr) {
+    return ERR(INVALID_THREAD);
+  }
+  if (target == self) {
+    return SuspendSelf(self);
+  } else {
+    return SuspendOther(self, thread, target);
+  }
+}
+
+jvmtiError ThreadUtil::ResumeThread(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                    jthread thread) {
+  if (thread == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+  art::Thread* self = art::Thread::Current();
+  art::Thread* target;
+  {
+    // NB This does a SuspendCheck (during thread state change) so we need to make sure we don't
+    // have the 'suspend_lock' locked here.
+    art::ScopedObjectAccess soa(self);
+    target = GetNativeThread(thread, soa);
+  }
+  if (target == nullptr) {
+    return ERR(INVALID_THREAD);
+  } else if (target == self) {
+    // We would have paused until we aren't suspended anymore due to the ScopedObjectAccess so we
+    // can just return THREAD_NOT_SUSPENDED. Unfortunately we cannot do any real DCHECKs about
+    // current state since it's all concurrent.
+    return ERR(THREAD_NOT_SUSPENDED);
+  }
+  // Now that we know we aren't getting suspended ourself (since we have a mutator lock) we lock the
+  // suspend_lock to start suspending.
+  art::MutexLock mu(self, *art::Locks::user_code_suspension_lock_);
+  {
+    // The JVMTI spec requires us to return THREAD_NOT_SUSPENDED if it is alive but we really cannot
+    // tell why resume failed.
+    art::MutexLock thread_list_mu(self, *art::Locks::thread_suspend_count_lock_);
+    if (target->GetUserCodeSuspendCount() == 0) {
+      return ERR(THREAD_NOT_SUSPENDED);
+    }
+  }
+  if (target->GetState() == art::ThreadState::kTerminated) {
+    return ERR(THREAD_NOT_ALIVE);
+  }
+  DCHECK(target != self);
+  if (!art::Runtime::Current()->GetThreadList()->Resume(target, art::SuspendReason::kForUserCode)) {
+    // TODO Give a better error.
+    // This is most likely THREAD_NOT_SUSPENDED but we cannot really be sure.
+    return ERR(INTERNAL);
+  }
+  return OK;
+}
+
+// Suspends all the threads in the list at the same time. Getting this behavior is a little tricky
+// since we can have threads in the list multiple times. This generally doesn't matter unless the
+// current thread is present multiple times. In that case we need to suspend only once and either
+// return the same error code in all the other slots if it failed or return ERR(THREAD_SUSPENDED) if
+// it didn't. We also want to handle the current thread last to make the behavior of the code
+// simpler to understand.
+jvmtiError ThreadUtil::SuspendThreadList(jvmtiEnv* env,
+                                         jint request_count,
+                                         const jthread* threads,
+                                         jvmtiError* results) {
+  if (request_count == 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  } else if (results == nullptr || threads == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+  // This is the list of the indexes in 'threads' and 'results' that correspond to the currently
+  // running thread. These indexes we need to handle specially since we need to only actually
+  // suspend a single time.
+  std::vector<jint> current_thread_indexes;
+  art::Thread* self = art::Thread::Current();
+  for (jint i = 0; i < request_count; i++) {
+    {
+      art::ScopedObjectAccess soa(self);
+      if (threads[i] == nullptr || GetNativeThread(threads[i], soa) == self) {
+        current_thread_indexes.push_back(i);
+        continue;
+      }
+    }
+    results[i] = env->SuspendThread(threads[i]);
+  }
+  if (!current_thread_indexes.empty()) {
+    jint first_current_thread_index = current_thread_indexes[0];
+    // Suspend self.
+    jvmtiError res = env->SuspendThread(threads[first_current_thread_index]);
+    results[first_current_thread_index] = res;
+    // Fill in the rest of the error values as appropriate.
+    jvmtiError other_results = (res != OK) ? res : ERR(THREAD_SUSPENDED);
+    for (auto it = ++current_thread_indexes.begin(); it != current_thread_indexes.end(); ++it) {
+      results[*it] = other_results;
+    }
+  }
+  return OK;
+}
+
+jvmtiError ThreadUtil::ResumeThreadList(jvmtiEnv* env,
+                                        jint request_count,
+                                        const jthread* threads,
+                                        jvmtiError* results) {
+  if (request_count == 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  } else if (results == nullptr || threads == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+  for (jint i = 0; i < request_count; i++) {
+    results[i] = env->ResumeThread(threads[i]);
+  }
+  return OK;
 }
 
 }  // namespace openjdkjvmti

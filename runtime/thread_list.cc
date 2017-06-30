@@ -828,7 +828,7 @@ void ThreadList::ResumeAll() {
   }
 }
 
-void ThreadList::Resume(Thread* thread, SuspendReason reason) {
+bool ThreadList::Resume(Thread* thread, SuspendReason reason) {
   // This assumes there was an ATRACE_BEGIN when we suspended the thread.
   ATRACE_END();
 
@@ -841,16 +841,23 @@ void ThreadList::Resume(Thread* thread, SuspendReason reason) {
     MutexLock mu(self, *Locks::thread_list_lock_);
     // To check IsSuspended.
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-    DCHECK(thread->IsSuspended());
+    if (UNLIKELY(!thread->IsSuspended())) {
+      LOG(ERROR) << "Resume(" << reinterpret_cast<void*>(thread)
+          << ") thread not suspended";
+      return false;
+    }
     if (!Contains(thread)) {
       // We only expect threads within the thread-list to have been suspended otherwise we can't
       // stop such threads from delete-ing themselves.
       LOG(ERROR) << "Resume(" << reinterpret_cast<void*>(thread)
           << ") thread not within thread list";
-      return;
+      return false;
     }
-    bool updated = thread->ModifySuspendCount(self, -1, nullptr, reason);
-    DCHECK(updated);
+    if (UNLIKELY(!thread->ModifySuspendCount(self, -1, nullptr, reason))) {
+      LOG(ERROR) << "Resume(" << reinterpret_cast<void*>(thread)
+                 << ") could not modify suspend count.";
+      return false;
+    }
   }
 
   {
@@ -860,6 +867,7 @@ void ThreadList::Resume(Thread* thread, SuspendReason reason) {
   }
 
   VLOG(threads) << "Resume(" << reinterpret_cast<void*>(thread) << ") complete";
+  return true;
 }
 
 static void ThreadSuspendByPeerWarning(Thread* self,

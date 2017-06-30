@@ -910,7 +910,8 @@ void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWo
         // Go ahead and inflate the lock.
         Inflate(self, owner, obj.Get(), hash_code);
       }
-      thread_list->Resume(owner, SuspendReason::kInternal);
+      bool resumed = thread_list->Resume(owner, SuspendReason::kInternal);
+      DCHECK(resumed);
     }
     self->SetMonitorEnterObject(nullptr);
   }

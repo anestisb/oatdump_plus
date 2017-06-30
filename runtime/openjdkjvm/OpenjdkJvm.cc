@@ -432,7 +432,8 @@ JNIEXPORT void JVM_SetNativeThreadName(JNIEnv* env, jobject jthread, jstring jav
       art::ScopedObjectAccess soa(env);
       thread->SetThreadName(name.c_str());
     }
-    thread_list->Resume(thread, art::SuspendReason::kInternal);
+    bool resumed = thread_list->Resume(thread, art::SuspendReason::kInternal);
+    DCHECK(resumed);
   } else if (timed_out) {
     LOG(ERROR) << "Trying to set thread name to '" << name.c_str() << "' failed as the thread "
         "failed to suspend within a generous timeout.";

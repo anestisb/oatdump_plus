@@ -68,6 +68,7 @@ ConditionVariable* Locks::thread_exit_cond_ = nullptr;
 Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
+Mutex* Locks::user_code_suspension_lock_ = nullptr;
 Uninterruptible Roles::uninterruptible_;
 ReaderWriterMutex* Locks::jni_globals_lock_ = nullptr;
 Mutex* Locks::jni_weak_globals_lock_ = nullptr;
@@ -1029,6 +1030,7 @@ void Locks::Init() {
     DCHECK(thread_suspend_count_lock_ != nullptr);
     DCHECK(trace_lock_ != nullptr);
     DCHECK(unexpected_signal_lock_ != nullptr);
+    DCHECK(user_code_suspension_lock_ != nullptr);
     DCHECK(dex_lock_ != nullptr);
   } else {
     // Create global locks in level order from highest lock level to lowest.
@@ -1044,6 +1046,10 @@ void Locks::Init() {
         exit(1); \
       } \
       current_lock_level = new_level;
+
+    UPDATE_CURRENT_LOCK_LEVEL(kUserCodeSuspensionLock);
+    DCHECK(user_code_suspension_lock_ == nullptr);
+    user_code_suspension_lock_ = new Mutex("user code suspension lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kMutatorLock);
     DCHECK(mutator_lock_ == nullptr);
