@@ -598,6 +598,13 @@ jvmtiError ClassUtil::GetClassFields(jvmtiEnv* env,
     return ERR(INVALID_CLASS);
   }
 
+  // Check if this class is a temporary class object used for loading. Since we are seeing it the
+  // class must not have been prepared yet since otherwise the fixup would have gotten the jobject
+  // to point to the final class object.
+  if (klass->IsTemp() || klass->IsRetired()) {
+    return ERR(CLASS_NOT_PREPARED);
+  }
+
   if (field_count_ptr == nullptr || fields_ptr == nullptr) {
     return ERR(NULL_POINTER);
   }
@@ -637,6 +644,13 @@ jvmtiError ClassUtil::GetClassMethods(jvmtiEnv* env,
   art::ObjPtr<art::mirror::Class> klass = soa.Decode<art::mirror::Class>(jklass);
   if (klass == nullptr) {
     return ERR(INVALID_CLASS);
+  }
+
+  // Check if this class is a temporary class object used for loading. Since we are seeing it the
+  // class must not have been prepared yet since otherwise the fixup would have gotten the jobject
+  // to point to the final class object.
+  if (klass->IsTemp() || klass->IsRetired()) {
+    return ERR(CLASS_NOT_PREPARED);
   }
 
   if (method_count_ptr == nullptr || methods_ptr == nullptr) {
