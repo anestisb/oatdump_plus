@@ -22,17 +22,13 @@
 
 namespace art {
 
-namespace common_redefine {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_redefine
+// Taken from art/runtime/modifiers.h
+static constexpr uint32_t kAccStatic =       0x0008;  // field, method, ic
 
-namespace common_retransform {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_retransform
-
-namespace common_transform {
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-}  // namespace common_transform
+jobject GetJavaField(jvmtiEnv* jvmti, JNIEnv* env, jclass field_klass, jfieldID f);
+jobject GetJavaMethod(jvmtiEnv* jvmti, JNIEnv* env, jmethodID m);
+jobject GetJavaValueByType(JNIEnv* env, char type, jvalue value);
+jobject GetJavaValue(jvmtiEnv* jvmtienv, JNIEnv* env, jmethodID m, jvalue value);
 
 }  // namespace art
 

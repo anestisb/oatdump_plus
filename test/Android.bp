@@ -250,7 +250,10 @@ art_cc_defaults {
         "ti-agent/jni_binder.cc",
         "ti-agent/jvmti_helper.cc",
         "ti-agent/test_env.cc",
+        "ti-agent/breakpoint_helper.cc",
         "ti-agent/common_helper.cc",
+        "ti-agent/redefinition_helper.cc",
+        "ti-agent/trace_helper.cc",
         // This is the list of non-special OnLoad things and excludes BCI and anything that depends
         // on ART internals.
         "903-hello-tagging/tagging.cc",
