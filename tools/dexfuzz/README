@@ -137,6 +137,7 @@ FieldFlagChanger 40
 InstructionDeleter 40
 InstructionDuplicator 80
 InstructionSwapper 80
+InvokeChanger 30
 NewMethodCaller 10
 NonsenseStringPrinter 10
 OppositeBranchChanger 40
