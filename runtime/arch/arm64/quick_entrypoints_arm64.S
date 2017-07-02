@@ -2611,19 +2611,19 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, w29, x29
     RESTORE_TWO_REGS x14, x15, 112
     RESTORE_TWO_REGS x18, x19, 128    // Skip x16, x17, i.e. IP0, IP1.
     RESTORE_REG      xLR,      144    // Restore return address.
-    // Save all potentially live caller-save floating-point registers.
-    stp   d0, d1,   [sp, #160]
-    stp   d2, d3,   [sp, #176]
-    stp   d4, d5,   [sp, #192]
-    stp   d6, d7,   [sp, #208]
-    stp   d16, d17, [sp, #224]
-    stp   d18, d19, [sp, #240]
-    stp   d20, d21, [sp, #256]
-    stp   d22, d23, [sp, #272]
-    stp   d24, d25, [sp, #288]
-    stp   d26, d27, [sp, #304]
-    stp   d28, d29, [sp, #320]
-    stp   d30, d31, [sp, #336]
+    // Restore caller-save floating-point registers.
+    ldp   d0, d1,   [sp, #160]
+    ldp   d2, d3,   [sp, #176]
+    ldp   d4, d5,   [sp, #192]
+    ldp   d6, d7,   [sp, #208]
+    ldp   d16, d17, [sp, #224]
+    ldp   d18, d19, [sp, #240]
+    ldp   d20, d21, [sp, #256]
+    ldp   d22, d23, [sp, #272]
+    ldp   d24, d25, [sp, #288]
+    ldp   d26, d27, [sp, #304]
+    ldp   d28, d29, [sp, #320]
+    ldp   d30, d31, [sp, #336]
 
     ldr   x0, [lr, #\ldr_offset]      // Load the instruction.
     adr   xIP1, .Lmark_introspection_return_switch
