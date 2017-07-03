@@ -18,7 +18,6 @@
 #define ART_RUNTIME_ZIP_ARCHIVE_H_
 
 #include <stdint.h>
-#include <ziparchive/zip_archive.h>
 #include <memory>
 #include <string>
 
@@ -28,6 +27,10 @@
 #include "mem_map.h"
 #include "os.h"
 #include "safe_map.h"
+
+// system/core/zip_archive definitions.
+struct ZipEntry;
+typedef void* ZipArchiveHandle;
 
 namespace art {
 

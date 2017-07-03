@@ -25,6 +25,8 @@
 #include <vector>
 
 #include "android-base/stringprintf.h"
+#include "ziparchive/zip_archive.h"
+
 #include "base/bit_utils.h"
 #include "base/unix_file/fd_file.h"
 
