@@ -178,6 +178,7 @@ class ArmVIXLAssembler FINAL : public Assembler {
   //
   // Heap poisoning.
   //
+
   // Poison a heap reference contained in `reg`.
   void PoisonHeapReference(vixl32::Register reg);
   // Unpoison a heap reference contained in `reg`.
@@ -186,6 +187,15 @@ class ArmVIXLAssembler FINAL : public Assembler {
   void MaybePoisonHeapReference(vixl32::Register reg);
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
   void MaybeUnpoisonHeapReference(vixl32::Register reg);
+
+  // Emit code checking the status of the Marking Register, and aborting
+  // the program if MR does not match the value stored in the art::Thread
+  // object.
+  //
+  // Argument `temp` is used as a temporary register to generate code.
+  // Argument `code` is used to identify the different occurrences of
+  // MaybeGenerateMarkingRegisterCheck and is passed to the BKPT instruction.
+  void GenerateMarkingRegisterCheck(vixl32::Register temp, int code = 0);
 
   void StoreToOffset(StoreOperandType type,
                      vixl32::Register reg,

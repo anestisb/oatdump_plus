@@ -82,6 +82,22 @@ void ArmVIXLAssembler::MaybeUnpoisonHeapReference(vixl32::Register reg) {
   }
 }
 
+void ArmVIXLAssembler::GenerateMarkingRegisterCheck(vixl32::Register temp, int code) {
+  // The Marking Register is only used in the Baker read barrier configuration.
+  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(kUseBakerReadBarrier);
+
+  vixl32::Label mr_is_ok;
+
+  // temp = self.tls32_.is.gc_marking
+  ___ Ldr(temp, MemOperand(tr, Thread::IsGcMarkingOffset<kArmPointerSize>().Int32Value()));
+  // Check that mr == self.tls32_.is.gc_marking.
+  ___ Cmp(mr, temp);
+  ___ B(eq, &mr_is_ok, /* far_target */ false);
+  ___ Bkpt(code);
+  ___ Bind(&mr_is_ok);
+}
+
 void ArmVIXLAssembler::LoadImmediate(vixl32::Register rd, int32_t value) {
   // TODO(VIXL): Implement this optimization in VIXL.
   if (!ShifterOperandCanAlwaysHold(value) && ShifterOperandCanAlwaysHold(~value)) {
