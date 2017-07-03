@@ -566,31 +566,68 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   // The PcRelativePatchInfo is used for PC-relative addressing of dex cache arrays
   // and boot image strings. The only difference is the interpretation of the offset_or_index.
+  // The 16-bit halves of the 32-bit PC-relative offset are patched separately, necessitating
+  // two patches/infos. There can be more than two patches/infos if the instruction supplying
+  // the high half is shared with e.g. a slow path, while the low half is supplied by separate
+  // instructions, e.g.:
+  //     lui   r1, high       // patch
+  //     addu  r1, r1, rbase
+  //     lw    r2, low(r1)    // patch
+  //     beqz  r2, slow_path
+  //   back:
+  //     ...
+  //   slow_path:
+  //     ...
+  //     sw    r2, low(r1)    // patch
+  //     b     back
   struct PcRelativePatchInfo {
-    PcRelativePatchInfo(const DexFile& dex_file, uint32_t off_or_idx)
-        : target_dex_file(dex_file), offset_or_index(off_or_idx) { }
-    PcRelativePatchInfo(PcRelativePatchInfo&& other) = default;
+    PcRelativePatchInfo(const DexFile& dex_file,
+                        uint32_t off_or_idx,
+                        const PcRelativePatchInfo* info_high)
+        : target_dex_file(dex_file),
+          offset_or_index(off_or_idx),
+          label(),
+          pc_rel_label(),
+          patch_info_high(info_high) { }
 
     const DexFile& target_dex_file;
     // Either the dex cache array element offset or the string/type index.
     uint32_t offset_or_index;
-    // Label for the instruction loading the most significant half of the offset that's added to PC
-    // to form the base address (the least significant half is loaded with the instruction that
-    // follows).
-    MipsLabel high_label;
-    // Label for the instruction corresponding to PC+0.
+    // Label for the instruction to patch.
+    MipsLabel label;
+    // Label for the instruction corresponding to PC+0. Not bound or used in low half patches.
+    // Not bound in high half patches on R2 when using HMipsComputeBaseMethodAddress.
+    // Bound in high half patches on R2 when using the NAL instruction instead of
+    // HMipsComputeBaseMethodAddress.
+    // Bound in high half patches on R6.
     MipsLabel pc_rel_label;
+    // Pointer to the info for the high half patch or nullptr if this is the high half patch info.
+    const PcRelativePatchInfo* patch_info_high;
+
+   private:
+    PcRelativePatchInfo(PcRelativePatchInfo&& other) = delete;
+    DISALLOW_COPY_AND_ASSIGN(PcRelativePatchInfo);
   };
 
-  PcRelativePatchInfo* NewPcRelativeMethodPatch(MethodReference target_method);
-  PcRelativePatchInfo* NewMethodBssEntryPatch(MethodReference target_method);
-  PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file, dex::TypeIndex type_index);
-  PcRelativePatchInfo* NewTypeBssEntryPatch(const DexFile& dex_file, dex::TypeIndex type_index);
+  PcRelativePatchInfo* NewPcRelativeMethodPatch(MethodReference target_method,
+                                                const PcRelativePatchInfo* info_high = nullptr);
+  PcRelativePatchInfo* NewMethodBssEntryPatch(MethodReference target_method,
+                                              const PcRelativePatchInfo* info_high = nullptr);
+  PcRelativePatchInfo* NewPcRelativeTypePatch(const DexFile& dex_file,
+                                              dex::TypeIndex type_index,
+                                              const PcRelativePatchInfo* info_high = nullptr);
+  PcRelativePatchInfo* NewTypeBssEntryPatch(const DexFile& dex_file,
+                                            dex::TypeIndex type_index,
+                                            const PcRelativePatchInfo* info_high = nullptr);
   PcRelativePatchInfo* NewPcRelativeStringPatch(const DexFile& dex_file,
-                                                dex::StringIndex string_index);
+                                                dex::StringIndex string_index,
+                                                const PcRelativePatchInfo* info_high = nullptr);
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
 
-  void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info, Register out, Register base);
+  void EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info_high,
+                                            Register out,
+                                            Register base,
+                                            PcRelativePatchInfo* info_low);
 
   // The JitPatchInfo is used for JIT string and class loads.
   struct JitPatchInfo {
@@ -625,6 +662,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
   Literal* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   PcRelativePatchInfo* NewPcRelativePatch(const DexFile& dex_file,
                                           uint32_t offset_or_index,
+                                          const PcRelativePatchInfo* info_high,
                                           ArenaDeque<PcRelativePatchInfo>* patches);
 
   template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>

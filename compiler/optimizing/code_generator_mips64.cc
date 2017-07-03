@@ -164,19 +164,42 @@ class LoadClassSlowPathMIPS64 : public SlowPathCodeMIPS64 {
   LoadClassSlowPathMIPS64(HLoadClass* cls,
                           HInstruction* at,
                           uint32_t dex_pc,
-                          bool do_clinit)
-      : SlowPathCodeMIPS64(at), cls_(cls), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+                          bool do_clinit,
+                          const CodeGeneratorMIPS64::PcRelativePatchInfo* bss_info_high = nullptr)
+      : SlowPathCodeMIPS64(at),
+        cls_(cls),
+        dex_pc_(dex_pc),
+        do_clinit_(do_clinit),
+        bss_info_high_(bss_info_high) {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
+    Location out = locations->Out();
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
-
+    const bool baker_or_no_read_barriers = (!kUseReadBarrier || kUseBakerReadBarrier);
+    InvokeRuntimeCallingConvention calling_convention;
+    DCHECK_EQ(instruction_->IsLoadClass(), cls_ == instruction_);
+    const bool is_load_class_bss_entry =
+        (cls_ == instruction_) && (cls_->GetLoadKind() == HLoadClass::LoadKind::kBssEntry);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
-    InvokeRuntimeCallingConvention calling_convention;
+    // For HLoadClass/kBssEntry/kSaveEverything, make sure we preserve the address of the entry.
+    GpuRegister entry_address = kNoGpuRegister;
+    if (is_load_class_bss_entry && baker_or_no_read_barriers) {
+      GpuRegister temp = locations->GetTemp(0).AsRegister<GpuRegister>();
+      bool temp_is_a0 = (temp == calling_convention.GetRegisterAt(0));
+      // In the unlucky case that `temp` is A0, we preserve the address in `out` across the
+      // kSaveEverything call.
+      entry_address = temp_is_a0 ? out.AsRegister<GpuRegister>() : temp;
+      DCHECK_NE(entry_address, calling_convention.GetRegisterAt(0));
+      if (temp_is_a0) {
+        __ Move(entry_address, temp);
+      }
+    }
+
     dex::TypeIndex type_index = cls_->GetTypeIndex();
     __ LoadConst32(calling_convention.GetRegisterAt(0), type_index.index_);
     QuickEntrypointEnum entrypoint = do_clinit_ ? kQuickInitializeStaticStorage
@@ -188,8 +211,20 @@ class LoadClassSlowPathMIPS64 : public SlowPathCodeMIPS64 {
       CheckEntrypointTypes<kQuickInitializeType, void*, uint32_t>();
     }
 
+    // For HLoadClass/kBssEntry, store the resolved class to the BSS entry.
+    if (is_load_class_bss_entry && baker_or_no_read_barriers) {
+      // The class entry address was preserved in `entry_address` thanks to kSaveEverything.
+      DCHECK(bss_info_high_);
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          mips64_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index, bss_info_high_);
+      __ Bind(&info_low->label);
+      __ StoreToOffset(kStoreWord,
+                       calling_convention.GetRegisterAt(0),
+                       entry_address,
+                       /* placeholder */ 0x5678);
+    }
+
     // Move the class to the desired location.
-    Location out = locations->Out();
     if (out.IsValid()) {
       DCHECK(out.IsRegister() && !locations->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
       Primitive::Type type = instruction_->GetType();
@@ -197,16 +232,18 @@ class LoadClassSlowPathMIPS64 : public SlowPathCodeMIPS64 {
                                    Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                                    type);
     }
-
     RestoreLiveRegisters(codegen, locations);
-    // For HLoadClass/kBssEntry, store the resolved Class to the BSS entry.
-    DCHECK_EQ(instruction_->IsLoadClass(), cls_ == instruction_);
-    if (cls_ == instruction_ && cls_->GetLoadKind() == HLoadClass::LoadKind::kBssEntry) {
-      DCHECK(out.IsValid());
-      CodeGeneratorMIPS64::PcRelativePatchInfo* info =
+
+    // For HLoadClass/kBssEntry, store the resolved class to the BSS entry.
+    if (is_load_class_bss_entry && !baker_or_no_read_barriers) {
+      // For non-Baker read barriers we need to re-calculate the address of
+      // the class entry.
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_high =
           mips64_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index);
-      mips64_codegen->EmitPcRelativeAddressPlaceholderHigh(info, AT);
-      __ Sw(out.AsRegister<GpuRegister>(), AT, /* placeholder */ 0x5678);
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          mips64_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index, info_high);
+      mips64_codegen->EmitPcRelativeAddressPlaceholderHigh(info_high, TMP, info_low);
+      __ StoreToOffset(kStoreWord, out.AsRegister<GpuRegister>(), TMP, /* placeholder */ 0x5678);
     }
     __ Bc(GetExitLabel());
   }
@@ -223,50 +260,94 @@ class LoadClassSlowPathMIPS64 : public SlowPathCodeMIPS64 {
   // Whether to initialize the class.
   const bool do_clinit_;
 
+  // Pointer to the high half PC-relative patch info for HLoadClass/kBssEntry.
+  const CodeGeneratorMIPS64::PcRelativePatchInfo* bss_info_high_;
+
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathMIPS64);
 };
 
 class LoadStringSlowPathMIPS64 : public SlowPathCodeMIPS64 {
  public:
-  explicit LoadStringSlowPathMIPS64(HLoadString* instruction) : SlowPathCodeMIPS64(instruction) {}
+  explicit LoadStringSlowPathMIPS64(HLoadString* instruction,
+                                    const CodeGeneratorMIPS64::PcRelativePatchInfo* bss_info_high)
+      : SlowPathCodeMIPS64(instruction), bss_info_high_(bss_info_high) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    DCHECK(instruction_->IsLoadString());
+    DCHECK_EQ(instruction_->AsLoadString()->GetLoadKind(), HLoadString::LoadKind::kBssEntry);
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+    HLoadString* load = instruction_->AsLoadString();
+    const dex::StringIndex string_index = load->GetStringIndex();
+    GpuRegister out = locations->Out().AsRegister<GpuRegister>();
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
-
+    const bool baker_or_no_read_barriers = (!kUseReadBarrier || kUseBakerReadBarrier);
+    InvokeRuntimeCallingConvention calling_convention;
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
-    InvokeRuntimeCallingConvention calling_convention;
-    HLoadString* load = instruction_->AsLoadString();
-    const dex::StringIndex string_index = instruction_->AsLoadString()->GetStringIndex();
+    // For HLoadString/kBssEntry/kSaveEverything, make sure we preserve the address of the entry.
+    GpuRegister entry_address = kNoGpuRegister;
+    if (baker_or_no_read_barriers) {
+      GpuRegister temp = locations->GetTemp(0).AsRegister<GpuRegister>();
+      bool temp_is_a0 = (temp == calling_convention.GetRegisterAt(0));
+      // In the unlucky case that `temp` is A0, we preserve the address in `out` across the
+      // kSaveEverything call.
+      entry_address = temp_is_a0 ? out : temp;
+      DCHECK_NE(entry_address, calling_convention.GetRegisterAt(0));
+      if (temp_is_a0) {
+        __ Move(entry_address, temp);
+      }
+    }
+
     __ LoadConst32(calling_convention.GetRegisterAt(0), string_index.index_);
     mips64_codegen->InvokeRuntime(kQuickResolveString,
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
+
+    // Store the resolved string to the BSS entry.
+    if (baker_or_no_read_barriers) {
+      // The string entry address was preserved in `entry_address` thanks to kSaveEverything.
+      DCHECK(bss_info_high_);
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          mips64_codegen->NewPcRelativeStringPatch(load->GetDexFile(),
+                                                   string_index,
+                                                   bss_info_high_);
+      __ Bind(&info_low->label);
+      __ StoreToOffset(kStoreWord,
+                       calling_convention.GetRegisterAt(0),
+                       entry_address,
+                       /* placeholder */ 0x5678);
+    }
+
     Primitive::Type type = instruction_->GetType();
     mips64_codegen->MoveLocation(locations->Out(),
                                  Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                                  type);
-
     RestoreLiveRegisters(codegen, locations);
 
-    // Store the resolved String to the BSS entry.
-    GpuRegister out = locations->Out().AsRegister<GpuRegister>();
-    CodeGeneratorMIPS64::PcRelativePatchInfo* info =
-        mips64_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index);
-    mips64_codegen->EmitPcRelativeAddressPlaceholderHigh(info, AT);
-    __ Sw(out, AT, /* placeholder */ 0x5678);
-
+    // Store the resolved string to the BSS entry.
+    if (!baker_or_no_read_barriers) {
+      // For non-Baker read barriers we need to re-calculate the address of
+      // the string entry.
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_high =
+          mips64_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index);
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          mips64_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index, info_high);
+      mips64_codegen->EmitPcRelativeAddressPlaceholderHigh(info_high, TMP, info_low);
+      __ StoreToOffset(kStoreWord, out, TMP, /* placeholder */ 0x5678);
+    }
     __ Bc(GetExitLabel());
   }
 
   const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathMIPS64"; }
 
  private:
+  // Pointer to the high half PC-relative patch info.
+  const CodeGeneratorMIPS64::PcRelativePatchInfo* bss_info_high_;
+
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathMIPS64);
 };
 
@@ -1431,9 +1512,11 @@ inline void CodeGeneratorMIPS64::EmitPcRelativeLinkerPatches(
   for (const PcRelativePatchInfo& info : infos) {
     const DexFile& dex_file = info.target_dex_file;
     size_t offset_or_index = info.offset_or_index;
-    DCHECK(info.pc_rel_label.IsBound());
-    uint32_t pc_rel_offset = __ GetLabelLocation(&info.pc_rel_label);
-    linker_patches->push_back(Factory(pc_rel_offset, &dex_file, pc_rel_offset, offset_or_index));
+    DCHECK(info.label.IsBound());
+    uint32_t literal_offset = __ GetLabelLocation(&info.label);
+    const PcRelativePatchInfo& info_high = info.patch_info_high ? *info.patch_info_high : info;
+    uint32_t pc_rel_offset = __ GetLabelLocation(&info_high.label);
+    linker_patches->push_back(Factory(literal_offset, &dex_file, pc_rel_offset, offset_or_index));
   }
 }
 
@@ -1467,37 +1550,50 @@ void CodeGeneratorMIPS64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
 }
 
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewPcRelativeMethodPatch(
-    MethodReference target_method) {
+    MethodReference target_method,
+    const PcRelativePatchInfo* info_high) {
   return NewPcRelativePatch(*target_method.dex_file,
                             target_method.dex_method_index,
+                            info_high,
                             &pc_relative_method_patches_);
 }
 
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewMethodBssEntryPatch(
-    MethodReference target_method) {
+    MethodReference target_method,
+    const PcRelativePatchInfo* info_high) {
   return NewPcRelativePatch(*target_method.dex_file,
                             target_method.dex_method_index,
+                            info_high,
                             &method_bss_entry_patches_);
 }
 
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewPcRelativeTypePatch(
-    const DexFile& dex_file, dex::TypeIndex type_index) {
-  return NewPcRelativePatch(dex_file, type_index.index_, &pc_relative_type_patches_);
+    const DexFile& dex_file,
+    dex::TypeIndex type_index,
+    const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(dex_file, type_index.index_, info_high, &pc_relative_type_patches_);
 }
 
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewTypeBssEntryPatch(
-    const DexFile& dex_file, dex::TypeIndex type_index) {
-  return NewPcRelativePatch(dex_file, type_index.index_, &type_bss_entry_patches_);
+    const DexFile& dex_file,
+    dex::TypeIndex type_index,
+    const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(dex_file, type_index.index_, info_high, &type_bss_entry_patches_);
 }
 
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewPcRelativeStringPatch(
-    const DexFile& dex_file, dex::StringIndex string_index) {
-  return NewPcRelativePatch(dex_file, string_index.index_, &pc_relative_string_patches_);
+    const DexFile& dex_file,
+    dex::StringIndex string_index,
+    const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(dex_file, string_index.index_, info_high, &pc_relative_string_patches_);
 }
 
 CodeGeneratorMIPS64::PcRelativePatchInfo* CodeGeneratorMIPS64::NewPcRelativePatch(
-    const DexFile& dex_file, uint32_t offset_or_index, ArenaDeque<PcRelativePatchInfo>* patches) {
-  patches->emplace_back(dex_file, offset_or_index);
+    const DexFile& dex_file,
+    uint32_t offset_or_index,
+    const PcRelativePatchInfo* info_high,
+    ArenaDeque<PcRelativePatchInfo>* patches) {
+  patches->emplace_back(dex_file, offset_or_index, info_high);
   return &patches->back();
 }
 
@@ -1517,13 +1613,17 @@ Literal* CodeGeneratorMIPS64::DeduplicateBootImageAddressLiteral(uint64_t addres
   return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address), &uint32_literals_);
 }
 
-void CodeGeneratorMIPS64::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info,
-                                                               GpuRegister out) {
-  __ Bind(&info->pc_rel_label);
+void CodeGeneratorMIPS64::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info_high,
+                                                               GpuRegister out,
+                                                               PcRelativePatchInfo* info_low) {
+  DCHECK(!info_high->patch_info_high);
+  __ Bind(&info_high->label);
   // Add the high half of a 32-bit offset to PC.
   __ Auipc(out, /* placeholder */ 0x1234);
-  // The immediately following instruction will add the sign-extended low half of the 32-bit
+  // A following instruction will add the sign-extended low half of the 32-bit
   // offset to `out` (e.g. ld, jialc, daddiu).
+  DCHECK_EQ(info_low->patch_info_high, info_high);
+  __ Bind(&info_low->label);
 }
 
 Literal* CodeGeneratorMIPS64::DeduplicateJitStringLiteral(const DexFile& dex_file,
@@ -4940,9 +5040,11 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative: {
       DCHECK(GetCompilerOptions().IsBootImage());
-      CodeGeneratorMIPS64::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_high =
           NewPcRelativeMethodPatch(invoke->GetTargetMethod());
-      EmitPcRelativeAddressPlaceholderHigh(info, AT);
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          NewPcRelativeMethodPatch(invoke->GetTargetMethod(), info_high);
+      EmitPcRelativeAddressPlaceholderHigh(info_high, AT, info_low);
       __ Daddiu(temp.AsRegister<GpuRegister>(), AT, /* placeholder */ 0x5678);
       break;
     }
@@ -4952,9 +5054,11 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(
                      DeduplicateUint64Literal(invoke->GetMethodAddress()));
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kBssEntry: {
-      PcRelativePatchInfo* info = NewMethodBssEntryPatch(
+      PcRelativePatchInfo* info_high = NewMethodBssEntryPatch(
           MethodReference(&GetGraph()->GetDexFile(), invoke->GetDexMethodIndex()));
-      EmitPcRelativeAddressPlaceholderHigh(info, AT);
+      PcRelativePatchInfo* info_low = NewMethodBssEntryPatch(
+          MethodReference(&GetGraph()->GetDexFile(), invoke->GetDexMethodIndex()), info_high);
+      EmitPcRelativeAddressPlaceholderHigh(info_high, AT, info_low);
       __ Ld(temp.AsRegister<GpuRegister>(), AT, /* placeholder */ 0x5678);
       break;
     }
@@ -5071,12 +5175,14 @@ void LocationsBuilderMIPS64::VisitLoadClass(HLoadClass* cls) {
   if (load_kind == HLoadClass::LoadKind::kBssEntry) {
     if (!kUseReadBarrier || kUseBakerReadBarrier) {
       // Rely on the type resolution or initialization and marking to save everything we need.
+      // Request a temp to hold the BSS entry location for the slow path.
+      locations->AddTemp(Location::RequiresRegister());
       RegisterSet caller_saves = RegisterSet::Empty();
       InvokeRuntimeCallingConvention calling_convention;
       caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
       locations->SetCustomSlowPathCallerSaves(caller_saves);
     } else {
-      // For non-Baker read barrier we have a temp-clobbering call.
+      // For non-Baker read barriers we have a temp-clobbering call.
     }
   }
 }
@@ -5104,6 +5210,7 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
       ? kWithoutReadBarrier
       : kCompilerReadBarrierOption;
   bool generate_null_check = false;
+  CodeGeneratorMIPS64::PcRelativePatchInfo* bss_info_high = nullptr;
   switch (load_kind) {
     case HLoadClass::LoadKind::kReferrersClass:
       DCHECK(!cls->CanCallRuntime());
@@ -5118,9 +5225,11 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative: {
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
-      CodeGeneratorMIPS64::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_high =
           codegen_->NewPcRelativeTypePatch(cls->GetDexFile(), cls->GetTypeIndex());
-      codegen_->EmitPcRelativeAddressPlaceholderHigh(info, AT);
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          codegen_->NewPcRelativeTypePatch(cls->GetDexFile(), cls->GetTypeIndex(), info_high);
+      codegen_->EmitPcRelativeAddressPlaceholderHigh(info_high, AT, info_low);
       __ Daddiu(out, AT, /* placeholder */ 0x5678);
       break;
     }
@@ -5135,10 +5244,15 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
       break;
     }
     case HLoadClass::LoadKind::kBssEntry: {
-      CodeGeneratorMIPS64::PcRelativePatchInfo* info =
-          codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
-      codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out);
-      GenerateGcRootFieldLoad(cls, out_loc, out, /* placeholder */ 0x5678, read_barrier_option);
+      bss_info_high = codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex(), bss_info_high);
+      constexpr bool non_baker_read_barrier = kUseReadBarrier && !kUseBakerReadBarrier;
+      GpuRegister temp = non_baker_read_barrier
+          ? out
+          : locations->GetTemp(0).AsRegister<GpuRegister>();
+      codegen_->EmitPcRelativeAddressPlaceholderHigh(bss_info_high, temp, info_low);
+      GenerateGcRootFieldLoad(cls, out_loc, temp, /* placeholder */ 0x5678, read_barrier_option);
       generate_null_check = true;
       break;
     }
@@ -5159,7 +5273,7 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
   if (generate_null_check || cls->MustGenerateClinitCheck()) {
     DCHECK(cls->CanCallRuntime());
     SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathMIPS64(
-        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
+        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck(), bss_info_high);
     codegen_->AddSlowPath(slow_path);
     if (generate_null_check) {
       __ Beqzc(out, slow_path->GetEntryLabel());
@@ -5207,12 +5321,14 @@ void LocationsBuilderMIPS64::VisitLoadString(HLoadString* load) {
     if (load_kind == HLoadString::LoadKind::kBssEntry) {
       if (!kUseReadBarrier || kUseBakerReadBarrier) {
         // Rely on the pResolveString and marking to save everything we need.
+        // Request a temp to hold the BSS entry location for the slow path.
+        locations->AddTemp(Location::RequiresRegister());
         RegisterSet caller_saves = RegisterSet::Empty();
         InvokeRuntimeCallingConvention calling_convention;
         caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
         locations->SetCustomSlowPathCallerSaves(caller_saves);
       } else {
-        // For non-Baker read barrier we have a temp-clobbering call.
+        // For non-Baker read barriers we have a temp-clobbering call.
       }
     }
   }
@@ -5229,9 +5345,11 @@ void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) NO_THREA
   switch (load_kind) {
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
-      CodeGeneratorMIPS64::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_high =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
-      codegen_->EmitPcRelativeAddressPlaceholderHigh(info, AT);
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex(), info_high);
+      codegen_->EmitPcRelativeAddressPlaceholderHigh(info_high, AT, info_low);
       __ Daddiu(out, AT, /* placeholder */ 0x5678);
       return;  // No dex cache slow path.
     }
@@ -5246,15 +5364,22 @@ void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) NO_THREA
     }
     case HLoadString::LoadKind::kBssEntry: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
-      CodeGeneratorMIPS64::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_high =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
-      codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out);
+      CodeGeneratorMIPS64::PcRelativePatchInfo* info_low =
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex(), info_high);
+      constexpr bool non_baker_read_barrier = kUseReadBarrier && !kUseBakerReadBarrier;
+      GpuRegister temp = non_baker_read_barrier
+          ? out
+          : locations->GetTemp(0).AsRegister<GpuRegister>();
+      codegen_->EmitPcRelativeAddressPlaceholderHigh(info_high, temp, info_low);
       GenerateGcRootFieldLoad(load,
                               out_loc,
-                              out,
+                              temp,
                               /* placeholder */ 0x5678,
                               kCompilerReadBarrierOption);
-      SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS64(load);
+      SlowPathCodeMIPS64* slow_path =
+          new (GetGraph()->GetArena()) LoadStringSlowPathMIPS64(load, info_high);
       codegen_->AddSlowPath(slow_path);
       __ Beqzc(out, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());

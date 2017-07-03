@@ -208,8 +208,13 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
   LoadClassSlowPathMIPS(HLoadClass* cls,
                         HInstruction* at,
                         uint32_t dex_pc,
-                        bool do_clinit)
-      : SlowPathCodeMIPS(at), cls_(cls), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+                        bool do_clinit,
+                        const CodeGeneratorMIPS::PcRelativePatchInfo* bss_info_high = nullptr)
+      : SlowPathCodeMIPS(at),
+        cls_(cls),
+        dex_pc_(dex_pc),
+        do_clinit_(do_clinit),
+        bss_info_high_(bss_info_high) {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
@@ -217,8 +222,7 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
     LocationSummary* locations = instruction_->GetLocations();
     Location out = locations->Out();
     CodeGeneratorMIPS* mips_codegen = down_cast<CodeGeneratorMIPS*>(codegen);
-    const bool isR6 = mips_codegen->GetInstructionSetFeatures().IsR6();
-    const bool r2_baker_or_no_read_barriers = !isR6 && (!kUseReadBarrier || kUseBakerReadBarrier);
+    const bool baker_or_no_read_barriers = (!kUseReadBarrier || kUseBakerReadBarrier);
     InvokeRuntimeCallingConvention calling_convention;
     DCHECK_EQ(instruction_->IsLoadClass(), cls_ == instruction_);
     const bool is_load_class_bss_entry =
@@ -228,7 +232,7 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
 
     // For HLoadClass/kBssEntry/kSaveEverything, make sure we preserve the address of the entry.
     Register entry_address = kNoRegister;
-    if (is_load_class_bss_entry && r2_baker_or_no_read_barriers) {
+    if (is_load_class_bss_entry && baker_or_no_read_barriers) {
       Register temp = locations->GetTemp(0).AsRegister<Register>();
       bool temp_is_a0 = (temp == calling_convention.GetRegisterAt(0));
       // In the unlucky case that `temp` is A0, we preserve the address in `out` across the
@@ -252,9 +256,18 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
     }
 
     // For HLoadClass/kBssEntry, store the resolved class to the BSS entry.
-    if (is_load_class_bss_entry && r2_baker_or_no_read_barriers) {
+    if (is_load_class_bss_entry && baker_or_no_read_barriers) {
       // The class entry address was preserved in `entry_address` thanks to kSaveEverything.
-      __ StoreToOffset(kStoreWord, calling_convention.GetRegisterAt(0), entry_address, 0);
+      DCHECK(bss_info_high_);
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_low =
+          mips_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index, bss_info_high_);
+      bool reordering = __ SetReorder(false);
+      __ Bind(&info_low->label);
+      __ StoreToOffset(kStoreWord,
+                       calling_convention.GetRegisterAt(0),
+                       entry_address,
+                       /* placeholder */ 0x5678);
+      __ SetReorder(reordering);
     }
 
     // Move the class to the desired location.
@@ -268,14 +281,17 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
     RestoreLiveRegisters(codegen, locations);
 
     // For HLoadClass/kBssEntry, store the resolved class to the BSS entry.
-    if (is_load_class_bss_entry && !r2_baker_or_no_read_barriers) {
-      // For non-Baker read barriers (or on R6), we need to re-calculate the address of
+    if (is_load_class_bss_entry && !baker_or_no_read_barriers) {
+      // For non-Baker read barriers we need to re-calculate the address of
       // the class entry.
+      const bool isR6 = mips_codegen->GetInstructionSetFeatures().IsR6();
       Register base = isR6 ? ZERO : locations->InAt(0).AsRegister<Register>();
-      CodeGeneratorMIPS::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_high =
           mips_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index);
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_low =
+          mips_codegen->NewTypeBssEntryPatch(cls_->GetDexFile(), type_index, info_high);
       bool reordering = __ SetReorder(false);
-      mips_codegen->EmitPcRelativeAddressPlaceholderHigh(info, TMP, base);
+      mips_codegen->EmitPcRelativeAddressPlaceholderHigh(info_high, TMP, base, info_low);
       __ StoreToOffset(kStoreWord, out.AsRegister<Register>(), TMP, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
     }
@@ -294,12 +310,17 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
   // Whether to initialize the class.
   const bool do_clinit_;
 
+  // Pointer to the high half PC-relative patch info for HLoadClass/kBssEntry.
+  const CodeGeneratorMIPS::PcRelativePatchInfo* bss_info_high_;
+
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathMIPS);
 };
 
 class LoadStringSlowPathMIPS : public SlowPathCodeMIPS {
  public:
-  explicit LoadStringSlowPathMIPS(HLoadString* instruction) : SlowPathCodeMIPS(instruction) {}
+  explicit LoadStringSlowPathMIPS(HLoadString* instruction,
+                                  const CodeGeneratorMIPS::PcRelativePatchInfo* bss_info_high)
+      : SlowPathCodeMIPS(instruction), bss_info_high_(bss_info_high) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     DCHECK(instruction_->IsLoadString());
@@ -310,15 +331,14 @@ class LoadStringSlowPathMIPS : public SlowPathCodeMIPS {
     const dex::StringIndex string_index = load->GetStringIndex();
     Register out = locations->Out().AsRegister<Register>();
     CodeGeneratorMIPS* mips_codegen = down_cast<CodeGeneratorMIPS*>(codegen);
-    const bool isR6 = mips_codegen->GetInstructionSetFeatures().IsR6();
-    const bool r2_baker_or_no_read_barriers = !isR6 && (!kUseReadBarrier || kUseBakerReadBarrier);
+    const bool baker_or_no_read_barriers = (!kUseReadBarrier || kUseBakerReadBarrier);
     InvokeRuntimeCallingConvention calling_convention;
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
     // For HLoadString/kBssEntry/kSaveEverything, make sure we preserve the address of the entry.
     Register entry_address = kNoRegister;
-    if (r2_baker_or_no_read_barriers) {
+    if (baker_or_no_read_barriers) {
       Register temp = locations->GetTemp(0).AsRegister<Register>();
       bool temp_is_a0 = (temp == calling_convention.GetRegisterAt(0));
       // In the unlucky case that `temp` is A0, we preserve the address in `out` across the
@@ -335,9 +355,18 @@ class LoadStringSlowPathMIPS : public SlowPathCodeMIPS {
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 
     // Store the resolved string to the BSS entry.
-    if (r2_baker_or_no_read_barriers) {
+    if (baker_or_no_read_barriers) {
       // The string entry address was preserved in `entry_address` thanks to kSaveEverything.
-      __ StoreToOffset(kStoreWord, calling_convention.GetRegisterAt(0), entry_address, 0);
+      DCHECK(bss_info_high_);
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_low =
+          mips_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index, bss_info_high_);
+      bool reordering = __ SetReorder(false);
+      __ Bind(&info_low->label);
+      __ StoreToOffset(kStoreWord,
+                       calling_convention.GetRegisterAt(0),
+                       entry_address,
+                       /* placeholder */ 0x5678);
+      __ SetReorder(reordering);
     }
 
     Primitive::Type type = instruction_->GetType();
@@ -347,14 +376,17 @@ class LoadStringSlowPathMIPS : public SlowPathCodeMIPS {
     RestoreLiveRegisters(codegen, locations);
 
     // Store the resolved string to the BSS entry.
-    if (!r2_baker_or_no_read_barriers) {
-      // For non-Baker read barriers (or on R6), we need to re-calculate the address of
+    if (!baker_or_no_read_barriers) {
+      // For non-Baker read barriers we need to re-calculate the address of
       // the string entry.
+      const bool isR6 = mips_codegen->GetInstructionSetFeatures().IsR6();
       Register base = isR6 ? ZERO : locations->InAt(0).AsRegister<Register>();
-      CodeGeneratorMIPS::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_high =
           mips_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index);
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_low =
+          mips_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index, info_high);
       bool reordering = __ SetReorder(false);
-      mips_codegen->EmitPcRelativeAddressPlaceholderHigh(info, TMP, base);
+      mips_codegen->EmitPcRelativeAddressPlaceholderHigh(info_high, TMP, base, info_low);
       __ StoreToOffset(kStoreWord, out, TMP, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
     }
@@ -364,6 +396,9 @@ class LoadStringSlowPathMIPS : public SlowPathCodeMIPS {
   const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathMIPS"; }
 
  private:
+  // Pointer to the high half PC-relative patch info.
+  const CodeGeneratorMIPS::PcRelativePatchInfo* bss_info_high_;
+
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathMIPS);
 };
 
@@ -1576,14 +1611,15 @@ inline void CodeGeneratorMIPS::EmitPcRelativeLinkerPatches(
   for (const PcRelativePatchInfo& info : infos) {
     const DexFile& dex_file = info.target_dex_file;
     size_t offset_or_index = info.offset_or_index;
-    DCHECK(info.high_label.IsBound());
-    uint32_t high_offset = __ GetLabelLocation(&info.high_label);
+    DCHECK(info.label.IsBound());
+    uint32_t literal_offset = __ GetLabelLocation(&info.label);
     // On R2 we use HMipsComputeBaseMethodAddress and patch relative to
     // the assembler's base label used for PC-relative addressing.
-    uint32_t pc_rel_offset = info.pc_rel_label.IsBound()
-        ? __ GetLabelLocation(&info.pc_rel_label)
+    const PcRelativePatchInfo& info_high = info.patch_info_high ? *info.patch_info_high : info;
+    uint32_t pc_rel_offset = info_high.pc_rel_label.IsBound()
+        ? __ GetLabelLocation(&info_high.pc_rel_label)
         : __ GetPcRelBaseLabelLocation();
-    linker_patches->push_back(Factory(high_offset, &dex_file, pc_rel_offset, offset_or_index));
+    linker_patches->push_back(Factory(literal_offset, &dex_file, pc_rel_offset, offset_or_index));
   }
 }
 
@@ -1617,37 +1653,50 @@ void CodeGeneratorMIPS::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patch
 }
 
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeMethodPatch(
-    MethodReference target_method) {
+    MethodReference target_method,
+    const PcRelativePatchInfo* info_high) {
   return NewPcRelativePatch(*target_method.dex_file,
                             target_method.dex_method_index,
+                            info_high,
                             &pc_relative_method_patches_);
 }
 
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewMethodBssEntryPatch(
-    MethodReference target_method) {
+    MethodReference target_method,
+    const PcRelativePatchInfo* info_high) {
   return NewPcRelativePatch(*target_method.dex_file,
                             target_method.dex_method_index,
+                            info_high,
                             &method_bss_entry_patches_);
 }
 
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeTypePatch(
-    const DexFile& dex_file, dex::TypeIndex type_index) {
-  return NewPcRelativePatch(dex_file, type_index.index_, &pc_relative_type_patches_);
+    const DexFile& dex_file,
+    dex::TypeIndex type_index,
+    const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(dex_file, type_index.index_, info_high, &pc_relative_type_patches_);
 }
 
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewTypeBssEntryPatch(
-    const DexFile& dex_file, dex::TypeIndex type_index) {
-  return NewPcRelativePatch(dex_file, type_index.index_, &type_bss_entry_patches_);
+    const DexFile& dex_file,
+    dex::TypeIndex type_index,
+    const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(dex_file, type_index.index_, info_high, &type_bss_entry_patches_);
 }
 
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeStringPatch(
-    const DexFile& dex_file, dex::StringIndex string_index) {
-  return NewPcRelativePatch(dex_file, string_index.index_, &pc_relative_string_patches_);
+    const DexFile& dex_file,
+    dex::StringIndex string_index,
+    const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(dex_file, string_index.index_, info_high, &pc_relative_string_patches_);
 }
 
 CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativePatch(
-    const DexFile& dex_file, uint32_t offset_or_index, ArenaDeque<PcRelativePatchInfo>* patches) {
-  patches->emplace_back(dex_file, offset_or_index);
+    const DexFile& dex_file,
+    uint32_t offset_or_index,
+    const PcRelativePatchInfo* info_high,
+    ArenaDeque<PcRelativePatchInfo>* patches) {
+  patches->emplace_back(dex_file, offset_or_index, info_high);
   return &patches->back();
 }
 
@@ -1661,14 +1710,16 @@ Literal* CodeGeneratorMIPS::DeduplicateBootImageAddressLiteral(uint32_t address)
   return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address), &uint32_literals_);
 }
 
-void CodeGeneratorMIPS::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info,
+void CodeGeneratorMIPS::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo* info_high,
                                                              Register out,
-                                                             Register base) {
+                                                             Register base,
+                                                             PcRelativePatchInfo* info_low) {
+  DCHECK(!info_high->patch_info_high);
   DCHECK_NE(out, base);
   if (GetInstructionSetFeatures().IsR6()) {
     DCHECK_EQ(base, ZERO);
-    __ Bind(&info->high_label);
-    __ Bind(&info->pc_rel_label);
+    __ Bind(&info_high->label);
+    __ Bind(&info_high->pc_rel_label);
     // Add the high half of a 32-bit offset to PC.
     __ Auipc(out, /* placeholder */ 0x1234);
   } else {
@@ -1677,18 +1728,20 @@ void CodeGeneratorMIPS::EmitPcRelativeAddressPlaceholderHigh(PcRelativePatchInfo
       // Generate a dummy PC-relative call to obtain PC.
       __ Nal();
     }
-    __ Bind(&info->high_label);
+    __ Bind(&info_high->label);
     __ Lui(out, /* placeholder */ 0x1234);
     // If we emitted the NAL, bind the pc_rel_label, otherwise base is a register holding
     // the HMipsComputeBaseMethodAddress which has its own label stored in MipsAssembler.
     if (base == ZERO) {
-      __ Bind(&info->pc_rel_label);
+      __ Bind(&info_high->pc_rel_label);
     }
     // Add the high half of a 32-bit offset to PC.
     __ Addu(out, out, (base == ZERO) ? RA : base);
   }
-  // The immediately following instruction will add the sign-extended low half of the 32-bit
+  // A following instruction will add the sign-extended low half of the 32-bit
   // offset to `out` (e.g. lw, jialc, addiu).
+  DCHECK_EQ(info_low->patch_info_high, info_high);
+  __ Bind(&info_low->label);
 }
 
 CodeGeneratorMIPS::JitPatchInfo* CodeGeneratorMIPS::NewJitRootStringPatch(
@@ -7132,10 +7185,12 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kBootImageLinkTimePcRelative: {
       DCHECK(GetCompilerOptions().IsBootImage());
-      PcRelativePatchInfo* info = NewPcRelativeMethodPatch(invoke->GetTargetMethod());
+      PcRelativePatchInfo* info_high = NewPcRelativeMethodPatch(invoke->GetTargetMethod());
+      PcRelativePatchInfo* info_low =
+          NewPcRelativeMethodPatch(invoke->GetTargetMethod(), info_high);
       bool reordering = __ SetReorder(false);
       Register temp_reg = temp.AsRegister<Register>();
-      EmitPcRelativeAddressPlaceholderHigh(info, TMP, base_reg);
+      EmitPcRelativeAddressPlaceholderHigh(info_high, TMP, base_reg, info_low);
       __ Addiu(temp_reg, TMP, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
       break;
@@ -7144,11 +7199,13 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(
       __ LoadConst32(temp.AsRegister<Register>(), invoke->GetMethodAddress());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kBssEntry: {
-      PcRelativePatchInfo* info = NewMethodBssEntryPatch(
+      PcRelativePatchInfo* info_high = NewMethodBssEntryPatch(
           MethodReference(&GetGraph()->GetDexFile(), invoke->GetDexMethodIndex()));
+      PcRelativePatchInfo* info_low = NewMethodBssEntryPatch(
+          MethodReference(&GetGraph()->GetDexFile(), invoke->GetDexMethodIndex()), info_high);
       Register temp_reg = temp.AsRegister<Register>();
       bool reordering = __ SetReorder(false);
-      EmitPcRelativeAddressPlaceholderHigh(info, TMP, base_reg);
+      EmitPcRelativeAddressPlaceholderHigh(info_high, TMP, base_reg, info_low);
       __ Lw(temp_reg, TMP, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
       break;
@@ -7278,11 +7335,8 @@ void LocationsBuilderMIPS::VisitLoadClass(HLoadClass* cls) {
   if (load_kind == HLoadClass::LoadKind::kBssEntry) {
     if (!kUseReadBarrier || kUseBakerReadBarrier) {
       // Rely on the type resolution or initialization and marking to save everything we need.
-      // Request a temp to hold the BSS entry location for the slow path on R2
-      // (no benefit for R6).
-      if (!isR6) {
-        locations->AddTemp(Location::RequiresRegister());
-      }
+      // Request a temp to hold the BSS entry location for the slow path.
+      locations->AddTemp(Location::RequiresRegister());
       RegisterSet caller_saves = RegisterSet::Empty();
       InvokeRuntimeCallingConvention calling_convention;
       caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -7328,6 +7382,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
       ? kWithoutReadBarrier
       : kCompilerReadBarrierOption;
   bool generate_null_check = false;
+  CodeGeneratorMIPS::PcRelativePatchInfo* bss_info_high = nullptr;
   switch (load_kind) {
     case HLoadClass::LoadKind::kReferrersClass: {
       DCHECK(!cls->CanCallRuntime());
@@ -7343,10 +7398,15 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative: {
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
-      CodeGeneratorMIPS::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_high =
           codegen_->NewPcRelativeTypePatch(cls->GetDexFile(), cls->GetTypeIndex());
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_low =
+          codegen_->NewPcRelativeTypePatch(cls->GetDexFile(), cls->GetTypeIndex(), info_high);
       bool reordering = __ SetReorder(false);
-      codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
+      codegen_->EmitPcRelativeAddressPlaceholderHigh(info_high,
+                                                     out,
+                                                     base_or_current_method_reg,
+                                                     info_low);
       __ Addiu(out, out, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
       break;
@@ -7362,24 +7422,18 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
       break;
     }
     case HLoadClass::LoadKind::kBssEntry: {
-      CodeGeneratorMIPS::PcRelativePatchInfo* info =
-          codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
+      bss_info_high = codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex());
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_low =
+          codegen_->NewTypeBssEntryPatch(cls->GetDexFile(), cls->GetTypeIndex(), bss_info_high);
       constexpr bool non_baker_read_barrier = kUseReadBarrier && !kUseBakerReadBarrier;
-      if (isR6 || non_baker_read_barrier) {
-        bool reordering = __ SetReorder(false);
-        codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
-        GenerateGcRootFieldLoad(cls, out_loc, out, /* placeholder */ 0x5678, read_barrier_option);
-        __ SetReorder(reordering);
-      } else {
-        // On R2 save the BSS entry address in a temporary register instead of
-        // recalculating it in the slow path.
-        Register temp = locations->GetTemp(0).AsRegister<Register>();
-        bool reordering = __ SetReorder(false);
-        codegen_->EmitPcRelativeAddressPlaceholderHigh(info, temp, base_or_current_method_reg);
-        __ Addiu(temp, temp, /* placeholder */ 0x5678);
-        __ SetReorder(reordering);
-        GenerateGcRootFieldLoad(cls, out_loc, temp, /* offset */ 0, read_barrier_option);
-      }
+      Register temp = non_baker_read_barrier ? out : locations->GetTemp(0).AsRegister<Register>();
+      bool reordering = __ SetReorder(false);
+      codegen_->EmitPcRelativeAddressPlaceholderHigh(bss_info_high,
+                                                     temp,
+                                                     base_or_current_method_reg,
+                                                     info_low);
+      GenerateGcRootFieldLoad(cls, out_loc, temp, /* placeholder */ 0x5678, read_barrier_option);
+      __ SetReorder(reordering);
       generate_null_check = true;
       break;
     }
@@ -7403,7 +7457,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAF
   if (generate_null_check || cls->MustGenerateClinitCheck()) {
     DCHECK(cls->CanCallRuntime());
     SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathMIPS(
-        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
+        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck(), bss_info_high);
     codegen_->AddSlowPath(slow_path);
     if (generate_null_check) {
       __ Beqz(out, slow_path->GetEntryLabel());
@@ -7468,11 +7522,8 @@ void LocationsBuilderMIPS::VisitLoadString(HLoadString* load) {
     if (load_kind == HLoadString::LoadKind::kBssEntry) {
       if (!kUseReadBarrier || kUseBakerReadBarrier) {
         // Rely on the pResolveString and marking to save everything we need.
-        // Request a temp to hold the BSS entry location for the slow path on R2
-        // (no benefit for R6).
-        if (!isR6) {
-          locations->AddTemp(Location::RequiresRegister());
-        }
+        // Request a temp to hold the BSS entry location for the slow path.
+        locations->AddTemp(Location::RequiresRegister());
         RegisterSet caller_saves = RegisterSet::Empty();
         InvokeRuntimeCallingConvention calling_convention;
         caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -7508,10 +7559,15 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
   switch (load_kind) {
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
       DCHECK(codegen_->GetCompilerOptions().IsBootImage());
-      CodeGeneratorMIPS::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_high =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_low =
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex(), info_high);
       bool reordering = __ SetReorder(false);
-      codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
+      codegen_->EmitPcRelativeAddressPlaceholderHigh(info_high,
+                                                     out,
+                                                     base_or_current_method_reg,
+                                                     info_low);
       __ Addiu(out, out, /* placeholder */ 0x5678);
       __ SetReorder(reordering);
       return;  // No dex cache slow path.
@@ -7527,29 +7583,25 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) NO_THREAD_
     }
     case HLoadString::LoadKind::kBssEntry: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
-      CodeGeneratorMIPS::PcRelativePatchInfo* info =
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_high =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
+      CodeGeneratorMIPS::PcRelativePatchInfo* info_low =
+          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex(), info_high);
       constexpr bool non_baker_read_barrier = kUseReadBarrier && !kUseBakerReadBarrier;
-      if (isR6 || non_baker_read_barrier) {
-        bool reordering = __ SetReorder(false);
-        codegen_->EmitPcRelativeAddressPlaceholderHigh(info, out, base_or_current_method_reg);
-        GenerateGcRootFieldLoad(load,
-                                out_loc,
-                                out,
-                                /* placeholder */ 0x5678,
-                                kCompilerReadBarrierOption);
-        __ SetReorder(reordering);
-      } else {
-        // On R2 save the BSS entry address in a temporary register instead of
-        // recalculating it in the slow path.
-        Register temp = locations->GetTemp(0).AsRegister<Register>();
-        bool reordering = __ SetReorder(false);
-        codegen_->EmitPcRelativeAddressPlaceholderHigh(info, temp, base_or_current_method_reg);
-        __ Addiu(temp, temp, /* placeholder */ 0x5678);
-        __ SetReorder(reordering);
-        GenerateGcRootFieldLoad(load, out_loc, temp, /* offset */ 0, kCompilerReadBarrierOption);
-      }
-      SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load);
+      Register temp = non_baker_read_barrier ? out : locations->GetTemp(0).AsRegister<Register>();
+      bool reordering = __ SetReorder(false);
+      codegen_->EmitPcRelativeAddressPlaceholderHigh(info_high,
+                                                     temp,
+                                                     base_or_current_method_reg,
+                                                     info_low);
+      GenerateGcRootFieldLoad(load,
+                              out_loc,
+                              temp,
+                              /* placeholder */ 0x5678,
+                              kCompilerReadBarrierOption);
+      __ SetReorder(reordering);
+      SlowPathCodeMIPS* slow_path =
+          new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load, info_high);
       codegen_->AddSlowPath(slow_path);
       __ Beqz(out, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
