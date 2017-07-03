@@ -223,5 +223,10 @@
   result: EXEC_FAILED,
   bug: 62408076,
   names: ["libcore.java.lang.reflect.annotations.AnnotatedElementParameterTest#testImplicitConstructorParameters_singleAnnotation"]
+},
+{
+  description: "Temporary, revert cannot be submitted due to OWNERS file",
+  result: EXEC_FAILED,
+  names: ["libcore.java.util.CurrencyTest#testSerialization"]
 }
 ]
