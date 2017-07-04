@@ -106,12 +106,12 @@ TEST_F(DexCacheTest, TestResolvedFieldAccess) {
 
   EXPECT_NE(klass1->NumStaticFields(), 0u);
   for (ArtField& field : klass2->GetSFields()) {
-    EXPECT_FALSE((
-        klass1->ResolvedFieldAccessTest</*throw_on_failure*/ false,
-            /*use_referrers_cache*/ false>(klass2.Get(),
-                                           &field,
-                                           field.GetDexFieldIndex(),
-                                           klass1->GetDexCache())));
+    EXPECT_FALSE(
+        klass1->ResolvedFieldAccessTest</*throw_on_failure*/ false>(
+            klass2.Get(),
+            &field,
+            klass1->GetDexCache(),
+            field.GetDexFieldIndex()));
   }
 }
 

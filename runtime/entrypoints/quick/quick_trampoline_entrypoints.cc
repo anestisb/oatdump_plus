@@ -2363,7 +2363,7 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
 // It is valid to use this, as at the usage points here (returns from C functions) we are assuming
 // to hold the mutator lock (see REQUIRES_SHARED(Locks::mutator_lock_) annotations).
 
-template<InvokeType type, bool access_check>
+template <InvokeType type, bool access_check>
 static TwoWordReturn artInvokeCommon(uint32_t method_idx,
                                      ObjPtr<mirror::Object> this_object,
                                      Thread* self,
@@ -2371,7 +2371,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
   ScopedQuickEntrypointChecks sqec(self);
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs));
   ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
-  ArtMethod* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
+  ArtMethod* method = FindMethodFast<type, access_check>(method_idx, this_object, caller_method);
   if (UNLIKELY(method == nullptr)) {
     const DexFile* dex_file = caller_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
     uint32_t shorty_len;

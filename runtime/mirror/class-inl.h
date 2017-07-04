@@ -99,7 +99,7 @@ inline DexCache* Class::GetDexCache() {
 inline uint32_t Class::GetCopiedMethodsStartOffset() {
   // Object::GetFieldShort returns an int16_t value, but
   // Class::copied_methods_offset_ is an uint16_t value; cast the
-  // latter to int16_t before returning it as an uint32_t value, so
+  // latter to uint16_t before returning it as an uint32_t value, so
   // that uint16_t values between 2^15 and 2^16-1 are correctly
   // handled.
   return static_cast<uint16_t>(
@@ -113,7 +113,7 @@ inline uint32_t Class::GetDirectMethodsStartOffset() {
 inline uint32_t Class::GetVirtualMethodsStartOffset() {
   // Object::GetFieldShort returns an int16_t value, but
   // Class::virtual_method_offset_ is an uint16_t value; cast the
-  // latter to int16_t before returning it as an uint32_t value, so
+  // latter to uint16_t before returning it as an uint32_t value, so
   // that uint16_t values between 2^15 and 2^16-1 are correctly
   // handled.
   return static_cast<uint16_t>(
@@ -410,25 +410,24 @@ inline bool Class::IsAssignableFromArray(ObjPtr<Class> src) {
   return IsArrayAssignableFromArray(src);
 }
 
-template <bool throw_on_failure, bool use_referrers_cache>
+template <bool throw_on_failure>
 inline bool Class::ResolvedFieldAccessTest(ObjPtr<Class> access_to,
                                            ArtField* field,
-                                           uint32_t field_idx,
-                                           ObjPtr<DexCache> dex_cache) {
-  DCHECK_EQ(use_referrers_cache, dex_cache == nullptr);
+                                           ObjPtr<DexCache> dex_cache,
+                                           uint32_t field_idx) {
+  DCHECK(dex_cache != nullptr);
   if (UNLIKELY(!this->CanAccess(access_to))) {
     // The referrer class can't access the field's declaring class but may still be able
     // to access the field if the FieldId specifies an accessible subclass of the declaring
     // class rather than the declaring class itself.
-    ObjPtr<DexCache> referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
-    dex::TypeIndex class_idx = referrer_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_;
+    dex::TypeIndex class_idx = dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_;
     // The referenced class has already been resolved with the field, but may not be in the dex
     // cache. Use LookupResolveType here to search the class table if it is not in the dex cache.
     // should be no thread suspension due to the class being resolved.
     ObjPtr<Class> dex_access_to = Runtime::Current()->GetClassLinker()->LookupResolvedType(
-        *referrer_dex_cache->GetDexFile(),
+        *dex_cache->GetDexFile(),
         class_idx,
-        referrer_dex_cache,
+        dex_cache,
         access_to->GetClassLoader());
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
@@ -447,25 +446,25 @@ inline bool Class::ResolvedFieldAccessTest(ObjPtr<Class> access_to,
   return false;
 }
 
-template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
+template <bool throw_on_failure>
 inline bool Class::ResolvedMethodAccessTest(ObjPtr<Class> access_to,
                                             ArtMethod* method,
+                                            ObjPtr<DexCache> dex_cache,
                                             uint32_t method_idx,
-                                            ObjPtr<DexCache> dex_cache) {
-  static_assert(throw_on_failure || throw_invoke_type == kStatic, "Non-default throw invoke type");
-  DCHECK_EQ(use_referrers_cache, dex_cache == nullptr);
+                                            InvokeType throw_invoke_type) {
+  DCHECK(throw_on_failure || throw_invoke_type == kStatic);
+  DCHECK(dex_cache != nullptr);
   if (UNLIKELY(!this->CanAccess(access_to))) {
     // The referrer class can't access the method's declaring class but may still be able
     // to access the method if the MethodId specifies an accessible subclass of the declaring
     // class rather than the declaring class itself.
-    ObjPtr<DexCache> referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
-    dex::TypeIndex class_idx = referrer_dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
+    dex::TypeIndex class_idx = dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
     // The referenced class has already been resolved with the method, but may not be in the dex
     // cache.
     ObjPtr<Class> dex_access_to = Runtime::Current()->GetClassLinker()->LookupResolvedType(
-        *referrer_dex_cache->GetDexFile(),
+        *dex_cache->GetDexFile(),
         class_idx,
-        referrer_dex_cache,
+        dex_cache,
         access_to->GetClassLoader());
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
@@ -491,30 +490,30 @@ inline bool Class::CanAccessResolvedField(ObjPtr<Class> access_to,
                                           ArtField* field,
                                           ObjPtr<DexCache> dex_cache,
                                           uint32_t field_idx) {
-  return ResolvedFieldAccessTest<false, false>(access_to, field, field_idx, dex_cache);
+  return ResolvedFieldAccessTest<false>(access_to, field, dex_cache, field_idx);
 }
 
 inline bool Class::CheckResolvedFieldAccess(ObjPtr<Class> access_to,
                                             ArtField* field,
+                                            ObjPtr<DexCache> dex_cache,
                                             uint32_t field_idx) {
-  return ResolvedFieldAccessTest<true, true>(access_to, field, field_idx, nullptr);
+  return ResolvedFieldAccessTest<true>(access_to, field, dex_cache, field_idx);
 }
 
 inline bool Class::CanAccessResolvedMethod(ObjPtr<Class> access_to,
                                            ArtMethod* method,
                                            ObjPtr<DexCache> dex_cache,
                                            uint32_t method_idx) {
-  return ResolvedMethodAccessTest<false, false, kStatic>(access_to, method, method_idx, dex_cache);
+  return ResolvedMethodAccessTest<false>(access_to, method, dex_cache, method_idx, kStatic);
 }
 
-template <InvokeType throw_invoke_type>
 inline bool Class::CheckResolvedMethodAccess(ObjPtr<Class> access_to,
                                              ArtMethod* method,
-                                             uint32_t method_idx) {
-  return ResolvedMethodAccessTest<true, true, throw_invoke_type>(access_to,
-                                                                 method,
-                                                                 method_idx,
-                                                                 nullptr);
+                                             ObjPtr<DexCache> dex_cache,
+                                             uint32_t method_idx,
+                                             InvokeType throw_invoke_type) {
+  return ResolvedMethodAccessTest<true>(
+      access_to, method, dex_cache, method_idx, throw_invoke_type);
 }
 
 inline bool Class::IsSubClass(ObjPtr<Class> klass) {

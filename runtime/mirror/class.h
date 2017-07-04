@@ -643,7 +643,10 @@ class MANAGED Class FINAL : public Object {
                               ObjPtr<DexCache> dex_cache,
                               uint32_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool CheckResolvedFieldAccess(ObjPtr<Class> access_to, ArtField* field, uint32_t field_idx)
+  bool CheckResolvedFieldAccess(ObjPtr<Class> access_to,
+                                ArtField* field,
+                                ObjPtr<DexCache> dex_cache,
+                                uint32_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can this class access a resolved method?
@@ -654,10 +657,11 @@ class MANAGED Class FINAL : public Object {
                                ObjPtr<DexCache> dex_cache,
                                uint32_t method_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  template <InvokeType throw_invoke_type>
   bool CheckResolvedMethodAccess(ObjPtr<Class> access_to,
                                  ArtMethod* resolved_method,
-                                 uint32_t method_idx)
+                                 ObjPtr<DexCache> dex_cache,
+                                 uint32_t method_idx,
+                                 InvokeType throw_invoke_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsSubClass(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1352,18 +1356,19 @@ class MANAGED Class FINAL : public Object {
                                                                     uint32_t end_offset)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template <bool throw_on_failure, bool use_referrers_cache>
+  template <bool throw_on_failure>
   bool ResolvedFieldAccessTest(ObjPtr<Class> access_to,
                                ArtField* field,
-                               uint32_t field_idx,
-                               ObjPtr<DexCache> dex_cache)
+                               ObjPtr<DexCache> dex_cache,
+                               uint32_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
+  template <bool throw_on_failure>
   bool ResolvedMethodAccessTest(ObjPtr<Class> access_to,
                                 ArtMethod* resolved_method,
+                                ObjPtr<DexCache> dex_cache,
                                 uint32_t method_idx,
-                                ObjPtr<DexCache> dex_cache)
+                                InvokeType throw_invoke_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool Implements(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);

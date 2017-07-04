@@ -103,16 +103,16 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
 }
 
 inline ArtMethod* CompilerDriver::ResolveMethod(
-    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
-    Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
-    uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change) {
+    ScopedObjectAccess& soa,
+    Handle<mirror::DexCache> dex_cache,
+    Handle<mirror::ClassLoader> class_loader,
+    const DexCompilationUnit* mUnit,
+    uint32_t method_idx,
+    InvokeType invoke_type) {
   DCHECK_EQ(class_loader.Get(), mUnit->GetClassLoader().Get());
   ArtMethod* resolved_method =
-      check_incompatible_class_change
-          ? mUnit->GetClassLinker()->ResolveMethod<ClassLinker::kForceICCECheck>(
-              *dex_cache->GetDexFile(), method_idx, dex_cache, class_loader, nullptr, invoke_type)
-          : mUnit->GetClassLinker()->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
-              *dex_cache->GetDexFile(), method_idx, dex_cache, class_loader, nullptr, invoke_type);
+      mUnit->GetClassLinker()->ResolveMethod<ClassLinker::kForceICCECheck>(
+          *dex_cache->GetDexFile(), method_idx, dex_cache, class_loader, nullptr, invoke_type);
   if (UNLIKELY(resolved_method == nullptr)) {
     DCHECK(soa.Self()->IsExceptionPending());
     // Clean up any exception left by type resolution.
