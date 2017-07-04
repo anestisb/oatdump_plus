@@ -793,8 +793,10 @@ void Collections::CreateMethodHandleItem(const DexFile& dex_file, uint32_t i) {
       static_cast<DexFile::MethodHandleType>(disk_method_handle.method_handle_type_);
   bool is_invoke = type == DexFile::MethodHandleType::kInvokeStatic ||
                    type == DexFile::MethodHandleType::kInvokeInstance ||
-                   type == DexFile::MethodHandleType::kInvokeConstructor;
-  static_assert(DexFile::MethodHandleType::kLast == DexFile::MethodHandleType::kInvokeConstructor,
+                   type == DexFile::MethodHandleType::kInvokeConstructor ||
+                   type == DexFile::MethodHandleType::kInvokeDirect ||
+                   type == DexFile::MethodHandleType::kInvokeInterface;
+  static_assert(DexFile::MethodHandleType::kLast == DexFile::MethodHandleType::kInvokeInterface,
                 "Unexpected method handle types.");
   IndexedItem* field_or_method_id;
   if (is_invoke) {

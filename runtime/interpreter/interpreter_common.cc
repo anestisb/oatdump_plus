@@ -640,7 +640,7 @@ static ObjPtr<mirror::CallSite> InvokeBootstrapMethod(Thread* self,
   const DexFile* dex_file = referrer->GetDexFile();
   const DexFile::CallSiteIdItem& csi = dex_file->GetCallSiteId(call_site_idx);
 
-  StackHandleScope<9> hs(self);
+  StackHandleScope<10> hs(self);
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(referrer->GetClassLoader()));
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
 
@@ -836,9 +836,13 @@ static ObjPtr<mirror::CallSite> InvokeBootstrapMethod(Thread* self,
     return nullptr;
   }
 
-  // Check the target method type matches the method type requested.
-  if (UNLIKELY(!target->GetMethodType()->IsExactMatch(method_type.Get()))) {
-    ThrowWrongMethodTypeException(target->GetMethodType(), method_type.Get());
+  // Check the target method type matches the method type requested modulo the receiver
+  // needs to be compatible rather than exact.
+  Handle<mirror::MethodType> target_method_type = hs.NewHandle(target->GetMethodType());
+  if (UNLIKELY(!target_method_type->IsExactMatch(method_type.Get()) &&
+               !IsParameterTypeConvertible(target_method_type->GetPTypes()->GetWithoutChecks(0),
+                                           method_type->GetPTypes()->GetWithoutChecks(0)))) {
+    ThrowWrongMethodTypeException(target_method_type.Get(), method_type.Get());
     return nullptr;
   }
 
