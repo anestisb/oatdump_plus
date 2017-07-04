@@ -102,35 +102,6 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
   return std::make_pair(fast_get, fast_put);
 }
 
-template <typename ArtMember>
-inline bool CompilerDriver::CanAccessResolvedMember(mirror::Class* referrer_class ATTRIBUTE_UNUSED,
-                                                    mirror::Class* access_to ATTRIBUTE_UNUSED,
-                                                    ArtMember* member ATTRIBUTE_UNUSED,
-                                                    mirror::DexCache* dex_cache ATTRIBUTE_UNUSED,
-                                                    uint32_t field_idx ATTRIBUTE_UNUSED) {
-  // Not defined for ArtMember values other than ArtField or ArtMethod.
-  UNREACHABLE();
-}
-
-template <>
-inline bool CompilerDriver::CanAccessResolvedMember<ArtField>(mirror::Class* referrer_class,
-                                                              mirror::Class* access_to,
-                                                              ArtField* field,
-                                                              mirror::DexCache* dex_cache,
-                                                              uint32_t field_idx) {
-  return referrer_class->CanAccessResolvedField(access_to, field, dex_cache, field_idx);
-}
-
-template <>
-inline bool CompilerDriver::CanAccessResolvedMember<ArtMethod>(
-    mirror::Class* referrer_class,
-    mirror::Class* access_to,
-    ArtMethod* method,
-    mirror::DexCache* dex_cache,
-    uint32_t field_idx) {
-  return referrer_class->CanAccessResolvedMethod(access_to, method, dex_cache, field_idx);
-}
-
 inline ArtMethod* CompilerDriver::ResolveMethod(
     ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
