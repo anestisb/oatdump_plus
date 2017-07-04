@@ -43,13 +43,7 @@ class ObjectsHandler implements AhatHandler {
     Site site = mSnapshot.getSite(id, depth);
 
     List<AhatInstance> insts = new ArrayList<AhatInstance>();
-    for (AhatInstance inst : site.getObjects()) {
-      if ((heapName == null || inst.getHeap().getName().equals(heapName))
-          && (className == null || inst.getClassName().equals(className))) {
-        insts.add(inst);
-      }
-    }
-
+    site.getObjects(heapName, className, insts);
     Collections.sort(insts, Sort.defaultInstanceCompare(mSnapshot));
 
     doc.title("Objects");

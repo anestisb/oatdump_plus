@@ -16,39 +16,48 @@
 
 package com.android.ahat.heapdump;
 
+import com.android.ahat.dominators.DominatorsComputation;
 import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Instance;
-import com.android.tools.perflib.heap.RootObj;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Queue;
 
-public abstract class AhatInstance implements Diffable<AhatInstance> {
-  private long mId;
+public abstract class AhatInstance implements Diffable<AhatInstance>,
+                                              DominatorsComputation.Node {
+  // The id of this instance from the heap dump.
+  private final long mId;
+
+  // Fields initialized in initialize().
   private Size mSize;
-  private Size[] mRetainedSizes;      // Retained size indexed by heap index
-  private boolean mIsReachable;
   private AhatHeap mHeap;
-  private AhatInstance mImmediateDominator;
-  private AhatInstance mNextInstanceToGcRoot;
-  private String mNextInstanceToGcRootField = "???";
   private AhatClassObj mClassObj;
-  private AhatInstance[] mHardReverseReferences;
-  private AhatInstance[] mSoftReverseReferences;
   private Site mSite;
 
   // If this instance is a root, mRootTypes contains a set of the root types.
   // If this instance is not a root, mRootTypes is null.
   private List<String> mRootTypes;
 
-  // List of instances this instance immediately dominates.
-  private List<AhatInstance> mDominated = new ArrayList<AhatInstance>();
+  // Fields initialized in computeReverseReferences().
+  private AhatInstance mNextInstanceToGcRoot;
+  private String mNextInstanceToGcRootField;
+  private ArrayList<AhatInstance> mHardReverseReferences;
+  private ArrayList<AhatInstance> mSoftReverseReferences;
 
+  // Fields initialized in DominatorsComputation.computeDominators().
+  // mDominated - the list of instances immediately dominated by this instance.
+  // mRetainedSizes - retained size indexed by heap index.
+  private AhatInstance mImmediateDominator;
+  private List<AhatInstance> mDominated = new ArrayList<AhatInstance>();
+  private Size[] mRetainedSizes;
+  private Object mDominatorsComputationState;
+
+  // The baseline instance for purposes of diff.
   private AhatInstance mBaseline;
 
   public AhatInstance(long id) {
@@ -62,58 +71,16 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    * There is no guarantee that the AhatInstances returned by
    * snapshot.findInstance have been initialized yet.
    */
-  void initialize(AhatSnapshot snapshot, Instance inst) {
-    mId = inst.getId();
+  void initialize(AhatSnapshot snapshot, Instance inst, Site site) {
     mSize = new Size(inst.getSize(), 0);
-    mIsReachable = inst.isReachable();
-
-    List<AhatHeap> heaps = snapshot.getHeaps();
-
     mHeap = snapshot.getHeap(inst.getHeap().getName());
-
-    Instance dom = inst.getImmediateDominator();
-    if (dom == null || dom instanceof RootObj) {
-      mImmediateDominator = null;
-    } else {
-      mImmediateDominator = snapshot.findInstance(dom.getId());
-      mImmediateDominator.mDominated.add(this);
-    }
 
     ClassObj clsObj = inst.getClassObj();
     if (clsObj != null) {
       mClassObj = snapshot.findClassObj(clsObj.getId());
     }
 
-    // A couple notes about reverse references:
-    // * perflib sometimes returns unreachable reverse references. If
-    //   snapshot.findInstance returns null, it means the reverse reference is
-    //   not reachable, so we filter it out.
-    // * We store the references as AhatInstance[] instead of
-    //   ArrayList<AhatInstance> because it saves a lot of space and helps
-    //   with performance when there are a lot of AhatInstances.
-    ArrayList<AhatInstance> ahatRefs = new ArrayList<AhatInstance>();
-    ahatRefs = new ArrayList<AhatInstance>();
-    for (Instance ref : inst.getHardReverseReferences()) {
-      AhatInstance ahat = snapshot.findInstance(ref.getId());
-      if (ahat != null) {
-        ahatRefs.add(ahat);
-      }
-    }
-    mHardReverseReferences = new AhatInstance[ahatRefs.size()];
-    ahatRefs.toArray(mHardReverseReferences);
-
-    List<Instance> refs = inst.getSoftReverseReferences();
-    ahatRefs.clear();
-    if (refs != null) {
-      for (Instance ref : refs) {
-        AhatInstance ahat = snapshot.findInstance(ref.getId());
-        if (ahat != null) {
-          ahatRefs.add(ahat);
-        }
-      }
-    }
-    mSoftReverseReferences = new AhatInstance[ahatRefs.size()];
-    ahatRefs.toArray(mSoftReverseReferences);
+    mSite = site;
   }
 
   /**
@@ -166,7 +133,7 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    * Returns whether this object is strongly-reachable.
    */
   public boolean isReachable() {
-    return mIsReachable;
+    return mImmediateDominator != null;
   }
 
   /**
@@ -175,6 +142,12 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
   public AhatHeap getHeap() {
     return mHeap;
   }
+
+  /**
+   * Returns an iterator over the references this AhatInstance has to other
+   * AhatInstances.
+   */
+  abstract ReferenceIterator getReferences();
 
   /**
    * Returns true if this instance is marked as a root instance.
@@ -224,13 +197,6 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    */
   public Site getSite() {
     return mSite;
-  }
-
-  /**
-   * Sets the allocation site of this instance.
-   */
-  void setSite(Site site) {
-    mSite = site;
   }
 
   /**
@@ -311,14 +277,20 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    * Returns a list of objects with hard references to this object.
    */
   public List<AhatInstance> getHardReverseReferences() {
-    return Arrays.asList(mHardReverseReferences);
+    if (mHardReverseReferences != null) {
+      return mHardReverseReferences;
+    }
+    return Collections.emptyList();
   }
 
   /**
    * Returns a list of objects with soft references to this object.
    */
   public List<AhatInstance> getSoftReverseReferences() {
-    return Arrays.asList(mSoftReverseReferences);
+    if (mSoftReverseReferences != null) {
+      return mSoftReverseReferences;
+    }
+    return Collections.emptyList();
   }
 
   /**
@@ -425,8 +397,10 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
   }
 
   void setNextInstanceToGcRoot(AhatInstance inst, String field) {
-    mNextInstanceToGcRoot = inst;
-    mNextInstanceToGcRootField = field;
+    if (mNextInstanceToGcRoot == null && !isRoot()) {
+      mNextInstanceToGcRoot = inst;
+      mNextInstanceToGcRootField = field;
+    }
   }
 
   /** Returns a human-readable identifier for this object.
@@ -466,6 +440,47 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
   }
 
   /**
+   * Initialize the reverse reference fields of this instance and all other
+   * instances reachable from it. Initializes the following fields:
+   *   mNextInstanceToGcRoot
+   *   mNextInstanceToGcRootField
+   *   mHardReverseReferences
+   *   mSoftReverseReferences
+   */
+  static void computeReverseReferences(AhatInstance root) {
+    // Do a breadth first search to visit the nodes.
+    Queue<Reference> bfs = new ArrayDeque<Reference>();
+    for (Reference ref : root.getReferences()) {
+      bfs.add(ref);
+    }
+    while (!bfs.isEmpty()) {
+      Reference ref = bfs.poll();
+
+      if (ref.ref.mHardReverseReferences == null) {
+        // This is the first time we are seeing ref.ref.
+        ref.ref.mNextInstanceToGcRoot = ref.src;
+        ref.ref.mNextInstanceToGcRootField = ref.field;
+        ref.ref.mHardReverseReferences = new ArrayList<AhatInstance>();
+        for (Reference childRef : ref.ref.getReferences()) {
+          bfs.add(childRef);
+        }
+      }
+
+      // Note: ref.src is null when the src is the SuperRoot.
+      if (ref.src != null) {
+        if (ref.strong) {
+          ref.ref.mHardReverseReferences.add(ref.src);
+        } else {
+          if (ref.ref.mSoftReverseReferences == null) {
+            ref.ref.mSoftReverseReferences = new ArrayList<AhatInstance>();
+          }
+          ref.ref.mSoftReverseReferences.add(ref.src);
+        }
+      }
+    }
+  }
+
+  /**
    * Recursively compute the retained size of the given instance and all
    * other instances it dominates.
    */
@@ -486,8 +501,10 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
         for (int i = 0; i < numHeaps; i++) {
           inst.mRetainedSizes[i] = Size.ZERO;
         }
-        inst.mRetainedSizes[inst.mHeap.getIndex()] = 
-          inst.mRetainedSizes[inst.mHeap.getIndex()].plus(inst.mSize);
+        if (!(inst instanceof SuperRoot)) {
+          inst.mRetainedSizes[inst.mHeap.getIndex()] =
+            inst.mRetainedSizes[inst.mHeap.getIndex()].plus(inst.mSize);
+        }
         deque.push(inst);
         for (AhatInstance dominated : inst.mDominated) {
           deque.push(dominated);
@@ -500,5 +517,26 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
         }
       }
     }
+  }
+
+  @Override
+  public void setDominatorsComputationState(Object state) {
+    mDominatorsComputationState = state;
+  }
+
+  @Override
+  public Object getDominatorsComputationState() {
+    return mDominatorsComputationState;
+  }
+
+  @Override
+  public Iterable<? extends DominatorsComputation.Node> getReferencesForDominators() {
+    return new DominatorReferenceIterator(getReferences());
+  }
+
+  @Override
+  public void setDominator(DominatorsComputation.Node dominator) {
+    mImmediateDominator = (AhatInstance)dominator;
+    mImmediateDominator.mDominated.add(this);
   }
 }

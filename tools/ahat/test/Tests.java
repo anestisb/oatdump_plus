@@ -24,6 +24,7 @@ public class Tests {
       args = new String[]{
         "com.android.ahat.DiffFieldsTest",
         "com.android.ahat.DiffTest",
+        "com.android.ahat.DominatorsTest",
         "com.android.ahat.InstanceTest",
         "com.android.ahat.NativeAllocationTest",
         "com.android.ahat.ObjectHandlerTest",

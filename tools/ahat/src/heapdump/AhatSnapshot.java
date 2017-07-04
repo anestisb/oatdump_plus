@@ -16,6 +16,7 @@
 
 package com.android.ahat.heapdump;
 
+import com.android.ahat.dominators.DominatorsComputation;
 import com.android.tools.perflib.captures.DataBuffer;
 import com.android.tools.perflib.captures.MemoryMappedFileBuffer;
 import com.android.tools.perflib.heap.ArrayInstance;
@@ -42,7 +43,7 @@ public class AhatSnapshot implements Diffable<AhatSnapshot> {
   private final Site mRootSite = new Site("ROOT");
 
   // Collection of objects whose immediate dominator is the SENTINEL_ROOT.
-  private final List<AhatInstance> mRooted = new ArrayList<AhatInstance>();
+  private final List<AhatInstance> mRooted;
 
   // List of all ahat instances stored in increasing order by id.
   private final List<AhatInstance> mInstances = new ArrayList<AhatInstance>();
@@ -80,7 +81,6 @@ public class AhatSnapshot implements Diffable<AhatSnapshot> {
    */
   private AhatSnapshot(DataBuffer buffer, ProguardMap map) throws IOException {
     Snapshot snapshot = Snapshot.createSnapshot(buffer, map);
-    snapshot.computeDominators();
 
     // Properly label the class of class objects in the perflib snapshot.
     final ClassObj javaLangClass = snapshot.findClass("java.lang.Class");
@@ -139,46 +139,45 @@ public class AhatSnapshot implements Diffable<AhatSnapshot> {
     // and instances.
     for (AhatInstance ahat : mInstances) {
       Instance inst = snapshot.findInstance(ahat.getId());
-      ahat.initialize(this, inst);
 
-      Long registeredNativeSize = registeredNative.get(inst);
-      if (registeredNativeSize != null) {
-        ahat.addRegisteredNativeSize(registeredNativeSize);
-      }
-
-      if (inst.getImmediateDominator() == Snapshot.SENTINEL_ROOT) {
-        mRooted.add(ahat);
-      }
-
-      if (inst.isReachable()) {
-        ahat.getHeap().addToSize(ahat.getSize());
-      }
-
-      // Update sites.
       StackFrame[] frames = null;
       StackTrace stack = inst.getStack();
       if (stack != null) {
         frames = stack.getFrames();
       }
       Site site = mRootSite.add(frames, frames == null ? 0 : frames.length, ahat);
-      ahat.setSite(site);
+      ahat.initialize(this, inst, site);
+
+      Long registeredNativeSize = registeredNative.get(inst);
+      if (registeredNativeSize != null) {
+        ahat.addRegisteredNativeSize(registeredNativeSize);
+      }
     }
 
     // Record the roots and their types.
+    SuperRoot superRoot = new SuperRoot();
     for (RootObj root : snapshot.getGCRoots()) {
       Instance inst = root.getReferredInstance();
       if (inst != null) {
-        findInstance(inst.getId()).addRootType(root.getRootType().toString());
+        AhatInstance ahat = findInstance(inst.getId());
+        if (!ahat.isRoot()) {
+          superRoot.addRoot(ahat);
+        }
+        ahat.addRootType(root.getRootType().toString());
       }
     }
     snapshot.dispose();
 
-    // Compute the retained sizes of objects. We do this explicitly now rather
-    // than relying on the retained sizes computed by perflib so that
-    // registered native sizes are included.
-    for (AhatInstance inst : mRooted) {
-      AhatInstance.computeRetainedSize(inst, mHeaps.size());
+    AhatInstance.computeReverseReferences(superRoot);
+    DominatorsComputation.computeDominators(superRoot);
+    AhatInstance.computeRetainedSize(superRoot, mHeaps.size());
+
+    mRooted = superRoot.getDominated();
+    for (AhatHeap heap : mHeaps) {
+      heap.addToSize(superRoot.getRetainedSize(heap));
     }
+
+    mRootSite.computeObjectsInfos(mHeaps.size());
   }
 
   /**

@@ -60,6 +60,14 @@ public class Main {
     public StackSmasher child;
   }
 
+  public static class Reference {
+    public Object referent;
+
+    public Reference(Object referent) {
+      this.referent = referent;
+    }
+  }
+
   // We will take a heap dump that includes a single instance of this
   // DumpedStuff class. Objects stored as fields in this class can be easily
   // found in the hprof dump by searching for the instance of the DumpedStuff
@@ -71,6 +79,7 @@ public class Main {
     public char[] charArray = "char thing".toCharArray();
     public String nullString = null;
     public Object anObject = new Object();
+    public Reference aReference = new Reference(anObject);
     public ReferenceQueue<Object> referenceQueue = new ReferenceQueue<Object>();
     public PhantomReference aPhantomReference = new PhantomReference(anObject, referenceQueue);
     public WeakReference aWeakReference = new WeakReference(anObject, referenceQueue);

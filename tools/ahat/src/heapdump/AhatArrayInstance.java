@@ -20,6 +20,7 @@ import com.android.tools.perflib.heap.ArrayInstance;
 import com.android.tools.perflib.heap.Instance;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractList;
+import java.util.Collections;
 import java.util.List;
 
 public class AhatArrayInstance extends AhatInstance {
@@ -37,8 +38,8 @@ public class AhatArrayInstance extends AhatInstance {
     super(id);
   }
 
-  @Override void initialize(AhatSnapshot snapshot, Instance inst) {
-    super.initialize(snapshot, inst);
+  @Override void initialize(AhatSnapshot snapshot, Instance inst, Site site) {
+    super.initialize(snapshot, inst, site);
 
     ArrayInstance array = (ArrayInstance)inst;
     switch (array.getArrayType()) {
@@ -49,10 +50,6 @@ public class AhatArrayInstance extends AhatInstance {
           if (objects[i] != null) {
             Instance ref = (Instance)objects[i];
             insts[i] = snapshot.findInstance(ref.getId());
-            if (ref.getNextInstanceToGcRoot() == inst) {
-              String field = "[" + Integer.toString(i) + "]";
-              insts[i].setNextInstanceToGcRoot(this, field);
-            }
           }
         }
         mValues = new AbstractList<Value>() {
@@ -130,6 +127,35 @@ public class AhatArrayInstance extends AhatInstance {
    */
   public Value getValue(int index) {
     return mValues.get(index);
+  }
+
+  @Override
+  ReferenceIterator getReferences() {
+    // The list of references will be empty if this is a primitive array.
+    List<Reference> refs = Collections.emptyList();
+    if (!mValues.isEmpty()) {
+      Value first = mValues.get(0);
+      if (first == null || first.isAhatInstance()) {
+        refs = new AbstractList<Reference>() {
+          @Override
+          public int size() {
+            return mValues.size();
+          }
+
+          @Override
+          public Reference get(int index) {
+            Value value = mValues.get(index);
+            if (value != null) {
+              assert value.isAhatInstance();
+              String field = "[" + Integer.toString(index) + "]";
+              return new Reference(AhatArrayInstance.this, field, value.asAhatInstance(), true);
+            }
+            return null;
+          }
+        };
+      }
+    }
+    return new ReferenceIterator(refs);
   }
 
   @Override public boolean isArrayInstance() {
