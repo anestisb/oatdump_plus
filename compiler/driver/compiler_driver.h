@@ -381,19 +381,6 @@ class CompilerDriver {
   }
 
  private:
-  // Can `referrer_class` access the resolved `member`?
-  // Dispatch call to mirror::Class::CanAccessResolvedField or
-  // mirror::Class::CanAccessResolvedMember depending on the value of
-  // ArtMember.
-  template <typename ArtMember>
-  static bool CanAccessResolvedMember(mirror::Class* referrer_class,
-                                      mirror::Class* access_to,
-                                      ArtMember* member,
-                                      mirror::DexCache* dex_cache,
-                                      uint32_t field_idx)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
- private:
   void PreCompile(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
                   TimingLogger* timings)
