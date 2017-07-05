@@ -48,6 +48,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread-current-inl.h"
 #include "thread_list.h"
+#include "ti_allocator.h"
 #include "ti_breakpoint.h"
 #include "ti_class.h"
 #include "ti_dump.h"
@@ -109,22 +110,12 @@ class JvmtiFunctions {
   static jvmtiError Allocate(jvmtiEnv* env, jlong size, unsigned char** mem_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_NON_NULL(mem_ptr);
-    if (size < 0) {
-      return ERR(ILLEGAL_ARGUMENT);
-    } else if (size == 0) {
-      *mem_ptr = nullptr;
-      return OK;
-    }
-    *mem_ptr = static_cast<unsigned char*>(malloc(size));
-    return (*mem_ptr != nullptr) ? OK : ERR(OUT_OF_MEMORY);
+    return AllocUtil::Allocate(env, size, mem_ptr);
   }
 
   static jvmtiError Deallocate(jvmtiEnv* env, unsigned char* mem) {
     ENSURE_VALID_ENV(env);
-    if (mem != nullptr) {
-      free(mem);
-    }
-    return OK;
+    return AllocUtil::Deallocate(env, mem);
   }
 
   static jvmtiError GetThreadState(jvmtiEnv* env, jthread thread, jint* thread_state_ptr) {
