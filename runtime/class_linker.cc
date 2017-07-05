@@ -8376,6 +8376,7 @@ mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_id
   const DexFile* const dex_file = referrer->GetDexFile();
   const DexFile::MethodHandleItem& mh = dex_file->GetMethodHandle(method_handle_idx);
 
+  mirror::MethodHandle::Kind kind;
   ArtField* target_field = nullptr;
   ArtMethod* target_method = nullptr;
 
@@ -8383,22 +8384,27 @@ mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_id
       static_cast<DexFile::MethodHandleType>(mh.method_handle_type_);
   switch (handle_type) {
     case DexFile::MethodHandleType::kStaticPut: {
+      kind = mirror::MethodHandle::Kind::kStaticPut;
       target_field = ResolveField(mh.field_or_method_idx_, referrer, true /* is_static */);
       break;
     }
     case DexFile::MethodHandleType::kStaticGet: {
+      kind = mirror::MethodHandle::Kind::kStaticGet;
       target_field = ResolveField(mh.field_or_method_idx_, referrer, true /* is_static */);
       break;
     }
     case DexFile::MethodHandleType::kInstancePut: {
+      kind = mirror::MethodHandle::Kind::kInstancePut;
       target_field = ResolveField(mh.field_or_method_idx_, referrer, false /* is_static */);
       break;
     }
     case DexFile::MethodHandleType::kInstanceGet: {
+      kind = mirror::MethodHandle::Kind::kInstanceGet;
       target_field = ResolveField(mh.field_or_method_idx_, referrer, false /* is_static */);
       break;
     }
     case DexFile::MethodHandleType::kInvokeStatic: {
+      kind = mirror::MethodHandle::Kind::kInvokeStatic;
       target_method = ResolveMethod<kNoICCECheckForCache>(self,
                                                           mh.field_or_method_idx_,
                                                           referrer,
@@ -8406,6 +8412,7 @@ mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_id
       break;
     }
     case DexFile::MethodHandleType::kInvokeInstance: {
+      kind = mirror::MethodHandle::Kind::kInvokeVirtual;
       target_method = ResolveMethod<kNoICCECheckForCache>(self,
                                                           mh.field_or_method_idx_,
                                                           referrer,
@@ -8417,13 +8424,47 @@ mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_id
       break;
     }
     case DexFile::MethodHandleType::kInvokeDirect: {
-      target_method = ResolveMethod<kNoICCECheckForCache>(self,
-                                                          mh.field_or_method_idx_,
-                                                          referrer,
-                                                          InvokeType::kDirect);
+      StackHandleScope<2> hs(self);
+      // A constant method handle with type kInvokeDirect can refer to
+      // a method that is private or to a method in a super class. To
+      // disambiguate the two options, we resolve the method ignoring
+      // the invocation type to determine if the method is private. We
+      // then resolve again specifying the intended invocation type to
+      // force the appropriate checks.
+      target_method = ResolveMethodWithoutInvokeType(*dex_file,
+                                                     mh.field_or_method_idx_,
+                                                     hs.NewHandle(referrer->GetDexCache()),
+                                                     hs.NewHandle(referrer->GetClassLoader()));
+      if (target_method == nullptr) {
+        break;
+      }
+
+      if (target_method->IsPrivate()) {
+        kind = mirror::MethodHandle::Kind::kInvokeDirect;
+        target_method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                            mh.field_or_method_idx_,
+                                                            referrer,
+                                                            InvokeType::kDirect);
+      } else {
+        kind = mirror::MethodHandle::Kind::kInvokeSuper;
+        target_method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                            mh.field_or_method_idx_,
+                                                            referrer,
+                                                            InvokeType::kSuper);
+        if (target_method == nullptr) {
+          break;
+        }
+        // Find the method specified in the parent in referring class
+        // so invoke-super invokes the method in the parent of the
+        // referrer.
+        target_method =
+            referrer->GetDeclaringClass()->FindVirtualMethodForVirtual(target_method,
+                                                                       kRuntimePointerSize);
+      }
       break;
     }
     case DexFile::MethodHandleType::kInvokeInterface: {
+      kind = mirror::MethodHandle::Kind::kInvokeInterface;
       target_method = ResolveMethod<kNoICCECheckForCache>(self,
                                                           mh.field_or_method_idx_,
                                                           referrer,
@@ -8452,62 +8493,42 @@ mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_id
     return nullptr;
   }
 
-  // Determine the kind and number of parameters after it's safe to
-  // follow the field or method pointer.
-  mirror::MethodHandle::Kind kind;
+  // Determine the number of parameters after it's safe to follow the
+  // field or method pointer.
   uint32_t num_params;
   switch (handle_type) {
     case DexFile::MethodHandleType::kStaticPut: {
-      kind = mirror::MethodHandle::Kind::kStaticPut;
       num_params = 1;
       break;
     }
     case DexFile::MethodHandleType::kStaticGet: {
-      kind = mirror::MethodHandle::Kind::kStaticGet;
       num_params = 0;
       break;
     }
     case DexFile::MethodHandleType::kInstancePut: {
-      kind = mirror::MethodHandle::Kind::kInstancePut;
       num_params = 2;
       break;
     }
     case DexFile::MethodHandleType::kInstanceGet: {
-      kind = mirror::MethodHandle::Kind::kInstanceGet;
       num_params = 1;
       break;
     }
     case DexFile::MethodHandleType::kInvokeStatic: {
-      kind = mirror::MethodHandle::Kind::kInvokeStatic;
       uint32_t shorty_length;
       target_method->GetShorty(&shorty_length);
       num_params = shorty_length - 1;  // Remove 1 for the return value.
       break;
     }
-    case DexFile::MethodHandleType::kInvokeInstance: {
-      kind = mirror::MethodHandle::Kind::kInvokeVirtual;
-      uint32_t shorty_length;
-      target_method->GetShorty(&shorty_length);
-      num_params = shorty_length;  // Add 1 for the receiver, remove 1 for the return value.
+    case DexFile::MethodHandleType::kInvokeInstance:
+    case DexFile::MethodHandleType::kInvokeDirect:
+    case DexFile::MethodHandleType::kInvokeInterface: {
+      // Add 1 for the receiver and remove 1 for the return value.
+      target_method->GetShorty(&num_params);
       break;
     }
     case DexFile::MethodHandleType::kInvokeConstructor: {
       UNIMPLEMENTED(FATAL) << "Invoke constructor is implemented as a transform.";
       num_params = 0;
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeDirect: {
-      kind = mirror::MethodHandle::Kind::kInvokeDirect;
-      uint32_t shorty_length;
-      target_method->GetShorty(&shorty_length);
-      num_params = shorty_length;  // Add 1 for the receiver, remove 1 for the return value.
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeInterface: {
-      kind = mirror::MethodHandle::Kind::kInvokeInterface;
-      uint32_t shorty_length;
-      target_method->GetShorty(&shorty_length);
-      num_params = shorty_length;  // Add 1 for the receiver, remove 1 for the return value.
       break;
     }
   }
