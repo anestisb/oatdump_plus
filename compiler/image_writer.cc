@@ -951,11 +951,18 @@ void ImageWriter::PruneAndPreloadDexCache(ObjPtr<mirror::DexCache> dex_cache,
     ArtMethod* method =
         mirror::DexCache::GetElementPtrSize(resolved_methods, i, target_ptr_size_);
     DCHECK(method != nullptr) << "Expected resolution method instead of null method";
-    mirror::Class* declaring_class = method->GetDeclaringClass();
+    // Check if the referenced class is in the image. Note that we want to check the referenced
+    // class rather than the declaring class to preserve the semantics, i.e. using a MethodId
+    // results in resolving the referenced class and that can for example throw OOME.
+    ObjPtr<mirror::Class> referencing_class = class_linker->LookupResolvedType(
+        dex_file,
+        dex_file.GetMethodId(i).class_idx_,
+        dex_cache,
+        class_loader);
     // Copied methods may be held live by a class which was not an image class but have a
     // declaring class which is an image class. Set it to the resolution method to be safe and
     // prevent dangling pointers.
-    if (method->IsCopied() || !KeepClass(declaring_class)) {
+    if (method->IsCopied() || !KeepClass(referencing_class)) {
       mirror::DexCache::SetElementPtrSize(resolved_methods,
                                           i,
                                           resolution_method,
@@ -963,8 +970,8 @@ void ImageWriter::PruneAndPreloadDexCache(ObjPtr<mirror::DexCache> dex_cache,
     } else if (kIsDebugBuild) {
       // Check that the class is still in the classes table.
       ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-      CHECK(class_linker->ClassInClassTable(declaring_class)) << "Class "
-          << Class::PrettyClass(declaring_class) << " not in class linker table";
+      CHECK(class_linker->ClassInClassTable(referencing_class)) << "Class "
+          << Class::PrettyClass(referencing_class) << " not in class linker table";
     }
   }
   // Prune fields and make the contents of the field array deterministic.
