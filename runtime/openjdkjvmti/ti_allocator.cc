@@ -31,22 +31,24 @@
 
 #include "ti_allocator.h"
 
+#include <malloc.h>
+#include <atomic>
+
 #include "art_jvmti.h"
-#include "art_method-inl.h"
 #include "base/enums.h"
-#include "dex_file_annotations.h"
-#include "events-inl.h"
-#include "jni_internal.h"
-#include "mirror/object_array-inl.h"
-#include "modifiers.h"
-#include "runtime_callbacks.h"
-#include "scoped_thread_state_change-inl.h"
-#include "ScopedLocalRef.h"
-#include "thread-current-inl.h"
-#include "thread_list.h"
-#include "ti_phase.h"
 
 namespace openjdkjvmti {
+
+std::atomic<jlong> AllocUtil::allocated;
+
+jvmtiError AllocUtil::GetGlobalJvmtiAllocationState(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                                    jlong* allocated_ptr) {
+  if (allocated_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+  *allocated_ptr = allocated.load();
+  return OK;
+}
 
 jvmtiError AllocUtil::Allocate(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                jlong size,
@@ -57,12 +59,17 @@ jvmtiError AllocUtil::Allocate(jvmtiEnv* env ATTRIBUTE_UNUSED,
     *mem_ptr = nullptr;
     return OK;
   }
-  *mem_ptr = static_cast<unsigned char*>(malloc(size));
-  return (*mem_ptr != nullptr) ? OK : ERR(OUT_OF_MEMORY);
+  *mem_ptr = reinterpret_cast<unsigned char*>(malloc(size));
+  if (UNLIKELY(*mem_ptr == nullptr)) {
+    return ERR(OUT_OF_MEMORY);
+  }
+  allocated += malloc_usable_size(*mem_ptr);
+  return OK;
 }
 
 jvmtiError AllocUtil::Deallocate(jvmtiEnv* env ATTRIBUTE_UNUSED, unsigned char* mem) {
   if (mem != nullptr) {
+    allocated -= malloc_usable_size(mem);
     free(mem);
   }
   return OK;

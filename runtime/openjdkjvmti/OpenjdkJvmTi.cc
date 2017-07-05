@@ -1208,6 +1208,23 @@ class JvmtiFunctions {
       return error;
     }
 
+    error = add_extension(
+        reinterpret_cast<jvmtiExtensionFunction>(AllocUtil::GetGlobalJvmtiAllocationState),
+        "com.android.art.alloc.get_global_jvmti_allocation_state",
+        "Returns the total amount of memory currently allocated by all jvmtiEnvs through the"
+        " 'Allocate' jvmti function. This does not include any memory that has been deallocated"
+        " through the 'Deallocate' function. This number is approximate and might not correspond"
+        " exactly to the sum of the sizes of all not freed allocations.",
+        1,
+        {                                                          // NOLINT [whitespace/braces] [4]
+            { "currently_allocated", JVMTI_KIND_OUT, JVMTI_TYPE_JLONG, false},
+        },
+        1,
+        { ERR(NULL_POINTER) });
+    if (error != ERR(NONE)) {
+      return error;
+    }
+
     // Copy into output buffer.
 
     *extension_count_ptr = ext_vector.size();

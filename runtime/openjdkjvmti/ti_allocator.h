@@ -35,12 +35,17 @@
 #include "jni.h"
 #include "jvmti.h"
 
+#include <atomic>
+
 namespace openjdkjvmti {
 
 class AllocUtil {
  public:
   static jvmtiError Allocate(jvmtiEnv* env, jlong size, unsigned char** mem_ptr);
   static jvmtiError Deallocate(jvmtiEnv* env, unsigned char* mem);
+  static jvmtiError GetGlobalJvmtiAllocationState(jvmtiEnv* env, jlong* total_allocated);
+ private:
+  static std::atomic<jlong> allocated;
 };
 
 }  // namespace openjdkjvmti
