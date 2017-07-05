@@ -15,7 +15,9 @@
  */
 
 #include "code_generator_arm64.h"
+
 #include "mirror/array-inl.h"
+#include "mirror/string.h"
 
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)
 

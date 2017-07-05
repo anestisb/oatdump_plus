@@ -27,7 +27,7 @@
 #include "dex_file_annotations.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
-#include "mirror/field.h"
+#include "mirror/field-inl.h"
 #include "native_util.h"
 #include "reflection-inl.h"
 #include "scoped_fast_native_object_access-inl.h"

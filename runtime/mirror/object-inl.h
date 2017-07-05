@@ -393,14 +393,6 @@ inline size_t Object::SizeOf() {
 }
 
 template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
-inline uint8_t Object::GetFieldBoolean(MemberOffset field_offset) {
-  if (kVerifyFlags & kVerifyThis) {
-    VerifyObject(this);
-  }
-  return GetField<uint8_t, kIsVolatile>(field_offset);
-}
-
-template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
 inline int8_t Object::GetFieldByte(MemberOffset field_offset) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);

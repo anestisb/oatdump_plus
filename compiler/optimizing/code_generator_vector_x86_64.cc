@@ -15,7 +15,9 @@
  */
 
 #include "code_generator_x86_64.h"
+
 #include "mirror/array-inl.h"
+#include "mirror/string.h"
 
 namespace art {
 namespace x86_64 {

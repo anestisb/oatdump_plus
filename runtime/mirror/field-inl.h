@@ -20,7 +20,8 @@
 #include "field.h"
 
 #include "art_field-inl.h"
-#include "mirror/dex_cache-inl.h"
+#include "class-inl.h"
+#include "dex_cache-inl.h"
 
 namespace art {
 
@@ -85,6 +86,10 @@ inline void Field::SetDeclaringClass(ObjPtr<mirror::Class> c) {
 template<bool kTransactionActive>
 inline void Field::SetType(ObjPtr<mirror::Class> type) {
   SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(Field, type_), type);
+}
+
+inline Primitive::Type Field::GetTypeAsPrimitiveType() {
+  return GetType()->GetPrimitiveType();
 }
 
 }  // namespace mirror
