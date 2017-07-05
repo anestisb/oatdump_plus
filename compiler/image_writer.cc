@@ -398,12 +398,18 @@ void ImageWriter::SetImageBinSlot(mirror::Object* object, BinSlot bin_slot) {
   // Before we stomp over the lock word, save the hash code for later.
   LockWord lw(object->GetLockWord(false));
   switch (lw.GetState()) {
-    case LockWord::kFatLocked: {
-      LOG(FATAL) << "Fat locked object " << object << " found during object copy";
-      break;
-    }
+    case LockWord::kFatLocked:
+      FALLTHROUGH_INTENDED;
     case LockWord::kThinLocked: {
-      LOG(FATAL) << "Thin locked object " << object << " found during object copy";
+      std::ostringstream oss;
+      bool thin = (lw.GetState() == LockWord::kThinLocked);
+      oss << (thin ? "Thin" : "Fat")
+          << " locked object " << object << "(" << object->PrettyTypeOf()
+          << ") found during object copy";
+      if (thin) {
+        oss << ". Lock owner:" << lw.ThinLockOwner();
+      }
+      LOG(FATAL) << oss.str();
       break;
     }
     case LockWord::kUnlocked:
