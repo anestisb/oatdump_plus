@@ -66,28 +66,215 @@ static bool MayHaveReorderingDependency(SideEffects node, SideEffects other) {
   return false;
 }
 
+size_t SchedulingGraph::ArrayAccessHeapLocation(HInstruction* array, HInstruction* index) const {
+  DCHECK(heap_location_collector_ != nullptr);
+  size_t heap_loc = heap_location_collector_->GetArrayAccessHeapLocation(array, index);
+  // This array access should be analyzed and added to HeapLocationCollector before.
+  DCHECK(heap_loc != HeapLocationCollector::kHeapLocationNotFound);
+  return heap_loc;
+}
 
-// Check whether `node` depends on `other`, taking into account `SideEffect`
-// information and `CanThrow` information.
-static bool HasSideEffectDependency(const HInstruction* node, const HInstruction* other) {
-  if (MayHaveReorderingDependency(node->GetSideEffects(), other->GetSideEffects())) {
+bool SchedulingGraph::ArrayAccessMayAlias(const HInstruction* node,
+                                          const HInstruction* other) const {
+  DCHECK(heap_location_collector_ != nullptr);
+  size_t node_heap_loc = ArrayAccessHeapLocation(node->InputAt(0), node->InputAt(1));
+  size_t other_heap_loc = ArrayAccessHeapLocation(other->InputAt(0), other->InputAt(1));
+
+  // For example: arr[0] and arr[0]
+  if (node_heap_loc == other_heap_loc) {
     return true;
   }
 
+  // For example: arr[0] and arr[i]
+  if (heap_location_collector_->MayAlias(node_heap_loc, other_heap_loc)) {
+    return true;
+  }
+
+  return false;
+}
+
+static bool IsArrayAccess(const HInstruction* instruction) {
+  return instruction->IsArrayGet() || instruction->IsArraySet();
+}
+
+static bool IsInstanceFieldAccess(const HInstruction* instruction) {
+  return instruction->IsInstanceFieldGet() ||
+         instruction->IsInstanceFieldSet() ||
+         instruction->IsUnresolvedInstanceFieldGet() ||
+         instruction->IsUnresolvedInstanceFieldSet();
+}
+
+static bool IsStaticFieldAccess(const HInstruction* instruction) {
+  return instruction->IsStaticFieldGet() ||
+         instruction->IsStaticFieldSet() ||
+         instruction->IsUnresolvedStaticFieldGet() ||
+         instruction->IsUnresolvedStaticFieldSet();
+}
+
+static bool IsResolvedFieldAccess(const HInstruction* instruction) {
+  return instruction->IsInstanceFieldGet() ||
+         instruction->IsInstanceFieldSet() ||
+         instruction->IsStaticFieldGet() ||
+         instruction->IsStaticFieldSet();
+}
+
+static bool IsUnresolvedFieldAccess(const HInstruction* instruction) {
+  return instruction->IsUnresolvedInstanceFieldGet() ||
+         instruction->IsUnresolvedInstanceFieldSet() ||
+         instruction->IsUnresolvedStaticFieldGet() ||
+         instruction->IsUnresolvedStaticFieldSet();
+}
+
+static bool IsFieldAccess(const HInstruction* instruction) {
+  return IsResolvedFieldAccess(instruction) || IsUnresolvedFieldAccess(instruction);
+}
+
+static const FieldInfo* GetFieldInfo(const HInstruction* instruction) {
+  if (instruction->IsInstanceFieldGet()) {
+    return &instruction->AsInstanceFieldGet()->GetFieldInfo();
+  } else if (instruction->IsInstanceFieldSet()) {
+    return &instruction->AsInstanceFieldSet()->GetFieldInfo();
+  } else if (instruction->IsStaticFieldGet()) {
+    return &instruction->AsStaticFieldGet()->GetFieldInfo();
+  } else if (instruction->IsStaticFieldSet()) {
+    return &instruction->AsStaticFieldSet()->GetFieldInfo();
+  } else {
+    LOG(FATAL) << "Unexpected field access type";
+    UNREACHABLE();
+  }
+}
+
+size_t SchedulingGraph::FieldAccessHeapLocation(HInstruction* obj, const FieldInfo* field) const {
+  DCHECK(obj != nullptr);
+  DCHECK(field != nullptr);
+  DCHECK(heap_location_collector_ != nullptr);
+
+  size_t heap_loc = heap_location_collector_->FindHeapLocationIndex(
+     heap_location_collector_->FindReferenceInfoOf(
+         heap_location_collector_->HuntForOriginalReference(obj)),
+     field->GetFieldOffset().SizeValue(),
+     nullptr,
+     field->GetDeclaringClassDefIndex());
+  // This field access should be analyzed and added to HeapLocationCollector before.
+  DCHECK(heap_loc != HeapLocationCollector::kHeapLocationNotFound);
+
+  return heap_loc;
+}
+
+bool SchedulingGraph::FieldAccessMayAlias(const HInstruction* node,
+                                          const HInstruction* other) const {
+  DCHECK(heap_location_collector_ != nullptr);
+
+  // Static and instance field accesses should not alias.
+  if ((IsInstanceFieldAccess(node) && IsStaticFieldAccess(other)) ||
+      (IsStaticFieldAccess(node) && IsInstanceFieldAccess(other))) {
+    return false;
+  }
+
+  // If either of the field accesses is unresolved.
+  if (IsUnresolvedFieldAccess(node) || IsUnresolvedFieldAccess(other)) {
+    // Conservatively treat these two accesses may alias.
+    return true;
+  }
+
+  // If both fields accesses are resolved.
+  const FieldInfo* node_field = GetFieldInfo(node);
+  const FieldInfo* other_field = GetFieldInfo(other);
+
+  size_t node_loc = FieldAccessHeapLocation(node->InputAt(0), node_field);
+  size_t other_loc = FieldAccessHeapLocation(other->InputAt(0), other_field);
+
+  if (node_loc == other_loc) {
+    return true;
+  }
+
+  if (!heap_location_collector_->MayAlias(node_loc, other_loc)) {
+    return false;
+  }
+
+  return true;
+}
+
+bool SchedulingGraph::HasMemoryDependency(const HInstruction* node,
+                                          const HInstruction* other) const {
+  if (!MayHaveReorderingDependency(node->GetSideEffects(), other->GetSideEffects())) {
+    return false;
+  }
+
+  if (heap_location_collector_ == nullptr ||
+      heap_location_collector_->GetNumberOfHeapLocations() == 0) {
+    // Without HeapLocation information from load store analysis,
+    // we cannot do further disambiguation analysis on these two instructions.
+    // Just simply say that those two instructions have memory dependency.
+    return true;
+  }
+
+  if (IsArrayAccess(node) && IsArrayAccess(other)) {
+    return ArrayAccessMayAlias(node, other);
+  }
+  if (IsFieldAccess(node) && IsFieldAccess(other)) {
+    return FieldAccessMayAlias(node, other);
+  }
+
+  // TODO(xueliang): LSA to support alias analysis among HVecLoad, HVecStore and ArrayAccess
+  if (node->IsVecMemoryOperation() && other->IsVecMemoryOperation()) {
+    return true;
+  }
+  if (node->IsVecMemoryOperation() && IsArrayAccess(other)) {
+    return true;
+  }
+  if (IsArrayAccess(node) && other->IsVecMemoryOperation()) {
+    return true;
+  }
+
+  // Heap accesses of different kinds should not alias.
+  if (IsArrayAccess(node) && IsFieldAccess(other)) {
+    return false;
+  }
+  if (IsFieldAccess(node) && IsArrayAccess(other)) {
+    return false;
+  }
+  if (node->IsVecMemoryOperation() && IsFieldAccess(other)) {
+    return false;
+  }
+  if (IsFieldAccess(node) && other->IsVecMemoryOperation()) {
+    return false;
+  }
+
+  // We conservatively treat all other cases having dependency,
+  // for example, Invoke and ArrayGet.
+  return true;
+}
+
+bool SchedulingGraph::HasExceptionDependency(const HInstruction* node,
+                                             const HInstruction* other) const {
   if (other->CanThrow() && node->GetSideEffects().DoesAnyWrite()) {
     return true;
   }
-
   if (other->GetSideEffects().DoesAnyWrite() && node->CanThrow()) {
     return true;
   }
-
   if (other->CanThrow() && node->CanThrow()) {
     return true;
   }
 
-  // Check side-effect dependency between ArrayGet and BoundsCheck.
-  if (node->IsArrayGet() && other->IsBoundsCheck() && node->InputAt(1) == other) {
+  // Above checks should cover all cases where we cannot reorder two
+  // instructions which may throw exception.
+  return false;
+}
+
+// Check whether `node` depends on `other`, taking into account `SideEffect`
+// information and `CanThrow` information.
+bool SchedulingGraph::HasSideEffectDependency(const HInstruction* node,
+                                              const HInstruction* other) const {
+  if (HasMemoryDependency(node, other)) {
+    return true;
+  }
+
+  // Even if above memory dependency check has passed, it is still necessary to
+  // check dependencies between instructions that can throw and instructions
+  // that write to memory.
+  if (HasExceptionDependency(node, other)) {
     return true;
   }
 
@@ -379,6 +566,14 @@ void HScheduler::Schedule(HBasicBlock* block) {
 
   // Build the scheduling graph.
   scheduling_graph_.Clear();
+
+  // Only perform LSA/HeapLocation analysis on the basic block that
+  // is going to get instruction scheduled.
+  HeapLocationCollector heap_location_collector(block->GetGraph());
+  heap_location_collector.VisitBasicBlock(block);
+  heap_location_collector.BuildAliasingMatrix();
+  scheduling_graph_.SetHeapLocationCollector(heap_location_collector);
+
   for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* instruction = it.Current();
     CHECK_EQ(instruction->GetBlock(), block)
@@ -606,7 +801,9 @@ void HInstructionScheduling::Run(bool only_optimize_loop_blocks,
   // Avoid compilation error when compiling for unsupported instruction set.
   UNUSED(only_optimize_loop_blocks);
   UNUSED(schedule_randomly);
+  UNUSED(codegen_);
 #endif
+
   switch (instruction_set_) {
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64: {
