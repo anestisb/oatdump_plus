@@ -20,6 +20,7 @@
 
 #include <iostream>
 
+#include "base/memory_tool.h"
 #include "runtime_common.h"
 
 namespace art {
@@ -63,6 +64,16 @@ void HandleUnexpectedSignalLinux(int signal_number, siginfo_t* info, void* raw_c
 }
 
 void Runtime::InitPlatformSignalHandlers() {
+  constexpr bool kIsASAN =
+#ifdef ADDRESS_SANITIZER
+      true;
+#else
+      false;
+#endif
+  if (!kIsTargetBuild && kIsASAN) {
+    // (Temporarily) try and let ASAN print abort stacks, as our code sometimes fails. b/31098551
+    return;
+  }
   // On the host, we don't have debuggerd to dump a stack for us when something unexpected happens.
   InitPlatformSignalHandlersCommon(HandleUnexpectedSignalLinux,
                                    nullptr,
