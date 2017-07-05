@@ -1693,12 +1693,12 @@ static void dumpCallSite(const DexFile* pDexFile, u4 idx) {
   it.Next();
 
   if (gOptions.outputFormat == OUTPUT_PLAIN) {
-    fprintf(gOutFile, "Call site #%u:\n", idx);
+    fprintf(gOutFile, "Call site #%u: // offset %u\n", idx, call_site_id.data_off_);
     fprintf(gOutFile, "  link_argument[0] : %u (MethodHandle)\n", method_handle_idx);
     fprintf(gOutFile, "  link_argument[1] : %s (String)\n", method_name);
     fprintf(gOutFile, "  link_argument[2] : %s (MethodType)\n", method_type.c_str());
   } else {
-    fprintf(gOutFile, "<call_site index=\"%u\">\n", idx);
+    fprintf(gOutFile, "<call_site index=\"%u\" offset=\"%u\">\n", idx, call_site_id.data_off_);
     fprintf(gOutFile,
             "<link_argument index=\"0\" type=\"MethodHandle\" value=\"%u\"/>\n",
             method_handle_idx);
