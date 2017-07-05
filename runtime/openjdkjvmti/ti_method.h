@@ -44,6 +44,11 @@ class MethodUtil {
   static void Register(EventHandler* event_handler);
   static void Unregister();
 
+  static jvmtiError GetBytecodes(jvmtiEnv* env,
+                                 jmethodID method,
+                                 jint* count_ptr,
+                                 unsigned char** bytecodes);
+
   static jvmtiError GetArgumentsSize(jvmtiEnv* env, jmethodID method, jint* size_ptr);
 
   static jvmtiError GetMaxLocals(jvmtiEnv* env, jmethodID method, jint* max_ptr);
