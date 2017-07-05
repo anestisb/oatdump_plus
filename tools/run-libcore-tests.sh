@@ -158,9 +158,12 @@ if $use_jit; then
 fi
 vogar_args="$vogar_args --vm-arg -Xusejit:$use_jit"
 
-# gcstress and debug may lead to timeouts, so we need a dedicated expectations file for it.
-if [[ $gcstress && $debug ]]; then
-  expectations="$expectations --expectations art/tools/libcore_gcstress_debug_failures.txt"
+# gcstress may lead to timeouts, so we need dedicated expectations files for it.
+if [[ $gcstress ]]; then
+  expectations="$expectations --expectations art/tools/libcore_gcstress_failures.txt"
+  if [[ $debug ]]; then
+    expectations="$expectations --expectations art/tools/libcore_gcstress_debug_failures.txt"
+  fi
 fi
 
 # Run the tests using vogar.
