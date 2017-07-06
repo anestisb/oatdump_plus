@@ -1544,4 +1544,104 @@ TEST_F(ClassLinkerTest, CreateWellKnownClassLoader) {
   LoadDexInDelegateLastClassLoader("Interfaces", class_loader_c);
 }
 
+class ClassLinkerClassLoaderTest : public ClassLinkerTest {
+ protected:
+  // Verifies that the class identified by the given descriptor is loaded with
+  // the expected_class_loader_obj when search from class_loader_to_search_obj.
+  // When expected_class_loader_obj is null the check will be done against BootClassLoader.
+  void VerifyClassResolution(const std::string& descriptor,
+                             jobject class_loader_to_search_obj,
+                             jobject expected_class_loader_obj,
+                             bool should_find = true) {
+    Thread* self = Thread::Current();
+    ScopedObjectAccess soa(self);
+    StackHandleScope<3> hs(self);
+    Handle<mirror::ClassLoader> class_loader_to_search(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader_to_search_obj)));
+
+    Handle<mirror::Class> klass = hs.NewHandle(
+        class_linker_->FindClass(soa.Self(), descriptor.c_str(), class_loader_to_search));
+
+    if (!should_find) {
+      if (self->IsExceptionPending()) {
+        self->ClearException();
+      }
+      ASSERT_TRUE(klass == nullptr);
+    } else if (expected_class_loader_obj == nullptr) {
+      ASSERT_TRUE(ClassLinker::IsBootClassLoader(soa, klass->GetClassLoader()));
+    } else {
+      ASSERT_TRUE(klass != nullptr) << descriptor;
+      Handle<mirror::ClassLoader> expected_class_loader(
+          hs.NewHandle(soa.Decode<mirror::ClassLoader>(expected_class_loader_obj)));
+      ASSERT_EQ(klass->GetClassLoader(), expected_class_loader.Get());
+    }
+  }
+};
+
+TEST_F(ClassLinkerClassLoaderTest, CreatePathClassLoader) {
+  jobject class_loader_a = LoadDexInPathClassLoader("ForClassLoaderA", nullptr);
+  VerifyClassResolution("LDefinedInA;", class_loader_a, class_loader_a);
+  VerifyClassResolution("Ljava/lang/String;", class_loader_a, nullptr);
+  VerifyClassResolution("LDefinedInB;", class_loader_a, nullptr, /*should_find*/ false);
+}
+
+TEST_F(ClassLinkerClassLoaderTest, CreateDelegateLastClassLoader) {
+  jobject class_loader_a = LoadDexInDelegateLastClassLoader("ForClassLoaderA", nullptr);
+  VerifyClassResolution("LDefinedInA;", class_loader_a, class_loader_a);
+  VerifyClassResolution("Ljava/lang/String;", class_loader_a, nullptr);
+  VerifyClassResolution("LDefinedInB;", class_loader_a, nullptr, /*should_find*/ false);
+}
+
+TEST_F(ClassLinkerClassLoaderTest, CreateClassLoaderChain) {
+  // The chain is
+  //    ClassLoaderA (PathClassLoader, defines: A, AB, AC, AD)
+  //       ^
+  //       |
+  //    ClassLoaderB (DelegateLastClassLoader, defines: B, AB, BC, BD)
+  //       ^
+  //       |
+  //    ClassLoaderC (PathClassLoader, defines: C, AC, BC, CD)
+  //       ^
+  //       |
+  //    ClassLoaderD (DelegateLastClassLoader, defines: D, AD, BD, CD, Ljava/lang/String;)
+
+  jobject class_loader_a = LoadDexInPathClassLoader("ForClassLoaderA", nullptr);
+  jobject class_loader_b = LoadDexInDelegateLastClassLoader("ForClassLoaderB", class_loader_a);
+  jobject class_loader_c = LoadDexInPathClassLoader("ForClassLoaderC", class_loader_b);
+  jobject class_loader_d = LoadDexInDelegateLastClassLoader("ForClassLoaderD", class_loader_c);
+
+  // Verify exclusive classes (present in only one class loader).
+  VerifyClassResolution("LDefinedInD;", class_loader_d, class_loader_d);
+  VerifyClassResolution("LDefinedInC;", class_loader_d, class_loader_c);
+  VerifyClassResolution("LDefinedInB;", class_loader_d, class_loader_b);
+  VerifyClassResolution("LDefinedInA;", class_loader_d, class_loader_a);
+
+  // Verify classes that are defined in multiple classloader.
+
+  // Classes defined in B should be found in B even if they are defined in A or C because
+  // B is a DelegateLastClassLoader.
+  VerifyClassResolution("LDefinedInAB;", class_loader_d, class_loader_b);
+  VerifyClassResolution("LDefinedInABC;", class_loader_d, class_loader_b);
+  VerifyClassResolution("LDefinedInBC;", class_loader_d, class_loader_b);
+
+  // Classes defined in D should be found in D even if they are defined in parent class loaders
+  // as well because D is a DelegateLastClassLoader.
+  VerifyClassResolution("LDefinedInAD;", class_loader_d, class_loader_d);
+  VerifyClassResolution("LDefinedInBD;", class_loader_d, class_loader_d);
+  VerifyClassResolution("LDefinedInCD;", class_loader_d, class_loader_d);
+
+
+  // Classes not defined in the DelegateLastClassLoaders (i.e. D or B) should be found
+  // in the top parent.
+  VerifyClassResolution("LDefinedInAC;", class_loader_d, class_loader_a);
+
+  // Boot classes should be found in the boot class loader even if they are redefined locally.
+  VerifyClassResolution("Ljava/lang/String;", class_loader_d, nullptr);
+  // Sanity check that what seems like a boot class is actually loaded from D.
+  VerifyClassResolution("Ljava/lang/JavaLangFromD;", class_loader_d, class_loader_d);
+
+  // Sanity check that we don't find an undefined class.
+  VerifyClassResolution("LNotDefined;", class_loader_d, nullptr, /*should_find*/ false);
+}
+
 }  // namespace art

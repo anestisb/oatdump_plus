@@ -2423,47 +2423,70 @@ static bool IsPathOrDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
           soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DexClassLoader));
 }
 
+static bool IsDelegateLastClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                      Handle<mirror::ClassLoader> class_loader)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  mirror::Class* class_loader_class = class_loader->GetClass();
+  return class_loader_class ==
+      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DelegateLastClassLoader);
+}
+
 bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
                                                 Thread* self,
                                                 const char* descriptor,
                                                 size_t hash,
                                                 Handle<mirror::ClassLoader> class_loader,
                                                 ObjPtr<mirror::Class>* result) {
-  // Termination case: boot class-loader.
+  // Termination case: boot class loader.
   if (IsBootClassLoader(soa, class_loader.Get())) {
     *result = FindClassInBootClassLoaderClassPath(self, descriptor, hash);
     return true;
   }
 
-  // Check that we support the class loader.
-  if (!IsPathOrDexClassLoader(soa, class_loader)) {
-    *result = nullptr;
-    return false;
-  }
+  if (IsPathOrDexClassLoader(soa, class_loader)) {
+    // For regular path or dex class loader the search order is:
+    //    - parent
+    //    - class loader dex files
 
-  // Handles as RegisterDexFile may allocate dex caches (and cause thread suspension).
-  StackHandleScope<1> hs(self);
-  Handle<mirror::ClassLoader> h_parent(hs.NewHandle(class_loader->GetParent()));
-  bool recursive_result = FindClassInBaseDexClassLoader(soa,
-                                                        self,
-                                                        descriptor,
-                                                        hash,
-                                                        h_parent,
-                                                        result);
-  if (!recursive_result) {
-    // One of the parents is not supported.
-    *result = nullptr;
-    return false;
-  }
+    // Handles as RegisterDexFile may allocate dex caches (and cause thread suspension).
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ClassLoader> h_parent(hs.NewHandle(class_loader->GetParent()));
+    if (!FindClassInBaseDexClassLoader(soa, self, descriptor, hash, h_parent, result)) {
+      return false;  // One of the parents is not supported.
+    }
+    if (*result != nullptr) {
+      return true;  // Found the class up the chain.
+    }
 
-  if (*result != nullptr) {
-    // Found the class up the chain.
+    // Search the current class loader classpath.
+    *result = FindClassInBaseDexClassLoaderClassPath(soa, descriptor, hash, class_loader);
     return true;
   }
 
-  // Search the current class loader classpath.
-  *result = FindClassInBaseDexClassLoaderClassPath(soa, descriptor, hash, class_loader);
-  return true;
+  if (IsDelegateLastClassLoader(soa, class_loader)) {
+    // For delegate last, the search order is:
+    //    - boot class path
+    //    - class loader dex files
+    //    - parent
+    *result = FindClassInBootClassLoaderClassPath(self, descriptor, hash);
+    if (*result != nullptr) {
+      return true;  // The class is part of the boot class path.
+    }
+
+    *result = FindClassInBaseDexClassLoaderClassPath(soa, descriptor, hash, class_loader);
+    if (*result != nullptr) {
+      return true;  // Found the class in the current class loader
+    }
+
+    // Handles as RegisterDexFile may allocate dex caches (and cause thread suspension).
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ClassLoader> h_parent(hs.NewHandle(class_loader->GetParent()));
+    return FindClassInBaseDexClassLoader(soa, self, descriptor, hash, h_parent, result);
+  }
+
+  // Unsupported class loader.
+  *result = nullptr;
+  return false;
 }
 
 // Finds the class in the boot class loader.
@@ -2498,7 +2521,7 @@ ObjPtr<mirror::Class> ClassLinker::FindClassInBaseDexClassLoaderClassPath(
     const char* descriptor,
     size_t hash,
     Handle<mirror::ClassLoader> class_loader) {
-  CHECK(IsPathOrDexClassLoader(soa, class_loader))
+  CHECK(IsPathOrDexClassLoader(soa, class_loader) || IsDelegateLastClassLoader(soa, class_loader))
       << "Unexpected class loader for descriptor " << descriptor;
 
   Thread* self = soa.Self();
