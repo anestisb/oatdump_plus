@@ -36,6 +36,8 @@
 #include "base/macros.h"
 #include "jvmti.h"
 
+#include "ti_allocator.h"
+
 namespace openjdkjvmti {
 
 template <typename T> class JvmtiAllocator;
@@ -53,6 +55,7 @@ class JvmtiAllocator<void> {
   };
 
   explicit JvmtiAllocator(jvmtiEnv* env) : env_(env) {}
+  explicit JvmtiAllocator() : env_(nullptr) {}
 
   template <typename U>
   JvmtiAllocator(const JvmtiAllocator<U>& other)  // NOLINT, implicit
@@ -89,6 +92,7 @@ class JvmtiAllocator {
   };
 
   explicit JvmtiAllocator(jvmtiEnv* env) : env_(env) {}
+  explicit JvmtiAllocator() : env_(nullptr) {}
 
   template <typename U>
   JvmtiAllocator(const JvmtiAllocator<U>& other)  // NOLINT, implicit
@@ -108,8 +112,8 @@ class JvmtiAllocator {
   pointer allocate(size_type n, JvmtiAllocator<void>::pointer hint ATTRIBUTE_UNUSED = nullptr) {
     DCHECK_LE(n, max_size());
     if (env_ == nullptr) {
-      T* result = reinterpret_cast<T*>(malloc(n * sizeof(T)));
-      CHECK(result != nullptr || n == 0u);  // Abort if malloc() fails.
+      T* result = reinterpret_cast<T*>(AllocUtil::AllocateImpl(n * sizeof(T)));
+      CHECK(result != nullptr || n == 0u);  // Abort if AllocateImpl() fails.
       return result;
     } else {
       unsigned char* result;
@@ -120,7 +124,7 @@ class JvmtiAllocator {
   }
   void deallocate(pointer p, size_type n ATTRIBUTE_UNUSED) {
     if (env_ == nullptr) {
-      free(p);
+      AllocUtil::DeallocateImpl(reinterpret_cast<unsigned char*>(p));
     } else {
       jvmtiError dealloc_error = env_->Deallocate(reinterpret_cast<unsigned char*>(p));
       CHECK(dealloc_error == JVMTI_ERROR_NONE);

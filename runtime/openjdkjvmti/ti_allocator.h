@@ -36,16 +36,27 @@
 #include "jvmti.h"
 
 #include <atomic>
+#include <memory>
 
 namespace openjdkjvmti {
+
+template<typename T>
+class JvmtiAllocator;
 
 class AllocUtil {
  public:
   static jvmtiError Allocate(jvmtiEnv* env, jlong size, unsigned char** mem_ptr);
   static jvmtiError Deallocate(jvmtiEnv* env, unsigned char* mem);
   static jvmtiError GetGlobalJvmtiAllocationState(jvmtiEnv* env, jlong* total_allocated);
+
  private:
+  static void DeallocateImpl(unsigned char* mem);
+  static unsigned char* AllocateImpl(jlong size);
+
   static std::atomic<jlong> allocated;
+
+  template <typename T>
+  friend class JvmtiAllocator;
 };
 
 }  // namespace openjdkjvmti

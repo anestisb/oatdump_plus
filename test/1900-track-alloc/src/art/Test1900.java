@@ -124,6 +124,15 @@ public class Test1900 {
 
     // Back to normal after getting rid of the envs.
     checkEq(base_state + 0, getAmountAllocated());
+
+    // Try adding some tags
+    Object a = new Object();
+    Object b = new Object();
+    Main.setTag(a, 100);
+    Main.setTag(b, 200);
+
+    // tags should be counted and should have some data associated with them.
+    checkLE(base_state + 1, getAmountAllocated());
   }
 
   private static native long doAllocate(long jvmtienv, long size);

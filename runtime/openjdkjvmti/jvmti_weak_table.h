@@ -40,6 +40,7 @@
 #include "gc_root-inl.h"
 #include "globals.h"
 #include "jvmti.h"
+#include "jvmti_allocator.h"
 #include "mirror/object.h"
 #include "thread-current-inl.h"
 
@@ -191,7 +192,7 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(allow_disallow_lock_);
 
-  template <typename Storage, class Allocator = std::allocator<T>>
+  template <typename Storage, class Allocator = JvmtiAllocator<T>>
   struct ReleasableContainer;
 
   struct HashGcRoot {
@@ -209,10 +210,12 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
     }
   };
 
+  using TagAllocator = JvmtiAllocator<std::pair<const art::GcRoot<art::mirror::Object>, T>>;
   std::unordered_map<art::GcRoot<art::mirror::Object>,
                      T,
                      HashGcRoot,
-                     EqGcRoot> tagged_objects_
+                     EqGcRoot,
+                     TagAllocator> tagged_objects_
       GUARDED_BY(allow_disallow_lock_)
       GUARDED_BY(art::Locks::mutator_lock_);
   // To avoid repeatedly scanning the whole table, remember if we did that since the last sweep.

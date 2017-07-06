@@ -59,20 +59,31 @@ jvmtiError AllocUtil::Allocate(jvmtiEnv* env ATTRIBUTE_UNUSED,
     *mem_ptr = nullptr;
     return OK;
   }
-  *mem_ptr = reinterpret_cast<unsigned char*>(malloc(size));
+  *mem_ptr = AllocateImpl(size);
   if (UNLIKELY(*mem_ptr == nullptr)) {
     return ERR(OUT_OF_MEMORY);
   }
-  allocated += malloc_usable_size(*mem_ptr);
   return OK;
 }
 
+unsigned char* AllocUtil::AllocateImpl(jlong size) {
+  unsigned char* ret = size != 0 ? reinterpret_cast<unsigned char*>(malloc(size)) : nullptr;
+  if (LIKELY(ret != nullptr)) {
+    allocated += malloc_usable_size(ret);
+  }
+  return ret;
+}
+
 jvmtiError AllocUtil::Deallocate(jvmtiEnv* env ATTRIBUTE_UNUSED, unsigned char* mem) {
+  DeallocateImpl(mem);
+  return OK;
+}
+
+void AllocUtil::DeallocateImpl(unsigned char* mem) {
   if (mem != nullptr) {
     allocated -= malloc_usable_size(mem);
     free(mem);
   }
-  return OK;
 }
 
 }  // namespace openjdkjvmti
