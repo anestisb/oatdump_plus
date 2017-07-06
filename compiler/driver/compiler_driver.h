@@ -254,9 +254,12 @@ class CompilerDriver {
 
   // Resolve a method. Returns null on failure, including incompatible class change.
   ArtMethod* ResolveMethod(
-      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
-      Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
-      uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change = true)
+      ScopedObjectAccess& soa,
+      Handle<mirror::DexCache> dex_cache,
+      Handle<mirror::ClassLoader> class_loader,
+      const DexCompilationUnit* mUnit,
+      uint32_t method_idx,
+      InvokeType invoke_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ProcessedInstanceField(bool resolved);

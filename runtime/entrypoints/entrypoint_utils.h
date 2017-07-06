@@ -137,11 +137,10 @@ inline ArtField* FindFieldFast(uint32_t field_idx,
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Fast path method resolution that can't throw exceptions.
+template <InvokeType type, bool access_check>
 inline ArtMethod* FindMethodFast(uint32_t method_idx,
                                  ObjPtr<mirror::Object> this_object,
-                                 ArtMethod* referrer,
-                                 bool access_check,
-                                 InvokeType type)
+                                 ArtMethod* referrer)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 inline mirror::Class* ResolveVerifyAndClinit(dex::TypeIndex type_idx,

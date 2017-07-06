@@ -376,6 +376,7 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
     mirror::Class* referring_class = referrer->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CheckResolvedFieldAccess(fields_class,
                                                             resolved_field,
+                                                            referrer->GetDexCache(),
                                                             field_idx))) {
       DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
       return nullptr;  // Failure.
@@ -461,9 +462,11 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
   } else if (access_check) {
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
     bool can_access_resolved_method =
-        referrer->GetDeclaringClass()->CheckResolvedMethodAccess<type>(methods_class,
-                                                                       resolved_method,
-                                                                       method_idx);
+        referrer->GetDeclaringClass()->CheckResolvedMethodAccess(methods_class,
+                                                                 resolved_method,
+                                                                 referrer->GetDexCache(),
+                                                                 method_idx,
+                                                                 type);
     if (UNLIKELY(!can_access_resolved_method)) {
       DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
       return nullptr;  // Failure.
@@ -662,7 +665,7 @@ inline ArtField* FindFieldFast(uint32_t field_idx, ArtMethod* referrer, FindFiel
       return nullptr;
     }
   }
-  mirror::Class* referring_class = referrer->GetDeclaringClass();
+  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
   if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
                !referring_class->CanAccessMember(fields_class, resolved_field->GetAccessFlags()) ||
                (is_set && resolved_field->IsFinal() && (fields_class != referring_class)))) {
@@ -677,18 +680,17 @@ inline ArtField* FindFieldFast(uint32_t field_idx, ArtMethod* referrer, FindFiel
 }
 
 // Fast path method resolution that can't throw exceptions.
+template <InvokeType type, bool access_check>
 inline ArtMethod* FindMethodFast(uint32_t method_idx,
                                  ObjPtr<mirror::Object> this_object,
-                                 ArtMethod* referrer,
-                                 bool access_check,
-                                 InvokeType type) {
+                                 ArtMethod* referrer) {
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   if (UNLIKELY(this_object == nullptr && type != kStatic)) {
     return nullptr;
   }
-  mirror::Class* referring_class = referrer->GetDeclaringClass();
-  ArtMethod* resolved_method =
-      referrer->GetDexCache()->GetResolvedMethod(method_idx, kRuntimePointerSize);
+  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
+  ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
+  ArtMethod* resolved_method = dex_cache->GetResolvedMethod(method_idx, kRuntimePointerSize);
   if (UNLIKELY(resolved_method == nullptr)) {
     return nullptr;
   }
@@ -698,7 +700,7 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
     if (UNLIKELY(icce)) {
       return nullptr;
     }
-    mirror::Class* methods_class = resolved_method->GetDeclaringClass();
+    ObjPtr<mirror::Class> methods_class = resolved_method->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
                  !referring_class->CanAccessMember(methods_class,
                                                    resolved_method->GetAccessFlags()))) {
@@ -713,7 +715,6 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
     return resolved_method;
   } else if (type == kSuper) {
     // TODO This lookup is rather slow.
-    ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
     dex::TypeIndex method_type_idx = dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
     ObjPtr<mirror::Class> method_reference_class = ClassLinker::LookupResolvedType(
         method_type_idx, dex_cache, referrer->GetClassLoader());
@@ -727,7 +728,7 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx,
       if (!method_reference_class->IsAssignableFrom(referring_class)) {
         return nullptr;
       }
-      mirror::Class* super_class = referring_class->GetSuperClass();
+      ObjPtr<mirror::Class> super_class = referring_class->GetSuperClass();
       if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
         // The super class does not have the method.
         return nullptr;
