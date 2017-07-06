@@ -134,9 +134,19 @@ class CommonRuntimeTestImpl {
 
   std::unique_ptr<const DexFile> OpenTestDexFile(const char* name);
 
+  // Loads the test dex file identified by the given dex_name into a PathClassLoader.
+  // Returns the created class loader.
   jobject LoadDex(const char* dex_name) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Loads the test dex file identified by the given first_dex_name and second_dex_name
+  // into a PathClassLoader. Returns the created class loader.
   jobject LoadMultiDex(const char* first_dex_name, const char* second_dex_name)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  jobject LoadDexInPathClassLoader(const std::string& dex_name, jobject parent_loader);
+  jobject LoadDexInDelegateLastClassLoader(const std::string& dex_name, jobject parent_loader);
+  jobject LoadDexInWellKnownClassLoader(const std::string& dex_name,
+                                        jclass loader_class,
+                                        jobject parent_loader);
 
   std::string android_data_;
   std::string dalvik_cache_;

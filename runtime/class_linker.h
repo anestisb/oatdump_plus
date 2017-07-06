@@ -553,8 +553,24 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Creates a GlobalRef PathClassLoader that can be used to load classes from the given dex files.
+  // Creates a GlobalRef PathClassLoader or DelegateLastClassLoader (specified by loader_class)
+  // that can be used to load classes from the given dex files. The parent of the class loader
+  // will be set to `parent_loader`. If `parent_loader` is null the parent will be
+  // the boot class loader.
+  // If class_loader points to a different class than PathClassLoader or DelegateLastClassLoader
+  // this method will abort.
   // Note: the objects are not completely set up. Do not use this outside of tests and the compiler.
+  jobject CreateWellKnownClassLoader(Thread* self,
+                                     const std::vector<const DexFile*>& dex_files,
+                                     jclass loader_class,
+                                     jobject parent_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_);
+
+  // Calls CreateWellKnownClassLoader(self,
+  //                                  dex_files,
+  //                                  WellKnownClasses::dalvik_system_PathClassLoader,
+  //                                  nullptr)
   jobject CreatePathClassLoader(Thread* self, const std::vector<const DexFile*>& dex_files)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
@@ -816,6 +832,27 @@ class ClassLinker {
                                      size_t hash,
                                      Handle<mirror::ClassLoader> class_loader,
                                      ObjPtr<mirror::Class>* result)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_);
+
+  // Finds the class in the classpath of the given class loader. It only searches the class loader
+  // dex files and does not recurse into its parent.
+  // The method checks that the provided class loader is either a PathClassLoader or a
+  // DexClassLoader.
+  // If the class is found the method returns the resolved class. Otherwise it returns null.
+  ObjPtr<mirror::Class> FindClassInBaseDexClassLoaderClassPath(
+          ScopedObjectAccessAlreadyRunnable& soa,
+          const char* descriptor,
+          size_t hash,
+          Handle<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_);
+
+  // Finds the class in the boot class loader.
+  // If the class is found the method returns the resolved class. Otherwise it returns null.
+  ObjPtr<mirror::Class> FindClassInBootClassLoaderClassPath(Thread* self,
+                                                            const char* descriptor,
+                                                            size_t hash)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 

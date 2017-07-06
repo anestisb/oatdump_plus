@@ -47,6 +47,7 @@ struct WellKnownClasses {
   static jclass dalvik_annotation_optimization_CriticalNative;
   static jclass dalvik_annotation_optimization_FastNative;
   static jclass dalvik_system_BaseDexClassLoader;
+  static jclass dalvik_system_DelegateLastClassLoader;
   static jclass dalvik_system_DexClassLoader;
   static jclass dalvik_system_DexFile;
   static jclass dalvik_system_DexPathList;

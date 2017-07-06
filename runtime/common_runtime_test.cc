@@ -680,19 +680,66 @@ jobject CommonRuntimeTestImpl::LoadMultiDex(const char* first_dex_name,
 }
 
 jobject CommonRuntimeTestImpl::LoadDex(const char* dex_name) {
-  std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(dex_name);
+  jobject class_loader = LoadDexInPathClassLoader(dex_name, nullptr);
+  Thread::Current()->SetClassLoaderOverride(class_loader);
+  return class_loader;
+}
+
+jobject CommonRuntimeTestImpl::LoadDexInWellKnownClassLoader(const std::string& dex_name,
+                                                             jclass loader_class,
+                                                             jobject parent_loader) {
+  std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(dex_name.c_str());
   std::vector<const DexFile*> class_path;
   CHECK_NE(0U, dex_files.size());
   for (auto& dex_file : dex_files) {
     class_path.push_back(dex_file.get());
     loaded_dex_files_.push_back(std::move(dex_file));
   }
-
   Thread* self = Thread::Current();
-  jobject class_loader = Runtime::Current()->GetClassLinker()->CreatePathClassLoader(self,
-                                                                                     class_path);
-  self->SetClassLoaderOverride(class_loader);
-  return class_loader;
+  ScopedObjectAccess soa(self);
+
+  jobject result = Runtime::Current()->GetClassLinker()->CreateWellKnownClassLoader(
+      self,
+      class_path,
+      loader_class,
+      parent_loader);
+
+  {
+    // Verify we build the correct chain.
+
+    ObjPtr<mirror::ClassLoader> actual_class_loader = soa.Decode<mirror::ClassLoader>(result);
+    // Verify that the result has the correct class.
+    CHECK_EQ(soa.Decode<mirror::Class>(loader_class), actual_class_loader->GetClass());
+    // Verify that the parent is not null. The boot class loader will be set up as a
+    // proper object.
+    ObjPtr<mirror::ClassLoader> actual_parent(actual_class_loader->GetParent());
+    CHECK(actual_parent != nullptr);
+
+    if (parent_loader != nullptr) {
+      // We were given a parent. Verify that it's what we expect.
+      ObjPtr<mirror::ClassLoader> expected_parent = soa.Decode<mirror::ClassLoader>(parent_loader);
+      CHECK_EQ(expected_parent, actual_parent);
+    } else {
+      // No parent given. The parent must be the BootClassLoader.
+      CHECK(Runtime::Current()->GetClassLinker()->IsBootClassLoader(soa, actual_parent));
+    }
+  }
+
+  return result;
+}
+
+jobject CommonRuntimeTestImpl::LoadDexInPathClassLoader(const std::string& dex_name,
+                                                        jobject parent_loader) {
+  return LoadDexInWellKnownClassLoader(dex_name,
+                                       WellKnownClasses::dalvik_system_PathClassLoader,
+                                       parent_loader);
+}
+
+jobject CommonRuntimeTestImpl::LoadDexInDelegateLastClassLoader(const std::string& dex_name,
+                                                                jobject parent_loader) {
+  return LoadDexInWellKnownClassLoader(dex_name,
+                                       WellKnownClasses::dalvik_system_DelegateLastClassLoader,
+                                       parent_loader);
 }
 
 std::string CommonRuntimeTestImpl::GetCoreFileLocation(const char* suffix) {
