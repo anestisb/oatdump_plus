@@ -55,6 +55,9 @@ namespace mirror {
   class MethodType;
   template<class T> class ObjectArray;
   class StackTraceElement;
+  template <typename T> struct NativeDexCachePair;
+  using MethodDexCachePair = NativeDexCachePair<ArtMethod>;
+  using MethodDexCacheType = std::atomic<MethodDexCachePair>;
 }  // namespace mirror
 
 class ClassTable;
@@ -287,6 +290,12 @@ class ClassLinker {
     kCheckICCEAndIAE
   };
 
+  // Look up a previously resolved method with the given index.
+  ArtMethod* LookupResolvedMethod(uint32_t method_idx,
+                                  ObjPtr<mirror::DexCache> dex_cache,
+                                  ObjPtr<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
   // in ResolveType. What is unique is the method type argument which
@@ -423,9 +432,6 @@ class ClassLinker {
   ClassTable* FindClassTable(Thread* self, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void FixupDexCaches(ArtMethod* resolution_method)
-      REQUIRES(!Locks::dex_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   LengthPrefixedArray<ArtField>* AllocArtFieldArray(Thread* self,
                                                     LinearAlloc* allocator,
@@ -475,8 +481,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_);
   std::string GetDescriptorForProxy(ObjPtr<mirror::Class> proxy_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  ArtMethod* FindMethodForProxy(ObjPtr<mirror::Class> proxy_class, ArtMethod* proxy_method)
+  ArtMethod* FindMethodForProxy(ArtMethod* proxy_method)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -692,7 +697,7 @@ class ClassLinker {
     // jweak decode that triggers read barriers (and mark them alive unnecessarily and mess with
     // class unloading.)
     const DexFile* dex_file;
-    ArtMethod** resolved_methods;
+    mirror::MethodDexCacheType* resolved_methods;
     // Identify the associated class loader's class table. This is used to make sure that
     // the Java call to native DexCache.setResolvedType() inserts the resolved type in that
     // class table. It is also used to make sure we don't register the same dex cache with

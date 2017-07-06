@@ -130,6 +130,7 @@ class DexCacheArraysLayout {
   static size_t ElementOffset(PointerSize element_size, uint32_t idx);
 
   static size_t ArraySize(PointerSize element_size, uint32_t num_elements);
+  static size_t PairArraySize(PointerSize element_size, uint32_t num_elements);
 };
 
 }  // namespace art

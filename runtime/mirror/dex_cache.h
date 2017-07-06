@@ -129,6 +129,9 @@ using StringDexCacheType = std::atomic<StringDexCachePair>;
 using FieldDexCachePair = NativeDexCachePair<ArtField>;
 using FieldDexCacheType = std::atomic<FieldDexCachePair>;
 
+using MethodDexCachePair = NativeDexCachePair<ArtMethod>;
+using MethodDexCacheType = std::atomic<MethodDexCachePair>;
+
 using MethodTypeDexCachePair = DexCachePair<MethodType>;
 using MethodTypeDexCacheType = std::atomic<MethodTypeDexCachePair>;
 
@@ -153,6 +156,11 @@ class MANAGED DexCache FINAL : public Object {
   static_assert(IsPowerOfTwo(kDexCacheFieldCacheSize),
                 "Field dex cache size is not a power of 2.");
 
+  // Size of method dex cache. Needs to be a power of 2 for entrypoint assumptions to hold.
+  static constexpr size_t kDexCacheMethodCacheSize = 1024;
+  static_assert(IsPowerOfTwo(kDexCacheMethodCacheSize),
+                "Method dex cache size is not a power of 2.");
+
   // Size of method type dex cache. Needs to be a power of 2 for entrypoint assumptions
   // to hold.
   static constexpr size_t kDexCacheMethodTypeCacheSize = 1024;
@@ -169,6 +177,10 @@ class MANAGED DexCache FINAL : public Object {
 
   static constexpr size_t StaticArtFieldSize() {
     return kDexCacheFieldCacheSize;
+  }
+
+  static constexpr size_t StaticMethodSize() {
+    return kDexCacheMethodCacheSize;
   }
 
   static constexpr size_t StaticMethodTypeSize() {
@@ -188,9 +200,6 @@ class MANAGED DexCache FINAL : public Object {
                                  PointerSize image_pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::dex_lock_);
-
-  void Fixup(ArtMethod* trampoline, PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
   void FixupStrings(StringDexCacheType* dest, const Visitor& visitor)
@@ -284,6 +293,8 @@ class MANAGED DexCache FINAL : public Object {
                                        ArtMethod* resolved,
                                        PointerSize ptr_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE void ClearResolvedMethod(uint32_t method_idx, PointerSize ptr_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Pointer sized variant, used for patching.
   ALWAYS_INLINE ArtField* GetResolvedField(uint32_t idx, PointerSize ptr_size)
@@ -328,11 +339,11 @@ class MANAGED DexCache FINAL : public Object {
     SetFieldPtr<false>(ResolvedTypesOffset(), resolved_types);
   }
 
-  ArtMethod** GetResolvedMethods() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldPtr<ArtMethod**>(ResolvedMethodsOffset());
+  MethodDexCacheType* GetResolvedMethods() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetFieldPtr<MethodDexCacheType*>(ResolvedMethodsOffset());
   }
 
-  void SetResolvedMethods(ArtMethod** resolved_methods)
+  void SetResolvedMethods(MethodDexCacheType* resolved_methods)
       ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_) {
     SetFieldPtr<false>(ResolvedMethodsOffset(), resolved_methods);
@@ -429,6 +440,7 @@ class MANAGED DexCache FINAL : public Object {
   uint32_t StringSlotIndex(dex::StringIndex string_idx) REQUIRES_SHARED(Locks::mutator_lock_);
   uint32_t TypeSlotIndex(dex::TypeIndex type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
   uint32_t FieldSlotIndex(uint32_t field_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  uint32_t MethodSlotIndex(uint32_t method_idx) REQUIRES_SHARED(Locks::mutator_lock_);
   uint32_t MethodTypeSlotIndex(uint32_t proto_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
@@ -438,15 +450,14 @@ class MANAGED DexCache FINAL : public Object {
             uint32_t num_strings,
             TypeDexCacheType* resolved_types,
             uint32_t num_resolved_types,
-            ArtMethod** resolved_methods,
+            MethodDexCacheType* resolved_methods,
             uint32_t num_resolved_methods,
             FieldDexCacheType* resolved_fields,
             uint32_t num_resolved_fields,
             MethodTypeDexCacheType* resolved_method_types,
             uint32_t num_resolved_method_types,
             GcRoot<CallSite>* resolved_call_sites,
-            uint32_t num_resolved_call_sites,
-            PointerSize pointer_size)
+            uint32_t num_resolved_call_sites)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // std::pair<> is not trivially copyable and as such it is unsuitable for atomic operations,
@@ -471,7 +482,7 @@ class MANAGED DexCache FINAL : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
 
   // Due to lack of 16-byte atomics support, we use hand-crafted routines.
-#if  defined(__aarch64__)
+#if defined(__aarch64__)
   // 16-byte atomics are supported on aarch64.
   ALWAYS_INLINE static ConversionPair64 AtomicLoadRelaxed16B(
       std::atomic<ConversionPair64>* target) {

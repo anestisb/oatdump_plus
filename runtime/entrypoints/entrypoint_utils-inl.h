@@ -84,7 +84,8 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   const DexFile* dex_file = dex_cache->GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(method_index);
   ArtMethod* inlined_method = caller->GetDexCacheResolvedMethod(method_index, kRuntimePointerSize);
-  if (inlined_method != nullptr && !inlined_method->IsRuntimeMethod()) {
+  if (inlined_method != nullptr) {
+    DCHECK(!inlined_method->IsRuntimeMethod());
     return inlined_method;
   }
   const char* descriptor = dex_file->StringByTypeIdx(method_id.class_idx_);

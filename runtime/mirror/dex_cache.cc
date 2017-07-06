@@ -61,14 +61,14 @@ void DexCache::InitializeDexCache(Thread* self,
         : reinterpret_cast<uint8_t*>(linear_alloc->Alloc(self, layout.Size()));
   }
 
-  mirror::StringDexCacheType* strings = (dex_file->NumStringIds() == 0u) ? nullptr :
-      reinterpret_cast<mirror::StringDexCacheType*>(raw_arrays + layout.StringsOffset());
-  mirror::TypeDexCacheType* types = (dex_file->NumTypeIds() == 0u) ? nullptr :
-      reinterpret_cast<mirror::TypeDexCacheType*>(raw_arrays + layout.TypesOffset());
-  ArtMethod** methods = (dex_file->NumMethodIds() == 0u) ? nullptr :
-      reinterpret_cast<ArtMethod**>(raw_arrays + layout.MethodsOffset());
-  mirror::FieldDexCacheType* fields = (dex_file->NumFieldIds() == 0u) ? nullptr :
-      reinterpret_cast<mirror::FieldDexCacheType*>(raw_arrays + layout.FieldsOffset());
+  StringDexCacheType* strings = (dex_file->NumStringIds() == 0u) ? nullptr :
+      reinterpret_cast<StringDexCacheType*>(raw_arrays + layout.StringsOffset());
+  TypeDexCacheType* types = (dex_file->NumTypeIds() == 0u) ? nullptr :
+      reinterpret_cast<TypeDexCacheType*>(raw_arrays + layout.TypesOffset());
+  MethodDexCacheType* methods = (dex_file->NumMethodIds() == 0u) ? nullptr :
+      reinterpret_cast<MethodDexCacheType*>(raw_arrays + layout.MethodsOffset());
+  FieldDexCacheType* fields = (dex_file->NumFieldIds() == 0u) ? nullptr :
+      reinterpret_cast<FieldDexCacheType*>(raw_arrays + layout.FieldsOffset());
 
   size_t num_strings = kDexCacheStringCacheSize;
   if (dex_file->NumStringIds() < num_strings) {
@@ -81,6 +81,10 @@ void DexCache::InitializeDexCache(Thread* self,
   size_t num_fields = kDexCacheFieldCacheSize;
   if (dex_file->NumFieldIds() < num_fields) {
     num_fields = dex_file->NumFieldIds();
+  }
+  size_t num_methods = kDexCacheMethodCacheSize;
+  if (dex_file->NumMethodIds() < num_methods) {
+    num_methods = dex_file->NumMethodIds();
   }
 
   // Note that we allocate the method type dex caches regardless of this flag,
@@ -105,7 +109,7 @@ void DexCache::InitializeDexCache(Thread* self,
 
   GcRoot<mirror::CallSite>* call_sites = (dex_file->NumCallSiteIds() == 0)
       ? nullptr
-      : reinterpret_cast<GcRoot<mirror::CallSite>*>(raw_arrays + layout.CallSitesOffset());
+      : reinterpret_cast<GcRoot<CallSite>*>(raw_arrays + layout.CallSitesOffset());
 
   DCHECK_ALIGNED(raw_arrays, alignof(StringDexCacheType)) <<
                  "Expected raw_arrays to align to StringDexCacheType.";
@@ -125,8 +129,9 @@ void DexCache::InitializeDexCache(Thread* self,
       CHECK_EQ(types[i].load(std::memory_order_relaxed).index, 0u);
       CHECK(types[i].load(std::memory_order_relaxed).object.IsNull());
     }
-    for (size_t i = 0; i < dex_file->NumMethodIds(); ++i) {
-      CHECK(GetElementPtrSize(methods, i, image_pointer_size) == nullptr);
+    for (size_t i = 0; i < num_methods; ++i) {
+      CHECK_EQ(GetNativePairPtrSize(methods, i, image_pointer_size).index, 0u);
+      CHECK(GetNativePairPtrSize(methods, i, image_pointer_size).object == nullptr);
     }
     for (size_t i = 0; i < num_fields; ++i) {
       CHECK_EQ(GetNativePairPtrSize(fields, i, image_pointer_size).index, 0u);
@@ -149,6 +154,9 @@ void DexCache::InitializeDexCache(Thread* self,
   if (fields != nullptr) {
     mirror::FieldDexCachePair::Initialize(fields, image_pointer_size);
   }
+  if (methods != nullptr) {
+    mirror::MethodDexCachePair::Initialize(methods, image_pointer_size);
+  }
   if (method_types != nullptr) {
     mirror::MethodTypeDexCachePair::Initialize(method_types);
   }
@@ -159,14 +167,13 @@ void DexCache::InitializeDexCache(Thread* self,
                   types,
                   num_types,
                   methods,
-                  dex_file->NumMethodIds(),
+                  num_methods,
                   fields,
                   num_fields,
                   method_types,
                   num_method_types,
                   call_sites,
-                  dex_file->NumCallSiteIds(),
-                  image_pointer_size);
+                  dex_file->NumCallSiteIds());
 }
 
 void DexCache::Init(const DexFile* dex_file,
@@ -175,15 +182,14 @@ void DexCache::Init(const DexFile* dex_file,
                     uint32_t num_strings,
                     TypeDexCacheType* resolved_types,
                     uint32_t num_resolved_types,
-                    ArtMethod** resolved_methods,
+                    MethodDexCacheType* resolved_methods,
                     uint32_t num_resolved_methods,
                     FieldDexCacheType* resolved_fields,
                     uint32_t num_resolved_fields,
                     MethodTypeDexCacheType* resolved_method_types,
                     uint32_t num_resolved_method_types,
                     GcRoot<CallSite>* resolved_call_sites,
-                    uint32_t num_resolved_call_sites,
-                    PointerSize pointer_size) {
+                    uint32_t num_resolved_call_sites) {
   CHECK(dex_file != nullptr);
   CHECK(location != nullptr);
   CHECK_EQ(num_strings != 0u, strings != nullptr);
@@ -207,24 +213,6 @@ void DexCache::Init(const DexFile* dex_file,
   SetField32<false>(NumResolvedFieldsOffset(), num_resolved_fields);
   SetField32<false>(NumResolvedMethodTypesOffset(), num_resolved_method_types);
   SetField32<false>(NumResolvedCallSitesOffset(), num_resolved_call_sites);
-
-  Runtime* const runtime = Runtime::Current();
-  if (runtime->HasResolutionMethod()) {
-    // Initialize the resolve methods array to contain trampolines for resolution.
-    Fixup(runtime->GetResolutionMethod(), pointer_size);
-  }
-}
-
-void DexCache::Fixup(ArtMethod* trampoline, PointerSize pointer_size) {
-  // Fixup the resolve methods array to contain trampoline for resolution.
-  CHECK(trampoline != nullptr);
-  CHECK(trampoline->IsRuntimeMethod());
-  auto* resolved_methods = GetResolvedMethods();
-  for (size_t i = 0, length = NumResolvedMethods(); i < length; i++) {
-    if (GetElementPtrSize<ArtMethod*>(resolved_methods, i, pointer_size) == nullptr) {
-      SetElementPtrSize(resolved_methods, i, trampoline, pointer_size);
-    }
-  }
 }
 
 void DexCache::SetLocation(ObjPtr<mirror::String> location) {

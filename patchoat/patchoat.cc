@@ -535,17 +535,18 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
       orig_dex_cache->FixupResolvedTypes(RelocatedCopyOf(orig_types),
                                          RelocatedPointerVisitor(this));
     }
-    ArtMethod** orig_methods = orig_dex_cache->GetResolvedMethods();
-    ArtMethod** relocated_methods = RelocatedAddressOfPointer(orig_methods);
+    mirror::MethodDexCacheType* orig_methods = orig_dex_cache->GetResolvedMethods();
+    mirror::MethodDexCacheType* relocated_methods = RelocatedAddressOfPointer(orig_methods);
     copy_dex_cache->SetField64<false>(
         mirror::DexCache::ResolvedMethodsOffset(),
         static_cast<int64_t>(reinterpret_cast<uintptr_t>(relocated_methods)));
     if (orig_methods != nullptr) {
-      ArtMethod** copy_methods = RelocatedCopyOf(orig_methods);
+      mirror::MethodDexCacheType* copy_methods = RelocatedCopyOf(orig_methods);
       for (size_t j = 0, num = orig_dex_cache->NumResolvedMethods(); j != num; ++j) {
-        ArtMethod* orig = mirror::DexCache::GetElementPtrSize(orig_methods, j, pointer_size);
-        ArtMethod* copy = RelocatedAddressOfPointer(orig);
-        mirror::DexCache::SetElementPtrSize(copy_methods, j, copy, pointer_size);
+        mirror::MethodDexCachePair orig =
+            mirror::DexCache::GetNativePairPtrSize(orig_methods, j, pointer_size);
+        mirror::MethodDexCachePair copy(RelocatedAddressOfPointer(orig.object), orig.index);
+        mirror::DexCache::SetNativePairPtrSize(copy_methods, j, copy, pointer_size);
       }
     }
     mirror::FieldDexCacheType* orig_fields = orig_dex_cache->GetResolvedFields();

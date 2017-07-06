@@ -2542,7 +2542,6 @@ class Dex2Oat FINAL {
         runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(), type);
       }
     }
-    runtime_->GetClassLinker()->FixupDexCaches(runtime_->GetResolutionMethod());
 
     // Initialize maps for unstarted runtime. This needs to be here, as running clinits needs this
     // set up.

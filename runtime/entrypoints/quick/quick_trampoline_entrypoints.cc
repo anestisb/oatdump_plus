@@ -2461,6 +2461,21 @@ extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(
   return artInvokeCommon<kVirtual, true>(method_idx, this_object, self, sp);
 }
 
+// Helper function for art_quick_imt_conflict_trampoline to look up the interface method.
+extern "C" ArtMethod* artLookupResolvedMethod(uint32_t method_index, ArtMethod* referrer)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+  DCHECK(!referrer->IsProxyMethod());
+  ArtMethod* result = Runtime::Current()->GetClassLinker()->LookupResolvedMethod(
+      method_index, referrer->GetDexCache(), referrer->GetClassLoader());
+  DCHECK(result == nullptr ||
+         result->GetDeclaringClass()->IsInterface() ||
+         result->GetDeclaringClass() ==
+             WellKnownClasses::ToClass(WellKnownClasses::java_lang_Object))
+      << result->PrettyMethod();
+  return result;
+}
+
 // Determine target of interface dispatch. The interface method and this object are known non-null.
 // The interface method is the method returned by the dex cache in the conflict trampoline.
 extern "C" TwoWordReturn artInvokeInterfaceTrampoline(ArtMethod* interface_method,
@@ -2468,7 +2483,6 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(ArtMethod* interface_metho
                                                       Thread* self,
                                                       ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  CHECK(interface_method != nullptr);
   ObjPtr<mirror::Object> this_object(raw_this_object);
   ScopedQuickEntrypointChecks sqec(self);
   StackHandleScope<1> hs(self);
@@ -2478,7 +2492,8 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(ArtMethod* interface_metho
   ArtMethod* method = nullptr;
   ImTable* imt = cls->GetImt(kRuntimePointerSize);
 
-  if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
+  if (LIKELY(interface_method != nullptr)) {
+    DCHECK_NE(interface_method->GetDexMethodIndex(), DexFile::kDexNoIndex);
     // If the interface method is already resolved, look whether we have a match in the
     // ImtConflictTable.
     ArtMethod* conflict_method = imt->Get(ImTable::GetImtIndex(interface_method),
@@ -2505,9 +2520,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(ArtMethod* interface_metho
       return GetTwoWordFailureValue();  // Failure.
     }
   } else {
-    // The interface method is unresolved, so look it up in the dex file of the caller.
-    DCHECK_EQ(interface_method, Runtime::Current()->GetResolutionMethod());
-
+    // The interface method is unresolved, so resolve it in the dex file of the caller.
     // Fetch the dex_method_idx of the target interface method from the caller.
     uint32_t dex_method_idx;
     uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);

@@ -1113,7 +1113,8 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
 
   virtual void Visit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
     const bool is_copied = method->IsCopied();
-    ArtMethod** resolved_methods = method->GetDexCacheResolvedMethods(kRuntimePointerSize);
+    mirror::MethodDexCacheType* resolved_methods =
+        method->GetDexCacheResolvedMethods(kRuntimePointerSize);
     if (resolved_methods != nullptr) {
       bool in_image_space = false;
       if (kIsDebugBuild || is_copied) {
@@ -1283,6 +1284,25 @@ static void CopyDexCachePairs(const std::atomic<mirror::DexCachePair<T>>* src,
   }
 }
 
+template <typename T>
+static void CopyNativeDexCachePairs(std::atomic<mirror::NativeDexCachePair<T>>* src,
+                                    size_t count,
+                                    std::atomic<mirror::NativeDexCachePair<T>>* dst,
+                                    PointerSize pointer_size) {
+  DCHECK_NE(count, 0u);
+  DCHECK(mirror::DexCache::GetNativePairPtrSize(src, 0, pointer_size).object != nullptr ||
+         mirror::DexCache::GetNativePairPtrSize(src, 0, pointer_size).index != 0u);
+  for (size_t i = 0; i < count; ++i) {
+    DCHECK_EQ(mirror::DexCache::GetNativePairPtrSize(dst, i, pointer_size).index, 0u);
+    DCHECK(mirror::DexCache::GetNativePairPtrSize(dst, i, pointer_size).object == nullptr);
+    mirror::NativeDexCachePair<T> source =
+        mirror::DexCache::GetNativePairPtrSize(src, i, pointer_size);
+    if (source.index != 0u || source.object != nullptr) {
+      mirror::DexCache::SetNativePairPtrSize(dst, i, source, pointer_size);
+    }
+  }
+}
+
 // new_class_set is the set of classes that were read from the class table section in the image.
 // If there was no class table section, it is null.
 // Note: using a class here to avoid having to make ClassLinker internals public.
@@ -1362,7 +1382,10 @@ bool AppImageClassLoadersAndDexCachesHelper::Update(
         if (dex_file->NumTypeIds() < num_types) {
           num_types = dex_file->NumTypeIds();
         }
-        const size_t num_methods = dex_file->NumMethodIds();
+        size_t num_methods = mirror::DexCache::kDexCacheMethodCacheSize;
+        if (dex_file->NumMethodIds() < num_methods) {
+          num_methods = dex_file->NumMethodIds();
+        }
         size_t num_fields = mirror::DexCache::kDexCacheFieldCacheSize;
         if (dex_file->NumFieldIds() < num_fields) {
           num_fields = dex_file->NumFieldIds();
@@ -1395,37 +1418,18 @@ bool AppImageClassLoadersAndDexCachesHelper::Update(
           dex_cache->SetResolvedTypes(types);
         }
         if (num_methods != 0u) {
-          ArtMethod** const methods = reinterpret_cast<ArtMethod**>(
-              raw_arrays + layout.MethodsOffset());
-          ArtMethod** const image_resolved_methods = dex_cache->GetResolvedMethods();
-          for (size_t j = 0; kIsDebugBuild && j < num_methods; ++j) {
-            DCHECK(methods[j] == nullptr);
-          }
-          CopyNonNull(image_resolved_methods,
-                      num_methods,
-                      methods,
-                      [] (const ArtMethod* method) {
-                          return method == nullptr;
-                      });
+          mirror::MethodDexCacheType* const image_resolved_methods =
+              dex_cache->GetResolvedMethods();
+          mirror::MethodDexCacheType* const methods =
+              reinterpret_cast<mirror::MethodDexCacheType*>(raw_arrays + layout.MethodsOffset());
+          CopyNativeDexCachePairs(image_resolved_methods, num_methods, methods, image_pointer_size);
           dex_cache->SetResolvedMethods(methods);
         }
         if (num_fields != 0u) {
           mirror::FieldDexCacheType* const image_resolved_fields = dex_cache->GetResolvedFields();
           mirror::FieldDexCacheType* const fields =
               reinterpret_cast<mirror::FieldDexCacheType*>(raw_arrays + layout.FieldsOffset());
-          for (size_t j = 0; j < num_fields; ++j) {
-            DCHECK_EQ(mirror::DexCache::GetNativePairPtrSize(fields, j, image_pointer_size).index,
-                      0u);
-            DCHECK(mirror::DexCache::GetNativePairPtrSize(fields, j, image_pointer_size).object ==
-                   nullptr);
-            mirror::DexCache::SetNativePairPtrSize(
-                fields,
-                j,
-                mirror::DexCache::GetNativePairPtrSize(image_resolved_fields,
-                                                       j,
-                                                       image_pointer_size),
-                image_pointer_size);
-          }
+          CopyNativeDexCachePairs(image_resolved_fields, num_fields, fields, image_pointer_size);
           dex_cache->SetResolvedFields(fields);
         }
         if (num_method_types != 0u) {
@@ -1662,13 +1666,13 @@ class ImageSanityChecks FINAL {
     heap->VisitObjects(visitor);
   }
 
-  static void CheckPointerArray(gc::Heap* heap,
-                                ClassLinker* class_linker,
-                                ArtMethod** arr,
-                                size_t size)
+  static void CheckArtMethodDexCacheArray(gc::Heap* heap,
+                                          ClassLinker* class_linker,
+                                          mirror::MethodDexCacheType* arr,
+                                          size_t size)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ImageSanityChecks isc(heap, class_linker);
-    isc.SanityCheckArtMethodPointerArray(arr, size);
+    isc.SanityCheckArtMethodDexCacheArray(arr, size);
   }
 
  private:
@@ -1723,7 +1727,7 @@ class ImageSanityChecks FINAL {
     }
   }
 
-  void SanityCheckArtMethodPointerArray(ArtMethod** arr, size_t size)
+  void SanityCheckArtMethodDexCacheArray(mirror::MethodDexCacheType* arr, size_t size)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK_EQ(arr != nullptr, size != 0u);
     if (arr != nullptr) {
@@ -1739,7 +1743,8 @@ class ImageSanityChecks FINAL {
       CHECK(contains);
     }
     for (size_t j = 0; j < size; ++j) {
-      ArtMethod* method = mirror::DexCache::GetElementPtrSize(arr, j, pointer_size_);
+      auto pair = mirror::DexCache::GetNativePairPtrSize(arr, j, pointer_size_);
+      ArtMethod* method = pair.object;
       // expected_class == null means we are a dex cache.
       if (method != nullptr) {
         SanityCheckArtMethod(method, nullptr);
@@ -1850,10 +1855,10 @@ bool ClassLinker::AddImageSpace(
       }
     } else {
       if (kSanityCheckObjects) {
-        ImageSanityChecks::CheckPointerArray(heap,
-                                             this,
-                                             dex_cache->GetResolvedMethods(),
-                                             dex_cache->NumResolvedMethods());
+        ImageSanityChecks::CheckArtMethodDexCacheArray(heap,
+                                                       this,
+                                                       dex_cache->GetResolvedMethods(),
+                                                       dex_cache->NumResolvedMethods());
       }
       // Register dex files, keep track of existing ones that are conflicts.
       AppendToBootClassPath(*dex_file.get(), dex_cache);
@@ -3740,20 +3745,6 @@ ClassLinker::DexCacheData ClassLinker::FindDexCacheDataLocked(const DexFile& dex
     }
   }
   return DexCacheData();
-}
-
-void ClassLinker::FixupDexCaches(ArtMethod* resolution_method) {
-  Thread* const self = Thread::Current();
-  ReaderMutexLock mu(self, *Locks::dex_lock_);
-  for (const DexCacheData& data : dex_caches_) {
-    if (!self->IsJWeakCleared(data.weak_root)) {
-      ObjPtr<mirror::DexCache> dex_cache = ObjPtr<mirror::DexCache>::DownCast(
-          self->DecodeJObject(data.weak_root));
-      if (dex_cache != nullptr) {
-        dex_cache->Fixup(resolution_method, image_pointer_size_);
-      }
-    }
-  }
 }
 
 mirror::Class* ClassLinker::CreatePrimitiveClass(Thread* self, Primitive::Type type) {
@@ -6906,7 +6897,8 @@ class ClassLinker::LinkInterfaceMethodsHelper {
       // Check that there are no stale methods are in the dex cache array.
       auto* resolved_methods = klass_->GetDexCache()->GetResolvedMethods();
       for (size_t i = 0, count = klass_->GetDexCache()->NumResolvedMethods(); i < count; ++i) {
-        auto* m = mirror::DexCache::GetElementPtrSize(resolved_methods, i, pointer_size);
+        auto pair = mirror::DexCache::GetNativePairPtrSize(resolved_methods, i, pointer_size);
+        ArtMethod* m = pair.object;
         CHECK(move_table_.find(m) == move_table_.end() ||
               // The original versions of copied methods will still be present so allow those too.
               // Note that if the first check passes this might fail to GetDeclaringClass().
@@ -7969,7 +7961,8 @@ ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
   PointerSize pointer_size = image_pointer_size_;
   ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx, pointer_size);
   Thread::PoisonObjectPointersIfDebug();
-  bool valid_dex_cache_method = resolved != nullptr && !resolved->IsRuntimeMethod();
+  DCHECK(resolved == nullptr || !resolved->IsRuntimeMethod());
+  bool valid_dex_cache_method = resolved != nullptr;
   if (kResolveMode == ResolveMode::kNoChecks && valid_dex_cache_method) {
     // We have a valid method from the DexCache and no checks to perform.
     DCHECK(resolved->GetDeclaringClassUnchecked() != nullptr) << resolved->GetDexMethodIndex();
@@ -8065,7 +8058,8 @@ ArtMethod* ClassLinker::ResolveMethodWithoutInvokeType(const DexFile& dex_file,
                                                        Handle<mirror::ClassLoader> class_loader) {
   ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx, image_pointer_size_);
   Thread::PoisonObjectPointersIfDebug();
-  if (resolved != nullptr && !resolved->IsRuntimeMethod()) {
+  if (resolved != nullptr) {
+    DCHECK(!resolved->IsRuntimeMethod());
     DCHECK(resolved->GetDeclaringClassUnchecked() != nullptr) << resolved->GetDexMethodIndex();
     return resolved;
   }
@@ -9083,6 +9077,53 @@ mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {
       mirror::IfTable::Alloc(self,
                              GetClassRoot(kObjectArrayClass),
                              ifcount * mirror::IfTable::kMax));
+}
+
+ArtMethod* ClassLinker::FindMethodForProxy(ArtMethod* proxy_method) {
+  DCHECK(proxy_method->IsProxyMethod());
+  {
+    uint32_t method_index = proxy_method->GetDexMethodIndex();
+    PointerSize pointer_size = image_pointer_size_;
+    Thread* const self = Thread::Current();
+    ReaderMutexLock mu(self, *Locks::dex_lock_);
+    // Locate the dex cache of the original interface/Object
+    for (const DexCacheData& data : dex_caches_) {
+      if (!self->IsJWeakCleared(data.weak_root) &&
+          proxy_method->HasSameDexCacheResolvedMethods(data.resolved_methods, pointer_size)) {
+        ObjPtr<mirror::DexCache> dex_cache =
+            ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
+        if (dex_cache != nullptr) {
+          // Lookup up the method. Instead of going through LookupResolvedMethod()
+          // and thus LookupResolvedType(), use the ClassTable from the DexCacheData.
+          ArtMethod* resolved_method = dex_cache->GetResolvedMethod(method_index, pointer_size);
+          if (resolved_method == nullptr) {
+            const DexFile::MethodId& method_id = data.dex_file->GetMethodId(method_index);
+            ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(method_id.class_idx_);
+            if (klass == nullptr) {
+              const char* descriptor = data.dex_file->StringByTypeIdx(method_id.class_idx_);
+              klass = data.class_table->Lookup(descriptor, ComputeModifiedUtf8Hash(descriptor));
+              DCHECK(klass != nullptr);
+              dex_cache->SetResolvedType(method_id.class_idx_, klass);
+            }
+            if (klass->IsInterface()) {
+              resolved_method = klass->FindInterfaceMethod(dex_cache, method_index, pointer_size);
+            } else {
+              DCHECK(
+                  klass == WellKnownClasses::ToClass(WellKnownClasses::java_lang_reflect_Proxy) ||
+                  klass == WellKnownClasses::ToClass(WellKnownClasses::java_lang_Object));
+              resolved_method = klass->FindClassMethod(dex_cache, method_index, pointer_size);
+            }
+            CHECK(resolved_method != nullptr);
+            dex_cache->SetResolvedMethod(method_index, resolved_method, pointer_size);
+          }
+          return resolved_method;
+        }
+      }
+    }
+  }
+  // Note: Do not use proxy_method->PrettyMethod() as it can call back here.
+  LOG(FATAL) << "Didn't find dex cache for " << proxy_method->GetDeclaringClass()->PrettyClass();
+  UNREACHABLE();
 }
 
 // Instantiate ResolveMethod.

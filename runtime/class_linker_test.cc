@@ -440,14 +440,6 @@ class ClassLinkerTest : public CommonRuntimeTest {
     }
     TestRootVisitor visitor;
     class_linker_->VisitRoots(&visitor, kVisitRootFlagAllRoots);
-    // Verify the dex cache has resolution methods in all resolved method slots
-    ObjPtr<mirror::DexCache> dex_cache = class_linker_->FindDexCache(Thread::Current(), dex);
-    auto* resolved_methods = dex_cache->GetResolvedMethods();
-    for (size_t i = 0, num_methods = dex_cache->NumResolvedMethods(); i != num_methods; ++i) {
-      EXPECT_TRUE(
-          mirror::DexCache::GetElementPtrSize(resolved_methods, i, kRuntimePointerSize) != nullptr)
-          << dex.GetLocation() << " i=" << i;
-    }
   }
 
   class TestRootVisitor : public SingleRootVisitor {
