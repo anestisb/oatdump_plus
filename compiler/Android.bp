@@ -429,13 +429,20 @@ art_cc_test {
 
     shared_libs: [
         "libartd-compiler",
-        "libartd-simulator",
         "libvixld-arm",
         "libvixld-arm64",
 
         "libbacktrace",
         "libnativeloader",
     ],
+
+    target: {
+        host: {
+            shared_libs: [
+                "libartd-simulator",
+            ],
+        },
+    },
 }
 
 art_cc_test {
