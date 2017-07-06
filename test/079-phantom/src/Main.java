@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import java.util.concurrent.CountDownLatch;
+
 public class Main {
     Bitmap mBitmap1, mBitmap2, mBitmap3, mBitmap4;
+    CountDownLatch mFreeSignalA, mFreeSignalB;
 
     public static void sleep(int ms) {
         try {
@@ -31,7 +34,6 @@ public class Main {
         Main main = new Main();
         main.run();
 
-        sleep(1000);
         System.out.println("done");
     }
 
@@ -46,22 +48,30 @@ public class Main {
         System.out.println("nulling 1");
         mBitmap1 = null;
         Runtime.getRuntime().gc();
-        sleep(500);
+        try {
+          mFreeSignalA.await();  // Block until dataA is definitely freed.
+        } catch (InterruptedException e) {
+          System.out.println("got unexpected InterruptedException e: " + e);
+        }
 
         System.out.println("nulling 2");
         mBitmap2 = null;
         Runtime.getRuntime().gc();
-        sleep(500);
+        sleep(200);
 
         System.out.println("nulling 3");
         mBitmap3 = null;
         Runtime.getRuntime().gc();
-        sleep(500);
+        sleep(200);
 
         System.out.println("nulling 4");
         mBitmap4 = null;
         Runtime.getRuntime().gc();
-        sleep(500);
+        try {
+          mFreeSignalB.await();  // Block until dataB is definitely freed.
+        } catch (InterruptedException e) {
+          System.out.println("got unexpected InterruptedException e: " + e);
+        }
 
         Bitmap.shutDown();
     }
@@ -77,7 +87,10 @@ public class Main {
      */
     public void createBitmaps() {
         Bitmap.NativeWrapper dataA = Bitmap.allocNativeStorage(10, 10);
+        mFreeSignalA = dataA.mPhantomWrapper.mFreeSignal;
         Bitmap.NativeWrapper dataB = Bitmap.allocNativeStorage(20, 20);
+        mFreeSignalB = dataB.mPhantomWrapper.mFreeSignal;
+
         mBitmap1 = new Bitmap("one", 10, 10, dataA);
         mBitmap2 = new Bitmap("two", 20, 20, dataB);
         mBitmap3 = mBitmap4 = new Bitmap("three/four", 20, 20, dataB);
