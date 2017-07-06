@@ -46,6 +46,10 @@ class Alignment {
     return "ALIGN(" + std::to_string(base_) + "," + std::to_string(offset_) + ")";
   }
 
+  bool operator==(const Alignment& other) const {
+    return base_ == other.base_ && offset_ == other.offset_;
+  }
+
  private:
   size_t base_;
   size_t offset_;
@@ -94,6 +98,13 @@ class HVecOperation : public HVariableInputSizeInstruction {
   // Returns the true component type packed in a vector.
   Primitive::Type GetPackedType() const {
     return GetPackedField<TypeField>();
+  }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    const HVecOperation* o = other->AsVecOperation();
+    return GetVectorLength() == o->GetVectorLength() && GetPackedType() == o->GetPackedType();
   }
 
   DECLARE_ABSTRACT_INSTRUCTION(VecOperation);
@@ -188,6 +199,11 @@ class HVecMemoryOperation : public HVecOperation {
 
   HInstruction* GetArray() const { return InputAt(0); }
   HInstruction* GetIndex() const { return InputAt(1); }
+
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    const HVecMemoryOperation* o = other->AsVecMemoryOperation();
+    return HVecOperation::InstructionDataEquals(o) && GetAlignment() == o->GetAlignment();
+  }
 
   DECLARE_ABSTRACT_INSTRUCTION(VecMemoryOperation);
 
@@ -378,6 +394,13 @@ class HVecHalvingAdd FINAL : public HVecBinaryOperation {
   bool IsUnsigned() const { return GetPackedFlag<kFieldHAddIsUnsigned>(); }
   bool IsRounded() const { return GetPackedFlag<kFieldHAddIsRounded>(); }
 
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    const HVecHalvingAdd* o = other->AsVecHalvingAdd();
+    return HVecOperation::InstructionDataEquals(o) &&
+        IsUnsigned() == o->IsUnsigned() &&
+        IsRounded() == o->IsRounded();
+  }
+
   DECLARE_INSTRUCTION(VecHalvingAdd);
 
  private:
@@ -466,6 +489,11 @@ class HVecMin FINAL : public HVecBinaryOperation {
 
   bool IsUnsigned() const { return GetPackedFlag<kFieldMinOpIsUnsigned>(); }
 
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    const HVecMin* o = other->AsVecMin();
+    return HVecOperation::InstructionDataEquals(o) && IsUnsigned() == o->IsUnsigned();
+  }
+
   DECLARE_INSTRUCTION(VecMin);
 
  private:
@@ -495,6 +523,11 @@ class HVecMax FINAL : public HVecBinaryOperation {
   }
 
   bool IsUnsigned() const { return GetPackedFlag<kFieldMaxOpIsUnsigned>(); }
+
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    const HVecMax* o = other->AsVecMax();
+    return HVecOperation::InstructionDataEquals(o) && IsUnsigned() == o->IsUnsigned();
+  }
 
   DECLARE_INSTRUCTION(VecMax);
 
@@ -694,10 +727,9 @@ class HVecMultiplyAccumulate FINAL : public HVecOperation {
   static constexpr int kInputMulLeftIndex = 1;
   static constexpr int kInputMulRightIndex = 2;
 
-  bool CanBeMoved() const OVERRIDE { return true; }
-
   bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
-    return op_kind_ == other->AsVecMultiplyAccumulate()->op_kind_;
+    const HVecMultiplyAccumulate* o = other->AsVecMultiplyAccumulate();
+    return HVecOperation::InstructionDataEquals(o) && GetOpKind() == o->GetOpKind();
   }
 
   InstructionKind GetOpKind() const { return op_kind_; }
@@ -732,9 +764,15 @@ class HVecLoad FINAL : public HVecMemoryOperation {
     SetRawInputAt(1, index);
     SetPackedFlag<kFieldIsStringCharAt>(is_string_char_at);
   }
-  DECLARE_INSTRUCTION(VecLoad);
 
   bool IsStringCharAt() const { return GetPackedFlag<kFieldIsStringCharAt>(); }
+
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    const HVecLoad* o = other->AsVecLoad();
+    return HVecMemoryOperation::InstructionDataEquals(o) && IsStringCharAt() == o->IsStringCharAt();
+  }
+
+  DECLARE_INSTRUCTION(VecLoad);
 
  private:
   // Additional packed bits.
@@ -767,7 +805,11 @@ class HVecStore FINAL : public HVecMemoryOperation {
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
   }
+
+  bool CanBeMoved() const OVERRIDE { return false; }
+
   DECLARE_INSTRUCTION(VecStore);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecStore);
 };
