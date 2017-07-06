@@ -455,6 +455,7 @@ art_cc_test {
             srcs: [
                 "optimizing/emit_swap_mips_test.cc",
                 "utils/mips/assembler_mips_test.cc",
+                "utils/mips/assembler_mips32r5_test.cc",
                 "utils/mips/assembler_mips32r6_test.cc",
             ],
         },

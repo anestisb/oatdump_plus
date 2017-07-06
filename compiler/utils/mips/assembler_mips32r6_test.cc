@@ -627,6 +627,124 @@ TEST_F(AssemblerMIPS32r6Test, LoadDFromOffset) {
   DriverStr(expected, "LoadDFromOffset");
 }
 
+TEST_F(AssemblerMIPS32r6Test, LoadQFromOffset) {
+  __ LoadQFromOffset(mips::F0, mips::A0, 0);
+  __ LoadQFromOffset(mips::F0, mips::A0, 1);
+  __ LoadQFromOffset(mips::F0, mips::A0, 2);
+  __ LoadQFromOffset(mips::F0, mips::A0, 4);
+  __ LoadQFromOffset(mips::F0, mips::A0, 8);
+  __ LoadQFromOffset(mips::F0, mips::A0, 511);
+  __ LoadQFromOffset(mips::F0, mips::A0, 512);
+  __ LoadQFromOffset(mips::F0, mips::A0, 513);
+  __ LoadQFromOffset(mips::F0, mips::A0, 514);
+  __ LoadQFromOffset(mips::F0, mips::A0, 516);
+  __ LoadQFromOffset(mips::F0, mips::A0, 1022);
+  __ LoadQFromOffset(mips::F0, mips::A0, 1024);
+  __ LoadQFromOffset(mips::F0, mips::A0, 1025);
+  __ LoadQFromOffset(mips::F0, mips::A0, 1026);
+  __ LoadQFromOffset(mips::F0, mips::A0, 1028);
+  __ LoadQFromOffset(mips::F0, mips::A0, 2044);
+  __ LoadQFromOffset(mips::F0, mips::A0, 2048);
+  __ LoadQFromOffset(mips::F0, mips::A0, 2049);
+  __ LoadQFromOffset(mips::F0, mips::A0, 2050);
+  __ LoadQFromOffset(mips::F0, mips::A0, 2052);
+  __ LoadQFromOffset(mips::F0, mips::A0, 4088);
+  __ LoadQFromOffset(mips::F0, mips::A0, 4096);
+  __ LoadQFromOffset(mips::F0, mips::A0, 4097);
+  __ LoadQFromOffset(mips::F0, mips::A0, 4098);
+  __ LoadQFromOffset(mips::F0, mips::A0, 4100);
+  __ LoadQFromOffset(mips::F0, mips::A0, 4104);
+  __ LoadQFromOffset(mips::F0, mips::A0, 0x7FFC);
+  __ LoadQFromOffset(mips::F0, mips::A0, 0x8000);
+  __ LoadQFromOffset(mips::F0, mips::A0, 0x10000);
+  __ LoadQFromOffset(mips::F0, mips::A0, 0x12345678);
+  __ LoadQFromOffset(mips::F0, mips::A0, 0x12350078);
+  __ LoadQFromOffset(mips::F0, mips::A0, -256);
+  __ LoadQFromOffset(mips::F0, mips::A0, -511);
+  __ LoadQFromOffset(mips::F0, mips::A0, -513);
+  __ LoadQFromOffset(mips::F0, mips::A0, -1022);
+  __ LoadQFromOffset(mips::F0, mips::A0, -1026);
+  __ LoadQFromOffset(mips::F0, mips::A0, -2044);
+  __ LoadQFromOffset(mips::F0, mips::A0, -2052);
+  __ LoadQFromOffset(mips::F0, mips::A0, -4096);
+  __ LoadQFromOffset(mips::F0, mips::A0, -4104);
+  __ LoadQFromOffset(mips::F0, mips::A0, -32768);
+  __ LoadQFromOffset(mips::F0, mips::A0, 0xABCDEF00);
+  __ LoadQFromOffset(mips::F0, mips::A0, 0x7FFFABCD);
+
+  const char* expected =
+      "ld.d $w0, 0($a0)\n"
+      "ld.b $w0, 1($a0)\n"
+      "ld.h $w0, 2($a0)\n"
+      "ld.w $w0, 4($a0)\n"
+      "ld.d $w0, 8($a0)\n"
+      "ld.b $w0, 511($a0)\n"
+      "ld.d $w0, 512($a0)\n"
+      "addiu $at, $a0, 513\n"
+      "ld.b $w0, 0($at)\n"
+      "ld.h $w0, 514($a0)\n"
+      "ld.w $w0, 516($a0)\n"
+      "ld.h $w0, 1022($a0)\n"
+      "ld.d $w0, 1024($a0)\n"
+      "addiu $at, $a0, 1025\n"
+      "ld.b $w0, 0($at)\n"
+      "addiu $at, $a0, 1026\n"
+      "ld.h $w0, 0($at)\n"
+      "ld.w $w0, 1028($a0)\n"
+      "ld.w $w0, 2044($a0)\n"
+      "ld.d $w0, 2048($a0)\n"
+      "addiu $at, $a0, 2049\n"
+      "ld.b $w0, 0($at)\n"
+      "addiu $at, $a0, 2050\n"
+      "ld.h $w0, 0($at)\n"
+      "addiu $at, $a0, 2052\n"
+      "ld.w $w0, 0($at)\n"
+      "ld.d $w0, 4088($a0)\n"
+      "addiu $at, $a0, 4096\n"
+      "ld.d $w0, 0($at)\n"
+      "addiu $at, $a0, 4097\n"
+      "ld.b $w0, 0($at)\n"
+      "addiu $at, $a0, 4098\n"
+      "ld.h $w0, 0($at)\n"
+      "addiu $at, $a0, 4100\n"
+      "ld.w $w0, 0($at)\n"
+      "addiu $at, $a0, 4104\n"
+      "ld.d $w0, 0($at)\n"
+      "addiu $at, $a0, 0x7FFC\n"
+      "ld.w $w0, 0($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "ld.d $w0, 8($at)\n"
+      "aui $at, $a0, 0x1\n"
+      "ld.d $w0, 0($at)\n"
+      "aui $at, $a0, 0x1234\n"
+      "addiu $at, $at, 0x6000\n"
+      "ld.d $w0, -2440($at) # 0xF678\n"
+      "aui $at, $a0, 0x1235\n"
+      "ld.d $w0, 0x78($at)\n"
+      "ld.d $w0, -256($a0)\n"
+      "ld.b $w0, -511($a0)\n"
+      "addiu $at, $a0, -513\n"
+      "ld.b $w0, 0($at)\n"
+      "ld.h $w0, -1022($a0)\n"
+      "addiu $at, $a0, -1026\n"
+      "ld.h $w0, 0($at)\n"
+      "ld.w $w0, -2044($a0)\n"
+      "addiu $at, $a0, -2052\n"
+      "ld.w $w0, 0($at)\n"
+      "ld.d $w0, -4096($a0)\n"
+      "addiu $at, $a0, -4104\n"
+      "ld.d $w0, 0($at)\n"
+      "addiu $at, $a0, -32768\n"
+      "ld.d $w0, 0($at)\n"
+      "aui $at, $a0, 0xABCE\n"
+      "addiu $at, $at, -8192 # 0xE000\n"
+      "ld.d $w0, 0xF00($at)\n"
+      "aui $at, $a0, 0x8000\n"
+      "addiu $at, $at, -21504 # 0xAC00\n"
+      "ld.b $w0, -51($at) # 0xFFCD\n";
+  DriverStr(expected, "LoadQFromOffset");
+}
+
 TEST_F(AssemblerMIPS32r6Test, StoreDToOffset) {
   __ StoreDToOffset(mips::F0, mips::A0, -0x8000);
   __ StoreDToOffset(mips::F0, mips::A0, +0);
@@ -709,6 +827,124 @@ TEST_F(AssemblerMIPS32r6Test, StoreDToOffset) {
       "aui $at, $a0, 0x1234\n"
       "sdc1 $f0, 0x5678($at)\n";
   DriverStr(expected, "StoreDToOffset");
+}
+
+TEST_F(AssemblerMIPS32r6Test, StoreQToOffset) {
+  __ StoreQToOffset(mips::F0, mips::A0, 0);
+  __ StoreQToOffset(mips::F0, mips::A0, 1);
+  __ StoreQToOffset(mips::F0, mips::A0, 2);
+  __ StoreQToOffset(mips::F0, mips::A0, 4);
+  __ StoreQToOffset(mips::F0, mips::A0, 8);
+  __ StoreQToOffset(mips::F0, mips::A0, 511);
+  __ StoreQToOffset(mips::F0, mips::A0, 512);
+  __ StoreQToOffset(mips::F0, mips::A0, 513);
+  __ StoreQToOffset(mips::F0, mips::A0, 514);
+  __ StoreQToOffset(mips::F0, mips::A0, 516);
+  __ StoreQToOffset(mips::F0, mips::A0, 1022);
+  __ StoreQToOffset(mips::F0, mips::A0, 1024);
+  __ StoreQToOffset(mips::F0, mips::A0, 1025);
+  __ StoreQToOffset(mips::F0, mips::A0, 1026);
+  __ StoreQToOffset(mips::F0, mips::A0, 1028);
+  __ StoreQToOffset(mips::F0, mips::A0, 2044);
+  __ StoreQToOffset(mips::F0, mips::A0, 2048);
+  __ StoreQToOffset(mips::F0, mips::A0, 2049);
+  __ StoreQToOffset(mips::F0, mips::A0, 2050);
+  __ StoreQToOffset(mips::F0, mips::A0, 2052);
+  __ StoreQToOffset(mips::F0, mips::A0, 4088);
+  __ StoreQToOffset(mips::F0, mips::A0, 4096);
+  __ StoreQToOffset(mips::F0, mips::A0, 4097);
+  __ StoreQToOffset(mips::F0, mips::A0, 4098);
+  __ StoreQToOffset(mips::F0, mips::A0, 4100);
+  __ StoreQToOffset(mips::F0, mips::A0, 4104);
+  __ StoreQToOffset(mips::F0, mips::A0, 0x7FFC);
+  __ StoreQToOffset(mips::F0, mips::A0, 0x8000);
+  __ StoreQToOffset(mips::F0, mips::A0, 0x10000);
+  __ StoreQToOffset(mips::F0, mips::A0, 0x12345678);
+  __ StoreQToOffset(mips::F0, mips::A0, 0x12350078);
+  __ StoreQToOffset(mips::F0, mips::A0, -256);
+  __ StoreQToOffset(mips::F0, mips::A0, -511);
+  __ StoreQToOffset(mips::F0, mips::A0, -513);
+  __ StoreQToOffset(mips::F0, mips::A0, -1022);
+  __ StoreQToOffset(mips::F0, mips::A0, -1026);
+  __ StoreQToOffset(mips::F0, mips::A0, -2044);
+  __ StoreQToOffset(mips::F0, mips::A0, -2052);
+  __ StoreQToOffset(mips::F0, mips::A0, -4096);
+  __ StoreQToOffset(mips::F0, mips::A0, -4104);
+  __ StoreQToOffset(mips::F0, mips::A0, -32768);
+  __ StoreQToOffset(mips::F0, mips::A0, 0xABCDEF00);
+  __ StoreQToOffset(mips::F0, mips::A0, 0x7FFFABCD);
+
+  const char* expected =
+      "st.d $w0, 0($a0)\n"
+      "st.b $w0, 1($a0)\n"
+      "st.h $w0, 2($a0)\n"
+      "st.w $w0, 4($a0)\n"
+      "st.d $w0, 8($a0)\n"
+      "st.b $w0, 511($a0)\n"
+      "st.d $w0, 512($a0)\n"
+      "addiu $at, $a0, 513\n"
+      "st.b $w0, 0($at)\n"
+      "st.h $w0, 514($a0)\n"
+      "st.w $w0, 516($a0)\n"
+      "st.h $w0, 1022($a0)\n"
+      "st.d $w0, 1024($a0)\n"
+      "addiu $at, $a0, 1025\n"
+      "st.b $w0, 0($at)\n"
+      "addiu $at, $a0, 1026\n"
+      "st.h $w0, 0($at)\n"
+      "st.w $w0, 1028($a0)\n"
+      "st.w $w0, 2044($a0)\n"
+      "st.d $w0, 2048($a0)\n"
+      "addiu $at, $a0, 2049\n"
+      "st.b $w0, 0($at)\n"
+      "addiu $at, $a0, 2050\n"
+      "st.h $w0, 0($at)\n"
+      "addiu $at, $a0, 2052\n"
+      "st.w $w0, 0($at)\n"
+      "st.d $w0, 4088($a0)\n"
+      "addiu $at, $a0, 4096\n"
+      "st.d $w0, 0($at)\n"
+      "addiu $at, $a0, 4097\n"
+      "st.b $w0, 0($at)\n"
+      "addiu $at, $a0, 4098\n"
+      "st.h $w0, 0($at)\n"
+      "addiu $at, $a0, 4100\n"
+      "st.w $w0, 0($at)\n"
+      "addiu $at, $a0, 4104\n"
+      "st.d $w0, 0($at)\n"
+      "addiu $at, $a0, 0x7FFC\n"
+      "st.w $w0, 0($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "st.d $w0, 8($at)\n"
+      "aui $at, $a0, 0x1\n"
+      "st.d $w0, 0($at)\n"
+      "aui $at, $a0, 0x1234\n"
+      "addiu $at, $at, 0x6000\n"
+      "st.d $w0, -2440($at) # 0xF678\n"
+      "aui $at, $a0, 0x1235\n"
+      "st.d $w0, 0x78($at)\n"
+      "st.d $w0, -256($a0)\n"
+      "st.b $w0, -511($a0)\n"
+      "addiu $at, $a0, -513\n"
+      "st.b $w0, 0($at)\n"
+      "st.h $w0, -1022($a0)\n"
+      "addiu $at, $a0, -1026\n"
+      "st.h $w0, 0($at)\n"
+      "st.w $w0, -2044($a0)\n"
+      "addiu $at, $a0, -2052\n"
+      "st.w $w0, 0($at)\n"
+      "st.d $w0, -4096($a0)\n"
+      "addiu $at, $a0, -4104\n"
+      "st.d $w0, 0($at)\n"
+      "addiu $at, $a0, -32768\n"
+      "st.d $w0, 0($at)\n"
+      "aui $at, $a0, 0xABCE\n"
+      "addiu $at, $at, -8192 # 0xE000\n"
+      "st.d $w0, 0xF00($at)\n"
+      "aui $at, $a0, 0x8000\n"
+      "addiu $at, $at, -21504 # 0xAC00\n"
+      "st.b $w0, -51($at) # 0xFFCD\n";
+  DriverStr(expected, "StoreQToOffset");
 }
 
 TEST_F(AssemblerMIPS32r6Test, LoadFarthestNearLabelAddress) {
