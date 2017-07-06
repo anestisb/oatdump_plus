@@ -54,6 +54,15 @@ class DexFileTrackingRegistrar {
   void SetAllInsnsRegistration(bool should_poison);
   // This function finds the code item of a class based on class name.
   void SetCodeItemRegistration(const char* class_name, bool should_poison);
+  // Sets the size and offset information along with first instruction in insns_
+  // section of all code items.
+  void SetAllCodeItemStartRegistration(bool should_poison);
+
+  // Set of functions concerning String Data Items of dex_file_
+  void SetAllStringDataRegistration(bool should_poison);
+  // Sets the first byte of size value and data section of all string data
+  // items.
+  void SetAllStringDataStartRegistration(bool should_poison);
 
   // Contains tuples of all ranges of memory that need to be explicitly
   // (un)poisoned by the memory tool.

@@ -58,6 +58,15 @@ enum DexTrackingType {
   // Additionally unpoisons the entire Code Item when method is a class
   // initializer.
   kCodeItemNonInsnsNoClinitTracking,
+  // Poisons the size and offset information along with the first instruction.
+  // This is so that accessing multiple instructions while accessing a code item
+  // once will not trigger unnecessary accesses.
+  kCodeItemStartTracking,
+  // Poisons all String Data Items of a Dex Files when set.
+  kStringDataItemTracking,
+  // Poisons the first byte of the utf16_size value and the first byte of the
+  // data section for all String Data Items of a Dex File.
+  kStringDataItemStartTracking,
   // Poisons based on a custom tracking system which can be specified in
   // SetDexSections
   kCustomTracking,
@@ -89,9 +98,20 @@ void DexFileTrackingRegistrar::SetDexSections() {
         SetAllInsnsRegistration(false);
         SetCodeItemRegistration("<clinit>", false);
         break;
+      case kCodeItemStartTracking:
+        SetAllCodeItemStartRegistration(true);
+        break;
+      case kStringDataItemTracking:
+        SetAllStringDataRegistration(true);
+        break;
+      case kStringDataItemStartTracking:
+        SetAllStringDataStartRegistration(true);
+        break;
       case kCustomTracking:
         // TODO: Add/remove additional calls here to (un)poison sections of
         // dex_file_
+        break;
+      default:
         break;
     }
   }
@@ -151,6 +171,28 @@ void DexFileTrackingRegistrar::SetAllCodeItemRegistration(bool should_poison) {
   }
 }
 
+void DexFileTrackingRegistrar::SetAllCodeItemStartRegistration(bool should_poison) {
+  for (size_t classdef_ctr = 0; classdef_ctr < dex_file_->NumClassDefs(); ++classdef_ctr) {
+    const DexFile::ClassDef& cd = dex_file_->GetClassDef(classdef_ctr);
+    const uint8_t* class_data = dex_file_->GetClassData(cd);
+    if (class_data != nullptr) {
+      ClassDataItemIterator cdit(*dex_file_, class_data);
+      cdit.SkipAllFields();
+      while (cdit.HasNextDirectMethod()) {
+        const DexFile::CodeItem* code_item = cdit.GetMethodCodeItem();
+        if (code_item != nullptr) {
+          const void* code_item_begin = reinterpret_cast<const void*>(code_item);
+          size_t code_item_start = reinterpret_cast<size_t>(code_item);
+          size_t code_item_start_end = reinterpret_cast<size_t>(&code_item->insns_[1]);
+          size_t code_item_start_size = code_item_start_end - code_item_start;
+          range_values_.push_back(std::make_tuple(code_item_begin, code_item_start_size, should_poison));
+        }
+        cdit.Next();
+      }
+    }
+  }
+}
+
 void DexFileTrackingRegistrar::SetAllInsnsRegistration(bool should_poison) {
   for (size_t classdef_ctr = 0; classdef_ctr < dex_file_->NumClassDefs(); ++classdef_ctr) {
     const DexFile::ClassDef& cd = dex_file_->GetClassDef(classdef_ctr);
@@ -186,11 +228,35 @@ void DexFileTrackingRegistrar::SetCodeItemRegistration(const char* class_name, b
         if (code_item != nullptr && strcmp(methodid_name, class_name) == 0) {
           const void* code_item_begin = reinterpret_cast<const void*>(code_item);
           size_t code_item_size = DexFile::GetCodeItemSize(*code_item);
-          range_values_.push_back(
-              std::make_tuple(code_item_begin, code_item_size, should_poison));
+          range_values_.push_back(std::make_tuple(code_item_begin, code_item_size, should_poison));
         }
         cdit.Next();
       }
+    }
+  }
+}
+
+void DexFileTrackingRegistrar::SetAllStringDataStartRegistration(bool should_poison) {
+  for (size_t stringid_ctr = 0; stringid_ctr < dex_file_->NumStringIds(); ++stringid_ctr) {
+    const DexFile::StringId & string_id = dex_file_->GetStringId(StringIndex(stringid_ctr));
+    const void* string_data_begin = reinterpret_cast<const void*>(dex_file_->Begin() + string_id.string_data_off_);
+    // Data Section of String Data Item
+    const void* string_data_data_begin = reinterpret_cast<const void*>(dex_file_->GetStringData(string_id));
+    range_values_.push_back(std::make_tuple(string_data_begin, 1, should_poison));
+    range_values_.push_back(std::make_tuple(string_data_data_begin, 1, should_poison));
+  }
+}
+
+void DexFileTrackingRegistrar::SetAllStringDataRegistration(bool should_poison) {
+  size_t map_offset = dex_file_->GetHeader().map_off_;
+  auto map_list = reinterpret_cast<const DexFile::MapList*>(dex_file_->Begin() + map_offset);
+  for (size_t map_ctr = 0; map_ctr < map_list->size_; ++map_ctr) {
+    const DexFile::MapItem& map_item = map_list->list_[map_ctr];
+    if (map_item.type_ == DexFile::kDexTypeStringDataItem) {
+      const DexFile::MapItem& next_map_item = map_list->list_[map_ctr + 1];
+      const void* string_data_begin = reinterpret_cast<const void*>(dex_file_->Begin() + map_item.offset_);
+      size_t string_data_size = next_map_item.offset_ - map_item.offset_;
+      range_values_.push_back(std::make_tuple(string_data_begin, string_data_size, should_poison));
     }
   }
 }
