@@ -58,7 +58,8 @@ class Options {
   bool show_section_headers_ = false;
   bool show_section_statistics_ = false;
   bool verbose_ = false;
-  bool verify_output_ = false;
+  // TODO: Set verify_output_ back to false by default. Was set to true for debugging b/62840842.
+  bool verify_output_ = true;
   bool visualize_pattern_ = false;
   OutputFormat output_format_ = kOutputPlain;
   const char* output_dex_directory_ = nullptr;
