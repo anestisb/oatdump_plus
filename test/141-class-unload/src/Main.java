@@ -65,7 +65,8 @@ public class Main {
         String line;
         int count = 0;
         while ((line = reader.readLine()) != null) {
-            if (line.contains("@141-class-unload-ex.jar")) {
+            if (line.contains("141-class-unload-ex.odex") ||
+                line.contains("141-class-unload-ex.vdex")) {
                 System.out.println(line);
                 ++count;
             }
