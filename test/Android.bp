@@ -445,6 +445,7 @@ art_cc_test_library {
         "art_debug_defaults",
         "art_defaults",
     ],
+    header_libs: ["libnativebridge-dummy-headers"],
     srcs: ["115-native-bridge/nativebridge.cc"],
     target: {
         android: {
