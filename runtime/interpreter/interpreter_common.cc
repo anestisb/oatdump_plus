@@ -951,13 +951,20 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   // Test whether to use the interpreter or compiler entrypoint, and save that result to pass to
   // PerformCall. A deoptimization could occur at any time, and we shouldn't change which
   // entrypoint to use once we start building the shadow frame.
-  bool use_interpreter_entrypoint = ClassLinker::ShouldUseInterpreterEntrypoint(
-      called_method, called_method->GetEntryPointFromQuickCompiledCode());
+
+  // For unstarted runtimes, always use the interpreter entrypoint. This fixes the case where we are
+  // doing cross compilation. Note that GetEntryPointFromQuickCompiledCode doesn't use the image
+  // pointer size here and this may case an overflow if it is called from the compiler. b/62402160
+  const bool use_interpreter_entrypoint = !Runtime::Current()->IsStarted() ||
+      ClassLinker::ShouldUseInterpreterEntrypoint(
+          called_method,
+          called_method->GetEntryPointFromQuickCompiledCode());
   if (LIKELY(code_item != nullptr)) {
     // When transitioning to compiled code, space only needs to be reserved for the input registers.
     // The rest of the frame gets discarded. This also prevents accessing the called method's code
     // item, saving memory by keeping code items of compiled code untouched.
-    if (Runtime::Current()->IsStarted() && !use_interpreter_entrypoint) {
+    if (!use_interpreter_entrypoint) {
+      DCHECK(!Runtime::Current()->IsAotCompiler()) << "Compiler should use interpreter entrypoint";
       num_regs = number_of_inputs;
     } else {
       num_regs = code_item->registers_size_;
