@@ -286,6 +286,7 @@ art_cc_defaults {
         "992-source-data/source_file.cc",
         "993-breakpoints/breakpoints.cc",
         "996-breakpoint-obsolete/obsolete_breakpoints.cc",
+        "1901-get-bytecodes/bytecodes.cc",
     ],
     shared_libs: [
         "libbase",

@@ -913,12 +913,12 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetBytecodes(jvmtiEnv* env,
-                                 jmethodID method ATTRIBUTE_UNUSED,
-                                 jint* bytecode_count_ptr ATTRIBUTE_UNUSED,
-                                 unsigned char** bytecodes_ptr ATTRIBUTE_UNUSED) {
+                                 jmethodID method,
+                                 jint* bytecode_count_ptr,
+                                 unsigned char** bytecodes_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_get_bytecodes);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetBytecodes(env, method, bytecode_count_ptr, bytecodes_ptr);
   }
 
   static jvmtiError IsMethodNative(jvmtiEnv* env, jmethodID method, jboolean* is_native_ptr) {
