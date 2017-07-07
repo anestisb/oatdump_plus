@@ -30,6 +30,9 @@ class RootVisitor;
 
 namespace mirror {
 
+class MethodHandle;
+class MethodType;
+
 // C++ mirror of java.lang.invoke.MethodHandles.Lookup
 class MANAGED MethodHandlesLookup : public Object {
  public:
@@ -44,6 +47,16 @@ class MANAGED MethodHandlesLookup : public Object {
   static void SetClass(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
   static void ResetClass() REQUIRES_SHARED(Locks::mutator_lock_);
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Returns the result of java.lang.invoke.MethodHandles.lookup().
+  static mirror::MethodHandlesLookup* GetDefault(Thread* const self)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Find constructor using java.lang.invoke.MethodHandles$Lookup.findConstructor().
+  mirror::MethodHandle* FindConstructor(Thread* const self,
+                                        Handle<Class> klass,
+                                        Handle<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   static MemberOffset AllowedModesOffset() {

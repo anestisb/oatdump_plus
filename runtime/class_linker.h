@@ -944,6 +944,17 @@ class ClassLinker {
                    ArtMethod** out_imt)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  mirror::MethodHandle* ResolveMethodHandleForField(Thread* self,
+                                                    const DexFile::MethodHandleItem& method_handle,
+                                                    ArtMethod* referrer)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  mirror::MethodHandle* ResolveMethodHandleForMethod(Thread* self,
+                                                     const DexFile* const dex_file,
+                                                     const DexFile::MethodHandleItem& method_handle,
+                                                     ArtMethod* referrer)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // A wrapper class representing the result of a method translation used for linking methods and
   // updating superclass default methods. For each method in a classes vtable there are 4 states it
   // could be in:
