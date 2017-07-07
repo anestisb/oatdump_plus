@@ -1536,11 +1536,21 @@ void DexLayout::LayoutStringData(const DexFile* dex_file) {
   std::vector<bool> from_hot_method(num_strings, false);
   for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_->GetCollections().ClassDefs()) {
     // A name of a profile class is probably going to get looked up by ClassTable::Lookup, mark it
-    // as hot.
+    // as hot. Add its super class and interfaces as well, which can be used during initialization.
     const bool is_profile_class =
         info_->ContainsClass(*dex_file, dex::TypeIndex(class_def->ClassType()->GetIndex()));
     if (is_profile_class) {
       from_hot_method[class_def->ClassType()->GetStringId()->GetIndex()] = true;
+      const dex_ir::TypeId* superclass = class_def->Superclass();
+      if (superclass != nullptr) {
+        from_hot_method[superclass->GetStringId()->GetIndex()] = true;
+      }
+      const dex_ir::TypeList* interfaces = class_def->Interfaces();
+      if (interfaces != nullptr) {
+        for (const dex_ir::TypeId* interface_type : *interfaces->GetTypeList()) {
+          from_hot_method[interface_type->GetStringId()->GetIndex()] = true;
+        }
+      }
     }
     dex_ir::ClassData* data = class_def->GetClassData();
     if (data == nullptr) {
@@ -1566,17 +1576,24 @@ void DexLayout::LayoutStringData(const DexFile* dex_file) {
         if (fixups == nullptr) {
           continue;
         }
-        if (fixups->StringIds() != nullptr) {
-          // Add const-strings.
-          for (dex_ir::StringId* id : *fixups->StringIds()) {
-            from_hot_method[id->GetIndex()] = true;
-          }
+        // Add const-strings.
+        for (dex_ir::StringId* id : *fixups->StringIds()) {
+          from_hot_method[id->GetIndex()] = true;
         }
-        // TODO: Only visit field ids from static getters and setters.
+        // Add field classes, names, and types.
         for (dex_ir::FieldId* id : *fixups->FieldIds()) {
-          // Add the field names and types from getters and setters.
+          // TODO: Only visit field ids from static getters and setters.
+          from_hot_method[id->Class()->GetStringId()->GetIndex()] = true;
           from_hot_method[id->Name()->GetIndex()] = true;
           from_hot_method[id->Type()->GetStringId()->GetIndex()] = true;
+        }
+        // For clinits, add referenced method classes, names, and protos.
+        if (is_clinit) {
+          for (dex_ir::MethodId* id : *fixups->MethodIds()) {
+            from_hot_method[id->Class()->GetStringId()->GetIndex()] = true;
+            from_hot_method[id->Name()->GetIndex()] = true;
+            is_shorty[id->Proto()->Shorty()->GetIndex()] = true;
+          }
         }
       }
     }
