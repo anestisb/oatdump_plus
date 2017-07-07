@@ -356,6 +356,7 @@ art_cc_test {
         "optimizing/live_interval_test.cc",
         "optimizing/loop_optimization_test.cc",
         "optimizing/nodes_test.cc",
+        "optimizing/nodes_vector_test.cc",
         "optimizing/parallel_move_test.cc",
         "optimizing/pretty_printer_test.cc",
         "optimizing/reference_type_propagation_test.cc",
