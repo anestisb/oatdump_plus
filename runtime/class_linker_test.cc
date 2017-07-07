@@ -1603,7 +1603,7 @@ TEST_F(ClassLinkerClassLoaderTest, CreateClassLoaderChain) {
   //    ClassLoaderC (PathClassLoader, defines: C, AC, BC, CD)
   //       ^
   //       |
-  //    ClassLoaderD (DelegateLastClassLoader, defines: D, AD, BD, CD, Ljava/lang/String;)
+  //    ClassLoaderD (DelegateLastClassLoader, defines: D, AD, BD, CD)
 
   jobject class_loader_a = LoadDexInPathClassLoader("ForClassLoaderA", nullptr);
   jobject class_loader_b = LoadDexInDelegateLastClassLoader("ForClassLoaderB", class_loader_a);
@@ -1634,11 +1634,6 @@ TEST_F(ClassLinkerClassLoaderTest, CreateClassLoaderChain) {
   // Classes not defined in the DelegateLastClassLoaders (i.e. D or B) should be found
   // in the top parent.
   VerifyClassResolution("LDefinedInAC;", class_loader_d, class_loader_a);
-
-  // Boot classes should be found in the boot class loader even if they are redefined locally.
-  VerifyClassResolution("Ljava/lang/String;", class_loader_d, nullptr);
-  // Sanity check that what seems like a boot class is actually loaded from D.
-  VerifyClassResolution("Ljava/lang/JavaLangFromD;", class_loader_d, class_loader_d);
 
   // Sanity check that we don't find an undefined class.
   VerifyClassResolution("LNotDefined;", class_loader_d, nullptr, /*should_find*/ false);
