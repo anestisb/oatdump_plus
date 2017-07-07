@@ -4440,6 +4440,106 @@ void MipsAssembler::AdjustBaseAndOffset(Register& base,
   CHECK_EQ(misalignment, offset & (kMipsDoublewordSize - 1));
 }
 
+void MipsAssembler::AdjustBaseOffsetAndElementSizeShift(Register& base,
+                                                        int32_t& offset,
+                                                        int& element_size_shift) {
+  // This method is used to adjust the base register, offset and element_size_shift
+  // for a vector load/store when the offset doesn't fit into allowed number of bits.
+  // MSA ld.df and st.df instructions take signed offsets as arguments, but maximum
+  // offset is dependant on the size of the data format df (10-bit offsets for ld.b,
+  // 11-bit for ld.h, 12-bit for ld.w and 13-bit for ld.d).
+  // If element_size_shift is non-negative at entry, it won't be changed, but offset
+  // will be checked for appropriate alignment. If negative at entry, it will be
+  // adjusted based on offset for maximum fit.
+  // It's assumed that `base` is a multiple of 8.
+  CHECK_NE(base, AT);  // Must not overwrite the register `base` while loading `offset`.
+
+  if (element_size_shift >= 0) {
+    CHECK_LE(element_size_shift, TIMES_8);
+    CHECK_GE(JAVASTYLE_CTZ(offset), element_size_shift);
+  } else if (IsAligned<kMipsDoublewordSize>(offset)) {
+    element_size_shift = TIMES_8;
+  } else if (IsAligned<kMipsWordSize>(offset)) {
+    element_size_shift = TIMES_4;
+  } else if (IsAligned<kMipsHalfwordSize>(offset)) {
+    element_size_shift = TIMES_2;
+  } else {
+    element_size_shift = TIMES_1;
+  }
+
+  const int low_len = 10 + element_size_shift;  // How many low bits of `offset` ld.df/st.df
+                                                // will take.
+  int16_t low = offset & ((1 << low_len) - 1);  // Isolate these bits.
+  low -= (low & (1 << (low_len - 1))) << 1;     // Sign-extend these bits.
+  if (low == offset) {
+    return;  // `offset` fits into ld.df/st.df.
+  }
+
+  // First, see if `offset` can be represented as a sum of two or three signed offsets.
+  // This can save an instruction or two.
+
+  // Max int16_t that's a multiple of element size.
+  const int32_t kMaxDeltaForSimpleAdjustment = 0x8000 - (1 << element_size_shift);
+  // Max ld.df/st.df offset that's a multiple of element size.
+  const int32_t kMaxLoadStoreOffset = 0x1ff << element_size_shift;
+  const int32_t kMaxOffsetForSimpleAdjustment = kMaxDeltaForSimpleAdjustment + kMaxLoadStoreOffset;
+  const int32_t kMinOffsetForMediumAdjustment = 2 * kMaxDeltaForSimpleAdjustment;
+  const int32_t kMaxOffsetForMediumAdjustment = kMinOffsetForMediumAdjustment + kMaxLoadStoreOffset;
+
+  if (IsInt<16>(offset)) {
+    Addiu(AT, base, offset);
+    offset = 0;
+  } else if (0 <= offset && offset <= kMaxOffsetForSimpleAdjustment) {
+    Addiu(AT, base, kMaxDeltaForSimpleAdjustment);
+    offset -= kMaxDeltaForSimpleAdjustment;
+  } else if (-kMaxOffsetForSimpleAdjustment <= offset && offset < 0) {
+    Addiu(AT, base, -kMaxDeltaForSimpleAdjustment);
+    offset += kMaxDeltaForSimpleAdjustment;
+  } else if (!IsR6() && 0 <= offset && offset <= kMaxOffsetForMediumAdjustment) {
+    Addiu(AT, base, kMaxDeltaForSimpleAdjustment);
+    if (offset <= kMinOffsetForMediumAdjustment) {
+      Addiu(AT, AT, offset - kMaxDeltaForSimpleAdjustment);
+      offset = 0;
+    } else {
+      Addiu(AT, AT, kMaxDeltaForSimpleAdjustment);
+      offset -= kMinOffsetForMediumAdjustment;
+    }
+  } else if (!IsR6() && -kMaxOffsetForMediumAdjustment <= offset && offset < 0) {
+    Addiu(AT, base, -kMaxDeltaForSimpleAdjustment);
+    if (-kMinOffsetForMediumAdjustment <= offset) {
+      Addiu(AT, AT, offset + kMaxDeltaForSimpleAdjustment);
+      offset = 0;
+    } else {
+      Addiu(AT, AT, -kMaxDeltaForSimpleAdjustment);
+      offset += kMinOffsetForMediumAdjustment;
+    }
+  } else {
+    // 16-bit or smaller parts of `offset`:
+    // |31  hi  16|15  mid  13-10|12-9  low  0|
+    //
+    // Instructions that supply each part as a signed integer addend:
+    // |aui       |addiu         |ld.df/st.df |
+    uint32_t tmp = static_cast<uint32_t>(offset) - low;  // Exclude `low` from the rest of `offset`
+                                                         // (accounts for sign of `low`).
+    tmp += (tmp & (UINT32_C(1) << 15)) << 1;  // Account for sign extension in addiu.
+    int16_t mid = Low16Bits(tmp);
+    int16_t hi = High16Bits(tmp);
+    if (IsR6()) {
+      Aui(AT, base, hi);
+    } else {
+      Lui(AT, hi);
+      Addu(AT, AT, base);
+    }
+    if (mid != 0) {
+      Addiu(AT, AT, mid);
+    }
+    offset = low;
+  }
+  base = AT;
+  CHECK_GE(JAVASTYLE_CTZ(offset), element_size_shift);
+  CHECK(IsInt<10>(offset >> element_size_shift));
+}
+
 void MipsAssembler::LoadFromOffset(LoadOperandType type,
                                    Register reg,
                                    Register base,
@@ -4453,6 +4553,10 @@ void MipsAssembler::LoadSFromOffset(FRegister reg, Register base, int32_t offset
 
 void MipsAssembler::LoadDFromOffset(FRegister reg, Register base, int32_t offset) {
   LoadDFromOffset<>(reg, base, offset);
+}
+
+void MipsAssembler::LoadQFromOffset(FRegister reg, Register base, int32_t offset) {
+  LoadQFromOffset<>(reg, base, offset);
 }
 
 void MipsAssembler::EmitLoad(ManagedRegister m_dst, Register src_register, int32_t src_offset,
@@ -4492,6 +4596,10 @@ void MipsAssembler::StoreSToOffset(FRegister reg, Register base, int32_t offset)
 
 void MipsAssembler::StoreDToOffset(FRegister reg, Register base, int32_t offset) {
   StoreDToOffset<>(reg, base, offset);
+}
+
+void MipsAssembler::StoreQToOffset(FRegister reg, Register base, int32_t offset) {
+  StoreQToOffset<>(reg, base, offset);
 }
 
 static dwarf::Reg DWARFReg(Register reg) {

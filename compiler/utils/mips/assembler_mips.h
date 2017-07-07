@@ -47,14 +47,16 @@ enum LoadOperandType {
   kLoadSignedHalfword,
   kLoadUnsignedHalfword,
   kLoadWord,
-  kLoadDoubleword
+  kLoadDoubleword,
+  kLoadQuadword
 };
 
 enum StoreOperandType {
   kStoreByte,
   kStoreHalfword,
   kStoreWord,
-  kStoreDoubleword
+  kStoreDoubleword,
+  kStoreQuadword
 };
 
 // Used to test the values returned by ClassS/ClassD.
@@ -646,6 +648,9 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
                            int32_t& offset,
                            bool is_doubleword,
                            bool is_float = false);
+  void AdjustBaseOffsetAndElementSizeShift(Register& base,
+                                           int32_t& offset,
+                                           int& element_size_shift);
 
  private:
   // This will be used as an argument for loads/stores
@@ -793,6 +798,24 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   }
 
   template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void LoadQFromOffset(FRegister reg,
+                       Register base,
+                       int32_t offset,
+                       ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    int element_size_shift = -1;
+    AdjustBaseOffsetAndElementSizeShift(base, offset, element_size_shift);
+    switch (element_size_shift) {
+      case TIMES_1: LdB(static_cast<VectorRegister>(reg), base, offset); break;
+      case TIMES_2: LdH(static_cast<VectorRegister>(reg), base, offset); break;
+      case TIMES_4: LdW(static_cast<VectorRegister>(reg), base, offset); break;
+      case TIMES_8: LdD(static_cast<VectorRegister>(reg), base, offset); break;
+      default:
+        LOG(FATAL) << "UNREACHABLE";
+    }
+    null_checker();
+  }
+
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
   void StoreToOffset(StoreOperandType type,
                      Register reg,
                      Register base,
@@ -861,12 +884,32 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
     }
   }
 
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void StoreQToOffset(FRegister reg,
+                      Register base,
+                      int32_t offset,
+                      ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    int element_size_shift = -1;
+    AdjustBaseOffsetAndElementSizeShift(base, offset, element_size_shift);
+    switch (element_size_shift) {
+      case TIMES_1: StB(static_cast<VectorRegister>(reg), base, offset); break;
+      case TIMES_2: StH(static_cast<VectorRegister>(reg), base, offset); break;
+      case TIMES_4: StW(static_cast<VectorRegister>(reg), base, offset); break;
+      case TIMES_8: StD(static_cast<VectorRegister>(reg), base, offset); break;
+      default:
+        LOG(FATAL) << "UNREACHABLE";
+    }
+    null_checker();
+  }
+
   void LoadFromOffset(LoadOperandType type, Register reg, Register base, int32_t offset);
   void LoadSFromOffset(FRegister reg, Register base, int32_t offset);
   void LoadDFromOffset(FRegister reg, Register base, int32_t offset);
+  void LoadQFromOffset(FRegister reg, Register base, int32_t offset);
   void StoreToOffset(StoreOperandType type, Register reg, Register base, int32_t offset);
   void StoreSToOffset(FRegister reg, Register base, int32_t offset);
   void StoreDToOffset(FRegister reg, Register base, int32_t offset);
+  void StoreQToOffset(FRegister reg, Register base, int32_t offset);
 
   // Emit data (e.g. encoded instruction or immediate) to the instruction stream.
   void Emit(uint32_t value);
