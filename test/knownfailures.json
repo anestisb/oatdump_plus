@@ -594,11 +594,12 @@
     },
     {
         "tests": [
-            "567-checker-compare"
+            "567-checker-compare",
+            "988-method-trace"
         ],
-        "description": "Checker tests failing when run with --build-with-javac-dx.",
+        "description": "Checker tests fail because desugar lowers Long.compare to lcmp",
         "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
-        "bug": "b/62950048"
+        "bug": "b/63078894"
     },
     {
         "tests": [

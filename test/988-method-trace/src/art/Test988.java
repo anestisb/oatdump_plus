@@ -57,7 +57,7 @@ public class Test988 {
         }
         @Override
         public void Print() {
-            System.out.println(whitespace(cnt) + "=> " + m);
+            System.out.println(whitespace(cnt) + "=> " + methodToString(m));
         }
     }
 
@@ -124,6 +124,13 @@ public class Test988 {
       }
     }
 
+    static String methodToString(Object m) {
+      // Make the output more similar between ART and RI,
+      // by removing the 'native' specifier from methods.
+      String methodStr = m.toString();
+      return methodStr.replaceFirst(" native", "");
+    }
+
     static final class MethodReturn implements Printable {
         private Object m;
         private Object val;
@@ -154,7 +161,7 @@ public class Test988 {
               klass_print = klass.toString();
             }
             System.out.println(
-                whitespace(cnt) + "<= " + m + " -> <" + klass_print + ": " + print + ">");
+                whitespace(cnt) + "<= " + methodToString(m) + " -> <" + klass_print + ": " + print + ">");
         }
     }
 
@@ -167,7 +174,7 @@ public class Test988 {
         }
         @Override
         public void Print() {
-            System.out.println(whitespace(cnt) + "<= " + m + " EXCEPTION");
+            System.out.println(whitespace(cnt) + "<= " + methodToString(m) + " EXCEPTION");
         }
     }
 
@@ -255,15 +262,26 @@ public class Test988 {
         }
     }
 
+    static final int METHOD_TRACING_IGNORE_DEPTH = 2;
+    static boolean sMethodTracingIgnore = false;
+
     public static void notifyMethodEntry(Object m) {
         // Called by native code when a method is entered. This method is ignored by the native
         // entry and exit hooks.
-        results.add(new MethodEntry(m, cnt));
         cnt++;
+        if ((cnt - 1) > METHOD_TRACING_IGNORE_DEPTH && sMethodTracingIgnore) {
+          return;
+        }
+        results.add(new MethodEntry(m, cnt - 1));
     }
 
     public static void notifyMethodExit(Object m, boolean exception, Object result) {
         cnt--;
+
+        if (cnt > METHOD_TRACING_IGNORE_DEPTH && sMethodTracingIgnore) {
+          return;
+        }
+
         if (exception) {
             results.add(new MethodThrownThrough(m, cnt));
         } else {
@@ -285,6 +303,10 @@ public class Test988 {
         doFibTest(5, new RecurOp());
         doFibTest(-19, new IterOp());
         doFibTest(-19, new RecurOp());
+
+        sMethodTracingIgnore = true;
+        IntrinsicsTest.doTest();
+        sMethodTracingIgnore = false;
         // Turn off method tracing so we don't have to deal with print internals.
         Trace.disableTracing(Thread.currentThread());
         printResults();
@@ -303,6 +325,7 @@ public class Test988 {
       RecurOp.class.toString();
       IterOp.class.toString();
       StringBuilder.class.toString();
+      IntrinsicsTest.initialize();  // ensure <clinit> is executed prior to tracing.
     }
 
     public static void printResults() {
@@ -317,6 +340,32 @@ public class Test988 {
         results.add(new FibResult("fibonacci(%d)=%d\n", x, y));
       } catch (Throwable t) {
         results.add(new FibThrow("fibonacci(%d) -> %s\n", x, t));
+      }
+    }
+
+    static class IntrinsicsTest {
+      static int[] sSourceArray = { 0, 1, 2, 3, 4, 5 };
+      static int[] sDestArray =   { 5, 6, 7, 8, 9, 10 };
+
+      static char[] sSourceArrayChar = { '0', '1', '2', '3', '4', '5' };
+      static char[] sDestArrayChar =   { '5', '6', '7', '8', '9', 'a' };
+
+      static void initialize() {
+        Test988Intrinsics.initialize();
+
+        // Pre-load all classes used in #doTest manual intrinsics.
+        java.lang.System.class.toString();
+      }
+      static void doTest() {
+        // Ensure that the ART intrinsics in intrinsics_list.h are also being traced,
+        // since in non-tracing operation they are effectively inlined by the optimizing compiler.
+
+        // Auto-generated test file that uses null/0s as default parameters.
+        Test988Intrinsics.test();
+
+        // Manual list here for functions that require special non-null/non-zero parameters:
+        System.arraycopy(sSourceArray, 0, sDestArray, 0, 1);
+        System.arraycopy(sSourceArrayChar, 0, sDestArrayChar, 0, 1);
       }
     }
 }
