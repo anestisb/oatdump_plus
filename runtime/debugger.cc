@@ -5060,18 +5060,26 @@ jbyteArray Dbg::GetRecentAllocations() {
 
     const uint16_t capped_count = CappedAllocRecordCount(records->GetRecentAllocationSize());
     uint16_t count = capped_count;
+    size_t alloc_byte_count = 0;
     for (auto it = records->RBegin(), end = records->REnd();
          count > 0 && it != end; count--, it++) {
       const gc::AllocRecord* record = &it->second;
       std::string temp;
       const char* class_descr = record->GetClassDescriptor(&temp);
       class_names.Add(class_descr, !temp.empty());
+
+      // Size + tid + class name index + stack depth.
+      alloc_byte_count += 4u + 2u + 2u + 1u;
+
       for (size_t i = 0, depth = record->GetDepth(); i < depth; i++) {
         ArtMethod* m = record->StackElement(i).GetMethod();
         class_names.Add(m->GetDeclaringClassDescriptor(), false);
         method_names.Add(m->GetName(), false);
         filenames.Add(GetMethodSourceFile(m), false);
       }
+
+      // Depth * (class index + method name index + file name index + line number).
+      alloc_byte_count += record->GetDepth() * (2u + 2u + 2u + 2u);
     }
 
     VLOG(jdwp) << "Done collecting StringTables:" << std::endl
@@ -5110,6 +5118,10 @@ jbyteArray Dbg::GetRecentAllocations() {
 
     VLOG(jdwp) << "Dumping allocations with stacks";
 
+    // Enlarge the vector for the allocation data.
+    size_t reserve_size = bytes.size() + alloc_byte_count;
+    bytes.reserve(reserve_size);
+
     std::string temp;
     count = capped_count;
     // The last "count" number of allocation records in "records" are the most recent "count" number
@@ -5147,6 +5159,7 @@ jbyteArray Dbg::GetRecentAllocations() {
       }
     }
 
+    CHECK_EQ(bytes.size(), reserve_size);
     VLOG(jdwp) << "Dumping tables.";
 
     // (xb) class name strings
