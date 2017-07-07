@@ -31,7 +31,13 @@
 
 #include "ti_allocator.h"
 
+#if defined(__APPLE__)
+// Apple doesn't have malloc.h. Just give this function a non-functional definition.
+#define malloc_usable_size(P) 0
+#else
 #include <malloc.h>
+#endif
+
 #include <atomic>
 
 #include "art_jvmti.h"
