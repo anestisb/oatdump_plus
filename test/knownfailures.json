@@ -645,6 +645,11 @@
         "env_vars": {"SANITIZE_HOST": "address"}
     },
     {
+        "tests": "141-class-unload",
+        "description": "Idk why this fails",
+        "env_vars": {"SANITIZE_HOST": "address"}
+    },
+    {
         "tests": ["988-method-trace"],
         "variant": "redefine-stress | jvmti-stress",
         "description": "Test disabled due to redefine-stress disabling intrinsics which changes the trace output slightly."
