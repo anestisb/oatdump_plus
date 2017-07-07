@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) throws Exception {
@@ -26,6 +29,8 @@ public class Main {
         }
         testRecentAllocationTracking();
     }
+
+    private static ArrayList<Object> staticHolder = new ArrayList<>(100000);
 
     private static void testRecentAllocationTracking() throws Exception {
         System.out.println("Confirm empty");
@@ -44,17 +49,14 @@ public class Main {
         System.out.println("Confirm when we overflow, we don't roll over to zero. b/17392248");
         final int overflowAllocations = 64 * 1024;  // Won't fit in unsigned 16-bit value.
         for (int i = 0; i < overflowAllocations; i++) {
-            new Object() {
-                // Add a finalizer so that the allocation won't be eliminated.
-                public void finalize() {
-                    System.out.print("");
-                }
-            };
+            allocate(i, 0);
         }
         Allocations after = new Allocations(DdmVmInternal.getRecentAllocations());
         System.out.println("before < overflowAllocations=" + (before.numberOfEntries < overflowAllocations));
         System.out.println("after > before=" + (after.numberOfEntries > before.numberOfEntries));
         System.out.println("after.numberOfEntries=" + after.numberOfEntries);
+
+        staticHolder.clear();  // Free the allocated objects.
 
         System.out.println("Disable and confirm back to empty");
         DdmVmInternal.enableRecentAllocations(false);
@@ -72,7 +74,7 @@ public class Main {
         DdmVmInternal.enableRecentAllocations(true);
         System.out.println("status=" + DdmVmInternal.getRecentAllocationStatus());
         for (int i = 0; i < 16 * 1024; i++) {
-            new String("fnord");
+            staticHolder.add(new String("fnord"));
         }
         Allocations first = new Allocations(DdmVmInternal.getRecentAllocations());
         DdmVmInternal.enableRecentAllocations(true);
@@ -84,6 +86,50 @@ public class Main {
         DdmVmInternal.enableRecentAllocations(false);
         Allocations goodbye = new Allocations(DdmVmInternal.getRecentAllocations());
         System.out.println("goodbye=" + goodbye);
+    }
+
+    // Allocate a simple object. Use depth for a reasonably deep stack.
+    private static final int ALLOCATE1_DEPTH = 50;
+
+    private static Object createProxy() {
+        try {
+            InvocationHandler handler = new InvocationHandler() {
+                public Object invoke(Object proxy, Method method, Object[] args) {
+                    // Don't expect to be invoked.
+                    return null;
+                }
+            };
+            return Proxy.newProxyInstance(Main.class.getClassLoader(),
+                    new Class[] { Runnable.class }, handler);
+        } catch (Exception e) {
+            // We don't really expect exceptions here.
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void allocate(int i, int depth) {
+        if (depth >= ALLOCATE1_DEPTH) {
+            // Mix proxies, int arrays and Objects to test the different descriptor paths.
+            switch (i) {
+                case 0:
+                    staticHolder.add(createProxy());
+                    break;
+
+                case 1:
+                    staticHolder.add(new int[0]);
+                    break;
+
+                case 2:
+                    staticHolder.add(new Object[0]);
+                    break;
+
+                default:
+                    staticHolder.add(new Object());
+                    break;
+            }
+        } else {
+            allocate(i, depth + 1);
+        }
     }
 
     private static class Allocations {
