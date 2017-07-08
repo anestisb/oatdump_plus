@@ -937,7 +937,7 @@ class Dex2oatClassLoaderContextTest : public Dex2oatTest {
     return GetOdexDir() + "/Context.odex";
   }
 
-  const char* kEmptyClassPathKey = "";
+  const char* kEmptyClassPathKey = "PCL[]";
 };
 
 TEST_F(Dex2oatClassLoaderContextTest, InvalidContext) {
@@ -961,10 +961,10 @@ TEST_F(Dex2oatClassLoaderContextTest, ContextWithTheSourceDexFiles) {
 
 TEST_F(Dex2oatClassLoaderContextTest, ContextWithOtherDexFiles) {
   std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles("Nested");
-  std::string expected_classpath_key =
-      OatFile::EncodeDexFileDependencies(MakeNonOwningPointerVector(dex_files), "");
 
   std::string context = "PCL[" + dex_files[0]->GetLocation() + "]";
+  std::string expected_classpath_key = "PCL[" +
+      dex_files[0]->GetLocation() + "*" + std::to_string(dex_files[0]->GetLocationChecksum()) + "]";
   RunTest(context.c_str(), expected_classpath_key.c_str(), true);
 }
 
@@ -974,7 +974,7 @@ TEST_F(Dex2oatClassLoaderContextTest, ContextWithStrippedDexFiles) {
 
   std::string context = "PCL[" + stripped_classpath + "]";
   // Expect an empty context because stripped dex files cannot be open.
-  RunTest(context.c_str(), /*expected_classpath_key*/ "" , /*expected_success*/ true);
+  RunTest(context.c_str(), kEmptyClassPathKey , /*expected_success*/ true);
 }
 
 TEST_F(Dex2oatClassLoaderContextTest, ContextWithStrippedDexFilesBackedByOdex) {
@@ -993,19 +993,26 @@ TEST_F(Dex2oatClassLoaderContextTest, ContextWithStrippedDexFilesBackedByOdex) {
   Copy(GetStrippedDexSrc1(), stripped_classpath);
 
   std::string context = "PCL[" + stripped_classpath + "]";
-  std::string expected_classpath;
+  std::string expected_classpath_key;
   {
     // Open the oat file to get the expected classpath.
     OatFileAssistant oat_file_assistant(stripped_classpath.c_str(), kRuntimeISA, false);
     std::unique_ptr<OatFile> oat_file(oat_file_assistant.GetBestOatFile());
     std::vector<std::unique_ptr<const DexFile>> oat_dex_files =
         OatFileAssistant::LoadDexFiles(*oat_file, stripped_classpath.c_str());
-    expected_classpath = OatFile::EncodeDexFileDependencies(
-        MakeNonOwningPointerVector(oat_dex_files), "");
+    expected_classpath_key = "PCL[";
+    for (size_t i = 0; i < oat_dex_files.size(); i++) {
+      if (i > 0) {
+        expected_classpath_key + ":";
+      }
+      expected_classpath_key += oat_dex_files[i]->GetLocation() + "*" +
+          std::to_string(oat_dex_files[i]->GetLocationChecksum());
+    }
+    expected_classpath_key += "]";
   }
 
   RunTest(context.c_str(),
-          expected_classpath.c_str(),
+          expected_classpath_key.c_str(),
           /*expected_success*/ true,
           /*use_second_source*/ true);
 }

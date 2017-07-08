@@ -230,6 +230,42 @@ TEST_F(ClassLoaderContextTest, CreateClassLoader) {
   }
 }
 
+TEST_F(ClassLoaderContextTest, CreateClassLoaderWithEmptyContext) {
+  std::unique_ptr<ClassLoaderContext> context =
+      ClassLoaderContext::Create("");
+  ASSERT_TRUE(context->OpenDexFiles(InstructionSet::kArm, ""));
+
+  std::vector<std::unique_ptr<const DexFile>> compilation_sources = OpenTestDexFiles("MultiDex");
+
+  std::vector<const DexFile*> compilation_sources_raw =
+      MakeNonOwningPointerVector(compilation_sources);
+  jobject jclass_loader = context->CreateClassLoader(compilation_sources_raw);
+  ASSERT_TRUE(jclass_loader != nullptr);
+
+  ScopedObjectAccess soa(Thread::Current());
+
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader = hs.NewHandle(
+      soa.Decode<mirror::ClassLoader>(jclass_loader));
+
+  ASSERT_TRUE(class_loader->GetClass() ==
+      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader));
+  ASSERT_TRUE(class_loader->GetParent()->GetClass() ==
+      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+
+
+  std::vector<const DexFile*> class_loader_dex_files = GetDexFiles(jclass_loader);
+
+  // The compilation sources should be the only files present in the class loader
+  ASSERT_EQ(compilation_sources.size(), class_loader_dex_files.size());
+  for (size_t i = 0; i < compilation_sources.size(); i++) {
+    ASSERT_EQ(compilation_sources[i]->GetLocation(),
+        class_loader_dex_files[i]->GetLocation());
+    ASSERT_EQ(compilation_sources[i]->GetLocationChecksum(),
+        class_loader_dex_files[i]->GetLocationChecksum());
+  }
+}
+
 TEST_F(ClassLoaderContextTest, RemoveSourceLocations) {
   std::unique_ptr<ClassLoaderContext> context =
       ClassLoaderContext::Create("PCL[a.dex]");
@@ -256,10 +292,46 @@ TEST_F(ClassLoaderContextTest, EncodeInOatFile) {
   std::vector<std::unique_ptr<const DexFile>> dex1 = OpenTestDexFiles("Main");
   std::vector<std::unique_ptr<const DexFile>> dex2 = OpenTestDexFiles("MyClass");
   std::string encoding = context->EncodeContextForOatFile("");
-  std::string expected_encoding =
-      dex1[0]->GetLocation() + "*" + std::to_string(dex1[0]->GetLocationChecksum()) + "*" +
-      dex2[0]->GetLocation() + "*" + std::to_string(dex2[0]->GetLocationChecksum()) + "*";
+  std::string expected_encoding = "PCL[" +
+      dex1[0]->GetLocation() + "*" + std::to_string(dex1[0]->GetLocationChecksum()) + ":" +
+      dex2[0]->GetLocation() + "*" + std::to_string(dex2[0]->GetLocationChecksum()) + "]";
   ASSERT_EQ(expected_encoding, context->EncodeContextForOatFile(""));
+}
+
+TEST_F(ClassLoaderContextTest, DecodeOatFileKey) {
+  std::string oat_file_encoding = "PCL[a.dex*123:b.dex*456]";
+  std::vector<std::string> classpath;
+  std::vector<uint32_t> checksums;
+  bool is_special_shared_library;
+  bool result = ClassLoaderContext::DecodePathClassLoaderContextFromOatFileKey(
+      oat_file_encoding,
+      &classpath,
+      &checksums,
+      &is_special_shared_library);
+  ASSERT_TRUE(result);
+  ASSERT_FALSE(is_special_shared_library);
+  ASSERT_EQ(2u, classpath.size());
+  ASSERT_EQ(2u, checksums.size());
+  ASSERT_EQ("a.dex", classpath[0]);
+  ASSERT_EQ(123u, checksums[0]);
+  ASSERT_EQ("b.dex", classpath[1]);
+  ASSERT_EQ(456u, checksums[1]);
+}
+
+TEST_F(ClassLoaderContextTest, DecodeOatFileKeySpecialLibrary) {
+  std::string oat_file_encoding = "&";
+  std::vector<std::string> classpath;
+  std::vector<uint32_t> checksums;
+  bool is_special_shared_library;
+  bool result = ClassLoaderContext::DecodePathClassLoaderContextFromOatFileKey(
+      oat_file_encoding,
+      &classpath,
+      &checksums,
+      &is_special_shared_library);
+  ASSERT_TRUE(result);
+  ASSERT_TRUE(is_special_shared_library);
+  ASSERT_TRUE(classpath.empty());
+  ASSERT_TRUE(checksums.empty());
 }
 
 }  // namespace art
