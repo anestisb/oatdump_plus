@@ -4927,18 +4927,29 @@ void Dbg::DumpRecentAllocations() {
 class StringTable {
  private:
   struct Entry {
-    explicit Entry(const char* data_in) : data(data_in), index(0) {}
+    explicit Entry(const char* data_in)
+        : data(data_in), hash(ComputeModifiedUtf8Hash(data_in)), index(0) {
+    }
     Entry(const Entry& entry) = default;
     Entry(Entry&& entry) = default;
 
     // Pointer to the actual string data.
     const char* data;
+
+    // The hash of the data.
+    const uint32_t hash;
+
     // The index. This will be filled in on Finish and is not part of the ordering, so mark it
     // mutable.
     mutable uint32_t index;
 
-    bool operator<(const Entry& other) const {
-      return strcmp(data, other.data) < 0;
+    bool operator==(const Entry& other) const {
+      return strcmp(data, other.data) == 0;
+    }
+  };
+  struct EntryHash {
+    size_t operator()(const Entry& entry) const {
+      return entry.hash;
     }
   };
 
@@ -5009,7 +5020,7 @@ class StringTable {
   }
 
  private:
-  std::set<Entry> table_;
+  std::unordered_set<Entry, EntryHash> table_;
   std::vector<std::unique_ptr<char[]>> string_backup_;
 
   bool finished_;
