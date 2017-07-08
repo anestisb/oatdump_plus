@@ -277,18 +277,21 @@ mirror::Object* RegionSpace::AllocLarge(size_t num_bytes, size_t* bytes_allocate
       DCHECK(first_reg->IsFree());
       first_reg->UnfreeLarge(this, time_);
       ++num_non_free_regions_;
-      first_reg->SetTop(first_reg->Begin() + num_bytes);
+      size_t allocated = num_regs * kRegionSize;
+      // We make 'top' all usable bytes, as the caller of this
+      // allocation may use all of 'usable_size' (see mirror::Array::Alloc).
+      first_reg->SetTop(first_reg->Begin() + allocated);
       for (size_t p = left + 1; p < right; ++p) {
         DCHECK_LT(p, num_regions_);
         DCHECK(regions_[p].IsFree());
         regions_[p].UnfreeLargeTail(this, time_);
         ++num_non_free_regions_;
       }
-      *bytes_allocated = num_bytes;
+      *bytes_allocated = allocated;
       if (usable_size != nullptr) {
-        *usable_size = num_regs * kRegionSize;
+        *usable_size = allocated;
       }
-      *bytes_tl_bulk_allocated = num_bytes;
+      *bytes_tl_bulk_allocated = allocated;
       return reinterpret_cast<mirror::Object*>(first_reg->Begin());
     } else {
       // right points to the non-free region. Start with the one after it.

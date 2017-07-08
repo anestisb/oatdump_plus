@@ -2287,7 +2287,9 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref,
   // Note that from_ref is a from space ref so the SizeOf() call will access the from-space meta
   // objects, but it's ok and necessary.
   size_t obj_size = from_ref->SizeOf<kDefaultVerifyFlags>();
-  size_t region_space_alloc_size = RoundUp(obj_size, space::RegionSpace::kAlignment);
+  size_t region_space_alloc_size = (obj_size <= space::RegionSpace::kRegionSize)
+      ? RoundUp(obj_size, space::RegionSpace::kAlignment)
+      : RoundUp(obj_size, space::RegionSpace::kRegionSize);
   size_t region_space_bytes_allocated = 0U;
   size_t non_moving_space_bytes_allocated = 0U;
   size_t bytes_allocated = 0U;

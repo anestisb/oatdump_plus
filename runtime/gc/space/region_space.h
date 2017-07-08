@@ -387,7 +387,9 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       DCHECK(IsInUnevacFromSpace());
       DCHECK(!IsLargeTail());
       DCHECK_NE(live_bytes_, static_cast<size_t>(-1));
-      live_bytes_ += live_bytes;
+      // For large allocations, we always consider all bytes in the
+      // regions live.
+      live_bytes_ += IsLarge() ? Top() - begin_ : live_bytes;
       DCHECK_LE(live_bytes_, BytesAllocated());
     }
 
