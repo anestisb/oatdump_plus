@@ -648,7 +648,14 @@
     },
     {
         "tests": "141-class-unload",
-        "description": "Idk why this fails",
+        "description": "Segmentation fault",
+        "bug": "b/31098949",
+        "env_vars": {"SANITIZE_HOST": "address"}
+    },
+    {
+        "tests": "104-growth-limit",
+        "description": "Flake",
+        "bug": "b/63514331",
         "env_vars": {"SANITIZE_HOST": "address"}
     },
     {
