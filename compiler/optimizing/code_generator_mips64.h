@@ -59,6 +59,8 @@ static constexpr FpuRegister kFpuCalleeSaves[] =
 
 class CodeGeneratorMIPS64;
 
+VectorRegister VectorRegisterFrom(Location location);
+
 class InvokeDexCallingConvention : public CallingConvention<GpuRegister, FpuRegister> {
  public:
   InvokeDexCallingConvention()
