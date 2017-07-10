@@ -132,7 +132,7 @@ inline size_t DexCacheArraysLayout::FieldsSize(size_t num_elements) const {
   if (num_elements < cache_size) {
     cache_size = num_elements;
   }
-  return 2u * static_cast<size_t>(pointer_size_) * num_elements;
+  return 2u * static_cast<size_t>(pointer_size_) * cache_size;
 }
 
 inline size_t DexCacheArraysLayout::FieldsAlignment() const {

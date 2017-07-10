@@ -26,7 +26,7 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-const uint8_t ImageHeader::kImageVersion[] = { '0', '4', '4', '\0' };  // Thread.interrupted
+const uint8_t ImageHeader::kImageVersion[] = { '0', '4', '5', '\0' };  // Fix DexCache fields.
 
 ImageHeader::ImageHeader(uint32_t image_begin,
                          uint32_t image_size,
