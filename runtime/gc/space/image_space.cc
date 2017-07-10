@@ -1008,6 +1008,20 @@ class ImageSpaceLoader {
         }
       }
 
+      if (obj->IsClass()) {
+        mirror::Class* klass = obj->AsClass<kVerifyNone, kWithoutReadBarrier>();
+        // Fixup super class before visiting instance fields which require
+        // information from their super class to calculate offsets.
+        mirror::Class* super_class = klass->GetSuperClass();
+        if (super_class != nullptr) {
+          mirror::Class* new_super_class = down_cast<mirror::Class*>(ForwardObject(super_class));
+          if (new_super_class != super_class && IsInAppImage(new_super_class)) {
+            // Recursively fix all dependencies.
+            operator()(new_super_class);
+          }
+        }
+      }
+
       obj->VisitReferences</*visit native roots*/false, kVerifyNone, kWithoutReadBarrier>(
           *this,
           *this);
