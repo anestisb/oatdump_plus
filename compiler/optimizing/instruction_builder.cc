@@ -22,6 +22,7 @@
 #include "dex_instruction-inl.h"
 #include "driver/compiler_options.h"
 #include "imtable-inl.h"
+#include "quicken_info.h"
 #include "sharpening.h"
 #include "scoped_thread_state_change-inl.h"
 
@@ -312,6 +313,11 @@ bool HInstructionBuilder::Build() {
 
     DCHECK(!IsBlockPopulated(current_block_));
 
+    uint32_t quicken_index = 0;
+    if (CanDecodeQuickenedInfo()) {
+      quicken_index = block_builder_->GetQuickenIndex(block_dex_pc);
+    }
+
     for (CodeItemIterator it(code_item_, block_dex_pc); !it.Done(); it.Advance()) {
       if (current_block_ == nullptr) {
         // The previous instruction ended this block.
@@ -332,8 +338,12 @@ bool HInstructionBuilder::Build() {
         AppendInstruction(new (arena_) HNativeDebugInfo(dex_pc));
       }
 
-      if (!ProcessDexInstruction(it.CurrentInstruction(), dex_pc)) {
+      if (!ProcessDexInstruction(it.CurrentInstruction(), dex_pc, quicken_index)) {
         return false;
+      }
+
+      if (QuickenInfoTable::NeedsIndexForInstruction(&it.CurrentInstruction())) {
+        ++quicken_index;
       }
     }
 
@@ -1261,7 +1271,8 @@ static Primitive::Type GetFieldAccessType(const DexFile& dex_file, uint16_t fiel
 
 bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
                                                    uint32_t dex_pc,
-                                                   bool is_put) {
+                                                   bool is_put,
+                                                   size_t quicken_index) {
   uint32_t source_or_dest_reg = instruction.VRegA_22c();
   uint32_t obj_reg = instruction.VRegB_22c();
   uint16_t field_index;
@@ -1269,7 +1280,7 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
     if (!CanDecodeQuickenedInfo()) {
       return false;
     }
-    field_index = LookupQuickenedInfo(dex_pc);
+    field_index = LookupQuickenedInfo(quicken_index);
   } else {
     field_index = instruction.VRegC_22c();
   }
@@ -1805,40 +1816,17 @@ bool HInstructionBuilder::NeedsAccessCheck(dex::TypeIndex type_index, bool* fina
 }
 
 bool HInstructionBuilder::CanDecodeQuickenedInfo() const {
-  return interpreter_metadata_ != nullptr;
+  return !quicken_info_.IsNull();
 }
 
-uint16_t HInstructionBuilder::LookupQuickenedInfo(uint32_t dex_pc) {
-  DCHECK(interpreter_metadata_ != nullptr);
-
-  // First check if the info has already been decoded from `interpreter_metadata_`.
-  auto it = skipped_interpreter_metadata_.find(dex_pc);
-  if (it != skipped_interpreter_metadata_.end()) {
-    // Remove the entry from the map and return the parsed info.
-    uint16_t value_in_map = it->second;
-    skipped_interpreter_metadata_.erase(it);
-    return value_in_map;
-  }
-
-  // Otherwise start parsing `interpreter_metadata_` until the slot for `dex_pc`
-  // is found. Store skipped values in the `skipped_interpreter_metadata_` map.
-  while (true) {
-    uint32_t dex_pc_in_map = DecodeUnsignedLeb128(&interpreter_metadata_);
-    uint16_t value_in_map = DecodeUnsignedLeb128(&interpreter_metadata_);
-    DCHECK_LE(dex_pc_in_map, dex_pc);
-
-    if (dex_pc_in_map == dex_pc) {
-      return value_in_map;
-    } else {
-      // Overwrite and not Put, as quickened CHECK-CAST has two entries with
-      // the same dex_pc. This is OK, because the compiler does not care about those
-      // entries.
-      skipped_interpreter_metadata_.Overwrite(dex_pc_in_map, value_in_map);
-    }
-  }
+uint16_t HInstructionBuilder::LookupQuickenedInfo(uint32_t quicken_index) {
+  DCHECK(CanDecodeQuickenedInfo());
+  return quicken_info_.GetData(quicken_index);
 }
 
-bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, uint32_t dex_pc) {
+bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction,
+                                                uint32_t dex_pc,
+                                                size_t quicken_index) {
   switch (instruction.Opcode()) {
     case Instruction::CONST_4: {
       int32_t register_index = instruction.VRegA();
@@ -1995,7 +1983,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
         if (!CanDecodeQuickenedInfo()) {
           return false;
         }
-        method_idx = LookupQuickenedInfo(dex_pc);
+        method_idx = LookupQuickenedInfo(quicken_index);
       } else {
         method_idx = instruction.VRegB_35c();
       }
@@ -2020,7 +2008,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
         if (!CanDecodeQuickenedInfo()) {
           return false;
         }
-        method_idx = LookupQuickenedInfo(dex_pc);
+        method_idx = LookupQuickenedInfo(quicken_index);
       } else {
         method_idx = instruction.VRegB_3rc();
       }
@@ -2693,7 +2681,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     case Instruction::IGET_CHAR_QUICK:
     case Instruction::IGET_SHORT:
     case Instruction::IGET_SHORT_QUICK: {
-      if (!BuildInstanceFieldAccess(instruction, dex_pc, false)) {
+      if (!BuildInstanceFieldAccess(instruction, dex_pc, false, quicken_index)) {
         return false;
       }
       break;
@@ -2713,7 +2701,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     case Instruction::IPUT_CHAR_QUICK:
     case Instruction::IPUT_SHORT:
     case Instruction::IPUT_SHORT_QUICK: {
-      if (!BuildInstanceFieldAccess(instruction, dex_pc, true)) {
+      if (!BuildInstanceFieldAccess(instruction, dex_pc, true, quicken_index)) {
         return false;
       }
       break;

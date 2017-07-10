@@ -37,7 +37,8 @@ class HBasicBlockBuilder : public ValueObject {
                         nullptr,
                         arena_->Adapter(kArenaAllocGraphBuilder)),
         throwing_blocks_(kDefaultNumberOfThrowingBlocks, arena_->Adapter(kArenaAllocGraphBuilder)),
-        number_of_branches_(0u) {}
+        number_of_branches_(0u),
+        quicken_index_for_dex_pc_(std::less<uint32_t>(), arena_->Adapter()) {}
 
   // Creates basic blocks in `graph_` at branch target dex_pc positions of the
   // `code_item_`. Blocks are connected but left unpopulated with instructions.
@@ -47,6 +48,8 @@ class HBasicBlockBuilder : public ValueObject {
 
   size_t GetNumberOfBranches() const { return number_of_branches_; }
   HBasicBlock* GetBlockAt(uint32_t dex_pc) const { return branch_targets_[dex_pc]; }
+
+  size_t GetQuickenIndex(uint32_t dex_pc) const;
 
  private:
   // Creates a basic block starting at given `dex_pc`.
@@ -77,6 +80,9 @@ class HBasicBlockBuilder : public ValueObject {
   ArenaVector<HBasicBlock*> branch_targets_;
   ArenaVector<HBasicBlock*> throwing_blocks_;
   size_t number_of_branches_;
+
+  // A table to quickly find the quicken index for the first instruction of a basic block.
+  ArenaSafeMap<uint32_t, uint32_t> quicken_index_for_dex_pc_;
 
   static constexpr size_t kDefaultNumberOfThrowingBlocks = 2u;
 

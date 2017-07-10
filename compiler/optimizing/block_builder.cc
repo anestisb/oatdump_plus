@@ -17,6 +17,7 @@
 #include "block_builder.h"
 
 #include "bytecode_utils.h"
+#include "quicken_info.h"
 
 namespace art {
 
@@ -121,13 +122,18 @@ void HBasicBlockBuilder::ConnectBasicBlocks() {
   HBasicBlock* block = graph_->GetEntryBlock();
   graph_->AddBlock(block);
 
+  size_t quicken_index = 0;
   bool is_throwing_block = false;
+  // Calculate the qucikening index here instead of CreateBranchTargets since it's easier to
+  // calculate in dex_pc order.
   for (CodeItemIterator it(code_item_); !it.Done(); it.Advance()) {
     uint32_t dex_pc = it.CurrentDexPc();
 
     // Check if this dex_pc address starts a new basic block.
     HBasicBlock* next_block = GetBlockAt(dex_pc);
     if (next_block != nullptr) {
+      // We only need quicken index entries for basic block boundaries.
+      quicken_index_for_dex_pc_.Put(dex_pc, quicken_index);
       if (block != nullptr) {
         // Last instruction did not end its basic block but a new one starts here.
         // It must have been a block falling through into the next one.
@@ -136,6 +142,10 @@ void HBasicBlockBuilder::ConnectBasicBlocks() {
       block = next_block;
       is_throwing_block = false;
       graph_->AddBlock(block);
+    }
+    // Make sure to increment this before the continues.
+    if (QuickenInfoTable::NeedsIndexForInstruction(&it.CurrentInstruction())) {
+      ++quicken_index;
     }
 
     if (block == nullptr) {
@@ -369,6 +379,10 @@ bool HBasicBlockBuilder::Build() {
   InsertTryBoundaryBlocks();
 
   return true;
+}
+
+size_t HBasicBlockBuilder::GetQuickenIndex(uint32_t dex_pc) const {
+  return quicken_index_for_dex_pc_.Get(dex_pc);
 }
 
 }  // namespace art
