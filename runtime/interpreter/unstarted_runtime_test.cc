@@ -386,8 +386,9 @@ TEST_F(UnstartedRuntimeTest, StringInit) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   mirror::Class* klass = mirror::String::GetJavaLangString();
-  ArtMethod* method = klass->FindDeclaredDirectMethod("<init>", "(Ljava/lang/String;)V",
-                                                      kRuntimePointerSize);
+  ArtMethod* method =
+      klass->FindDeclaredDirectMethod("<init>", "(Ljava/lang/String;)V",
+                                      Runtime::Current()->GetClassLinker()->GetImagePointerSize());
 
   // create instruction data for invoke-direct {v0, v1} of method with fake index
   uint16_t inst_data[3] = { 0x2070, 0x0000, 0x0010 };
@@ -1335,10 +1336,16 @@ TEST_F(UnstartedRuntimeTest, ConstructorNewInstance0) {
   ArtMethod* throw_cons = throw_class->FindDeclaredDirectMethod(
       "<init>", "(Ljava/lang/String;)V", class_linker->GetImagePointerSize());
   ASSERT_TRUE(throw_cons != nullptr);
-
-  Handle<mirror::Constructor> cons = hs.NewHandle(
-      mirror::Constructor::CreateFromArtMethod<kRuntimePointerSize, false>(self, throw_cons));
-  ASSERT_TRUE(cons != nullptr);
+  Handle<mirror::Constructor> cons;
+  if (class_linker->GetImagePointerSize() == PointerSize::k64) {
+     cons = hs.NewHandle(
+        mirror::Constructor::CreateFromArtMethod<PointerSize::k64, false>(self, throw_cons));
+    ASSERT_TRUE(cons != nullptr);
+  } else {
+    cons = hs.NewHandle(
+        mirror::Constructor::CreateFromArtMethod<PointerSize::k32, false>(self, throw_cons));
+    ASSERT_TRUE(cons != nullptr);
+  }
 
   Handle<mirror::ObjectArray<mirror::Object>> args = hs.NewHandle(
       mirror::ObjectArray<mirror::Object>::Alloc(
