@@ -97,6 +97,12 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 			"-DART_STACK_OVERFLOW_GAP_x86_64=8192")
 	}
 
+	if envTrue(ctx, "ART_ENABLE_ADDRESS_SANITIZER") {
+		// Used to enable full sanitization, i.e., user poisoning, under ASAN.
+		cflags = append(cflags, "-DART_ENABLE_ADDRESS_SANITIZER=1")
+		asflags = append(asflags, "-DART_ENABLE_ADDRESS_SANITIZER=1")
+	}
+
 	return cflags, asflags
 }
 
