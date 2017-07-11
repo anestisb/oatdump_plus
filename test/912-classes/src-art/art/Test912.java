@@ -228,7 +228,8 @@ public class Test912 {
     // The JIT may deeply inline and load some classes. Preload these for test determinism.
     final String PRELOAD_FOR_JIT[] = {
         "java.nio.charset.CoderMalfunctionError",
-        "java.util.NoSuchElementException"
+        "java.util.NoSuchElementException",
+        "java.io.FileNotFoundException",  // b/63581208
     };
     for (String s : PRELOAD_FOR_JIT) {
       Class.forName(s);
