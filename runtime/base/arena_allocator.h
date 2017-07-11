@@ -336,7 +336,8 @@ class ArenaAllocator
     auto* end = reinterpret_cast<uint8_t*>(ptr) + aligned_ptr_size;
     // If we haven't allocated anything else, we can safely extend.
     if (end == ptr_) {
-      DCHECK(!IsRunningOnMemoryTool());  // Red zone prevents end == ptr_.
+      // Red zone prevents end == ptr_ (unless input = allocator state = null).
+      DCHECK(!IsRunningOnMemoryTool() || ptr_ == nullptr);
       const size_t aligned_new_size = RoundUp(new_size, kAlignment);
       const size_t size_delta = aligned_new_size - aligned_ptr_size;
       // Check remain space.
