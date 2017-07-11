@@ -223,5 +223,10 @@
   result: EXEC_FAILED,
   bug: 62408076,
   names: ["libcore.java.lang.reflect.annotations.AnnotatedElementParameterTest#testImplicitConstructorParameters_singleAnnotation"]
+},
+{
+  description: "java.io.IOException: Error writing ASN.1 encoding",
+  result: EXEC_FAILED,
+  names: ["libcore.javax.crypto.spec.AlgorithmParametersTestGCM#testEncoding"]
 }
 ]
