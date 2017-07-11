@@ -12,7 +12,7 @@ c
 String
 bsmLookupStaticWithExtraArgs [1, 123456789, 123.456, 123456.789123]
 targetMethodTest3 from InvokeCustom
-bsmCreateCallSite [MethodHandle(Super)void]
+bsmCreateCallSite [MethodHandle(InvokeCustom)void]
 targetMethodTest4 from Super
 bsmLookupStatic []
 targetMethodTest5 1000 + -923 = 77
@@ -35,4 +35,5 @@ checkStaticFieldTest9: old 0 new 1985229328 expected 1985229328 OK
 checkFieldTest9: old 0.0 new 1.99E-19 expected 1.99E-19 OK
 helperMethodTest9 in class invokecustom.InvokeCustom
 run() for Test9
+InvokeCustom.privateMethodTest9()
 targetMethodTest9()
