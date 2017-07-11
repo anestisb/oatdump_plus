@@ -241,7 +241,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
   }
   CHECK(receiver->GetClass()->ShouldHaveEmbeddedVTable());
   ArtMethod* const called_method = receiver->GetClass()->GetEmbeddedVTableEntry(
-      vtable_idx, kRuntimePointerSize);
+      vtable_idx, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
   if (UNLIKELY(called_method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
