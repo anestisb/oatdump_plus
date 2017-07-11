@@ -473,8 +473,8 @@ bool OatWriter::AddRawDexFileSource(const ArrayRef<const uint8_t>& data,
   return true;
 }
 
-dchecked_vector<const char*> OatWriter::GetSourceLocations() const {
-  dchecked_vector<const char*> locations;
+dchecked_vector<std::string> OatWriter::GetSourceLocations() const {
+  dchecked_vector<std::string> locations;
   locations.reserve(oat_dex_files_.size());
   for (const OatDexFile& oat_dex_file : oat_dex_files_) {
     locations.push_back(oat_dex_file.GetLocation());
