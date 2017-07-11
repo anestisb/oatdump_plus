@@ -393,6 +393,10 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       DCHECK_LE(live_bytes_, BytesAllocated());
     }
 
+    bool AllAllocatedBytesAreLive() const {
+      return LiveBytes() == static_cast<size_t>(Top() - Begin());
+    }
+
     size_t LiveBytes() const {
       return live_bytes_;
     }
