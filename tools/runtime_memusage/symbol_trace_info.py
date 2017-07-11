@@ -25,7 +25,7 @@ from datetime import datetime
 import argparse
 import bisect
 import os
-import sys
+import re
 
 
 def find_match(list_substrings, big_string):
@@ -36,8 +36,13 @@ def find_match(list_substrings, big_string):
     return list_substrings.index("Uncategorized")
 
 
-def absolute_to_relative(plot_list, dex_start_list, cat_list):
+def absolute_to_relative(data_lists, symbol_traces):
     """Address changed to Dex File offset and shifting time to 0 min in ms."""
+    plot_list = data_lists["plot_list"]
+    dex_start_list = data_lists["dex_start_list"]
+    cat_list = data_lists["cat_list"]
+    offsets = data_lists["offsets"]
+    time_offsets = data_lists["time_offsets"]
     time_format_str = "%H:%M:%S.%f"
     first_access_time = datetime.strptime(plot_list[0][0],
                                           time_format_str)
@@ -52,9 +57,22 @@ def absolute_to_relative(plot_list, dex_start_list, cat_list):
         dex_file_start = dex_start_list[bisect.bisect(dex_start_list,
                                                       address_access) - 1
                                         ]
-        elem.insert(1, address_access - dex_file_start)
-        # Category that a data point belongs to
-        elem.insert(2, cat_list[ind])
+        dex_offset = address_access - dex_file_start
+        # Meant to nullify data that does not meet offset criteria if specified
+        # Assumes that offsets is already sorted
+        if (dex_offset >= offsets[0] and dex_offset < offsets[1] and
+            elem[0] >= time_offsets[0] and elem[0] < time_offsets[1]):
+
+            elem.insert(1, dex_offset)
+            # Category that a data point belongs to
+            elem.insert(2, cat_list[ind])
+        else:
+            elem[0] = None
+            elem[1] = None
+            elem.append(None)
+            elem.append(None)
+            symbol_traces[ind] = None
+            cat_list[ind] = None
 
 
 def print_category_info(cat_split, outname, out_dir_name, title):
@@ -67,7 +85,7 @@ def print_category_info(cat_split, outname, out_dir_name, title):
           str(len(trace_counts_list_ordered)))
     print("\tSum of trace counts: " +
           str(sum([trace[1] for trace in trace_counts_list_ordered])))
-    print("\n\tCount: How many traces appeared with count\n\t")
+    print("\n\tCount: How many traces appeared with count\n\t", end="")
     print(Counter([trace[1] for trace in trace_counts_list_ordered]))
     with open(os.path.join(out_dir_name, outname), "w") as output_file:
         for trace in trace_counts_list_ordered:
@@ -79,6 +97,8 @@ def print_category_info(cat_split, outname, out_dir_name, title):
 
 def print_categories(categories, symbol_file_split, out_dir_name):
     """Prints details of all categories."""
+    symbol_file_split = [trace for trace in symbol_file_split
+                          if trace is not None]
     # Info of traces containing a call to current category
     for cat_num, cat_name in enumerate(categories[1:]):
         print("\nCategory #%d" % (cat_num + 1))
@@ -123,6 +143,26 @@ def parse_args(argv):
     parser.add_argument("-d", action="store",
                         default="", dest="out_dir_name", type=is_directory,
                         help="Output Directory")
+    parser.add_argument("--dex-file", action="store",
+                        default=None, dest="dex_file",
+                        type=argparse.FileType("r"),
+                        help="Baksmali Dex File Dump")
+    parser.add_argument("--offsets", action="store", nargs=2,
+                        default=[float(0), float("inf")],
+                        dest="offsets",
+                        metavar="OFFSET",
+                        type=float,
+                        help="Filters out accesses not between provided"
+                             " offsets if provided. Can provide 'inf'"
+                             " for infinity")
+    parser.add_argument("--times", action="store", nargs=2,
+                        default=[float(0), float("inf")],
+                        dest="times",
+                        metavar="TIME",
+                        type=float,
+                        help="Filters out accesses not between provided"
+                             " time offsets if provided. Can provide 'inf'"
+                             " for infinity")
     parser.add_argument("sanitizer_trace", action="store",
                         type=argparse.FileType("r"),
                         help="File containing sanitizer traces filtered by "
@@ -141,6 +181,14 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
+def get_dex_offset_data(line, dex_file_item):
+    """ Returns a tuple of dex file offset, item name, and data of a line."""
+    return (int(line[:line.find(":")], 16),
+                (dex_file_item,
+                 line.split("|")[1].strip())
+            )
+
+
 def read_data(parsed_argv):
     """Reads data from filepath arguments and parses them into lists."""
     # Using a dictionary to establish relation between lists added
@@ -148,6 +196,12 @@ def read_data(parsed_argv):
     categories = parsed_argv.categories
     # Makes sure each trace maps to some category
     categories.insert(0, "Uncategorized")
+
+    data_lists["offsets"] = parsed_argv.offsets
+    data_lists["offsets"].sort()
+
+    data_lists["times"] = parsed_argv.times
+    data_lists["times"].sort()
 
     logcat_file_data = parsed_argv.sanitizer_trace.readlines()
     parsed_argv.sanitizer_trace.close()
@@ -158,6 +212,25 @@ def read_data(parsed_argv):
 
     dex_start_file_data = parsed_argv.dex_starts.readlines()
     parsed_argv.dex_starts.close()
+
+    if parsed_argv.dex_file != None:
+        dex_file_data = parsed_argv.dex_file.read()
+        parsed_argv.dex_file.close()
+        # Splits baksmali dump by each item
+        item_split = [s.splitlines() for s in re.split(r"\|\[[0-9]+\] ",
+                                                          dex_file_data)]
+        # Splits each item by line and creates a list of offsets and a
+        # corresponding list of the data associated with that line
+        offset_list, offset_data = zip(*[get_dex_offset_data(line, item[0])
+                                      for item in item_split
+                                         for line in item[1:]
+                                            if re.search("[0-9a-f]{6}:", line)
+                                                is not None
+                                            and line.find("|") != -1])
+        data_lists["offset_list"] = offset_list
+        data_lists["offset_data"] = offset_data
+    else:
+        dex_file_data = None
 
     # Each element is a tuple of time and address accessed
     data_lists["plot_list"] = [[elem[1] for elem in enumerate(line.split())
@@ -184,23 +257,26 @@ def read_data(parsed_argv):
     return data_lists, categories, symbol_file_split
 
 
-def main(argv=None):
+def main():
     """Takes in trace information and outputs details about them."""
-    if argv is None:
-        argv = sys.argv
-    parsed_argv = parse_args(argv[1:])
 
+    parsed_argv = parse_args(None)
     data_lists, categories, symbol_file_split = read_data(parsed_argv)
+
     # Formats plot_list such that each element is a data point
-    absolute_to_relative(data_lists["plot_list"], data_lists["dex_start_list"],
-                         data_lists["cat_list"])
+    #absolute_to_relative(data_lists["plot_list"], data_lists["dex_start_list"],
+    #                        data_lists["cat_list"], data_lists["offsets"],
+    #                            data_lists["times"], symbol_file_split)
+    absolute_to_relative(data_lists, symbol_file_split)
     for file_ext, cat_name in enumerate(categories):
         out_file_name = os.path.join(parsed_argv.out_dir_name, "time_output_" +
                                      str(file_ext) +
                                      ".dat")
         with open(out_file_name, "w") as output_file:
             output_file.write("# Category: " + cat_name + "\n")
-            output_file.write("# Time, Dex File Offset, Address \n")
+            output_file.write("# Time, Dex File Offset_10, Dex File Offset_16,"
+                              " Address, Item Accessed, Item Member Accessed"
+                              " Unaligned\n")
             for time, dex_offset, category, address in data_lists["plot_list"]:
                 if category == cat_name:
                     output_file.write(
@@ -208,9 +284,23 @@ def main(argv=None):
                         " " +
                         str(dex_offset) +
                         " #" +
-                        str(address) +
-                        "\n")
-
+                        hex(dex_offset) +
+                        " " +
+                        str(address))
+                    if data_lists.has_key("offset_list"):
+                        dex_offset_index = bisect.bisect(
+                                              data_lists["offset_list"],
+                                                            dex_offset) - 1
+                        aligned_dex_offset = (data_lists["offset_list"]
+                                                        [dex_offset_index])
+                        dex_offset_data = (data_lists["offset_data"]
+                                                     [dex_offset_index])
+                        output_file.write(
+                            " " +
+                            "|".join(dex_offset_data) +
+                            " " +
+                            str(aligned_dex_offset != dex_offset))
+                    output_file.write("\n")
     print_categories(categories, symbol_file_split, parsed_argv.out_dir_name)
 
 
