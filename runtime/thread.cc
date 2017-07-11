@@ -2134,6 +2134,10 @@ void Thread::Destroy() {
     ScopedObjectAccess soa(self);
     // We may need to call user-supplied managed code, do this before final clean-up.
     HandleUncaughtExceptions(soa);
+    Runtime* runtime = Runtime::Current();
+    if (runtime != nullptr) {
+      runtime->GetRuntimeCallbacks()->ThreadDeath(self);
+    }
     RemoveFromThreadGroup(soa);
 
     // this.nativePeer = 0;
@@ -2144,11 +2148,6 @@ void Thread::Destroy() {
       jni::DecodeArtField(WellKnownClasses::java_lang_Thread_nativePeer)
           ->SetLong<false>(tlsPtr_.opeer, 0);
     }
-    Runtime* runtime = Runtime::Current();
-    if (runtime != nullptr) {
-      runtime->GetRuntimeCallbacks()->ThreadDeath(self);
-    }
-
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
     // who is waiting.
