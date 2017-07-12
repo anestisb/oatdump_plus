@@ -119,6 +119,27 @@ const std::string& Transaction::GetAbortMessage() {
   return abort_message_;
 }
 
+bool Transaction::WriteConstraint(mirror::Object* obj, ArtField* field) {
+  MutexLock mu(Thread::Current(), log_lock_);
+  if (strict_  // no constraint for boot image
+      && field->IsStatic()  // no constraint instance updating
+      && obj != root_) {  // modifying other classes' static field, fail
+    return true;
+  }
+  return false;
+}
+
+bool Transaction::ReadConstraint(mirror::Object* obj, ArtField* field) {
+  DCHECK(field->IsStatic());
+  DCHECK(obj->IsClass());
+  MutexLock mu(Thread::Current(), log_lock_);
+  if (!strict_ ||   // no constraint for boot image
+      obj == root_) {  // self-updating, pass
+    return false;
+  }
+  return true;
+}
+
 void Transaction::RecordWriteFieldBoolean(mirror::Object* obj,
                                           MemberOffset field_offset,
                                           uint8_t value,

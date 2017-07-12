@@ -33,6 +33,7 @@
 #include "reflection.h"
 #include "stack.h"
 #include "thread-inl.h"
+#include "transaction.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -42,7 +43,8 @@ void ThrowNullPointerExceptionFromInterpreter() {
   ThrowNullPointerExceptionFromDexPC();
 }
 
-template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
+template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check,
+         bool transaction_active>
 bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
                 uint16_t inst_data) {
   const bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
@@ -57,6 +59,13 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
   ObjPtr<mirror::Object> obj;
   if (is_static) {
     obj = f->GetDeclaringClass();
+    if (transaction_active) {
+      if (Runtime::Current()->GetTransaction()->ReadConstraint(obj.Ptr(), f)) {
+        Runtime::Current()->AbortTransactionAndThrowAbortError(self, "Can't read static fields of "
+            + obj->PrettyTypeOf() + " since it does not belong to clinit's class.");
+        return false;
+      }
+    }
   } else {
     obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
     if (UNLIKELY(obj == nullptr)) {
@@ -102,15 +111,17 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
 }
 
 // Explicitly instantiate all DoFieldGet functions.
-#define EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, _do_check) \
-  template bool DoFieldGet<_find_type, _field_type, _do_check>(Thread* self, \
+#define EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, _do_check, _transaction_active) \
+  template bool DoFieldGet<_find_type, _field_type, _do_check, _transaction_active>(Thread* self, \
                                                                ShadowFrame& shadow_frame, \
                                                                const Instruction* inst, \
                                                                uint16_t inst_data)
 
 #define EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(_find_type, _field_type)  \
-    EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, false);  \
-    EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, true);
+    EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, false, true);  \
+    EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, false, false);  \
+    EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, true, true);  \
+    EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, true, false);
 
 // iget-XXX
 EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimBoolean)
@@ -261,6 +272,14 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
   ObjPtr<mirror::Object> obj;
   if (is_static) {
     obj = f->GetDeclaringClass();
+    if (transaction_active) {
+      if (Runtime::Current()->GetTransaction()->WriteConstraint(obj.Ptr(), f)) {
+        Runtime::Current()->AbortTransactionAndThrowAbortError(
+            self, "Can't set fields of " + obj->PrettyTypeOf());
+        return false;
+      }
+    }
+
   } else {
     obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
     if (UNLIKELY(obj == nullptr)) {

@@ -1313,50 +1313,50 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       }
       case Instruction::SGET_BOOLEAN: {
         PREAMBLE();
-        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean, do_access_check>(
-            self, shadow_frame, inst, inst_data);
+        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean, do_access_check,
+            transaction_active>(self, shadow_frame, inst, inst_data);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
       case Instruction::SGET_BYTE: {
         PREAMBLE();
-        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimByte, do_access_check>(
-            self, shadow_frame, inst, inst_data);
+        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimByte, do_access_check,
+            transaction_active>(self, shadow_frame, inst, inst_data);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
       case Instruction::SGET_CHAR: {
         PREAMBLE();
-        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimChar, do_access_check>(
-            self, shadow_frame, inst, inst_data);
+        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimChar, do_access_check,
+            transaction_active>(self, shadow_frame, inst, inst_data);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
       case Instruction::SGET_SHORT: {
         PREAMBLE();
-        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimShort, do_access_check>(
-            self, shadow_frame, inst, inst_data);
+        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimShort, do_access_check,
+            transaction_active>(self, shadow_frame, inst, inst_data);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
       case Instruction::SGET: {
         PREAMBLE();
-        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimInt, do_access_check>(
-            self, shadow_frame, inst, inst_data);
+        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimInt, do_access_check,
+            transaction_active>(self, shadow_frame, inst, inst_data);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
       case Instruction::SGET_WIDE: {
         PREAMBLE();
-        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimLong, do_access_check>(
-            self, shadow_frame, inst, inst_data);
+        bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimLong, do_access_check,
+            transaction_active>(self, shadow_frame, inst, inst_data);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
       case Instruction::SGET_OBJECT: {
         PREAMBLE();
-        bool success = DoFieldGet<StaticObjectRead, Primitive::kPrimNot, do_access_check>(
-            self, shadow_frame, inst, inst_data);
+        bool success = DoFieldGet<StaticObjectRead, Primitive::kPrimNot, do_access_check,
+            transaction_active>(self, shadow_frame, inst, inst_data);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
