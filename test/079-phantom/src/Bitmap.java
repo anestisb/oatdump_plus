@@ -17,6 +17,7 @@
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.PhantomReference;
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
 
 public class Bitmap {
     String mName;           /* for debugging */
@@ -76,11 +77,14 @@ public class Bitmap {
         PhantomWrapper phan = new PhantomWrapper(wrapper, sPhantomQueue,
                 nativeData);
         sPhantomList.add(phan);
+        wrapper.mPhantomWrapper = phan;
         return wrapper;
     }
 
-    static void freeNativeStorage(int nativeDataPtr) {
+    static void freeNativeStorage(int nativeDataPtr, CountDownLatch freeSignal) {
         System.out.println("freeNativeStorage: " + nativeDataPtr);
+        // Wake up the main thread that is [or will be] blocked until this native data is freed.
+        freeSignal.countDown();
     }
 
     /*
@@ -92,6 +96,9 @@ public class Bitmap {
             mNativeData = nativeDataPtr;
         }
         public int mNativeData;
+
+        // The PhantomWrapper corresponding to this NativeWrapper.
+        public PhantomWrapper mPhantomWrapper;
 
         /*
         @Override
@@ -118,6 +125,8 @@ class PhantomWrapper extends PhantomReference {
     }
 
     public int mNativeData;
+    // This will be signaled once mNativeData has been freed.
+    public CountDownLatch mFreeSignal = new CountDownLatch(1);
 }
 
 /*
@@ -137,8 +146,7 @@ class BitmapWatcher extends Thread {
                 PhantomWrapper ref = (PhantomWrapper) mQueue.remove();
                 //System.out.println("dequeued ref " + ref.mNativeData +
                 //    " - " + ref);
-                Bitmap.freeNativeStorage(ref.mNativeData);
-                //ref.clear();
+                Bitmap.freeNativeStorage(ref.mNativeData, ref.mFreeSignal);
             } catch (InterruptedException ie) {
                 System.out.println("intr");
                 break;
