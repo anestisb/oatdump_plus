@@ -45,6 +45,7 @@
 #include "base/value_object.h"
 #include "cha.h"
 #include "class_linker-inl.h"
+#include "class_loader_utils.h"
 #include "class_table-inl.h"
 #include "compiler_callbacks.h"
 #include "debugger.h"
@@ -2483,27 +2484,6 @@ ClassPathEntry FindInClassPath(const char* descriptor,
     }
   }
   return ClassPathEntry(nullptr, nullptr);
-}
-
-// Returns true if the given class loader is either a PathClassLoader or a DexClassLoader.
-// (they both have the same behaviour with respect to class lockup order)
-static bool IsPathOrDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                   Handle<mirror::ClassLoader> class_loader)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  mirror::Class* class_loader_class = class_loader->GetClass();
-  return
-      (class_loader_class ==
-          soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader)) ||
-      (class_loader_class ==
-          soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DexClassLoader));
-}
-
-static bool IsDelegateLastClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                      Handle<mirror::ClassLoader> class_loader)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  mirror::Class* class_loader_class = class_loader->GetClass();
-  return class_loader_class ==
-      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DelegateLastClassLoader);
 }
 
 bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
