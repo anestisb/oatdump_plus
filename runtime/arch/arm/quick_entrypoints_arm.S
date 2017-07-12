@@ -227,6 +227,7 @@
     .cfi_restore r1
     .cfi_restore r2
     .cfi_restore r3
+    .cfi_restore r4
     .cfi_restore r5
     .cfi_restore r6
     .cfi_restore r7
@@ -251,6 +252,7 @@
     .cfi_restore r1
     .cfi_restore r2
     .cfi_restore r3
+    .cfi_restore r4
     .cfi_restore r5
     .cfi_restore r6
     .cfi_restore r7
