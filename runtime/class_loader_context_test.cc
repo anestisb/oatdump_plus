@@ -101,6 +101,14 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
     return ClassLoaderContext::CreateContextForClassLoader(class_loader, nullptr);
   }
 
+  std::unique_ptr<ClassLoaderContext> ParseContextWithChecksums(const std::string& context_spec) {
+    std::unique_ptr<ClassLoaderContext> context(new ClassLoaderContext());
+    if (!context->Parse(context_spec, /*parse_checksums*/ true)) {
+      return nullptr;
+    }
+    return context;
+  }
+
   void VerifyContextForClassLoader(ClassLoaderContext* context) {
     ASSERT_TRUE(context != nullptr);
     ASSERT_TRUE(context->dex_files_open_attempted_);
@@ -336,42 +344,6 @@ TEST_F(ClassLoaderContextTest, EncodeInOatFile) {
   ASSERT_EQ(expected_encoding, context->EncodeContextForOatFile(""));
 }
 
-TEST_F(ClassLoaderContextTest, DecodeOatFileKey) {
-  std::string oat_file_encoding = "PCL[a.dex*123:b.dex*456]";
-  std::vector<std::string> classpath;
-  std::vector<uint32_t> checksums;
-  bool is_special_shared_library;
-  bool result = ClassLoaderContext::DecodePathClassLoaderContextFromOatFileKey(
-      oat_file_encoding,
-      &classpath,
-      &checksums,
-      &is_special_shared_library);
-  ASSERT_TRUE(result);
-  ASSERT_FALSE(is_special_shared_library);
-  ASSERT_EQ(2u, classpath.size());
-  ASSERT_EQ(2u, checksums.size());
-  ASSERT_EQ("a.dex", classpath[0]);
-  ASSERT_EQ(123u, checksums[0]);
-  ASSERT_EQ("b.dex", classpath[1]);
-  ASSERT_EQ(456u, checksums[1]);
-}
-
-TEST_F(ClassLoaderContextTest, DecodeOatFileKeySpecialLibrary) {
-  std::string oat_file_encoding = "&";
-  std::vector<std::string> classpath;
-  std::vector<uint32_t> checksums;
-  bool is_special_shared_library;
-  bool result = ClassLoaderContext::DecodePathClassLoaderContextFromOatFileKey(
-      oat_file_encoding,
-      &classpath,
-      &checksums,
-      &is_special_shared_library);
-  ASSERT_TRUE(result);
-  ASSERT_TRUE(is_special_shared_library);
-  ASSERT_TRUE(classpath.empty());
-  ASSERT_TRUE(checksums.empty());
-}
-
 // TODO(calin) add a test which creates the context for a class loader together with dex_elements.
 TEST_F(ClassLoaderContextTest, CreateContextForClassLoader) {
   // The chain is
@@ -400,6 +372,49 @@ TEST_F(ClassLoaderContextTest, CreateContextForClassLoader) {
   VerifyClassLoaderPCLFromTestDex(context.get(), 1, "ForClassLoaderC");
   VerifyClassLoaderDLCFromTestDex(context.get(), 2, "ForClassLoaderB");
   VerifyClassLoaderPCLFromTestDex(context.get(), 3, "ForClassLoaderA");
+}
+
+TEST_F(ClassLoaderContextTest, VerifyClassLoaderContextMatch) {
+  std::string context_spec = "PCL[a.dex*123:b.dex*456];DLC[c.dex*890]";
+  std::unique_ptr<ClassLoaderContext> context = ParseContextWithChecksums(context_spec);
+
+  VerifyContextSize(context.get(), 2);
+  VerifyClassLoaderPCL(context.get(), 0, "a.dex:b.dex");
+  VerifyClassLoaderDLC(context.get(), 1, "c.dex");
+
+  ASSERT_TRUE(context->VerifyClassLoaderContextMatch(context_spec));
+
+  std::string wrong_class_loader_type = "PCL[a.dex*123:b.dex*456];PCL[c.dex*890]";
+  ASSERT_FALSE(context->VerifyClassLoaderContextMatch(wrong_class_loader_type));
+
+  std::string wrong_class_loader_order = "DLC[c.dex*890];PCL[a.dex*123:b.dex*456]";
+  ASSERT_FALSE(context->VerifyClassLoaderContextMatch(wrong_class_loader_order));
+
+  std::string wrong_classpath_order = "PCL[b.dex*456:a.dex*123];DLC[c.dex*890]";
+  ASSERT_FALSE(context->VerifyClassLoaderContextMatch(wrong_classpath_order));
+
+  std::string wrong_checksum = "PCL[a.dex*999:b.dex*456];DLC[c.dex*890]";
+  ASSERT_FALSE(context->VerifyClassLoaderContextMatch(wrong_checksum));
+
+  std::string wrong_extra_class_loader = "PCL[a.dex*123:b.dex*456];DLC[c.dex*890];PCL[d.dex*321]";
+  ASSERT_FALSE(context->VerifyClassLoaderContextMatch(wrong_extra_class_loader));
+
+  std::string wrong_extra_classpath = "PCL[a.dex*123:b.dex*456];DLC[c.dex*890:d.dex*321]";
+  ASSERT_FALSE(context->VerifyClassLoaderContextMatch(wrong_extra_classpath));
+
+  std::string wrong_spec = "PCL[a.dex*999:b.dex*456];DLC[";
+  ASSERT_FALSE(context->VerifyClassLoaderContextMatch(wrong_spec));
+}
+
+TEST_F(ClassLoaderContextTest, VerifyClassLoaderContextMatchAfterEncoding) {
+  jobject class_loader_a = LoadDexInPathClassLoader("ForClassLoaderA", nullptr);
+  jobject class_loader_b = LoadDexInDelegateLastClassLoader("ForClassLoaderB", class_loader_a);
+  jobject class_loader_c = LoadDexInPathClassLoader("ForClassLoaderC", class_loader_b);
+  jobject class_loader_d = LoadDexInDelegateLastClassLoader("ForClassLoaderD", class_loader_c);
+
+  std::unique_ptr<ClassLoaderContext> context = CreateContextForClassLoader(class_loader_d);
+
+  ASSERT_TRUE(context->VerifyClassLoaderContextMatch(context->EncodeContextForOatFile("")));
 }
 
 }  // namespace art

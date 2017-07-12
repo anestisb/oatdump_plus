@@ -353,38 +353,6 @@ void ClassLoaderContext::CheckDexFilesOpened(const std::string& calling_method) 
       << "attempt=" << dex_files_open_attempted_ << ", result=" << dex_files_open_result_;
 }
 
-bool ClassLoaderContext::DecodePathClassLoaderContextFromOatFileKey(
-    const std::string& context_spec,
-    std::vector<std::string>* out_classpath,
-    std::vector<uint32_t>* out_checksums,
-    bool* out_is_special_shared_library) {
-  ClassLoaderContext context;
-  if (!context.Parse(context_spec, /*parse_checksums*/ true)) {
-    LOG(ERROR) << "Invalid class loader context: " << context_spec;
-    return false;
-  }
-
-  *out_is_special_shared_library = context.special_shared_library_;
-  if (context.special_shared_library_) {
-    return true;
-  }
-
-  if (context.class_loader_chain_.empty()) {
-    return true;
-  }
-
-  // TODO(calin): assert that we only have a PathClassLoader until the logic for
-  // checking the context covers all case.
-  CHECK_EQ(1u, context.class_loader_chain_.size());
-  const ClassLoaderInfo& info = context.class_loader_chain_[0];
-  CHECK_EQ(kPathClassLoader, info.type);
-  DCHECK_EQ(info.classpath.size(), info.checksums.size());
-
-  *out_classpath = info.classpath;
-  *out_checksums = info.checksums;
-  return true;
-}
-
 // Collects the dex files from the give Java dex_file object. Only the dex files with
 // at least 1 class are collected. If a null java_dex_file is passed this method does nothing.
 static bool CollectDexFilesFromJavaDexFile(ObjPtr<mirror::Object> java_dex_file,
@@ -583,6 +551,8 @@ bool ClassLoaderContext::AddInfoToContextFromClassLoader(
 std::unique_ptr<ClassLoaderContext> ClassLoaderContext::CreateContextForClassLoader(
     jobject class_loader,
     jobjectArray dex_elements) {
+  CHECK(class_loader != nullptr);
+
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> h_class_loader =
@@ -590,14 +560,67 @@ std::unique_ptr<ClassLoaderContext> ClassLoaderContext::CreateContextForClassLoa
   Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements =
       hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Object>>(dex_elements));
 
-  CHECK(h_class_loader != nullptr);
-
   std::unique_ptr<ClassLoaderContext> result(new ClassLoaderContext(/*owns_the_dex_files*/ false));
   if (result->AddInfoToContextFromClassLoader(soa, h_class_loader, h_dex_elements)) {
     return result;
   } else {
     return nullptr;
   }
+}
+
+bool ClassLoaderContext::VerifyClassLoaderContextMatch(const std::string& context_spec) {
+  ClassLoaderContext expected_context;
+  if (!expected_context.Parse(context_spec, /*parse_checksums*/ true)) {
+    LOG(WARNING) << "Invalid class loader context: " << context_spec;
+    return false;
+  }
+
+  if (expected_context.special_shared_library_) {
+    return true;
+  }
+
+  if (expected_context.class_loader_chain_.size() != class_loader_chain_.size()) {
+    LOG(WARNING) << "ClassLoaderContext size mismatch. expected="
+        << expected_context.class_loader_chain_.size()
+        << ", actual=" << class_loader_chain_.size();
+    return false;
+  }
+
+  for (size_t i = 0; i < class_loader_chain_.size(); i++) {
+    const ClassLoaderInfo& info = class_loader_chain_[i];
+    const ClassLoaderInfo& expected_info = expected_context.class_loader_chain_[i];
+    if (info.type != expected_info.type) {
+      LOG(WARNING) << "ClassLoaderContext type mismatch for position " << i
+          << ". expected=" << GetClassLoaderTypeName(expected_info.type)
+          << ", found=" << GetClassLoaderTypeName(info.type);
+      return false;
+    }
+    if (info.classpath.size() != expected_info.classpath.size()) {
+      LOG(WARNING) << "ClassLoaderContext classpath size mismatch for position " << i
+            << ". expected=" << expected_info.classpath.size()
+            << ", found=" << info.classpath.size();
+      return false;
+    }
+
+    DCHECK_EQ(info.classpath.size(), info.checksums.size());
+    DCHECK_EQ(expected_info.classpath.size(), expected_info.checksums.size());
+
+    for (size_t k = 0; k < info.classpath.size(); k++) {
+      if (info.classpath[k] != expected_info.classpath[k]) {
+        LOG(WARNING) << "ClassLoaderContext classpath element mismatch for position " << i
+            << ". expected=" << expected_info.classpath[k]
+            << ", found=" << info.classpath[k];
+        return false;
+      }
+      if (info.checksums[k] != expected_info.checksums[k]) {
+        LOG(WARNING) << "ClassLoaderContext classpath element checksum mismatch for position " << i
+            << ". expected=" << expected_info.checksums[k]
+            << ", found=" << info.checksums[k];
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 }  // namespace art
