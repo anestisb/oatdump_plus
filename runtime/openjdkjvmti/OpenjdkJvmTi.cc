@@ -1498,10 +1498,11 @@ class JvmtiFunctions {
 
   static jvmtiError DisposeEnvironment(jvmtiEnv* env) {
     ENSURE_VALID_ENV(env);
-    gEventHandler.RemoveArtJvmTiEnv(ArtJvmTiEnv::AsArtJvmTiEnv(env));
-    art::Runtime::Current()->RemoveSystemWeakHolder(
-        ArtJvmTiEnv::AsArtJvmTiEnv(env)->object_tag_table.get());
-    delete env;
+    ArtJvmTiEnv* tienv = ArtJvmTiEnv::AsArtJvmTiEnv(env);
+    gEventHandler.RemoveArtJvmTiEnv(tienv);
+    art::Runtime::Current()->RemoveSystemWeakHolder(tienv->object_tag_table.get());
+    ThreadUtil::RemoveEnvironment(tienv);
+    delete tienv;
     return OK;
   }
 
@@ -1671,6 +1672,7 @@ static bool IsJvmtiVersion(jint version) {
 }
 
 extern const jvmtiInterface_1 gJvmtiInterface;
+
 ArtJvmTiEnv::ArtJvmTiEnv(art::JavaVMExt* runtime, EventHandler* event_handler)
     : art_vm(runtime),
       local_data(nullptr),

@@ -1182,11 +1182,11 @@ class Thread {
     return debug_disallow_read_barrier_;
   }
 
-  const void* GetCustomTLS() const {
+  void* GetCustomTLS() const REQUIRES(Locks::thread_list_lock_) {
     return custom_tls_;
   }
 
-  void SetCustomTLS(const void* data) {
+  void SetCustomTLS(void* data) REQUIRES(Locks::thread_list_lock_) {
     custom_tls_ = data;
   }
 
@@ -1683,7 +1683,7 @@ class Thread {
 
   // Custom TLS field that can be used by plugins.
   // TODO: Generalize once we have more plugins.
-  const void* custom_tls_;
+  void* custom_tls_;
 
   // True if the thread is allowed to call back into java (for e.g. during class resolution).
   // By default this is true.

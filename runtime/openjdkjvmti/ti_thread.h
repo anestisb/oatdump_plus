@@ -54,6 +54,9 @@ class ThreadUtil {
   // To be called when it is safe to cache data.
   static void CacheData();
 
+  // Handle a jvmtiEnv going away.
+  static void RemoveEnvironment(jvmtiEnv* env);
+
   static jvmtiError GetAllThreads(jvmtiEnv* env, jint* threads_count_ptr, jthread** threads_ptr);
 
   static jvmtiError GetCurrentThread(jvmtiEnv* env, jthread* thread_ptr);
