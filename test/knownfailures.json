@@ -100,6 +100,11 @@
         "bug": "http://b/35800768"
     },
     {
+        "tests": "163-app-image-methods",
+        "variant": "gcstress",
+        "description": ["This test sometimes runs out of memory initializing the boot classpath."]
+    },
+    {
         "tests": ["908-gc-start-finish",
                   "913-heaps"],
         "variant": "gcstress",
