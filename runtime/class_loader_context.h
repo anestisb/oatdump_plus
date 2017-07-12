@@ -59,6 +59,8 @@ class ClassLoaderContext {
   // The compilation sources are appended to the classpath of the top class loader
   // (i.e the class loader whose parent is the BootClassLoader).
   // Should only be called if OpenDexFiles() returned true.
+  // If the context is empty, this method only creates a single PathClassLoader with the
+  // given compilation_sources.
   jobject CreateClassLoader(const std::vector<const DexFile*>& compilation_sources) const;
 
   // Encodes the context as a string suitable to be added in oat files.
@@ -80,6 +82,17 @@ class ClassLoaderContext {
   // class loader for the source dex files.
   static std::unique_ptr<ClassLoaderContext> Create(const std::string& spec);
 
+  // Decodes the class loader context stored in the oat file with EncodeContextForOatFile.
+  // Returns true if the format matches, or false otherwise. If the return is true, the out
+  // arguments will contain the classpath dex files, their checksums and whether or not the
+  // context is a special shared library.
+  // The method asserts that the context is made out of only one PathClassLoader.
+  static bool DecodePathClassLoaderContextFromOatFileKey(
+      const std::string& context_spec,
+      std::vector<std::string>* out_classpath,
+      std::vector<uint32_t>* out_checksums,
+      bool* out_is_special_shared_library);
+
  private:
   enum ClassLoaderType {
     kInvalidClassLoader = 0,
@@ -93,6 +106,9 @@ class ClassLoaderContext {
     // The list of class path elements that this loader loads.
     // Note that this list may contain relative paths.
     std::vector<std::string> classpath;
+    // The list of class path elements checksums.
+    // May be empty if the checksums are not given when the context is created.
+    std::vector<uint32_t> checksums;
     // After OpenDexFiles is called this holds the opened dex files.
     std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
     // After OpenDexFiles, in case some of the dex files were opened from their oat files
@@ -104,13 +120,14 @@ class ClassLoaderContext {
 
   // Reads the class loader spec in place and returns true if the spec is valid and the
   // compilation context was constructed.
-  bool Parse(const std::string& spec);
+  bool Parse(const std::string& spec, bool parse_checksums = false);
 
   // Attempts to parse a single class loader spec for the given class_loader_type.
   // If successful the class loader spec will be added to the chain.
   // Returns whether or not the operation was successful.
   bool ParseClassLoaderSpec(const std::string& class_loader_spec,
-                            ClassLoaderType class_loader_type);
+                            ClassLoaderType class_loader_type,
+                            bool parse_checksums = false);
 
   // Extracts the class loader type from the given spec.
   // Return ClassLoaderContext::kInvalidClassLoader if the class loader type is not

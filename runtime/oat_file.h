@@ -296,11 +296,6 @@ class OatFile {
   static std::string ResolveRelativeEncodedDexLocation(
       const char* abs_dex_location, const std::string& rel_dex_location);
 
-  // Create a dependency list (dex locations and checksums) for the given dex files.
-  // Removes dex file paths prefixed with base_dir to convert them back to relative paths.
-  static std::string EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files,
-                                               const std::string& base_dir);
-
   // Finds the associated oat class for a dex_file and descriptor. Returns an invalid OatClass on
   // error and sets found to false.
   static OatClass FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, bool* found);

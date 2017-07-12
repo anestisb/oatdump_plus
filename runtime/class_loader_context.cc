@@ -31,8 +31,9 @@ static constexpr char kPathClassLoaderString[] = "PCL";
 static constexpr char kDelegateLastClassLoaderString[] = "DLC";
 static constexpr char kClassLoaderOpeningMark = '[';
 static constexpr char kClassLoaderClosingMark = ']';
-static constexpr char kClassLoaderSep = ';';
-static constexpr char kClasspathSep = ':';
+static constexpr char kClassLoaderSeparator = ';';
+static constexpr char kClasspathSeparator = ':';
+static constexpr char kDexFileChecksumSeparator = '*';
 
 ClassLoaderContext::ClassLoaderContext()
     : special_shared_library_(false),
@@ -48,9 +49,11 @@ std::unique_ptr<ClassLoaderContext> ClassLoaderContext::Create(const std::string
   }
 }
 
-// The expected format is: "ClassLoaderType1[ClasspathElem1:ClasspathElem2...]".
+// The expected format is: "ClassLoaderType1[ClasspathElem1*Checksum1:ClasspathElem2*Checksum2...]".
+// The checksum part of the format is expected only if parse_cheksums is true.
 bool ClassLoaderContext::ParseClassLoaderSpec(const std::string& class_loader_spec,
-                                              ClassLoaderType class_loader_type) {
+                                              ClassLoaderType class_loader_type,
+                                              bool parse_checksums) {
   const char* class_loader_type_str = GetClassLoaderTypeName(class_loader_type);
   size_t type_str_size = strlen(class_loader_type_str);
 
@@ -70,7 +73,26 @@ bool ClassLoaderContext::ParseClassLoaderSpec(const std::string& class_loader_sp
                                                    class_loader_spec.length() - type_str_size - 2);
 
   class_loader_chain_.push_back(ClassLoaderInfo(class_loader_type));
-  Split(classpath, kClasspathSep, &class_loader_chain_.back().classpath);
+
+  if (!parse_checksums) {
+    Split(classpath, kClasspathSeparator, &class_loader_chain_.back().classpath);
+  } else {
+    std::vector<std::string> classpath_elements;
+    Split(classpath, kClasspathSeparator, &classpath_elements);
+    for (const std::string& element : classpath_elements) {
+      std::vector<std::string> dex_file_with_checksum;
+      Split(element, kDexFileChecksumSeparator, &dex_file_with_checksum);
+      if (dex_file_with_checksum.size() != 2) {
+        return false;
+      }
+      uint32_t checksum = 0;
+      if (!ParseInt(dex_file_with_checksum[1].c_str(), &checksum)) {
+        return false;
+      }
+      class_loader_chain_.back().classpath.push_back(dex_file_with_checksum[0]);
+      class_loader_chain_.back().checksums.push_back(checksum);
+    }
+  }
 
   return true;
 }
@@ -93,11 +115,11 @@ ClassLoaderContext::ExtractClassLoaderType(const std::string& class_loader_spec)
 // The format: ClassLoaderType1[ClasspathElem1:ClasspathElem2...];ClassLoaderType2[...]...
 // ClassLoaderType is either "PCL" (PathClassLoader) or "DLC" (DelegateLastClassLoader).
 // ClasspathElem is the path of dex/jar/apk file.
-bool ClassLoaderContext::Parse(const std::string& spec) {
+bool ClassLoaderContext::Parse(const std::string& spec, bool parse_checksums) {
   if (spec.empty()) {
-    LOG(ERROR) << "Empty string passed to Parse";
-    return false;
+    return true;
   }
+
   // Stop early if we detect the special shared library, which may be passed as the classpath
   // for dex2oat when we want to skip the shared libraries check.
   if (spec == OatFile::kSpecialSharedLibrary) {
@@ -107,7 +129,7 @@ bool ClassLoaderContext::Parse(const std::string& spec) {
   }
 
   std::vector<std::string> class_loaders;
-  Split(spec, kClassLoaderSep, &class_loaders);
+  Split(spec, kClassLoaderSeparator, &class_loaders);
 
   for (const std::string& class_loader : class_loaders) {
     ClassLoaderType type = ExtractClassLoaderType(class_loader);
@@ -115,7 +137,7 @@ bool ClassLoaderContext::Parse(const std::string& spec) {
       LOG(ERROR) << "Invalid class loader type: " << class_loader;
       return false;
     }
-    if (!ParseClassLoaderSpec(class_loader, type)) {
+    if (!ParseClassLoaderSpec(class_loader, type, parse_checksums)) {
       LOG(ERROR) << "Invalid class loader spec: " << class_loader;
       return false;
     }
@@ -219,12 +241,33 @@ std::string ClassLoaderContext::EncodeContextForOatFile(const std::string& base_
     return "";
   }
 
-  // TODO(calin): Transition period: assume we only have a classloader until
-  // the oat file assistant implements the full class loader check.
-  CHECK_EQ(1u, class_loader_chain_.size());
+  std::ostringstream out;
 
-  return OatFile::EncodeDexFileDependencies(MakeNonOwningPointerVector(
-      class_loader_chain_[0].opened_dex_files), base_dir);
+  for (size_t i = 0; i < class_loader_chain_.size(); i++) {
+    const ClassLoaderInfo& info = class_loader_chain_[i];
+    if (i > 0) {
+      out << kClassLoaderSeparator;
+    }
+    out << GetClassLoaderTypeName(info.type);
+    out << kClassLoaderOpeningMark;
+    for (size_t k = 0; k < info.opened_dex_files.size(); k++) {
+      const std::unique_ptr<const DexFile>& dex_file = info.opened_dex_files[k];
+      const std::string& location = dex_file->GetLocation();
+      if (k > 0) {
+        out << kClasspathSeparator;
+      }
+      // Find paths that were relative and convert them back from absolute.
+      if (!base_dir.empty() && location.substr(0, base_dir.length()) == base_dir) {
+        out << location.substr(base_dir.length() + 1).c_str();
+      } else {
+        out << dex_file->GetLocation().c_str();
+      }
+      out << kDexFileChecksumSeparator;
+      out << dex_file->GetLocationChecksum();
+    }
+    out << kClassLoaderClosingMark;
+  }
+  return out.str();
 }
 
 jobject ClassLoaderContext::CreateClassLoader(
@@ -280,6 +323,38 @@ void ClassLoaderContext::CheckDexFilesOpened(const std::string& calling_method) 
   CHECK(dex_files_open_attempted_)
       << "Dex files were not successfully opened before the call to " << calling_method
       << "attempt=" << dex_files_open_attempted_ << ", result=" << dex_files_open_result_;
+}
+
+bool ClassLoaderContext::DecodePathClassLoaderContextFromOatFileKey(
+    const std::string& context_spec,
+    std::vector<std::string>* out_classpath,
+    std::vector<uint32_t>* out_checksums,
+    bool* out_is_special_shared_library) {
+  ClassLoaderContext context;
+  if (!context.Parse(context_spec, /*parse_checksums*/ true)) {
+    LOG(ERROR) << "Invalid class loader context: " << context_spec;
+    return false;
+  }
+
+  *out_is_special_shared_library = context.special_shared_library_;
+  if (context.special_shared_library_) {
+    return true;
+  }
+
+  if (context.class_loader_chain_.empty()) {
+    return true;
+  }
+
+  // TODO(calin): assert that we only have a PathClassLoader until the logic for
+  // checking the context covers all case.
+  CHECK_EQ(1u, context.class_loader_chain_.size());
+  const ClassLoaderInfo& info = context.class_loader_chain_[0];
+  CHECK_EQ(kPathClassLoader, info.type);
+  DCHECK_EQ(info.classpath.size(), info.checksums.size());
+
+  *out_classpath = info.classpath;
+  *out_checksums = info.checksums;
+  return true;
 }
 }  // namespace art
 
