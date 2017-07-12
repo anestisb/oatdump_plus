@@ -737,16 +737,82 @@ bool ImageWriter::IsBootClassLoaderNonImageClass(mirror::Class* klass) {
   return IsBootClassLoaderClass(klass) && !IsInBootImage(klass);
 }
 
+// This visitor follows the references of an instance, recursively then prune this class
+// if a type of any field is pruned.
+class ImageWriter::PruneObjectReferenceVisitor {
+ public:
+  PruneObjectReferenceVisitor(ImageWriter* image_writer,
+                        bool* early_exit,
+                        std::unordered_set<mirror::Object*>* visited,
+                        bool* result)
+      : image_writer_(image_writer), early_exit_(early_exit), visited_(visited), result_(result) {}
+
+  ALWAYS_INLINE void VisitRootIfNonNull(
+      mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const
+      REQUIRES_SHARED(Locks::mutator_lock_) { }
+
+  ALWAYS_INLINE void VisitRoot(
+      mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const
+      REQUIRES_SHARED(Locks::mutator_lock_) { }
+
+  ALWAYS_INLINE void operator() (ObjPtr<mirror::Object> obj,
+                                 MemberOffset offset,
+                                 bool is_static ATTRIBUTE_UNUSED) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    mirror::Object* ref =
+        obj->GetFieldObject<mirror::Object, kVerifyNone, kWithoutReadBarrier>(offset);
+    if (ref == nullptr || visited_->find(ref) != visited_->end()) {
+      return;
+    }
+
+    ObjPtr<mirror::Class> klass = ref->IsClass() ? ref->AsClass() : ref->GetClass();
+    if (klass == mirror::Method::StaticClass() || klass == mirror::Constructor::StaticClass()) {
+      // Prune all classes using reflection because the content they held will not be fixup.
+      *result_ = true;
+    }
+
+    // Record the object visited in case of circular reference.
+    visited_->emplace(ref);
+    if (ref->IsClass()) {
+      *result_ = *result_ ||
+          image_writer_->PruneAppImageClassInternal(ref->AsClass(), early_exit_, visited_);
+    } else {
+      *result_ = *result_ ||
+          image_writer_->PruneAppImageClassInternal(klass, early_exit_, visited_);
+      ref->VisitReferences(*this, *this);
+    }
+    // Clean up before exit for next call of this function.
+    visited_->erase(ref);
+  }
+
+  ALWAYS_INLINE void operator() (ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
+                                 ObjPtr<mirror::Reference> ref) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    operator()(ref, mirror::Reference::ReferentOffset(), /* is_static */ false);
+  }
+
+  ALWAYS_INLINE bool GetResult() const {
+    return result_;
+  }
+
+ private:
+  ImageWriter* image_writer_;
+  bool* early_exit_;
+  std::unordered_set<mirror::Object*>* visited_;
+  bool* const result_;
+};
+
+
 bool ImageWriter::PruneAppImageClass(ObjPtr<mirror::Class> klass) {
   bool early_exit = false;
-  std::unordered_set<mirror::Class*> visited;
+  std::unordered_set<mirror::Object*> visited;
   return PruneAppImageClassInternal(klass, &early_exit, &visited);
 }
 
 bool ImageWriter::PruneAppImageClassInternal(
     ObjPtr<mirror::Class> klass,
     bool* early_exit,
-    std::unordered_set<mirror::Class*>* visited) {
+    std::unordered_set<mirror::Object*>* visited) {
   DCHECK(early_exit != nullptr);
   DCHECK(visited != nullptr);
   DCHECK(compile_app_image_);
@@ -807,9 +873,18 @@ bool ImageWriter::PruneAppImageClassInternal(
                                                         &my_early_exit,
                                                         visited);
         } else {
-          result = result || PruneAppImageClassInternal(ref->GetClass(),
+          mirror::Class* type = ref->GetClass();
+          result = result || PruneAppImageClassInternal(type,
                                                         &my_early_exit,
                                                         visited);
+          if (!result) {
+            // For non-class case, also go through all the types mentioned by it's fields'
+            // references recursively to decide whether to keep this class.
+            bool tmp = false;
+            PruneObjectReferenceVisitor visitor(this, &my_early_exit, visited, &tmp);
+            ref->VisitReferences(visitor, visitor);
+            result = result || tmp;
+          }
         }
       }
       field_offset = MemberOffset(field_offset.Uint32Value() +
