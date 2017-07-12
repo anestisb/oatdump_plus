@@ -388,6 +388,7 @@ ifeq (true,$(art_target_include_debug_build))
 LOCAL_REQUIRED_MODULES += \
     libartd \
     libartd-compiler \
+    libopenjdkd \
     libopenjdkjvmd \
     libopenjdkjvmtid \
 
