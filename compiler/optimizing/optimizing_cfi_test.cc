@@ -171,18 +171,31 @@ class OptimizingCFITest : public CFITest {
 #ifdef ART_ENABLE_CODEGEN_arm
 TEST_ISA(kThumb2)
 #endif
+
 #ifdef ART_ENABLE_CODEGEN_arm64
+// Run the tests for ARM64 only with Baker read barriers, as the
+// expected generated code saves and restore X21 and X22 (instead of
+// X20 and X21), as X20 is used as Marking Register in the Baker read
+// barrier configuration, and as such is removed from the set of
+// callee-save registers in the ARM64 code generator of the Optimizing
+// compiler.
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
 TEST_ISA(kArm64)
 #endif
+#endif
+
 #ifdef ART_ENABLE_CODEGEN_x86
 TEST_ISA(kX86)
 #endif
+
 #ifdef ART_ENABLE_CODEGEN_x86_64
 TEST_ISA(kX86_64)
 #endif
+
 #ifdef ART_ENABLE_CODEGEN_mips
 TEST_ISA(kMips)
 #endif
+
 #ifdef ART_ENABLE_CODEGEN_mips64
 TEST_ISA(kMips64)
 #endif
