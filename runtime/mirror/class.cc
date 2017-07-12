@@ -191,7 +191,7 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
 }
 
 void Class::SetDexCache(ObjPtr<DexCache> new_dex_cache) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache);
+  SetFieldObjectTransaction(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache);
 }
 
 void Class::SetClassSize(uint32_t new_class_size) {
@@ -200,8 +200,7 @@ void Class::SetClassSize(uint32_t new_class_size) {
     LOG(FATAL_WITHOUT_ABORT) << new_class_size << " vs " << GetClassSize();
     LOG(FATAL) << "class=" << PrettyTypeOf();
   }
-  // Not called within a transaction.
-  SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size);
+  SetField32Transaction(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size);
 }
 
 // Return the class' name. The exact format is bizarre, but it's the specified behavior for

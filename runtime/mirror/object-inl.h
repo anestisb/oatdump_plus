@@ -560,6 +560,15 @@ inline void Object::SetField32Volatile(MemberOffset field_offset, int32_t new_va
   SetField32<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(field_offset, new_value);
 }
 
+template<bool kCheckTransaction, VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline void Object::SetField32Transaction(MemberOffset field_offset, int32_t new_value) {
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetField32<true, kCheckTransaction, kVerifyFlags, kIsVolatile>(field_offset, new_value);
+  } else {
+    SetField32<false, kCheckTransaction, kVerifyFlags, kIsVolatile>(field_offset, new_value);
+  }
+}
+
 // TODO: Pass memory_order_ and strong/weak as arguments to avoid code duplication?
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
@@ -655,6 +664,15 @@ template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVer
 inline void Object::SetField64Volatile(MemberOffset field_offset, int64_t new_value) {
   return SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(field_offset,
                                                                                new_value);
+}
+
+template<bool kCheckTransaction, VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline void Object::SetField64Transaction(MemberOffset field_offset, int32_t new_value) {
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetField64<true, kCheckTransaction, kVerifyFlags, kIsVolatile>(field_offset, new_value);
+  } else {
+    SetField64<false, kCheckTransaction, kVerifyFlags, kIsVolatile>(field_offset, new_value);
+  }
 }
 
 template<typename kSize>
@@ -773,6 +791,15 @@ template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVer
 inline void Object::SetFieldObjectVolatile(MemberOffset field_offset, ObjPtr<Object> new_value) {
   SetFieldObject<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(field_offset,
                                                                             new_value);
+}
+
+template<bool kCheckTransaction, VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline void Object::SetFieldObjectTransaction(MemberOffset field_offset, ObjPtr<Object> new_value) {
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetFieldObject<true, kCheckTransaction, kVerifyFlags, kIsVolatile>(field_offset, new_value);
+  } else {
+    SetFieldObject<false, kCheckTransaction, kVerifyFlags, kIsVolatile>(field_offset, new_value);
+  }
 }
 
 template <VerifyObjectFlags kVerifyFlags>
