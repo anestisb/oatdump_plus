@@ -2861,6 +2861,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   DO_THREAD_OFFSET(SelfOffset<ptr_size>(), "self")
   DO_THREAD_OFFSET(StackEndOffset<ptr_size>(), "stack_end")
   DO_THREAD_OFFSET(ThinLockIdOffset<ptr_size>(), "thin_lock_thread_id")
+  DO_THREAD_OFFSET(IsGcMarkingOffset<ptr_size>(), "is_gc_marking")
   DO_THREAD_OFFSET(TopOfManagedStackOffset<ptr_size>(), "top_quick_frame_method")
   DO_THREAD_OFFSET(TopShadowFrameOffset<ptr_size>(), "top_shadow_frame")
   DO_THREAD_OFFSET(TopHandleScopeOffset<ptr_size>(), "top_handle_scope")

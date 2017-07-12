@@ -61,6 +61,7 @@ enum XRegister {
   kNumberOfXRegisters = 33,
   // Aliases.
   TR  = X19,     // ART Thread Register - Managed Runtime (Callee Saved Reg)
+  MR  = X20,     // ART Marking Register - Managed Runtime (Callee Saved Reg)
   IP0 = X16,     // Used as scratch by VIXL.
   IP1 = X17,     // Used as scratch by ART JNI Assembler.
   FP  = X29,

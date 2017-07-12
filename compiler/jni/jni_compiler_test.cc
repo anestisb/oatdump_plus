@@ -49,6 +49,9 @@ extern "C" JNIEXPORT jint JNICALL Java_MyClassNatives_sbar(JNIEnv*, jclass, jint
   return count + 1;
 }
 
+// TODO: In the Baker read barrier configuration, add checks to ensure
+// the Marking Register's value is correct.
+
 namespace art {
 
 enum class JniKind {

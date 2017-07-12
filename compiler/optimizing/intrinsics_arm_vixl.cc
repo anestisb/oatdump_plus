@@ -226,7 +226,7 @@ class ReadBarrierSystemArrayCopySlowPathARMVIXL : public SlowPathCodeARMVIXL {
     // TODO: Load the entrypoint once before the loop, instead of
     // loading it at every iteration.
     int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(tmp.GetCode());
+        Thread::ReadBarrierMarkEntryPointsOffset<kArmPointerSize>(tmp.GetCode());
     // This runtime call does not require a stack map.
     arm_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     assembler->MaybePoisonHeapReference(tmp);

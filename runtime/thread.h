@@ -656,6 +656,17 @@ class Thread {
         OFFSETOF_MEMBER(tls_ptr_sized_values, jni_entrypoints) + jni_entrypoint_offset);
   }
 
+  // Return the entry point offset integer value for ReadBarrierMarkRegX, where X is `reg`.
+  template <PointerSize pointer_size>
+  static int32_t ReadBarrierMarkEntryPointsOffset(size_t reg) {
+    // The entry point list defines 30 ReadBarrierMarkRegX entry points.
+    DCHECK_LT(reg, 30u);
+    // The ReadBarrierMarkRegX entry points are ordered by increasing
+    // register number in Thread::tls_Ptr_.quick_entrypoints.
+    return QUICK_ENTRYPOINT_OFFSET(pointer_size, pReadBarrierMarkReg00).Int32Value()
+        + static_cast<size_t>(pointer_size) * reg;
+  }
+
   template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> SelfOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, self));

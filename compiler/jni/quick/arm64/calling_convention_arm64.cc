@@ -108,11 +108,25 @@ static constexpr uint32_t kFpCalleeSpillMask = CalculateFpCalleeSpillMask();
 
 // Calling convention
 ManagedRegister Arm64ManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
-  return Arm64ManagedRegister::FromXRegister(X20);  // saved on entry restored on exit
+  // X20 is safe to use as a scratch register:
+  // - with Baker read barriers, it is reserved as Marking Register,
+  //   and thus does not actually need to be saved/restored; it is
+  //   refreshed on exit (see Arm64JNIMacroAssembler::RemoveFrame);
+  // - in other cases, it is saved on entry (in
+  //   Arm64JNIMacroAssembler::BuildFrame) and restored on exit (in
+  //   Arm64JNIMacroAssembler::RemoveFrame).
+  return Arm64ManagedRegister::FromXRegister(X20);
 }
 
 ManagedRegister Arm64JniCallingConvention::InterproceduralScratchRegister() {
-  return Arm64ManagedRegister::FromXRegister(X20);  // saved on entry restored on exit
+  // X20 is safe to use as a scratch register:
+  // - with Baker read barriers, it is reserved as Marking Register,
+  //   and thus does not actually need to be saved/restored; it is
+  //   refreshed on exit (see Arm64JNIMacroAssembler::RemoveFrame);
+  // - in other cases, it is saved on entry (in
+  //   Arm64JNIMacroAssembler::BuildFrame) and restored on exit (in
+  //   Arm64JNIMacroAssembler::RemoveFrame).
+  return Arm64ManagedRegister::FromXRegister(X20);
 }
 
 static ManagedRegister ReturnRegisterForShorty(const char* shorty) {

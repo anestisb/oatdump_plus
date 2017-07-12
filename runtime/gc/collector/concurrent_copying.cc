@@ -166,7 +166,7 @@ void ConcurrentCopying::RunPhases() {
   }
   if (kUseBakerReadBarrier && kGrayDirtyImmuneObjects) {
     // Switch to read barrier mark entrypoints before we gray the objects. This is required in case
-    // a mutator sees a gray bit and dispatches on the entrpoint. (b/37876887).
+    // a mutator sees a gray bit and dispatches on the entrypoint. (b/37876887).
     ActivateReadBarrierEntrypoints();
     // Gray dirty immune objects concurrently to reduce GC pause times. We re-process gray cards in
     // the pause.

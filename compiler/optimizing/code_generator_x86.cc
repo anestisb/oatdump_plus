@@ -509,8 +509,7 @@ class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
     //
     //   rX <- ReadBarrierMarkRegX(rX)
     //
-    int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86PointerSize>(ref_reg);
+    int32_t entry_point_offset = Thread::ReadBarrierMarkEntryPointsOffset<kX86PointerSize>(ref_reg);
     // This runtime call does not require a stack map.
     x86_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ jmp(GetExitLabel());
@@ -595,8 +594,7 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86 : public SlowPathCode {
     //
     //   rX <- ReadBarrierMarkRegX(rX)
     //
-    int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86PointerSize>(ref_reg);
+    int32_t entry_point_offset = Thread::ReadBarrierMarkEntryPointsOffset<kX86PointerSize>(ref_reg);
     // This runtime call does not require a stack map.
     x86_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
 
@@ -7153,7 +7151,7 @@ void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(
 
       // Test the entrypoint (`Thread::Current()->pReadBarrierMarkReg ## root.reg()`).
       const int32_t entry_point_offset =
-          CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86PointerSize>(root.reg());
+          Thread::ReadBarrierMarkEntryPointsOffset<kX86PointerSize>(root.reg());
       __ fs()->cmpl(Address::Absolute(entry_point_offset), Immediate(0));
       // The entrypoint is null when the GC is not marking.
       __ j(kNotEqual, slow_path->GetEntryLabel());

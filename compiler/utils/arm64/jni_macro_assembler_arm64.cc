@@ -772,6 +772,13 @@ void Arm64JNIMacroAssembler::RemoveFrame(size_t frame_size,
   asm_.UnspillRegisters(core_reg_list, frame_size - core_reg_size);
   asm_.UnspillRegisters(fp_reg_list, frame_size - core_reg_size - fp_reg_size);
 
+  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+    // Refresh Mark Register.
+    // TODO: Refresh MR only if suspend is taken.
+    ___ Ldr(reg_w(MR),
+            MemOperand(reg_x(TR), Thread::IsGcMarkingOffset<kArm64PointerSize>().Int32Value()));
+  }
+
   // Decrease frame size to start of callee saved regs.
   DecreaseFrameSize(frame_size);
 
