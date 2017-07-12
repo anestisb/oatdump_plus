@@ -665,7 +665,10 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   // Get the oat file on disk.
   std::unique_ptr<const OatFile> oat_file(oat_file_assistant.GetBestOatFile().release());
 
-  if (oat_file != nullptr) {
+  // Prevent oat files from being loaded if no class_loader or dex_elements are provided.
+  // This can happen when the deprecated DexFile.<init>(String) is called directly, and it
+  // could load oat files without checking the classpath, which would be incorrect.
+  if ((class_loader != nullptr || dex_elements != nullptr) && oat_file != nullptr) {
     // Take the file only if it has no collisions, or we must take it because of preopting.
     bool accept_oat_file =
         !HasCollisions(oat_file.get(), class_loader, dex_elements, /*out*/ &error_msg);
