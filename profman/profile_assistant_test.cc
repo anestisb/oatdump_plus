@@ -639,10 +639,13 @@ TEST_F(ProfileAssistantTest, TestBootImageProfile) {
   // Method that doesn't add the class since its only in one profile. Should still show up in the
   // boot profile.
   const std::string kOtherMethod = "Ljava/util/HashMap;-><init>()V";
+  // Method that gets marked as hot since it's in multiple profiles.
+  const std::string kMultiMethod = "Ljava/util/ArrayList;->clear()V";
 
   // Thresholds for this test.
   static const size_t kDirtyThreshold = 3;
   static const size_t kCleanThreshold = 2;
+  static const size_t kMethodThreshold = 2;
 
   // Create a bunch of boot profiles.
   std::string dex1 =
@@ -659,6 +662,7 @@ TEST_F(ProfileAssistantTest, TestBootImageProfile) {
       kCleanClass + "\n" +
       kDirtyClass + "\n" +
       "P" + kHotMethod + "\n" +
+      "P" + kMultiMethod + "\n" +
       kUncommonDirtyClass;
   profiles.emplace_back(ScratchFile());
   EXPECT_TRUE(CreateProfile(dex2, profiles.back().GetFilename(), core_dex));
@@ -667,6 +671,7 @@ TEST_F(ProfileAssistantTest, TestBootImageProfile) {
   std::string dex3 =
       "S" + kHotMethod + "\n" +
       "P" + kOtherMethod + "\n" +
+      "P" + kMultiMethod + "\n" +
       kDirtyClass + "\n";
   profiles.emplace_back(ScratchFile());
   EXPECT_TRUE(CreateProfile(dex3, profiles.back().GetFilename(), core_dex));
@@ -678,6 +683,7 @@ TEST_F(ProfileAssistantTest, TestBootImageProfile) {
   args.push_back("--generate-boot-image-profile");
   args.push_back("--boot-image-class-threshold=" + std::to_string(kDirtyThreshold));
   args.push_back("--boot-image-clean-class-threshold=" + std::to_string(kCleanThreshold));
+  args.push_back("--boot-image-sampled-method-threshold=" + std::to_string(kMethodThreshold));
   args.push_back("--reference-profile-file=" + out_profile.GetFilename());
   args.push_back("--apk=" + core_dex);
   args.push_back("--dex-location=" + core_dex);
@@ -708,10 +714,17 @@ TEST_F(ProfileAssistantTest, TestBootImageProfile) {
   // Aggregated methods hotness information.
   EXPECT_NE(output_file_contents.find("HSP" + kHotMethod), std::string::npos)
       << output_file_contents;
-  EXPECT_NE(output_file_contents.find(kOtherMethod), std::string::npos)
+  EXPECT_NE(output_file_contents.find("P" + kOtherMethod), std::string::npos)
       << output_file_contents;
   // Not inferred class, method is only in one profile.
   EXPECT_EQ(output_file_contents.find("Ljava/util/HashMap;\n"), std::string::npos)
+      << output_file_contents;
+  // Test the sampled methods that became hot.
+  // Other method is in only one profile, it should not become hot.
+  EXPECT_EQ(output_file_contents.find("HP" + kOtherMethod), std::string::npos)
+      << output_file_contents;
+  // Multi method is in at least two profiles, it should become hot.
+  EXPECT_NE(output_file_contents.find("HP" + kMultiMethod), std::string::npos)
       << output_file_contents;
 }
 

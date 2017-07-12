@@ -142,6 +142,9 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("      occurrences to include a class in the boot image profile. A clean class is a");
   UsageError("      class that doesn't have any static fields or native methods and is likely to");
   UsageError("      remain clean in the image. Default is 3.");
+  UsageError("  --boot-image-sampled-method-threshold=<value>: minimum number of profiles a");
+  UsageError("      non-hot method needs to be in order to be hot in the output profile. The");
+  UsageError("      default is max int.");
   UsageError("");
 
   exit(EXIT_FAILURE);
@@ -224,6 +227,11 @@ class ProfMan FINAL {
         ParseUintOption(option,
                         "--boot-image-clean-class-threshold",
                         &boot_image_options_.image_class_clean_theshold,
+                        Usage);
+      } else if (option.starts_with("--boot-image-sampled-method-threshold=")) {
+        ParseUintOption(option,
+                        "--boot-image-sampled-method-threshold",
+                        &boot_image_options_.compiled_method_threshold,
                         Usage);
       } else if (option.starts_with("--profile-file=")) {
         profile_files_.push_back(option.substr(strlen("--profile-file=")).ToString());
