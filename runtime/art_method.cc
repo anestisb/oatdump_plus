@@ -44,6 +44,7 @@
 #include "oat_file-inl.h"
 #include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
+#include "vdex_file.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -584,25 +585,20 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
 }
 
 const uint8_t* ArtMethod::GetQuickenedInfo(PointerSize pointer_size) {
-  bool found = false;
-  OatFile::OatMethod oat_method = FindOatMethodFor(this, pointer_size, &found);
-  if (!found || (oat_method.GetQuickCode() != nullptr)) {
-    return nullptr;
-  }
   if (kIsVdexEnabled) {
-    const OatQuickMethodHeader* header = oat_method.GetOatQuickMethodHeader();
-    // OatMethod without a header: no quickening table.
-    if (header == nullptr) {
+    const DexFile& dex_file = GetDeclaringClass()->GetDexFile();
+    const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
+    if (oat_dex_file == nullptr || (oat_dex_file->GetOatFile() == nullptr)) {
       return nullptr;
     }
-    // The table is in the .vdex file.
-    const OatFile::OatDexFile* oat_dex_file = GetDexCache()->GetDexFile()->GetOatDexFile();
-    const OatFile* oat_file = oat_dex_file->GetOatFile();
-    if (oat_file == nullptr) {
-      return nullptr;
-    }
-    return oat_file->DexBegin() + header->GetVmapTableOffset();
+    return oat_dex_file->GetOatFile()->GetVdexFile()->GetQuickenedInfoOf(
+        dex_file, GetCodeItemOffset());
   } else {
+    bool found = false;
+    OatFile::OatMethod oat_method = FindOatMethodFor(this, pointer_size, &found);
+    if (!found || (oat_method.GetQuickCode() != nullptr)) {
+      return nullptr;
+    }
     return oat_method.GetVmapTable();
   }
 }

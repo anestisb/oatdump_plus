@@ -45,12 +45,7 @@ static void RecomputeDexChecksum(art::DexFile* dex_file)
       dex_file->CalculateChecksum();
 }
 
-// TODO This is more complicated then it seems like it should be.
-// The fact we don't keep around the data of where in the flat binary log of dex-quickening changes
-// each dex file starts means we need to search for it. Since JVMTI is the exception though we are
-// not going to put in the effort to optimize for it.
-static void DoDexUnquicken(const art::DexFile& new_dex_file,
-                           const art::DexFile& original_dex_file)
+static void DoDexUnquicken(const art::DexFile& new_dex_file, const art::DexFile& original_dex_file)
     REQUIRES_SHARED(art::Locks::mutator_lock_) {
   const art::OatDexFile* oat_dex = original_dex_file.GetOatDexFile();
   if (oat_dex == nullptr) {
@@ -61,57 +56,10 @@ static void DoDexUnquicken(const art::DexFile& new_dex_file,
     return;
   }
   const art::VdexFile* vdex = oat_file->GetVdexFile();
-  if (vdex == nullptr || vdex->GetQuickeningInfo().size() == 0) {
+  if (vdex == nullptr) {
     return;
   }
-  const art::ArrayRef<const uint8_t> quickening_info(vdex->GetQuickeningInfo());
-  const uint8_t* quickening_info_ptr = quickening_info.data();
-  for (const art::OatDexFile* cur_oat_dex : oat_file->GetOatDexFiles()) {
-    std::string error;
-    std::unique_ptr<const art::DexFile> cur_dex_file(cur_oat_dex->OpenDexFile(&error));
-    DCHECK(cur_dex_file.get() != nullptr);
-    // Is this the dex file we are looking for?
-    if (UNLIKELY(cur_dex_file->Begin() == original_dex_file.Begin())) {
-      // Simple sanity check.
-      CHECK_EQ(new_dex_file.NumClassDefs(), original_dex_file.NumClassDefs());
-      for (uint32_t i = 0; i < new_dex_file.NumClassDefs(); ++i) {
-        const art::DexFile::ClassDef& class_def = new_dex_file.GetClassDef(i);
-        const uint8_t* class_data = new_dex_file.GetClassData(class_def);
-        if (class_data == nullptr) {
-          continue;
-        }
-        for (art::ClassDataItemIterator it(new_dex_file, class_data); it.HasNext(); it.Next()) {
-          if (it.IsAtMethod() && it.GetMethodCodeItem() != nullptr) {
-            uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
-            quickening_info_ptr += sizeof(uint32_t);
-            art::optimizer::ArtDecompileDEX(
-                *it.GetMethodCodeItem(),
-                art::ArrayRef<const uint8_t>(quickening_info_ptr, quickening_size),
-                /*decompile_return_instruction*/true);
-            quickening_info_ptr += quickening_size;
-          }
-        }
-      }
-      // We don't need to bother looking through the rest of the dex-files.
-      break;
-    } else {
-      // Not the dex file we want. Skip over all the quickening info for all its classes.
-      for (uint32_t i = 0; i < cur_dex_file->NumClassDefs(); ++i) {
-        const art::DexFile::ClassDef& class_def = cur_dex_file->GetClassDef(i);
-        const uint8_t* class_data = cur_dex_file->GetClassData(class_def);
-        if (class_data == nullptr) {
-          continue;
-        }
-        for (art::ClassDataItemIterator it(*cur_dex_file, class_data); it.HasNext(); it.Next()) {
-          if (it.IsAtMethod() && it.GetMethodCodeItem() != nullptr) {
-            uint32_t quickening_size = *reinterpret_cast<const uint32_t*>(quickening_info_ptr);
-            quickening_info_ptr += sizeof(uint32_t);
-            quickening_info_ptr += quickening_size;
-          }
-        }
-      }
-    }
-  }
+  vdex->FullyUnquickenDexFile(new_dex_file, original_dex_file);
 }
 
 std::unique_ptr<FixedUpDexFile> FixedUpDexFile::Create(const art::DexFile& original) {
