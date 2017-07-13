@@ -671,10 +671,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
-  // Visit all of the class loaders in the class linker.
-  void VisitClassLoaders(ClassLoaderVisitor* visitor) const
-      REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
-
   struct DexCacheData {
     // Construct an invalid data object.
     DexCacheData()
@@ -723,6 +719,9 @@ class ClassLinker {
 
   static void DeleteClassLoader(Thread* self, const ClassLoaderData& data)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void VisitClassLoaders(ClassLoaderVisitor* visitor) const
+      REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
 
   void VisitClassesInternal(ClassVisitor* visitor)
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
