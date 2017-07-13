@@ -100,7 +100,11 @@ bool DexDecompiler::Decompile() {
         break;
 
       case Instruction::NOP:
-        DecompileNop(inst);
+        if (quicken_info_number_of_indices_ > 0) {
+          // Only try to decompile NOP if there are more than 0 indices. The 0 index case happens
+          // for tests like 981.
+          DecompileNop(inst);
+        }
         break;
 
       case Instruction::IGET_QUICK:
