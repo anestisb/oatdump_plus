@@ -28,6 +28,7 @@
 // TODO: Add inl file and avoid including inl.
 #include "obj_ptr-inl.h"
 #include "os.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -159,9 +160,12 @@ class CommonRuntimeTestImpl {
   const DexFile* java_lang_dex_file_;
   std::vector<const DexFile*> boot_class_path_;
 
-  // Get the dex files from a PathClassLoader. This in order of the dex elements and their dex
-  // arrays.
+  // Get the dex files from a PathClassLoader or DelegateLastClassLoader.
+  // This only looks into the current class loader and does not recurse into the parents.
   std::vector<const DexFile*> GetDexFiles(jobject jclass_loader);
+  std::vector<const DexFile*> GetDexFiles(ScopedObjectAccess& soa,
+                                          Handle<mirror::ClassLoader> class_loader)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the first dex file from a PathClassLoader. Will abort if it is null.
   const DexFile* GetFirstDexFile(jobject jclass_loader);
@@ -175,6 +179,15 @@ class CommonRuntimeTestImpl {
   // Called to finish up runtime creation and filling test fields. By default runs root
   // initializers, initialize well-known classes, and creates the heap thread pool.
   virtual void FinalizeSetup();
+
+  // Creates the class path string for the given dex files (the list of dex file locations
+  // separated by ':').
+  std::string CreateClassPath(
+      const std::vector<std::unique_ptr<const DexFile>>& dex_files);
+  // Same as CreateClassPath but add the dex file checksum after each location. The separator
+  // is '*'.
+  std::string CreateClassPathWithChecksums(
+      const std::vector<std::unique_ptr<const DexFile>>& dex_files);
 
  private:
   static std::string GetCoreFileLocation(const char* suffix);
