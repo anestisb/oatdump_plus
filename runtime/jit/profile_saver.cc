@@ -800,10 +800,7 @@ bool ProfileSaver::HasSeenMethod(const std::string& profile, bool hot, MethodRef
       return false;
     }
     ProfileCompilationInfo::MethodHotness hotness = info.GetMethodHotness(ref);
-    // Ignore hot parameter for now since it was causing test 595 to be flaky. TODO: Investigate.
-    // b/63635729
-    UNUSED(hot);
-    return hotness.IsInProfile();
+    return hot ? hotness.IsHot() : hotness.IsInProfile();
   }
   return false;
 }
