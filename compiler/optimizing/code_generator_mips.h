@@ -346,6 +346,10 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
                                  uint32_t num_entries,
                                  HBasicBlock* switch_block,
                                  HBasicBlock* default_block);
+
+  int32_t VecAddress(LocationSummary* locations,
+                     size_t size,
+                     /* out */ Register* adjusted_base);
   void GenConditionalMoveR2(HSelect* select);
   void GenConditionalMoveR6(HSelect* select);
 

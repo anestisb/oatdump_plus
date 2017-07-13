@@ -1171,7 +1171,32 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
       }
       return false;
     case kMips:
-      // TODO: implement MIPS SIMD.
+      if (features->AsMipsInstructionSetFeatures()->HasMsa()) {
+        switch (type) {
+          case Primitive::kPrimBoolean:
+          case Primitive::kPrimByte:
+            *restrictions |= kNoDiv;
+            return TrySetVectorLength(16);
+          case Primitive::kPrimChar:
+          case Primitive::kPrimShort:
+            *restrictions |= kNoDiv | kNoStringCharAt;
+            return TrySetVectorLength(8);
+          case Primitive::kPrimInt:
+            *restrictions |= kNoDiv;
+            return TrySetVectorLength(4);
+          case Primitive::kPrimLong:
+            *restrictions |= kNoDiv;
+            return TrySetVectorLength(2);
+          case Primitive::kPrimFloat:
+            *restrictions |= kNoMinMax;  // min/max(x, NaN)
+            return TrySetVectorLength(4);
+          case Primitive::kPrimDouble:
+            *restrictions |= kNoMinMax;  // min/max(x, NaN)
+            return TrySetVectorLength(2);
+          default:
+            break;
+        }  // switch type
+      }
       return false;
     case kMips64:
       if (features->AsMips64InstructionSetFeatures()->HasMsa()) {
