@@ -134,7 +134,7 @@ class SpaceBitmap {
   // TODO: Use lock annotations when clang is fixed.
   // REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   template <typename Visitor>
-  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const
+  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, Visitor&& visitor) const
       NO_THREAD_SAFETY_ANALYSIS;
 
   // Visits set bits in address order.  The callback is not permitted to change the bitmap bits or

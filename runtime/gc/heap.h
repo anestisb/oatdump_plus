@@ -25,6 +25,7 @@
 #include "allocator_type.h"
 #include "arch/instruction_set.h"
 #include "atomic.h"
+#include "base/mutex.h"
 #include "base/time_utils.h"
 #include "gc/gc_cause.h"
 #include "gc/collector/gc_type.h"
@@ -254,6 +255,14 @@ class Heap {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_);
   void VisitObjectsPaused(ObjectCallback callback, void* arg)
+      REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !*gc_complete_lock_);
+
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitObjects(Visitor&& visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_);
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitObjectsPaused(Visitor&& visitor)
       REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !*gc_complete_lock_);
 
   void CheckPreconditionsForAllocObject(ObjPtr<mirror::Class> c, size_t byte_count)
@@ -1055,6 +1064,14 @@ class Heap {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_);
   void VisitObjectsInternalRegionSpace(ObjectCallback callback, void* arg)
+      REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !*gc_complete_lock_);
+
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitObjectsInternal(Visitor&& visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_);
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitObjectsInternalRegionSpace(Visitor&& visitor)
       REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !*gc_complete_lock_);
 
   void UpdateGcCountRateHistograms() REQUIRES(gc_complete_lock_);

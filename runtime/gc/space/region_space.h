@@ -156,6 +156,10 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       REQUIRES(Locks::mutator_lock_) {
     WalkInternal<false>(callback, arg);
   }
+  template <typename Visitor>
+  ALWAYS_INLINE void Walk(Visitor&& visitor) REQUIRES(Locks::mutator_lock_) {
+    WalkInternal<false /* kToSpaceOnly */>(visitor);
+  }
 
   void WalkToSpace(ObjectCallback* callback, void* arg)
       REQUIRES(Locks::mutator_lock_) {
@@ -249,6 +253,9 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
 
   template<bool kToSpaceOnly>
   void WalkInternal(ObjectCallback* callback, void* arg) NO_THREAD_SAFETY_ANALYSIS;
+
+  template<bool kToSpaceOnly, typename Visitor>
+  ALWAYS_INLINE void WalkInternal(Visitor&& visitor) NO_THREAD_SAFETY_ANALYSIS;
 
   class Region {
    public:

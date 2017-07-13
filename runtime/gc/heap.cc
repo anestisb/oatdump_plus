@@ -65,6 +65,7 @@
 #include "gc_pause_listener.h"
 #include "gc_root.h"
 #include "heap-inl.h"
+#include "heap-visit-objects-inl.h"
 #include "image.h"
 #include "intern_table.h"
 #include "java_vm_ext.h"
@@ -2935,7 +2936,7 @@ class ScanVisitor {
 class VerifyReferenceVisitor : public SingleRootVisitor {
  public:
   VerifyReferenceVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
-      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
   size_t GetFailureCount() const {
@@ -3089,19 +3090,12 @@ class VerifyObjectVisitor {
   VerifyObjectVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
-  void operator()(mirror::Object* obj)
-      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+  void operator()(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
     // Note: we are verifying the references in obj but not obj itself, this is because obj must
     // be live or else how did we find it in the live bitmap?
     VerifyReferenceVisitor visitor(heap_, fail_count_, verify_referent_);
     // The class doesn't count as a reference but we should verify it anyways.
     obj->VisitReferences(visitor, visitor);
-  }
-
-  static void VisitCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
-    VerifyObjectVisitor* visitor = reinterpret_cast<VerifyObjectVisitor*>(arg);
-    visitor->operator()(obj);
   }
 
   void VerifyRoots() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_) {
@@ -3175,7 +3169,7 @@ size_t Heap::VerifyHeapReferences(bool verify_referents) {
   // 2. Allocated during the GC (pre sweep GC verification).
   // We don't want to verify the objects in the live stack since they themselves may be
   // pointing to dead objects if they are not reachable.
-  VisitObjectsPaused(VerifyObjectVisitor::VisitCallback, &visitor);
+  VisitObjectsPaused(visitor);
   // Verify the roots:
   visitor.VerifyRoots();
   if (visitor.GetFailureCount() > 0) {

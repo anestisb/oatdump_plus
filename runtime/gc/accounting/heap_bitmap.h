@@ -51,7 +51,7 @@ class HeapBitmap {
       REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
   template <typename Visitor>
-  void Visit(const Visitor& visitor)
+  ALWAYS_INLINE void Visit(Visitor&& visitor)
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
