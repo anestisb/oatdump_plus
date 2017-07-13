@@ -251,6 +251,7 @@ inline String* String::AllocFromByteArray(Thread* self, int32_t byte_length,
                                           Handle<ByteArray> array, int32_t offset,
                                           int32_t high_byte, gc::AllocatorType allocator_type) {
   const uint8_t* const src = reinterpret_cast<uint8_t*>(array->GetData()) + offset;
+  high_byte &= 0xff;  // Extract the relevant bits before determining `compressible`.
   const bool compressible =
       kUseStringCompression && String::AllASCII<uint8_t>(src, byte_length) && (high_byte == 0);
   const int32_t length_with_flag = String::GetFlaggedCount(byte_length, compressible);
