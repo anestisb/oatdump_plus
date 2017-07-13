@@ -22,12 +22,14 @@
 #include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "bytecode_utils.h"
 #include "compiled_method.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "mirror/dex_cache.h"
+#include "quicken_info.h"
 #include "thread-current-inl.h"
 
 namespace art {
@@ -110,13 +112,9 @@ class DexCompiler {
 
 void DexCompiler::Compile() {
   DCHECK_EQ(dex_to_dex_compilation_level_, DexToDexCompilationLevel::kOptimize);
-  const DexFile::CodeItem* code_item = unit_.GetCodeItem();
-  const uint16_t* insns = code_item->insns_;
-  const uint32_t insns_size = code_item->insns_size_in_code_units_;
-  Instruction* inst = const_cast<Instruction*>(Instruction::At(insns));
-
-  for (uint32_t dex_pc = 0; dex_pc < insns_size;
-       inst = const_cast<Instruction*>(inst->Next()), dex_pc = inst->GetDexPc(insns)) {
+  for (CodeItemIterator it(*unit_.GetCodeItem()); !it.Done(); it.Advance()) {
+    Instruction* inst = const_cast<Instruction*>(&it.CurrentInstruction());
+    const uint32_t dex_pc = it.CurrentDexPc();
     switch (inst->Opcode()) {
       case Instruction::RETURN_VOID:
         CompileReturnVoid(inst, dex_pc);
@@ -124,6 +122,11 @@ void DexCompiler::Compile() {
 
       case Instruction::CHECK_CAST:
         inst = CompileCheckCast(inst, dex_pc);
+        if (inst->Opcode() == Instruction::NOP) {
+          // We turned the CHECK_CAST into two NOPs, avoid visiting the second NOP twice since this
+          // would add 2 quickening info entries.
+          it.Advance();
+        }
         break;
 
       case Instruction::IGET:
@@ -190,7 +193,14 @@ void DexCompiler::Compile() {
         CompileInvokeVirtual(inst, dex_pc, Instruction::INVOKE_VIRTUAL_RANGE_QUICK, true);
         break;
 
+      case Instruction::NOP:
+        // We need to differentiate between check cast inserted NOP and normal NOP, put an invalid
+        // index in the map for normal nops. This should be rare in real code.
+        quickened_info_.push_back(QuickenedInfo(dex_pc, DexFile::kDexNoIndex16));
+        break;
+
       default:
+        DCHECK(!inst->IsQuickened());
         // Nothing to do.
         break;
     }
@@ -348,10 +358,26 @@ CompiledMethod* ArtCompileDEX(
     }
 
     // Create a `CompiledMethod`, with the quickened information in the vmap table.
-    Leb128EncodingVector<> builder;
+    if (kIsDebugBuild) {
+      // Double check that the counts line up with the size of the quicken info.
+      size_t quicken_count = 0;
+      for (CodeItemIterator it(*code_item); !it.Done(); it.Advance()) {
+        if (QuickenInfoTable::NeedsIndexForInstruction(&it.CurrentInstruction())) {
+          ++quicken_count;
+        }
+      }
+      CHECK_EQ(quicken_count, dex_compiler.GetQuickenedInfo().size());
+    }
+    std::vector<uint8_t> quicken_data;
     for (QuickenedInfo info : dex_compiler.GetQuickenedInfo()) {
-      builder.PushBackUnsigned(info.dex_pc);
-      builder.PushBackUnsigned(info.dex_member_index);
+      // Dex pc is not serialized, only used for checking the instructions. Since we access the
+      // array based on the index of the quickened instruction, the indexes must line up perfectly.
+      // The reader side uses the NeedsIndexForInstruction function too.
+      const Instruction* inst = Instruction::At(code_item->insns_ + info.dex_pc);
+      CHECK(QuickenInfoTable::NeedsIndexForInstruction(inst)) << inst->Opcode();
+      // Add the index.
+      quicken_data.push_back(static_cast<uint8_t>(info.dex_member_index >> 0));
+      quicken_data.push_back(static_cast<uint8_t>(info.dex_member_index >> 8));
     }
     InstructionSet instruction_set = driver->GetInstructionSet();
     if (instruction_set == kThumb2) {
@@ -366,7 +392,7 @@ CompiledMethod* ArtCompileDEX(
         0,
         0,
         ArrayRef<const uint8_t>(),                   // method_info
-        ArrayRef<const uint8_t>(builder.GetData()),  // vmap_table
+        ArrayRef<const uint8_t>(quicken_data),       // vmap_table
         ArrayRef<const uint8_t>(),                   // cfi data
         ArrayRef<const LinkerPatch>());
   }

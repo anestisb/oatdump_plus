@@ -27,6 +27,7 @@
 #include "mirror/dex_cache.h"
 #include "nodes.h"
 #include "optimizing_compiler_stats.h"
+#include "quicken_info.h"
 #include "ssa_builder.h"
 
 namespace art {
@@ -67,9 +68,7 @@ class HInstructionBuilder : public ValueObject {
         code_generator_(code_generator),
         dex_compilation_unit_(dex_compilation_unit),
         outer_compilation_unit_(outer_compilation_unit),
-        interpreter_metadata_(interpreter_metadata),
-        skipped_interpreter_metadata_(std::less<uint32_t>(),
-                                      arena_->Adapter(kArenaAllocGraphBuilder)),
+        quicken_info_(interpreter_metadata),
         compilation_stats_(compiler_stats),
         dex_cache_(dex_cache),
         loop_headers_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)) {
@@ -85,11 +84,11 @@ class HInstructionBuilder : public ValueObject {
   void PropagateLocalsToCatchBlocks();
   void SetLoopHeaderPhiInputs();
 
-  bool ProcessDexInstruction(const Instruction& instruction, uint32_t dex_pc);
+  bool ProcessDexInstruction(const Instruction& instruction, uint32_t dex_pc, size_t quicken_index);
   void FindNativeDebugInfoLocations(ArenaBitVector* locations);
 
   bool CanDecodeQuickenedInfo() const;
-  uint16_t LookupQuickenedInfo(uint32_t dex_pc);
+  uint16_t LookupQuickenedInfo(uint32_t quicken_index);
 
   HBasicBlock* FindBlockStartingAt(uint32_t dex_pc) const;
 
@@ -159,7 +158,10 @@ class HInstructionBuilder : public ValueObject {
   void BuildReturn(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
 
   // Builds an instance field access node and returns whether the instruction is supported.
-  bool BuildInstanceFieldAccess(const Instruction& instruction, uint32_t dex_pc, bool is_put);
+  bool BuildInstanceFieldAccess(const Instruction& instruction,
+                                uint32_t dex_pc,
+                                bool is_put,
+                                size_t quicken_index);
 
   void BuildUnresolvedStaticFieldAccess(const Instruction& instruction,
                                         uint32_t dex_pc,
@@ -349,14 +351,8 @@ class HInstructionBuilder : public ValueObject {
   // methods.
   const DexCompilationUnit* const outer_compilation_unit_;
 
-  // Original values kept after instruction quickening. This is a data buffer
-  // of Leb128-encoded (dex_pc, value) pairs sorted by dex_pc.
-  const uint8_t* interpreter_metadata_;
-
-  // InstructionBuilder does not parse instructions in dex_pc order. Quickening
-  // info for out-of-order dex_pcs is stored in a map until the positions
-  // are eventually visited.
-  ArenaSafeMap<uint32_t, uint16_t> skipped_interpreter_metadata_;
+  // Original values kept after instruction quickening.
+  QuickenInfoTable quicken_info_;
 
   OptimizingCompilerStats* compilation_stats_;
   Handle<mirror::DexCache> dex_cache_;
