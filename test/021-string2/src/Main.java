@@ -700,6 +700,11 @@ public class Main {
             $noinline$constNonAsciiString35Equals("\u0440123456789012345678901234567890123x"));
         Assert.assertFalse(
             $noinline$constNonAsciiString35Equals("01234567890123456789012345678901234"));
+
+        // Regression test for incorrectly creating an uncompressed string when the
+        // string should be compressed. Only the low 8 bits are relevant but the whole
+        // `hibyte` was erroneously tested. Bug: 63661357
+        Assert.assertTrue("A".equals(new String(new byte[] { (byte)'A' }, /* hibyte */ 0x100)));
     }
 
     public static boolean $noinline$equalsConstString0(String s) {
