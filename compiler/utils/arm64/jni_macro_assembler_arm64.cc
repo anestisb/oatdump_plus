@@ -782,7 +782,7 @@ void Arm64JNIMacroAssembler::RemoveFrame(size_t frame_size,
   // Decrease frame size to start of callee saved regs.
   DecreaseFrameSize(frame_size);
 
-  // Pop callee saved and return to LR.
+  // Return to LR.
   ___ Ret();
 
   // The CFI should be restored for any code that follows the exit block.

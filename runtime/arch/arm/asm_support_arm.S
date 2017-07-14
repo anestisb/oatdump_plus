@@ -26,6 +26,13 @@
 // Register holding Thread::Current().
 #define rSELF r9
 
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+// Marking Register, holding Thread::Current()->GetIsGcMarking().
+// Only used with the Concurrent Copying (CC) garbage
+// collector, with the Baker read barrier configuration.
+#define rMR r8
+#endif
+
 .syntax unified
 .arch armv7-a
 .thumb
@@ -121,14 +128,14 @@
     END \name
 .endm
 
-// Macros to poison (negate) the reference for heap poisoning.
+// Macro to poison (negate) the reference for heap poisoning.
 .macro POISON_HEAP_REF rRef
 #ifdef USE_HEAP_POISONING
     rsb \rRef, \rRef, #0
 #endif  // USE_HEAP_POISONING
 .endm
 
-// Macros to unpoison (negate) the reference for heap poisoning.
+// Macro to unpoison (negate) the reference for heap poisoning.
 .macro UNPOISON_HEAP_REF rRef
 #ifdef USE_HEAP_POISONING
     rsb \rRef, \rRef, #0

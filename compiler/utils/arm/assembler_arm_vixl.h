@@ -241,6 +241,8 @@ class ArmVIXLAssembler FINAL : public Assembler {
 
 // Thread register declaration.
 extern const vixl32::Register tr;
+// Marking register declaration.
+extern const vixl32::Register mr;
 
 }  // namespace arm
 }  // namespace art

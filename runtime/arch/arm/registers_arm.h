@@ -40,7 +40,8 @@ enum Register {
   R13 = 13,
   R14 = 14,
   R15 = 15,
-  TR  = 9,  // thread register
+  MR  = 8,  // ART Marking Register
+  TR  = 9,  // ART Thread Register
   FP  = 11,
   IP  = 12,
   SP  = 13,
