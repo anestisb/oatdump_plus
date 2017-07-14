@@ -27,6 +27,7 @@
 #include "gc/space/space.h"
 #include "mirror/object-inl.h"
 #include "mirror/object-refvisitor-inl.h"
+#include "object_callbacks.h"
 #include "space_bitmap-inl.h"
 #include "thread-current-inl.h"
 
@@ -383,7 +384,7 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
   }
 }
 
-void ModUnionTableReferenceCache::VisitObjects(ObjectCallback* callback, void* arg) {
+void ModUnionTableReferenceCache::VisitObjects(ObjectCallback callback, void* arg) {
   CardTable* const card_table = heap_->GetCardTable();
   ContinuousSpaceBitmap* live_bitmap = space_->GetLiveBitmap();
   for (uint8_t* card : cleared_cards_) {
@@ -550,7 +551,7 @@ void ModUnionTableCardCache::UpdateAndMarkReferences(MarkObjectVisitor* visitor)
       0, RoundUp(space_->Size(), CardTable::kCardSize) / CardTable::kCardSize, bit_visitor);
 }
 
-void ModUnionTableCardCache::VisitObjects(ObjectCallback* callback, void* arg) {
+void ModUnionTableCardCache::VisitObjects(ObjectCallback callback, void* arg) {
   card_bitmap_->VisitSetBits(
       0,
       RoundUp(space_->Size(), CardTable::kCardSize) / CardTable::kCardSize,

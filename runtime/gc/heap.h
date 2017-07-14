@@ -52,9 +52,6 @@ class ThreadPool;
 class TimingLogger;
 class VariableSizedHandleScope;
 
-// Same as in object_callbacks.h. Just avoid the include.
-typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
-
 namespace mirror {
   class Class;
   class Object;
@@ -1009,9 +1006,6 @@ class Heap {
                           uint64_t bytes_allocated_before_gc = 0);
 
   size_t GetPercentFree();
-
-  static void VerificationCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
   // Swap the allocation stack with the live stack.
   void SwapStacks() REQUIRES_SHARED(Locks::mutator_lock_);

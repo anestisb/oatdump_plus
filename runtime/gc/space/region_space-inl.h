@@ -184,14 +184,6 @@ uint64_t RegionSpace::GetObjectsAllocatedInternal() {
   return bytes;
 }
 
-template<bool kToSpaceOnly>
-void RegionSpace::WalkInternal(ObjectCallback* callback, void* arg) {
-  auto visitor = [callback, arg](mirror::Object* obj) {
-    callback(obj, arg);
-  };
-  WalkInternal<kToSpaceOnly>(visitor);
-}
-
 template<bool kToSpaceOnly, typename Visitor>
 void RegionSpace::WalkInternal(Visitor&& visitor) {
   // TODO: MutexLock on region_lock_ won't work due to lock order

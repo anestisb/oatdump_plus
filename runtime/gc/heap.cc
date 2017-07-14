@@ -1512,13 +1512,17 @@ void Heap::VerifyObjectBody(ObjPtr<mirror::Object> obj) {
   }
 }
 
-void Heap::VerificationCallback(mirror::Object* obj, void* arg) {
-  reinterpret_cast<Heap*>(arg)->VerifyObjectBody(obj);
-}
-
 void Heap::VerifyHeap() {
   ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
-  GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
+  auto visitor = [&](mirror::Object* obj) {
+    VerifyObjectBody(obj);
+  };
+  // Technically we need the mutator lock here to call Visit. However, VerifyObjectBody is already
+  // NO_THREAD_SAFETY_ANALYSIS.
+  auto no_thread_safety_analysis = [&]() NO_THREAD_SAFETY_ANALYSIS {
+    GetLiveBitmap()->Visit(visitor);
+  };
+  no_thread_safety_analysis();
 }
 
 void Heap::RecordFree(uint64_t freed_objects, int64_t freed_bytes) {
@@ -2176,24 +2180,25 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
         bin_mark_bitmap_(nullptr),
         is_running_on_memory_tool_(is_running_on_memory_tool) {}
 
-  void BuildBins(space::ContinuousSpace* space) {
+  void BuildBins(space::ContinuousSpace* space) REQUIRES_SHARED(Locks::mutator_lock_) {
     bin_live_bitmap_ = space->GetLiveBitmap();
     bin_mark_bitmap_ = space->GetMarkBitmap();
-    BinContext context;
-    context.prev_ = reinterpret_cast<uintptr_t>(space->Begin());
-    context.collector_ = this;
+    uintptr_t prev = reinterpret_cast<uintptr_t>(space->Begin());
     WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     // Note: This requires traversing the space in increasing order of object addresses.
-    bin_live_bitmap_->Walk(Callback, reinterpret_cast<void*>(&context));
+    auto visitor = [&](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+      uintptr_t object_addr = reinterpret_cast<uintptr_t>(obj);
+      size_t bin_size = object_addr - prev;
+      // Add the bin consisting of the end of the previous object to the start of the current object.
+      AddBin(bin_size, prev);
+      prev = object_addr + RoundUp(obj->SizeOf<kDefaultVerifyFlags>(), kObjectAlignment);
+    };
+    bin_live_bitmap_->Walk(visitor);
     // Add the last bin which spans after the last object to the end of the space.
-    AddBin(reinterpret_cast<uintptr_t>(space->End()) - context.prev_, context.prev_);
+    AddBin(reinterpret_cast<uintptr_t>(space->End()) - prev, prev);
   }
 
  private:
-  struct BinContext {
-    uintptr_t prev_;  // The end of the previous object.
-    ZygoteCompactingCollector* collector_;
-  };
   // Maps from bin sizes to locations.
   std::multimap<size_t, uintptr_t> bins_;
   // Live bitmap of the space which contains the bins.
@@ -2201,18 +2206,6 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
   // Mark bitmap of the space which contains the bins.
   accounting::ContinuousSpaceBitmap* bin_mark_bitmap_;
   const bool is_running_on_memory_tool_;
-
-  static void Callback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(arg != nullptr);
-    BinContext* context = reinterpret_cast<BinContext*>(arg);
-    ZygoteCompactingCollector* collector = context->collector_;
-    uintptr_t object_addr = reinterpret_cast<uintptr_t>(obj);
-    size_t bin_size = object_addr - context->prev_;
-    // Add the bin consisting of the end of the previous object to the start of the current object.
-    collector->AddBin(bin_size, context->prev_);
-    context->prev_ = object_addr + RoundUp(obj->SizeOf<kDefaultVerifyFlags>(), kObjectAlignment);
-  }
 
   void AddBin(size_t size, uintptr_t position) {
     if (is_running_on_memory_tool_) {

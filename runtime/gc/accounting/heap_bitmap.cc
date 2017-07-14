@@ -71,15 +71,6 @@ void HeapBitmap::RemoveLargeObjectBitmap(LargeObjectBitmap* bitmap) {
   large_object_bitmaps_.erase(it);
 }
 
-void HeapBitmap::Walk(ObjectCallback* callback, void* arg) {
-  for (const auto& bitmap : continuous_space_bitmaps_) {
-    bitmap->Walk(callback, arg);
-  }
-  for (const auto& bitmap : large_object_bitmaps_) {
-    bitmap->Walk(callback, arg);
-  }
-}
-
 }  // namespace accounting
 }  // namespace gc
 }  // namespace art

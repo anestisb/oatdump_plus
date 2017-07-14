@@ -614,7 +614,10 @@ bool PatchOat::PatchImage(bool primary_image) {
     TimingLogger::ScopedTiming t("Walk Bitmap", timings_);
     // Walk the bitmap.
     WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
-    bitmap_->Walk(PatchOat::BitmapCallback, this);
+    auto visitor = [&](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+      VisitObject(obj);
+    };
+    bitmap_->Walk(visitor);
   }
   return true;
 }
@@ -638,7 +641,7 @@ void PatchOat::PatchVisitor::operator() (ObjPtr<mirror::Class> cls ATTRIBUTE_UNU
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
 
-// Called by BitmapCallback
+// Called by PatchImage.
 void PatchOat::VisitObject(mirror::Object* object) {
   mirror::Object* copy = RelocatedCopyOf(object);
   CHECK(copy != nullptr);

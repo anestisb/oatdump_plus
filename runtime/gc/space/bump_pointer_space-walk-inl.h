@@ -32,6 +32,19 @@ inline void BumpPointerSpace::Walk(Visitor&& visitor) {
   uint8_t* pos = Begin();
   uint8_t* end = End();
   uint8_t* main_end = pos;
+  // Internal indirection w/ NO_THREAD_SAFETY_ANALYSIS. Optimally, we'd like to have an annotation
+  // like
+  //   REQUIRES_AS(visitor.operator(mirror::Object*))
+  // on Walk to expose the interprocedural nature of locks here without having to duplicate the
+  // function.
+  //
+  // NO_THREAD_SAFETY_ANALYSIS is a workaround. The problem with the workaround of course is that
+  // it doesn't complain at the callsite. However, that is strictly not worse than the
+  // ObjectCallback version it replaces.
+  auto no_thread_safety_analysis_visit = [&](mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS {
+    visitor(obj);
+  };
+
   {
     MutexLock mu(Thread::Current(), block_lock_);
     // If we have 0 blocks then we need to update the main header since we have bump pointer style
@@ -57,7 +70,7 @@ inline void BumpPointerSpace::Walk(Visitor&& visitor) {
       // since there is guaranteed to be not other blocks.
       return;
     } else {
-      visitor(obj);
+      no_thread_safety_analysis_visit(obj);
       pos = reinterpret_cast<uint8_t*>(GetNextObject(obj));
     }
   }
@@ -73,7 +86,7 @@ inline void BumpPointerSpace::Walk(Visitor&& visitor) {
     // assume its the end. TODO: Have a thread update the header when it flushes the block?
     // No read barrier because obj may not be a valid object.
     while (obj < end_obj && obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
-      visitor(obj);
+      no_thread_safety_analysis_visit(obj);
       obj = GetNextObject(obj);
     }
     pos += block_size;

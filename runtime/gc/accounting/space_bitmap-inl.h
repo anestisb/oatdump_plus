@@ -156,6 +156,26 @@ inline void SpaceBitmap<kAlignment>::VisitMarkedRange(uintptr_t visit_begin,
 #endif
 }
 
+template<size_t kAlignment> template<typename Visitor>
+void SpaceBitmap<kAlignment>::Walk(Visitor&& visitor) {
+  CHECK(bitmap_begin_ != nullptr);
+
+  uintptr_t end = OffsetToIndex(HeapLimit() - heap_begin_ - 1);
+  Atomic<uintptr_t>* bitmap_begin = bitmap_begin_;
+  for (uintptr_t i = 0; i <= end; ++i) {
+    uintptr_t w = bitmap_begin[i].LoadRelaxed();
+    if (w != 0) {
+      uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
+      do {
+        const size_t shift = CTZ(w);
+        mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
+        visitor(obj);
+        w ^= (static_cast<uintptr_t>(1)) << shift;
+      } while (w != 0);
+    }
+  }
+}
+
 template<size_t kAlignment> template<bool kSetBit>
 inline bool SpaceBitmap<kAlignment>::Modify(const mirror::Object* obj) {
   uintptr_t addr = reinterpret_cast<uintptr_t>(obj);

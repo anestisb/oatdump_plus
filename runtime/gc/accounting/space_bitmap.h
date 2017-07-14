@@ -34,9 +34,6 @@ namespace mirror {
 }  // namespace mirror
 class MemMap;
 
-// Same as in object_callbacks.h. Just avoid the include.
-typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
-
 namespace gc {
 namespace accounting {
 
@@ -108,8 +105,6 @@ class SpaceBitmap {
     return index < bitmap_size_ / sizeof(intptr_t);
   }
 
-  void VisitRange(uintptr_t base, uintptr_t max, ObjectCallback* callback, void* arg) const;
-
   class ClearVisitor {
    public:
     explicit ClearVisitor(SpaceBitmap* const bitmap)
@@ -139,8 +134,9 @@ class SpaceBitmap {
 
   // Visits set bits in address order.  The callback is not permitted to change the bitmap bits or
   // max during the traversal.
-  void Walk(ObjectCallback* callback, void* arg)
-      REQUIRES_SHARED(Locks::heap_bitmap_lock_);
+  template <typename Visitor>
+  void Walk(Visitor&& visitor)
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Walk through the bitmaps in increasing address order, and find the object pointers that
   // correspond to garbage objects.  Call <callback> zero or more times with lists of these object

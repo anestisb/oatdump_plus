@@ -864,24 +864,6 @@ struct TrampolineCheckData {
   bool error;
 };
 
-static void CheckTrampolines(mirror::Object* obj, void* arg) NO_THREAD_SAFETY_ANALYSIS {
-  if (obj->IsClass()) {
-    ObjPtr<mirror::Class> klass = obj->AsClass();
-    TrampolineCheckData* d = reinterpret_cast<TrampolineCheckData*>(arg);
-    for (ArtMethod& m : klass->GetMethods(d->pointer_size)) {
-      const void* entrypoint = m.GetEntryPointFromQuickCompiledCodePtrSize(d->pointer_size);
-      if (entrypoint == d->quick_resolution_trampoline ||
-          entrypoint == d->quick_imt_conflict_trampoline ||
-          entrypoint == d->quick_generic_jni_trampoline ||
-          entrypoint == d->quick_to_interpreter_bridge_trampoline) {
-        d->m = &m;
-        d->error = true;
-        return;
-      }
-    }
-  }
-}
-
 bool ClassLinker::InitFromBootImage(std::string* error_msg) {
   VLOG(startup) << __FUNCTION__ << " entering";
   CHECK(!init_done_);
@@ -946,7 +928,24 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
         data.quick_generic_jni_trampoline = ith_quick_generic_jni_trampoline;
         data.quick_to_interpreter_bridge_trampoline = ith_quick_to_interpreter_bridge_trampoline;
         ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-        spaces[i]->GetLiveBitmap()->Walk(CheckTrampolines, &data);
+        auto visitor = [&](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+          if (obj->IsClass()) {
+            ObjPtr<mirror::Class> klass = obj->AsClass();
+            for (ArtMethod& m : klass->GetMethods(data.pointer_size)) {
+              const void* entrypoint =
+                  m.GetEntryPointFromQuickCompiledCodePtrSize(data.pointer_size);
+              if (entrypoint == data.quick_resolution_trampoline ||
+                  entrypoint == data.quick_imt_conflict_trampoline ||
+                  entrypoint == data.quick_generic_jni_trampoline ||
+                  entrypoint == data.quick_to_interpreter_bridge_trampoline) {
+                data.m = &m;
+                data.error = true;
+                return;
+              }
+            }
+          }
+        };
+        spaces[i]->GetLiveBitmap()->Walk(visitor);
         if (data.error) {
           ArtMethod* m = data.m;
           LOG(ERROR) << "Found a broken ArtMethod: " << ArtMethod::PrettyMethod(m);

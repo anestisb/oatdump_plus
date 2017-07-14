@@ -21,21 +21,25 @@
 #include "base/allocator.h"
 #include "card_table.h"
 #include "globals.h"
-#include "object_callbacks.h"
+#include "mirror/object_reference.h"
 #include "safe_map.h"
 
 #include <set>
 #include <vector>
 
 namespace art {
+
 namespace mirror {
 class Object;
 }  // namespace mirror
+
+class MarkObjectVisitor;
 
 namespace gc {
 namespace space {
   class ContinuousSpace;
 }  // namespace space
+
 class Heap;
 
 namespace accounting {
@@ -44,6 +48,9 @@ namespace accounting {
 // cleared between GC phases, reducing the number of dirty cards that need to be scanned.
 class ModUnionTable {
  public:
+  // A callback for visiting an object in the heap.
+  using ObjectCallback = void (*)(mirror::Object*, void*);
+
   typedef std::set<uint8_t*, std::less<uint8_t*>,
                    TrackingAllocator<uint8_t*, kAllocatorTagModUnionCardSet>> CardSet;
   typedef MemoryRangeBitmap<CardTable::kCardSize> CardBitmap;
@@ -72,7 +79,7 @@ class ModUnionTable {
   virtual void UpdateAndMarkReferences(MarkObjectVisitor* visitor) = 0;
 
   // Visit all of the objects that may contain references to other spaces.
-  virtual void VisitObjects(ObjectCallback* callback, void* arg) = 0;
+  virtual void VisitObjects(ObjectCallback callback, void* arg) = 0;
 
   // Verification, sanity checks that we don't have clean cards which conflict with out cached data
   // for said cards. Exclusive lock is required since verify sometimes uses
@@ -124,7 +131,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_);
 
-  virtual void VisitObjects(ObjectCallback* callback, void* arg) OVERRIDE
+  virtual void VisitObjects(ObjectCallback callback, void* arg) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -171,7 +178,7 @@ class ModUnionTableCardCache : public ModUnionTable {
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  virtual void VisitObjects(ObjectCallback* callback, void* arg) OVERRIDE
+  virtual void VisitObjects(ObjectCallback callback, void* arg) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
