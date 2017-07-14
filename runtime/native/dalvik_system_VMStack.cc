@@ -62,7 +62,8 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
         trace = thread->CreateInternalStackTrace<false>(soa);
       }
       // Restart suspended thread.
-      thread_list->Resume(thread, SuspendReason::kInternal);
+      bool resumed = thread_list->Resume(thread, SuspendReason::kInternal);
+      DCHECK(resumed);
     } else if (timed_out) {
       LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
           "generous timeout.";

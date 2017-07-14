@@ -2480,7 +2480,8 @@ void Dbg::ResumeThread(JDWP::ObjectId thread_id) {
     needs_resume = thread->GetDebugSuspendCount() > 0;
   }
   if (needs_resume) {
-    Runtime::Current()->GetThreadList()->Resume(thread, SuspendReason::kForDebugger);
+    bool resumed = Runtime::Current()->GetThreadList()->Resume(thread, SuspendReason::kForDebugger);
+    DCHECK(resumed);
   }
 }
 
@@ -3721,7 +3722,9 @@ class ScopedDebuggerThreadSuspension {
 
   ~ScopedDebuggerThreadSuspension() {
     if (other_suspend_) {
-      Runtime::Current()->GetThreadList()->Resume(thread_, SuspendReason::kForDebugger);
+      bool resumed = Runtime::Current()->GetThreadList()->Resume(thread_,
+                                                                 SuspendReason::kForDebugger);
+      DCHECK(resumed);
     }
   }
 
@@ -4043,7 +4046,8 @@ JDWP::JdwpError Dbg::PrepareInvokeMethod(uint32_t request_id, JDWP::ObjectId thr
     thread_list->UndoDebuggerSuspensions();
   } else {
     VLOG(jdwp) << "      Resuming event thread only";
-    thread_list->Resume(targetThread, SuspendReason::kForDebugger);
+    bool resumed = thread_list->Resume(targetThread, SuspendReason::kForDebugger);
+    DCHECK(resumed);
   }
 
   return JDWP::ERR_NONE;

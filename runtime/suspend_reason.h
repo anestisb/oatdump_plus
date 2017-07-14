@@ -28,6 +28,8 @@ enum class SuspendReason {
   kInternal,
   // Suspending for debugger (code in Dbg::*, runtime/jdwp/, etc.).
   kForDebugger,
+  // Suspending due to non-runtime, user controlled, code. (For example Thread#Suspend()).
+  kForUserCode,
 };
 
 std::ostream& operator<<(std::ostream& os, const SuspendReason& thread);

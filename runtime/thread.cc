@@ -1208,6 +1208,15 @@ bool Thread::ModifySuspendCountInternal(Thread* self,
       Locks::thread_list_lock_->AssertHeld(self);
     }
   }
+  // User code suspensions need to be checked more closely since they originate from code outside of
+  // the runtime's control.
+  if (UNLIKELY(reason == SuspendReason::kForUserCode)) {
+    Locks::user_code_suspension_lock_->AssertHeld(self);
+    if (UNLIKELY(delta + tls32_.user_code_suspend_count < 0)) {
+      LOG(ERROR) << "attempting to modify suspend count in an illegal way.";
+      return false;
+    }
+  }
   if (UNLIKELY(delta < 0 && tls32_.suspend_count <= 0)) {
     UnsafeLogFatalForSuspendCount(self, this);
     return false;
@@ -1240,6 +1249,9 @@ bool Thread::ModifySuspendCountInternal(Thread* self,
   switch (reason) {
     case SuspendReason::kForDebugger:
       tls32_.debug_suspend_count += delta;
+      break;
+    case SuspendReason::kForUserCode:
+      tls32_.user_code_suspend_count += delta;
       break;
     case SuspendReason::kInternal:
       break;

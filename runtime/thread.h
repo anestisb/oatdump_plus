@@ -228,6 +228,11 @@ class Thread {
     return tls32_.suspend_count;
   }
 
+  int GetUserCodeSuspendCount() const REQUIRES(Locks::thread_suspend_count_lock_,
+                                               Locks::user_code_suspension_lock_) {
+    return tls32_.user_code_suspend_count;
+  }
+
   int GetDebugSuspendCount() const REQUIRES(Locks::thread_suspend_count_lock_) {
     return tls32_.debug_suspend_count;
   }
@@ -1392,7 +1397,7 @@ class Thread {
       thread_exit_check_count(0), handling_signal_(false),
       is_transitioning_to_runnable(false), ready_for_debug_invoke(false),
       debug_method_entry_(false), is_gc_marking(false), weak_ref_access_enabled(true),
-      disable_thread_flip_count(0) {
+      disable_thread_flip_count(0), user_code_suspend_count(0) {
     }
 
     union StateAndFlags state_and_flags;
@@ -1467,6 +1472,12 @@ class Thread {
     // levels of (nested) JNI critical sections the thread is in and is used to detect a nested JNI
     // critical section enter.
     uint32_t disable_thread_flip_count;
+
+    // How much of 'suspend_count_' is by request of user code, used to distinguish threads
+    // suspended by the runtime from those suspended by user code.
+    // This should have GUARDED_BY(Locks::user_code_suspension_lock_) but auto analysis cannot be
+    // told that AssertHeld should be good enough.
+    int user_code_suspend_count GUARDED_BY(Locks::thread_suspend_count_lock_);
   } tls32_;
 
   struct PACKED(8) tls_64bit_sized_values {

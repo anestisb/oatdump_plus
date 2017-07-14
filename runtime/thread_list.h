@@ -65,8 +65,8 @@ class ThreadList {
   void ResumeAll()
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
       UNLOCK_FUNCTION(Locks::mutator_lock_);
-  void Resume(Thread* thread, SuspendReason reason = SuspendReason::kInternal)
-      REQUIRES(!Locks::thread_suspend_count_lock_);
+  bool Resume(Thread* thread, SuspendReason reason = SuspendReason::kInternal)
+      REQUIRES(!Locks::thread_suspend_count_lock_) WARN_UNUSED;
 
   // Suspends all threads and gets exclusive access to the mutator_lock_.
   // If long_suspend is true, then other threads who try to suspend will never timeout.
