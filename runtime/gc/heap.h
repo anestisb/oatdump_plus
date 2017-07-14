@@ -251,12 +251,6 @@ class Heap {
   }
 
   // Visit all of the live objects in the heap.
-  void VisitObjects(ObjectCallback callback, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_);
-  void VisitObjectsPaused(ObjectCallback callback, void* arg)
-      REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !*gc_complete_lock_);
-
   template <typename Visitor>
   ALWAYS_INLINE void VisitObjects(Visitor&& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -1059,12 +1053,6 @@ class Heap {
 
   // Trim 0 pages at the end of reference tables.
   void TrimIndirectReferenceTables(Thread* self);
-
-  void VisitObjectsInternal(ObjectCallback callback, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_);
-  void VisitObjectsInternalRegionSpace(ObjectCallback callback, void* arg)
-      REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !*gc_complete_lock_);
 
   template <typename Visitor>
   ALWAYS_INLINE void VisitObjectsInternal(Visitor&& visitor)
