@@ -291,6 +291,7 @@ art_cc_defaults {
         "1901-get-bytecodes/bytecodes.cc",
         "1905-suspend-native/native_suspend.cc",
         "1908-suspend-native-resume-self/native_suspend_resume.cc",
+        "1909-per-agent-tls/agent_tls.cc",
     ],
     shared_libs: [
         "libbase",
