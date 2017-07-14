@@ -274,8 +274,8 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
   // `HArm64Load` and `HArm64Store`,`HArmLoad` and `HArmStore`). We defer these changes
   // because these new instructions would not bring any advantages yet.
   // Also see the comments in
-  // `InstructionCodeGeneratorARM::VisitArrayGet()`
-  // `InstructionCodeGeneratorARM::VisitArraySet()`
+  // `InstructionCodeGeneratorARMVIXL::VisitArrayGet()`
+  // `InstructionCodeGeneratorARMVIXL::VisitArraySet()`
   // `InstructionCodeGeneratorARM64::VisitArrayGet()`
   // `InstructionCodeGeneratorARM64::VisitArraySet()`.
   return true;

@@ -35,7 +35,6 @@
 #include "ssa_liveness_analysis.h"
 
 #ifdef ART_ENABLE_CODEGEN_arm
-#include "code_generator_arm.h"
 #include "code_generator_arm_vixl.h"
 #endif
 
@@ -84,26 +83,6 @@ class CodegenTargetConfig {
 // in ART, and callee-save in C. Alternatively, we could use or write
 // the stub that saves and restores all registers, but it is easier
 // to just overwrite the code generator.
-class TestCodeGeneratorARM : public arm::CodeGeneratorARM {
- public:
-  TestCodeGeneratorARM(HGraph* graph,
-                       const ArmInstructionSetFeatures& isa_features,
-                       const CompilerOptions& compiler_options)
-      : arm::CodeGeneratorARM(graph, isa_features, compiler_options) {
-    AddAllocatedRegister(Location::RegisterLocation(arm::R6));
-    AddAllocatedRegister(Location::RegisterLocation(arm::R7));
-  }
-
-  void SetupBlockedRegisters() const OVERRIDE {
-    arm::CodeGeneratorARM::SetupBlockedRegisters();
-    blocked_core_registers_[arm::R4] = true;
-    blocked_core_registers_[arm::R6] = false;
-    blocked_core_registers_[arm::R7] = false;
-  }
-};
-
-// A way to test the VIXL32-based code generator on ARM. This will replace
-// TestCodeGeneratorARM when the VIXL32-based backend replaces the existing one.
 class TestCodeGeneratorARMVIXL : public arm::CodeGeneratorARMVIXL {
  public:
   TestCodeGeneratorARMVIXL(HGraph* graph,
@@ -288,14 +267,6 @@ static void RunCode(CodegenTargetConfig target_config,
 }
 
 #ifdef ART_ENABLE_CODEGEN_arm
-CodeGenerator* create_codegen_arm(HGraph* graph, const CompilerOptions& compiler_options) {
-  std::unique_ptr<const ArmInstructionSetFeatures> features_arm(
-      ArmInstructionSetFeatures::FromCppDefines());
-  return new (graph->GetArena()) TestCodeGeneratorARM(graph,
-                                                      *features_arm.get(),
-                                                      compiler_options);
-}
-
 CodeGenerator* create_codegen_arm_vixl32(HGraph* graph, const CompilerOptions& compiler_options) {
   std::unique_ptr<const ArmInstructionSetFeatures> features_arm(
       ArmInstructionSetFeatures::FromCppDefines());

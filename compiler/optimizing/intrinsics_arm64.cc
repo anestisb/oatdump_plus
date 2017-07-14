@@ -2738,7 +2738,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
         // TODO: Also convert this intrinsic to the IsGcMarking strategy?
 
         // SystemArrayCopy implementation for Baker read barriers (see
-        // also CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier):
+        // also CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier):
         //
         //   uint32_t rb_state = Lockword(src->monitor_).ReadBarrierState();
         //   lfence;  // Load fence or artificial data dependency to prevent load-load reordering
