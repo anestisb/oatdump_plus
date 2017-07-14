@@ -18,7 +18,7 @@
  * This optimization recognizes the common diamond selection pattern and
  * replaces it with an instance of the HSelect instruction.
  *
- * Recognized pattern:
+ * Recognized patterns:
  *
  *          If [ Condition ]
  *            /          \
@@ -26,13 +26,29 @@
  *            \          /
  *     Phi [FalseValue, TrueValue]
  *
+ * and
+ *
+ *             If [ Condition ]
+ *               /          \
+ *     false branch        true branch
+ *     return FalseValue   return TrueValue
+ *
  * The pattern will be simplified if `true_branch` and `false_branch` each
  * contain at most one instruction without any side effects.
  *
- * Blocks are merged into one and Select replaces the If and the Phi:
+ * Blocks are merged into one and Select replaces the If and the Phi.
+ *
+ * For the first pattern it simplifies to:
+ *
  *              true branch
  *              false branch
  *              Select [FalseValue, TrueValue, Condition]
+ *
+ * For the second pattern it simplifies to:
+ *
+ *              true branch
+ *              false branch
+ *              return Select [FalseValue, TrueValue, Condition]
  *
  * Note: In order to recognize no side-effect blocks, this optimization must be
  * run after the instruction simplifier has removed redundant suspend checks.
@@ -42,19 +58,22 @@
 #define ART_COMPILER_OPTIMIZING_SELECT_GENERATOR_H_
 
 #include "optimization.h"
+#include "reference_type_propagation.h"
 
 namespace art {
 
 class HSelectGenerator : public HOptimization {
  public:
-  HSelectGenerator(HGraph* graph, OptimizingCompilerStats* stats)
-    : HOptimization(graph, kSelectGeneratorPassName, stats) {}
+  HSelectGenerator(HGraph* graph,
+                   VariableSizedHandleScope* handles,
+                   OptimizingCompilerStats* stats);
 
   void Run() OVERRIDE;
 
   static constexpr const char* kSelectGeneratorPassName = "select_generator";
 
  private:
+  VariableSizedHandleScope* handle_scope_;
   DISALLOW_COPY_AND_ASSIGN(HSelectGenerator);
 };
 

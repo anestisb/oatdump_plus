@@ -505,6 +505,7 @@
             "641-checker-arraycopy",
             "643-checker-bogus-ic",
             "645-checker-abs-simd",
+            "663-checker-select-generator",
             "706-checker-scheduler"],
         "description": ["Checker tests are not compatible with jvmti."],
         "variant": "jvmti-stress | redefine-stress | trace-stress | field-stress | step-stress"

@@ -54,6 +54,12 @@ class ReferenceTypePropagation : public HOptimization {
 
   static constexpr const char* kReferenceTypePropagationPassName = "reference_type_propagation";
 
+  // Fix the reference type for an instruction whose inputs have changed.
+  // For a select instruction, the reference types of the inputs are merged
+  // and the resulting reference type is set on the select instruction.
+  static void FixUpInstructionType(HInstruction* instruction,
+                                   VariableSizedHandleScope* handle_scope);
+
  private:
   class HandleCache {
    public:
@@ -101,7 +107,9 @@ class ReferenceTypePropagation : public HOptimization {
   static void UpdateArrayGet(HArrayGet* instr, HandleCache* handle_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a, const ReferenceTypeInfo& b)
+  static ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a,
+                                      const ReferenceTypeInfo& b,
+                                      HandleCache* handle_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ValidateTypes();

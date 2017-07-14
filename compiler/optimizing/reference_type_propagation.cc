@@ -754,8 +754,23 @@ void ReferenceTypePropagation::VisitPhi(HPhi* phi) {
   }
 }
 
+void ReferenceTypePropagation::FixUpInstructionType(HInstruction* instruction,
+                                                    VariableSizedHandleScope* handle_scope) {
+  if (instruction->IsSelect()) {
+    ScopedObjectAccess soa(Thread::Current());
+    HandleCache handle_cache(handle_scope);
+    HSelect* select = instruction->AsSelect();
+    ReferenceTypeInfo false_rti = select->GetFalseValue()->GetReferenceTypeInfo();
+    ReferenceTypeInfo true_rti = select->GetTrueValue()->GetReferenceTypeInfo();
+    select->SetReferenceTypeInfo(MergeTypes(false_rti, true_rti, &handle_cache));
+  } else {
+    LOG(FATAL) << "Invalid instruction in FixUpInstructionType";
+  }
+}
+
 ReferenceTypeInfo ReferenceTypePropagation::MergeTypes(const ReferenceTypeInfo& a,
-                                                       const ReferenceTypeInfo& b) {
+                                                       const ReferenceTypeInfo& b,
+                                                       HandleCache* handle_cache) {
   if (!b.IsValid()) {
     return a;
   }
@@ -780,7 +795,7 @@ ReferenceTypeInfo ReferenceTypePropagation::MergeTypes(const ReferenceTypeInfo& 
     is_exact = false;
   } else if (!a_is_interface && !b_is_interface) {
     result_type_handle =
-        handle_cache_.NewHandle(a_type_handle->GetCommonSuperClass(b_type_handle));
+        handle_cache->NewHandle(a_type_handle->GetCommonSuperClass(b_type_handle));
     is_exact = false;
   } else {
     // This can happen if:
@@ -790,7 +805,7 @@ ReferenceTypeInfo ReferenceTypePropagation::MergeTypes(const ReferenceTypeInfo& 
     //        void foo(Interface i, boolean cond) {
     //          Object o = cond ? i : new Object();
     //        }
-    result_type_handle = handle_cache_.GetObjectClassHandle();
+    result_type_handle = handle_cache->GetObjectClassHandle();
     is_exact = false;
   }
 
@@ -916,7 +931,7 @@ void ReferenceTypePropagation::UpdatePhi(HPhi* instr) {
     if (inputs[i]->IsNullConstant()) {
       continue;
     }
-    new_rti = MergeTypes(new_rti, inputs[i]->GetReferenceTypeInfo());
+    new_rti = MergeTypes(new_rti, inputs[i]->GetReferenceTypeInfo(), &handle_cache_);
     if (new_rti.IsValid() && new_rti.IsObjectClass()) {
       if (!new_rti.IsExact()) {
         break;

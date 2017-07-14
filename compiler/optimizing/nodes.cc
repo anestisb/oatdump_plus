@@ -1745,6 +1745,10 @@ bool HBasicBlock::IsSingleGoto() const {
   return HasOnlyOneInstruction(*this) && GetLastInstruction()->IsGoto();
 }
 
+bool HBasicBlock::IsSingleReturn() const {
+  return HasOnlyOneInstruction(*this) && GetLastInstruction()->IsReturn();
+}
+
 bool HBasicBlock::IsSingleTryBoundary() const {
   return HasOnlyOneInstruction(*this) && GetLastInstruction()->IsTryBoundary();
 }
