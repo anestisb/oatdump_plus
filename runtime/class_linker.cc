@@ -57,6 +57,7 @@
 #include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
+#include "gc/heap-visit-objects-inl.h"
 #include "gc/scoped_gc_critical_section.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
@@ -1620,7 +1621,46 @@ class ImageSanityChecks FINAL {
   static void CheckObjects(gc::Heap* heap, ClassLinker* class_linker)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ImageSanityChecks isc(heap, class_linker);
-    heap->VisitObjects(ImageSanityChecks::SanityCheckObjectsCallback, &isc);
+    auto visitor = [&](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+      DCHECK(obj != nullptr);
+      CHECK(obj->GetClass() != nullptr) << "Null class in object " << obj;
+      CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
+      if (obj->IsClass()) {
+        auto klass = obj->AsClass();
+        for (ArtField& field : klass->GetIFields()) {
+          CHECK_EQ(field.GetDeclaringClass(), klass);
+        }
+        for (ArtField& field : klass->GetSFields()) {
+          CHECK_EQ(field.GetDeclaringClass(), klass);
+        }
+        const auto pointer_size = isc.pointer_size_;
+        for (auto& m : klass->GetMethods(pointer_size)) {
+          isc.SanityCheckArtMethod(&m, klass);
+        }
+        auto* vtable = klass->GetVTable();
+        if (vtable != nullptr) {
+          isc.SanityCheckArtMethodPointerArray(vtable, nullptr);
+        }
+        if (klass->ShouldHaveImt()) {
+          ImTable* imt = klass->GetImt(pointer_size);
+          for (size_t i = 0; i < ImTable::kSize; ++i) {
+            isc.SanityCheckArtMethod(imt->Get(i, pointer_size), nullptr);
+          }
+        }
+        if (klass->ShouldHaveEmbeddedVTable()) {
+          for (int32_t i = 0; i < klass->GetEmbeddedVTableLength(); ++i) {
+            isc.SanityCheckArtMethod(klass->GetEmbeddedVTableEntry(i, pointer_size), nullptr);
+          }
+        }
+        mirror::IfTable* iftable = klass->GetIfTable();
+        for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
+          if (iftable->GetMethodArrayCount(i) > 0) {
+            isc.SanityCheckArtMethodPointerArray(iftable->GetMethodArray(i), nullptr);
+          }
+        }
+      }
+    };
+    heap->VisitObjects(visitor);
   }
 
   static void CheckPointerArray(gc::Heap* heap,
@@ -1630,49 +1670,6 @@ class ImageSanityChecks FINAL {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ImageSanityChecks isc(heap, class_linker);
     isc.SanityCheckArtMethodPointerArray(arr, size);
-  }
-
-  static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(obj != nullptr);
-    CHECK(obj->GetClass() != nullptr) << "Null class in object " << obj;
-    CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
-    if (obj->IsClass()) {
-      ImageSanityChecks* isc = reinterpret_cast<ImageSanityChecks*>(arg);
-
-      auto klass = obj->AsClass();
-      for (ArtField& field : klass->GetIFields()) {
-        CHECK_EQ(field.GetDeclaringClass(), klass);
-      }
-      for (ArtField& field : klass->GetSFields()) {
-        CHECK_EQ(field.GetDeclaringClass(), klass);
-      }
-      const auto pointer_size = isc->pointer_size_;
-      for (auto& m : klass->GetMethods(pointer_size)) {
-        isc->SanityCheckArtMethod(&m, klass);
-      }
-      auto* vtable = klass->GetVTable();
-      if (vtable != nullptr) {
-        isc->SanityCheckArtMethodPointerArray(vtable, nullptr);
-      }
-      if (klass->ShouldHaveImt()) {
-        ImTable* imt = klass->GetImt(pointer_size);
-        for (size_t i = 0; i < ImTable::kSize; ++i) {
-          isc->SanityCheckArtMethod(imt->Get(i, pointer_size), nullptr);
-        }
-      }
-      if (klass->ShouldHaveEmbeddedVTable()) {
-        for (int32_t i = 0; i < klass->GetEmbeddedVTableLength(); ++i) {
-          isc->SanityCheckArtMethod(klass->GetEmbeddedVTableEntry(i, pointer_size), nullptr);
-        }
-      }
-      mirror::IfTable* iftable = klass->GetIfTable();
-      for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-        if (iftable->GetMethodArrayCount(i) > 0) {
-          isc->SanityCheckArtMethodPointerArray(iftable->GetMethodArray(i), nullptr);
-        }
-      }
-    }
   }
 
  private:

@@ -397,8 +397,6 @@ class ImageWriter FINAL {
 
   // Verify unwanted classes removed.
   void CheckNonImageClassesRemoved() REQUIRES_SHARED(Locks::mutator_lock_);
-  static void CheckNonImageClassesRemovedCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Lays out where the image objects will be at runtime.
   void CalculateNewObjectOffsets()
@@ -414,18 +412,9 @@ class ImageWriter FINAL {
   void UnbinObjectsIntoOffset(mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static void EnsureBinSlotAssignedCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  static void DeflateMonitorCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  static void UnbinObjectsIntoOffsetCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Creates the contiguous image in memory and adjusts pointers.
   void CopyAndFixupNativeData(size_t oat_index) REQUIRES_SHARED(Locks::mutator_lock_);
   void CopyAndFixupObjects() REQUIRES_SHARED(Locks::mutator_lock_);
-  static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_);
   void CopyAndFixupObject(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
   void CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy, const ImageInfo& image_info)
       REQUIRES_SHARED(Locks::mutator_lock_);

@@ -46,6 +46,7 @@
 #include "events-inl.h"
 #include "fixed_up_dex_file.h"
 #include "gc/heap.h"
+#include "gc/heap-visit-objects-inl.h"
 #include "gc_root.h"
 #include "handle.h"
 #include "jni_env_ext-inl.h"
@@ -544,21 +545,15 @@ struct ClassCallback : public art::ClassLoadCallback {
         LOG(FATAL) << "Unreachable";
       }
 
-      static void AllObjectsCallback(art::mirror::Object* obj, void* arg)
-          REQUIRES_SHARED(art::Locks::mutator_lock_) {
-        HeapFixupVisitor* hfv = reinterpret_cast<HeapFixupVisitor*>(arg);
-
-        // Visit references, not native roots.
-        obj->VisitReferences<false>(*hfv, *hfv);
-      }
-
      private:
       const art::mirror::Class* input_;
       art::mirror::Class* output_;
     };
     HeapFixupVisitor hfv(input, output);
-    art::Runtime::Current()->GetHeap()->VisitObjectsPaused(HeapFixupVisitor::AllObjectsCallback,
-                                                           &hfv);
+    auto object_visitor = [&](art::mirror::Object* obj) {
+      obj->VisitReferences<false>(hfv, hfv);  // Visit references, not native roots.
+    };
+    art::Runtime::Current()->GetHeap()->VisitObjectsPaused(object_visitor);
   }
 
   // A set of all the temp classes we have handed out. We have to fix up references to these.

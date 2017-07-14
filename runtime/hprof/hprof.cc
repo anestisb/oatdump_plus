@@ -52,6 +52,7 @@
 #include "gc/allocation_record.h"
 #include "gc/scoped_gc_critical_section.h"
 #include "gc/heap.h"
+#include "gc/heap-visit-objects-inl.h"
 #include "gc/space/space.h"
 #include "globals.h"
 #include "jdwp/jdwp.h"
@@ -485,13 +486,6 @@ class Hprof : public SingleRootVisitor {
   }
 
  private:
-  static void VisitObjectCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(obj != nullptr);
-    DCHECK(arg != nullptr);
-    reinterpret_cast<Hprof*>(arg)->DumpHeapObject(obj);
-  }
-
   void DumpHeapObject(mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -534,8 +528,11 @@ class Hprof : public SingleRootVisitor {
     simple_roots_.clear();
     runtime->VisitRoots(this);
     runtime->VisitImageRoots(this);
-    runtime->GetHeap()->VisitObjectsPaused(VisitObjectCallback, this);
-
+    auto dump_object = [this](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+      DCHECK(obj != nullptr);
+      DumpHeapObject(obj);
+    };
+    runtime->GetHeap()->VisitObjectsPaused(dump_object);
     output_->StartNewRecord(HPROF_TAG_HEAP_DUMP_END, kHprofTime);
     output_->EndRecord();
   }
