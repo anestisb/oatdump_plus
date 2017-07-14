@@ -24,7 +24,7 @@ LAUNCH_WRAPPER=
 LIBART=libart.so
 JIT_PROFILE="no"
 VERBOSE="no"
-EXTRA_OPTIONS=""
+EXTRA_OPTIONS=()
 
 # Follow all sym links to get the program name.
 if [ z"$BASH_SOURCE" != z ]; then
@@ -108,11 +108,16 @@ function clean_android_data() {
   fi
 }
 
+# Given 'VAR1=VAL VAR2=VAL2 ... cmd arg1 arg2 ... argN' run the 'cmd' with the args
+# with the modified environment {VAR1=VAL,VAL2=,...}.
+#
+# Also prints the command to be run if verbose mode is enabled.
 function verbose_run() {
   if [ "$VERBOSE" = "yes" ]; then
     echo "$@"
   fi
-  eval "$@"
+
+  env "$@"
 }
 
 function run_art() {
@@ -129,7 +134,7 @@ function run_art() {
 }
 
 while [[ "$1" = "-"* ]]; do
-  case $1 in
+  case "$1" in
   --)
     # No more arguments for this script.
     shift
@@ -149,7 +154,7 @@ while [[ "$1" = "-"* ]]; do
   --debug)
     LIBART="libartd.so"
     # Expect that debug mode wants all checks.
-    EXTRA_OPTIONS="${EXTRA_OPTIONS} -XX:SlowDebug=true"
+    EXTRA_OPTIONS+=(-XX:SlowDebug=true)
     ;;
   --gdb)
     LIBART="libartd.so"
@@ -217,7 +222,7 @@ fi
 
 if [ "$PERF" != "" ]; then
   LAUNCH_WRAPPER="perf record -g -o $ANDROID_DATA/perf.data -e cycles:u $LAUNCH_WRAPPER"
-  EXTRA_OPTIONS="-Xcompiler-option --generate-debug-info"
+  EXTRA_OPTIONS+=(-Xcompiler-option --generate-debug-info)
 fi
 
 if [ "$JIT_PROFILE" = "yes" ]; then
@@ -251,18 +256,15 @@ if [ "$JIT_PROFILE" = "yes" ]; then
   rm -rf $ANDROID_DATA/dalvik-cache/$ARCHS/*
 
   # Append arguments so next invocation of run_art uses the profile.
-  EXTRA_OPTIONS="$EXTRA_OPTIONS -Xcompiler-option --profile-file=$PROFILE_PATH"
+  EXTRA_OPTIONS+=(-Xcompiler-option --profile-file="$PROFILE_PATH")
 fi
 
-# Protect additional arguments in quotes to preserve whitespaces when evaluated.
-# This is for run-jdwp-test.sh which uses this script and has arguments with
-# whitespaces when running on device.
-while [ $# -gt 0 ]; do
-  EXTRA_OPTIONS="$EXTRA_OPTIONS \"$1\""
-  shift
-done
+# Protect additional arguments in quotes to preserve whitespaces (used by
+# run-jdwp-test.sh when running on device), '$' (may be used as part of
+# classpath) and other special characters when evaluated.
+EXTRA_OPTIONS+=("$@")
 
-run_art $EXTRA_OPTIONS
+run_art "${EXTRA_OPTIONS[@]}"
 EXIT_STATUS=$?
 
 if [ "$PERF" != "" ]; then
