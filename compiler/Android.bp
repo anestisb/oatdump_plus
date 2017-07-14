@@ -113,9 +113,8 @@ art_cc_defaults {
                 "optimizing/intrinsics_arm_vixl.cc",
                 "optimizing/nodes_shared.cc",
                 "optimizing/scheduler_arm.cc",
-                "utils/arm/assembler_arm.cc",
                 "utils/arm/assembler_arm_vixl.cc",
-                "utils/arm/assembler_thumb2.cc",
+                "utils/arm/constants_arm.cc",
                 "utils/arm/jni_macro_assembler_arm_vixl.cc",
                 "utils/arm/managed_register_arm.cc",
             ],
@@ -450,7 +449,6 @@ art_cc_test {
     codegen: {
         arm: {
             srcs: [
-                "utils/arm/assembler_thumb2_test.cc",
                 "utils/assembler_thumb_test.cc",
             ],
         },

@@ -19,24 +19,6 @@
 #include <algorithm>
 #include <vector>
 
-#ifdef ART_ENABLE_CODEGEN_arm
-#include "arm/assembler_thumb2.h"
-#endif
-#ifdef ART_ENABLE_CODEGEN_arm64
-#include "arm64/assembler_arm64.h"
-#endif
-#ifdef ART_ENABLE_CODEGEN_mips
-#include "mips/assembler_mips.h"
-#endif
-#ifdef ART_ENABLE_CODEGEN_mips64
-#include "mips64/assembler_mips64.h"
-#endif
-#ifdef ART_ENABLE_CODEGEN_x86
-#include "x86/assembler_x86.h"
-#endif
-#ifdef ART_ENABLE_CODEGEN_x86_64
-#include "x86_64/assembler_x86_64.h"
-#endif
 #include "base/casts.h"
 #include "globals.h"
 #include "memory_region.h"

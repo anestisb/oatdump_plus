@@ -26,10 +26,6 @@ class Assembler;
 class AssemblerBuffer;
 class AssemblerFixup;
 
-namespace arm {
-  class ArmAssembler;
-  class Thumb2Assembler;
-}  // namespace arm
 namespace arm64 {
   class Arm64Assembler;
 }  // namespace arm64
@@ -116,8 +112,6 @@ class Label {
     CHECK(IsLinked());
   }
 
-  friend class arm::ArmAssembler;
-  friend class arm::Thumb2Assembler;
   friend class arm64::Arm64Assembler;
   friend class mips::MipsAssembler;
   friend class mips64::Mips64Assembler;
