@@ -34,6 +34,10 @@ public class Main {
     expectNotPreInit(Gs.class); // should fail
     expectNotPreInit(Gss.class); // should fail
 
+    expectNotPreInit(Add.class);
+    expectNotPreInit(Mul.class);
+    expectNotPreInit(ObjectRef.class);
+
     A x = new A();
     System.out.println("A.a: " + A.a);
 
@@ -165,3 +169,22 @@ class G {
 // but G's status will be StatusVerified. INVOKE_DIRECT will not initialize class.
 class Gs extends G {}  // fail because super class can't be initialized
 class Gss extends Gs {}
+
+// pruned because holding reference to non-image class
+class ObjectRef {
+  static Class<?> klazz[] = new Class<?>[]{Add.class, Mul.class};
+}
+
+// non-image
+class Add {
+  static int exec(int a, int b) {
+    return a + b;
+  }
+}
+
+// non-image
+class Mul {
+  static int exec(int a, int b) {
+    return a * b;
+  }
+}

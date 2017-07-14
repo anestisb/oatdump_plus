@@ -770,18 +770,18 @@ class ImageWriter::PruneObjectReferenceVisitor {
       *result_ = true;
     }
 
-    // Record the object visited in case of circular reference.
-    visited_->emplace(ref);
     if (ref->IsClass()) {
       *result_ = *result_ ||
           image_writer_->PruneAppImageClassInternal(ref->AsClass(), early_exit_, visited_);
     } else {
+      // Record the object visited in case of circular reference.
+      visited_->emplace(ref);
       *result_ = *result_ ||
           image_writer_->PruneAppImageClassInternal(klass, early_exit_, visited_);
       ref->VisitReferences(*this, *this);
+      // Clean up before exit for next call of this function.
+      visited_->erase(ref);
     }
-    // Clean up before exit for next call of this function.
-    visited_->erase(ref);
   }
 
   ALWAYS_INLINE void operator() (ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
