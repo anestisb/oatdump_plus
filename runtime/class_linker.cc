@@ -8369,180 +8369,73 @@ mirror::MethodType* ClassLinker::ResolveMethodType(const DexFile& dex_file,
   return type.Get();
 }
 
-mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_idx,
-                                                       ArtMethod* referrer)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  Thread* const self = Thread::Current();
-  const DexFile* const dex_file = referrer->GetDexFile();
-  const DexFile::MethodHandleItem& mh = dex_file->GetMethodHandle(method_handle_idx);
-
-  mirror::MethodHandle::Kind kind;
-  ArtField* target_field = nullptr;
-  ArtMethod* target_method = nullptr;
-
+mirror::MethodHandle* ClassLinker::ResolveMethodHandleForField(
+    Thread* self,
+    const DexFile::MethodHandleItem& method_handle,
+    ArtMethod* referrer) {
   DexFile::MethodHandleType handle_type =
-      static_cast<DexFile::MethodHandleType>(mh.method_handle_type_);
+      static_cast<DexFile::MethodHandleType>(method_handle.method_handle_type_);
+  mirror::MethodHandle::Kind kind;
+  bool is_static;
+  int32_t num_params;
   switch (handle_type) {
     case DexFile::MethodHandleType::kStaticPut: {
       kind = mirror::MethodHandle::Kind::kStaticPut;
-      target_field = ResolveField(mh.field_or_method_idx_, referrer, true /* is_static */);
+      is_static = true;
+      num_params = 1;
       break;
     }
     case DexFile::MethodHandleType::kStaticGet: {
       kind = mirror::MethodHandle::Kind::kStaticGet;
-      target_field = ResolveField(mh.field_or_method_idx_, referrer, true /* is_static */);
+      is_static = true;
+      num_params = 0;
       break;
     }
     case DexFile::MethodHandleType::kInstancePut: {
       kind = mirror::MethodHandle::Kind::kInstancePut;
-      target_field = ResolveField(mh.field_or_method_idx_, referrer, false /* is_static */);
-      break;
-    }
-    case DexFile::MethodHandleType::kInstanceGet: {
-      kind = mirror::MethodHandle::Kind::kInstanceGet;
-      target_field = ResolveField(mh.field_or_method_idx_, referrer, false /* is_static */);
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeStatic: {
-      kind = mirror::MethodHandle::Kind::kInvokeStatic;
-      target_method = ResolveMethod<kNoICCECheckForCache>(self,
-                                                          mh.field_or_method_idx_,
-                                                          referrer,
-                                                          InvokeType::kStatic);
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeInstance: {
-      kind = mirror::MethodHandle::Kind::kInvokeVirtual;
-      target_method = ResolveMethod<kNoICCECheckForCache>(self,
-                                                          mh.field_or_method_idx_,
-                                                          referrer,
-                                                          InvokeType::kVirtual);
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeConstructor: {
-      UNIMPLEMENTED(FATAL) << "Invoke constructor is implemented as a transform.";
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeDirect: {
-      StackHandleScope<2> hs(self);
-      // A constant method handle with type kInvokeDirect can refer to
-      // a method that is private or to a method in a super class. To
-      // disambiguate the two options, we resolve the method ignoring
-      // the invocation type to determine if the method is private. We
-      // then resolve again specifying the intended invocation type to
-      // force the appropriate checks.
-      target_method = ResolveMethodWithoutInvokeType(*dex_file,
-                                                     mh.field_or_method_idx_,
-                                                     hs.NewHandle(referrer->GetDexCache()),
-                                                     hs.NewHandle(referrer->GetClassLoader()));
-      if (target_method == nullptr) {
-        break;
-      }
-
-      if (target_method->IsPrivate()) {
-        kind = mirror::MethodHandle::Kind::kInvokeDirect;
-        target_method = ResolveMethod<kNoICCECheckForCache>(self,
-                                                            mh.field_or_method_idx_,
-                                                            referrer,
-                                                            InvokeType::kDirect);
-      } else {
-        kind = mirror::MethodHandle::Kind::kInvokeSuper;
-        target_method = ResolveMethod<kNoICCECheckForCache>(self,
-                                                            mh.field_or_method_idx_,
-                                                            referrer,
-                                                            InvokeType::kSuper);
-        if (target_method == nullptr) {
-          break;
-        }
-        // Find the method specified in the parent in referring class
-        // so invoke-super invokes the method in the parent of the
-        // referrer.
-        target_method =
-            referrer->GetDeclaringClass()->FindVirtualMethodForVirtual(target_method,
-                                                                       kRuntimePointerSize);
-      }
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeInterface: {
-      kind = mirror::MethodHandle::Kind::kInvokeInterface;
-      target_method = ResolveMethod<kNoICCECheckForCache>(self,
-                                                          mh.field_or_method_idx_,
-                                                          referrer,
-                                                          InvokeType::kInterface);
-      break;
-    }
-  }
-
-  if (target_field != nullptr) {
-    ObjPtr<mirror::Class> target_class = target_field->GetDeclaringClass();
-    ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
-    if (!referring_class->CanAccessMember(target_class, target_field->GetAccessFlags())) {
-      ThrowIllegalAccessErrorField(referring_class, target_field);
-      return nullptr;
-    }
-  } else if (target_method != nullptr) {
-    ObjPtr<mirror::Class> target_class = target_method->GetDeclaringClass();
-    ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
-    if (!referring_class->CanAccessMember(target_class, target_method->GetAccessFlags())) {
-      ThrowIllegalAccessErrorMethod(referring_class, target_method);
-      return nullptr;
-    }
-  } else {
-    // Common check for resolution failure.
-    DCHECK(Thread::Current()->IsExceptionPending());
-    return nullptr;
-  }
-
-  // Determine the number of parameters after it's safe to follow the
-  // field or method pointer.
-  uint32_t num_params;
-  switch (handle_type) {
-    case DexFile::MethodHandleType::kStaticPut: {
-      num_params = 1;
-      break;
-    }
-    case DexFile::MethodHandleType::kStaticGet: {
-      num_params = 0;
-      break;
-    }
-    case DexFile::MethodHandleType::kInstancePut: {
+      is_static = false;
       num_params = 2;
       break;
     }
     case DexFile::MethodHandleType::kInstanceGet: {
+      kind = mirror::MethodHandle::Kind::kInstanceGet;
+      is_static = false;
       num_params = 1;
       break;
     }
-    case DexFile::MethodHandleType::kInvokeStatic: {
-      uint32_t shorty_length;
-      target_method->GetShorty(&shorty_length);
-      num_params = shorty_length - 1;  // Remove 1 for the return value.
-      break;
-    }
+    case DexFile::MethodHandleType::kInvokeStatic:
     case DexFile::MethodHandleType::kInvokeInstance:
+    case DexFile::MethodHandleType::kInvokeConstructor:
     case DexFile::MethodHandleType::kInvokeDirect:
-    case DexFile::MethodHandleType::kInvokeInterface: {
-      // Add 1 for the receiver and remove 1 for the return value.
-      target_method->GetShorty(&num_params);
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeConstructor: {
-      UNIMPLEMENTED(FATAL) << "Invoke constructor is implemented as a transform.";
-      num_params = 0;
-      break;
-    }
+    case DexFile::MethodHandleType::kInvokeInterface:
+      UNREACHABLE();
   }
 
-  StackHandleScope<5> hs(self);
+  ArtField* target_field =
+      ResolveField(method_handle.field_or_method_idx_, referrer, is_static);
+  if (LIKELY(target_field != nullptr)) {
+    ObjPtr<mirror::Class> target_class = target_field->GetDeclaringClass();
+    ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
+    if (UNLIKELY(!referring_class->CanAccessMember(target_class, target_field->GetAccessFlags()))) {
+      ThrowIllegalAccessErrorField(referring_class, target_field);
+      return nullptr;
+    }
+  } else {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return nullptr;
+  }
+
+  StackHandleScope<4> hs(self);
   ObjPtr<mirror::Class> class_type = mirror::Class::GetJavaLangClass();
   ObjPtr<mirror::Class> array_of_class = FindArrayClass(self, &class_type);
   Handle<mirror::ObjectArray<mirror::Class>> method_params(hs.NewHandle(
       mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, num_params)));
-  if (method_params.Get() == nullptr) {
+  if (UNLIKELY(method_params.Get() == nullptr)) {
     DCHECK(self->IsExceptionPending());
     return nullptr;
   }
 
+  Handle<mirror::Class> constructor_class;
   Handle<mirror::Class> return_type;
   switch (handle_type) {
     case DexFile::MethodHandleType::kStaticPut: {
@@ -8565,59 +8458,228 @@ mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_id
       return_type = hs.NewHandle(target_field->GetType<true>());
       break;
     }
-    case DexFile::MethodHandleType::kInvokeDirect:
+    case DexFile::MethodHandleType::kInvokeStatic:
     case DexFile::MethodHandleType::kInvokeInstance:
+    case DexFile::MethodHandleType::kInvokeConstructor:
+    case DexFile::MethodHandleType::kInvokeDirect:
     case DexFile::MethodHandleType::kInvokeInterface:
-    case DexFile::MethodHandleType::kInvokeStatic: {
-      // TODO(oth): This will not work for varargs methods as this
-      // requires instantiating a Transformer. This resolution step
-      // would be best done in managed code rather than in the run
-      // time (b/35235705)
-      Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
-      Handle<mirror::ClassLoader> class_loader(hs.NewHandle(referrer->GetClassLoader()));
-      DexFileParameterIterator it(*dex_file, target_method->GetPrototype());
-      int32_t index = 0;
-      if (handle_type != DexFile::MethodHandleType::kInvokeStatic) {
-        method_params->Set(index++, target_method->GetDeclaringClass());
-      }
-      while (it.HasNext()) {
-        const dex::TypeIndex type_idx = it.GetTypeIdx();
-        mirror::Class* klass = ResolveType(*dex_file, type_idx, dex_cache, class_loader);
-        if (nullptr == klass) {
-          DCHECK(self->IsExceptionPending());
-          return nullptr;
-        }
-        method_params->Set(index++, klass);
-        it.Next();
-      }
-      return_type = hs.NewHandle(target_method->GetReturnType(true));
-      break;
-    }
-    case DexFile::MethodHandleType::kInvokeConstructor: {
-      // TODO(oth): b/35235705
-      UNIMPLEMENTED(FATAL) << "Invoke constructor is implemented as a transform.";
+      UNREACHABLE();
+  }
+
+  for (int32_t i = 0; i < num_params; ++i) {
+    if (UNLIKELY(method_params->Get(i) == nullptr)) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;
     }
   }
 
-  if (return_type.IsNull()) {
+  if (UNLIKELY(return_type.IsNull())) {
     DCHECK(self->IsExceptionPending());
     return nullptr;
   }
 
   Handle<mirror::MethodType>
-      mt(hs.NewHandle(mirror::MethodType::Create(self, return_type, method_params)));
-  if (mt.IsNull()) {
+      method_type(hs.NewHandle(mirror::MethodType::Create(self, return_type, method_params)));
+  if (UNLIKELY(method_type.IsNull())) {
     DCHECK(self->IsExceptionPending());
     return nullptr;
   }
 
-  uintptr_t target;
-  if (target_field != nullptr) {
-    target = reinterpret_cast<uintptr_t>(target_field);
-  } else {
-    target = reinterpret_cast<uintptr_t>(target_method);
+  uintptr_t target = reinterpret_cast<uintptr_t>(target_field);
+  return mirror::MethodHandleImpl::Create(self, target, kind, method_type);
+}
+
+mirror::MethodHandle* ClassLinker::ResolveMethodHandleForMethod(
+    Thread* self,
+    const DexFile* const dex_file,
+    const DexFile::MethodHandleItem& method_handle,
+    ArtMethod* referrer) {
+  DexFile::MethodHandleType handle_type =
+      static_cast<DexFile::MethodHandleType>(method_handle.method_handle_type_);
+  mirror::MethodHandle::Kind kind;
+  uint32_t receiver_count = 0;
+  ArtMethod* target_method = nullptr;
+  switch (handle_type) {
+    case DexFile::MethodHandleType::kStaticPut:
+    case DexFile::MethodHandleType::kStaticGet:
+    case DexFile::MethodHandleType::kInstancePut:
+    case DexFile::MethodHandleType::kInstanceGet:
+      UNREACHABLE();
+    case DexFile::MethodHandleType::kInvokeStatic: {
+      kind = mirror::MethodHandle::Kind::kInvokeStatic;
+      receiver_count = 0;
+      target_method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                          method_handle.field_or_method_idx_,
+                                                          referrer,
+                                                          InvokeType::kStatic);
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeInstance: {
+      kind = mirror::MethodHandle::Kind::kInvokeVirtual;
+      receiver_count = 1;
+      target_method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                          method_handle.field_or_method_idx_,
+                                                          referrer,
+                                                          InvokeType::kVirtual);
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeConstructor: {
+      // Constructors are currently implemented as a transform. They
+      // are special cased later in this method.
+      kind = mirror::MethodHandle::Kind::kInvokeTransform;
+      receiver_count = 0;
+      target_method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                          method_handle.field_or_method_idx_,
+                                                          referrer,
+                                                          InvokeType::kDirect);
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeDirect: {
+      kind = mirror::MethodHandle::Kind::kInvokeDirect;
+      receiver_count = 1;
+      StackHandleScope<2> hs(self);
+      // A constant method handle with type kInvokeDirect can refer to
+      // a method that is private or to a method in a super class. To
+      // disambiguate the two options, we resolve the method ignoring
+      // the invocation type to determine if the method is private. We
+      // then resolve again specifying the intended invocation type to
+      // force the appropriate checks.
+      target_method = ResolveMethodWithoutInvokeType(*dex_file,
+                                                     method_handle.field_or_method_idx_,
+                                                     hs.NewHandle(referrer->GetDexCache()),
+                                                     hs.NewHandle(referrer->GetClassLoader()));
+      if (UNLIKELY(target_method == nullptr)) {
+        break;
+      }
+
+      if (target_method->IsPrivate()) {
+        kind = mirror::MethodHandle::Kind::kInvokeDirect;
+        target_method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                            method_handle.field_or_method_idx_,
+                                                            referrer,
+                                                            InvokeType::kDirect);
+      } else {
+        kind = mirror::MethodHandle::Kind::kInvokeSuper;
+        target_method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                            method_handle.field_or_method_idx_,
+                                                            referrer,
+                                                            InvokeType::kSuper);
+        if (UNLIKELY(target_method == nullptr)) {
+          break;
+        }
+        // Find the method specified in the parent in referring class
+        // so invoke-super invokes the method in the parent of the
+        // referrer.
+        target_method =
+            referrer->GetDeclaringClass()->FindVirtualMethodForVirtual(target_method,
+                                                                       kRuntimePointerSize);
+      }
+      break;
+    }
+    case DexFile::MethodHandleType::kInvokeInterface: {
+      kind = mirror::MethodHandle::Kind::kInvokeInterface;
+      receiver_count = 1;
+      target_method = ResolveMethod<kNoICCECheckForCache>(self,
+                                                          method_handle.field_or_method_idx_,
+                                                          referrer,
+                                                          InvokeType::kInterface);
+      break;
+    }
   }
-  return mirror::MethodHandleImpl::Create(self, target, kind, mt);
+
+  if (UNLIKELY(target_method == nullptr)) {
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return nullptr;
+  }
+
+  ObjPtr<mirror::Class> target_class = target_method->GetDeclaringClass();
+  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
+  uint32_t access_flags = target_method->GetAccessFlags();
+  if (UNLIKELY(!referring_class->CanAccessMember(target_class, access_flags))) {
+    ThrowIllegalAccessErrorMethod(referring_class, target_method);
+    return nullptr;
+  }
+
+  // Calculate the number of parameters from the method shorty. We add the
+  // receiver count (0 or 1) and deduct one for the return value.
+  uint32_t shorty_length;
+  target_method->GetShorty(&shorty_length);
+  int32_t num_params = static_cast<int32_t>(shorty_length + receiver_count - 1);
+
+  StackHandleScope<7> hs(self);
+  ObjPtr<mirror::Class> class_type = mirror::Class::GetJavaLangClass();
+  ObjPtr<mirror::Class> array_of_class = FindArrayClass(self, &class_type);
+  Handle<mirror::ObjectArray<mirror::Class>> method_params(hs.NewHandle(
+      mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, num_params)));
+  if (method_params.Get() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(referrer->GetClassLoader()));
+  int32_t index = 0;
+
+  if (receiver_count != 0) {
+    // Insert receiver
+    method_params->Set(index++, target_method->GetDeclaringClass());
+  }
+
+  DexFileParameterIterator it(*dex_file, target_method->GetPrototype());
+  while (it.HasNext()) {
+    const dex::TypeIndex type_idx = it.GetTypeIdx();
+    mirror::Class* klass = ResolveType(*dex_file, type_idx, dex_cache, class_loader);
+    if (nullptr == klass) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;
+    }
+    method_params->Set(index++, klass);
+    it.Next();
+  }
+
+  Handle<mirror::Class> return_type = hs.NewHandle(target_method->GetReturnType(true));
+  if (UNLIKELY(return_type.IsNull())) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  Handle<mirror::MethodType>
+      method_type(hs.NewHandle(mirror::MethodType::Create(self, return_type, method_params)));
+  if (UNLIKELY(method_type.IsNull())) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  if (UNLIKELY(handle_type == DexFile::MethodHandleType::kInvokeConstructor)) {
+    Handle<mirror::Class> constructor_class = hs.NewHandle(target_method->GetDeclaringClass());
+    Handle<mirror::MethodHandlesLookup> lookup =
+        hs.NewHandle(mirror::MethodHandlesLookup::GetDefault(self));
+    return lookup->FindConstructor(self, constructor_class, method_type);
+  }
+
+  uintptr_t target = reinterpret_cast<uintptr_t>(target_method);
+  return mirror::MethodHandleImpl::Create(self, target, kind, method_type);
+}
+
+mirror::MethodHandle* ClassLinker::ResolveMethodHandle(uint32_t method_handle_idx,
+                                                       ArtMethod* referrer)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  Thread* const self = Thread::Current();
+  const DexFile* const dex_file = referrer->GetDexFile();
+  const DexFile::MethodHandleItem& method_handle = dex_file->GetMethodHandle(method_handle_idx);
+  switch (static_cast<DexFile::MethodHandleType>(method_handle.method_handle_type_)) {
+    case DexFile::MethodHandleType::kStaticPut:
+    case DexFile::MethodHandleType::kStaticGet:
+    case DexFile::MethodHandleType::kInstancePut:
+    case DexFile::MethodHandleType::kInstanceGet:
+      return ResolveMethodHandleForField(self, method_handle, referrer);
+    case DexFile::MethodHandleType::kInvokeStatic:
+    case DexFile::MethodHandleType::kInvokeInstance:
+    case DexFile::MethodHandleType::kInvokeConstructor:
+    case DexFile::MethodHandleType::kInvokeDirect:
+    case DexFile::MethodHandleType::kInvokeInterface:
+      return ResolveMethodHandleForMethod(self, dex_file, method_handle, referrer);
+  }
 }
 
 bool ClassLinker::IsQuickResolutionStub(const void* entry_point) const {

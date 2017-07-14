@@ -34,6 +34,7 @@ targetMethodTest9 ()void
 checkStaticFieldTest9: old 0 new 1985229328 expected 1985229328 OK
 checkFieldTest9: old 0.0 new 1.99E-19 expected 1.99E-19 OK
 helperMethodTest9 in class invokecustom.InvokeCustom
+InvokeCustom.<init>(3)
 run() for Test9
 InvokeCustom.privateMethodTest9()
 targetMethodTest9()

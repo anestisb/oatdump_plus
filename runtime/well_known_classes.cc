@@ -94,6 +94,8 @@ jmethodID WellKnownClasses::java_lang_Float_valueOf;
 jmethodID WellKnownClasses::java_lang_Integer_valueOf;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_invoke;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
+jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
+jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
 jmethodID WellKnownClasses::java_lang_Long_valueOf;
 jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
 jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
@@ -173,8 +175,8 @@ static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static,
   return fid;
 }
 
-jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
-                      const char* name, const char* signature) {
+static jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
+                             const char* name, const char* signature) {
   jmethodID mid = is_static ? env->GetStaticMethodID(c, name, signature) :
       env->GetMethodID(c, name, signature);
   if (mid == nullptr) {
@@ -188,6 +190,12 @@ jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
                << os.str();
   }
   return mid;
+}
+
+static jmethodID CacheMethod(JNIEnv* env, const char* klass, bool is_static,
+                      const char* name, const char* signature) {
+  ScopedLocalRef<jclass> java_class(env, env->FindClass(klass));
+  return CacheMethod(env, java_class.get(), is_static, name, signature);
 }
 
 static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const char* boxed_name) {
@@ -322,16 +330,12 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Daemons_requestHeapTrim = CacheMethod(env, java_lang_Daemons, true, "requestHeapTrim", "()V");
   java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
   java_lang_Daemons_stop = CacheMethod(env, java_lang_Daemons, true, "stop", "()V");
-  java_lang_invoke_MethodHandle_invoke =
-      CacheMethod(env, java_lang_invoke_MethodHandle, false,
-                  "invoke", "([Ljava/lang/Object;)Ljava/lang/Object;");
-  java_lang_invoke_MethodHandle_invokeExact =
-      CacheMethod(env, java_lang_invoke_MethodHandle, false,
-                  "invokeExact", "([Ljava/lang/Object;)Ljava/lang/Object;");
-  ScopedLocalRef<jclass> java_lang_ref_FinalizerReference(env, env->FindClass("java/lang/ref/FinalizerReference"));
-  java_lang_ref_FinalizerReference_add = CacheMethod(env, java_lang_ref_FinalizerReference.get(), true, "add", "(Ljava/lang/Object;)V");
-  ScopedLocalRef<jclass> java_lang_ref_ReferenceQueue(env, env->FindClass("java/lang/ref/ReferenceQueue"));
-  java_lang_ref_ReferenceQueue_add = CacheMethod(env, java_lang_ref_ReferenceQueue.get(), true, "add", "(Ljava/lang/ref/Reference;)V");
+  java_lang_invoke_MethodHandle_invoke = CacheMethod(env, java_lang_invoke_MethodHandle, false, "invoke", "([Ljava/lang/Object;)Ljava/lang/Object;");
+  java_lang_invoke_MethodHandle_invokeExact = CacheMethod(env, java_lang_invoke_MethodHandle, false, "invokeExact", "([Ljava/lang/Object;)Ljava/lang/Object;");
+  java_lang_invoke_MethodHandles_lookup = CacheMethod(env, "java/lang/invoke/MethodHandles", true, "lookup", "()Ljava/lang/invoke/MethodHandles$Lookup;");
+  java_lang_invoke_MethodHandles_Lookup_findConstructor = CacheMethod(env, "java/lang/invoke/MethodHandles$Lookup", false, "findConstructor", "(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;");
+  java_lang_ref_FinalizerReference_add = CacheMethod(env, "java/lang/ref/FinalizerReference", true, "add", "(Ljava/lang/Object;)V");
+  java_lang_ref_ReferenceQueue_add = CacheMethod(env, "java/lang/ref/ReferenceQueue", true, "add", "(Ljava/lang/ref/Reference;)V");
 
   java_lang_reflect_Parameter_init = CacheMethod(env, java_lang_reflect_Parameter, false, "<init>", "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V");
   java_lang_String_charAt = CacheMethod(env, java_lang_String, false, "charAt", "(I)C");
