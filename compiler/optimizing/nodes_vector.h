@@ -46,6 +46,10 @@ class Alignment {
     return "ALIGN(" + std::to_string(base_) + "," + std::to_string(offset_) + ")";
   }
 
+  bool operator==(const Alignment& other) const {
+    return base_ == other.base_ && offset_ == other.offset_;
+  }
+
  private:
   size_t base_;
   size_t offset_;
@@ -94,6 +98,19 @@ class HVecOperation : public HVariableInputSizeInstruction {
   // Returns the true component type packed in a vector.
   Primitive::Type GetPackedType() const {
     return GetPackedField<TypeField>();
+  }
+
+  // Assumes vector nodes cannot be moved by default. Each concrete implementation
+  // that can be moved should override this method and return true.
+  bool CanBeMoved() const OVERRIDE { return false; }
+
+  // Tests if all data of a vector node (vector length and packed type) is equal.
+  // Each concrete implementation that adds more fields should test equality of
+  // those fields in its own method *and* call all super methods.
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsVecOperation());
+    const HVecOperation* o = other->AsVecOperation();
+    return GetVectorLength() == o->GetVectorLength() && GetPackedType() == o->GetPackedType();
   }
 
   DECLARE_ABSTRACT_INSTRUCTION(VecOperation);
@@ -189,6 +206,12 @@ class HVecMemoryOperation : public HVecOperation {
   HInstruction* GetArray() const { return InputAt(0); }
   HInstruction* GetIndex() const { return InputAt(1); }
 
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsVecMemoryOperation());
+    const HVecMemoryOperation* o = other->AsVecMemoryOperation();
+    return HVecOperation::InstructionDataEquals(o) && GetAlignment() == o->GetAlignment();
+  }
+
   DECLARE_ABSTRACT_INSTRUCTION(VecMemoryOperation);
 
  private:
@@ -231,7 +254,13 @@ class HVecReplicateScalar FINAL : public HVecUnaryOperation {
       : HVecUnaryOperation(arena, scalar, packed_type, vector_length, dex_pc) {
     DCHECK(!scalar->IsVecOperation());
   }
+
+  // A replicate needs to stay in place, since SIMD registers are not
+  // kept alive across vector loop boundaries (yet).
+  bool CanBeMoved() const OVERRIDE { return false; }
+
   DECLARE_INSTRUCTION(VecReplicateScalar);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecReplicateScalar);
 };
@@ -251,7 +280,10 @@ class HVecSumReduce FINAL : public HVecUnaryOperation {
   // TODO: probably integral promotion
   Primitive::Type GetType() const OVERRIDE { return GetPackedType(); }
 
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecSumReduce);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecSumReduce);
 };
@@ -273,6 +305,8 @@ class HVecCnv FINAL : public HVecUnaryOperation {
   Primitive::Type GetInputType() const { return InputAt(0)->AsVecOperation()->GetPackedType(); }
   Primitive::Type GetResultType() const { return GetPackedType(); }
 
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecCnv);
 
  private:
@@ -291,7 +325,11 @@ class HVecNeg FINAL : public HVecUnaryOperation {
       : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(HasConsistentPackedTypes(input, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecNeg);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecNeg);
 };
@@ -308,7 +346,11 @@ class HVecAbs FINAL : public HVecUnaryOperation {
       : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(HasConsistentPackedTypes(input, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecAbs);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecAbs);
 };
@@ -326,7 +368,11 @@ class HVecNot FINAL : public HVecUnaryOperation {
       : HVecUnaryOperation(arena, input, packed_type, vector_length, dex_pc) {
     DCHECK(input->IsVecOperation());
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecNot);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecNot);
 };
@@ -349,7 +395,11 @@ class HVecAdd FINAL : public HVecBinaryOperation {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
     DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecAdd);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecAdd);
 };
@@ -378,6 +428,16 @@ class HVecHalvingAdd FINAL : public HVecBinaryOperation {
   bool IsUnsigned() const { return GetPackedFlag<kFieldHAddIsUnsigned>(); }
   bool IsRounded() const { return GetPackedFlag<kFieldHAddIsRounded>(); }
 
+  bool CanBeMoved() const OVERRIDE { return true; }
+
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsVecHalvingAdd());
+    const HVecHalvingAdd* o = other->AsVecHalvingAdd();
+    return HVecOperation::InstructionDataEquals(o) &&
+        IsUnsigned() == o->IsUnsigned() &&
+        IsRounded() == o->IsRounded();
+  }
+
   DECLARE_INSTRUCTION(VecHalvingAdd);
 
  private:
@@ -404,7 +464,11 @@ class HVecSub FINAL : public HVecBinaryOperation {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
     DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecSub);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecSub);
 };
@@ -423,7 +487,11 @@ class HVecMul FINAL : public HVecBinaryOperation {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
     DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecMul);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecMul);
 };
@@ -442,7 +510,11 @@ class HVecDiv FINAL : public HVecBinaryOperation {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
     DCHECK(HasConsistentPackedTypes(right, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecDiv);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecDiv);
 };
@@ -465,6 +537,14 @@ class HVecMin FINAL : public HVecBinaryOperation {
   }
 
   bool IsUnsigned() const { return GetPackedFlag<kFieldMinOpIsUnsigned>(); }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsVecMin());
+    const HVecMin* o = other->AsVecMin();
+    return HVecOperation::InstructionDataEquals(o) && IsUnsigned() == o->IsUnsigned();
+  }
 
   DECLARE_INSTRUCTION(VecMin);
 
@@ -496,6 +576,14 @@ class HVecMax FINAL : public HVecBinaryOperation {
 
   bool IsUnsigned() const { return GetPackedFlag<kFieldMaxOpIsUnsigned>(); }
 
+  bool CanBeMoved() const OVERRIDE { return true; }
+
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsVecMax());
+    const HVecMax* o = other->AsVecMax();
+    return HVecOperation::InstructionDataEquals(o) && IsUnsigned() == o->IsUnsigned();
+  }
+
   DECLARE_INSTRUCTION(VecMax);
 
  private:
@@ -520,7 +608,11 @@ class HVecAnd FINAL : public HVecBinaryOperation {
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecAnd);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecAnd);
 };
@@ -538,7 +630,11 @@ class HVecAndNot FINAL : public HVecBinaryOperation {
          : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecAndNot);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecAndNot);
 };
@@ -556,7 +652,11 @@ class HVecOr FINAL : public HVecBinaryOperation {
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecOr);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecOr);
 };
@@ -574,7 +674,11 @@ class HVecXor FINAL : public HVecBinaryOperation {
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(left->IsVecOperation() && right->IsVecOperation());
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecXor);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecXor);
 };
@@ -592,7 +696,11 @@ class HVecShl FINAL : public HVecBinaryOperation {
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecShl);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecShl);
 };
@@ -610,7 +718,11 @@ class HVecShr FINAL : public HVecBinaryOperation {
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecShr);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecShr);
 };
@@ -628,7 +740,11 @@ class HVecUShr FINAL : public HVecBinaryOperation {
       : HVecBinaryOperation(arena, left, right, packed_type, vector_length, dex_pc) {
     DCHECK(HasConsistentPackedTypes(left, packed_type));
   }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(VecUShr);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecUShr);
 };
@@ -656,7 +772,13 @@ class HVecSetScalars FINAL : public HVecOperation {
       SetRawInputAt(0, scalars[i]);
     }
   }
+
+  // Setting scalars needs to stay in place, since SIMD registers are not
+  // kept alive across vector loop boundaries (yet).
+  bool CanBeMoved() const OVERRIDE { return false; }
+
   DECLARE_INSTRUCTION(VecSetScalars);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecSetScalars);
 };
@@ -697,7 +819,9 @@ class HVecMultiplyAccumulate FINAL : public HVecOperation {
   bool CanBeMoved() const OVERRIDE { return true; }
 
   bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
-    return op_kind_ == other->AsVecMultiplyAccumulate()->op_kind_;
+    DCHECK(other->IsVecMultiplyAccumulate());
+    const HVecMultiplyAccumulate* o = other->AsVecMultiplyAccumulate();
+    return HVecOperation::InstructionDataEquals(o) && GetOpKind() == o->GetOpKind();
   }
 
   InstructionKind GetOpKind() const { return op_kind_; }
@@ -732,9 +856,18 @@ class HVecLoad FINAL : public HVecMemoryOperation {
     SetRawInputAt(1, index);
     SetPackedFlag<kFieldIsStringCharAt>(is_string_char_at);
   }
-  DECLARE_INSTRUCTION(VecLoad);
 
   bool IsStringCharAt() const { return GetPackedFlag<kFieldIsStringCharAt>(); }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsVecLoad());
+    const HVecLoad* o = other->AsVecLoad();
+    return HVecMemoryOperation::InstructionDataEquals(o) && IsStringCharAt() == o->IsStringCharAt();
+  }
+
+  DECLARE_INSTRUCTION(VecLoad);
 
  private:
   // Additional packed bits.
@@ -767,7 +900,12 @@ class HVecStore FINAL : public HVecMemoryOperation {
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
   }
+
+  // A store needs to stay in place.
+  bool CanBeMoved() const OVERRIDE { return false; }
+
   DECLARE_INSTRUCTION(VecStore);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HVecStore);
 };
