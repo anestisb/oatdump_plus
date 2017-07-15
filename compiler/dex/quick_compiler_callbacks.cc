@@ -16,6 +16,7 @@
 
 #include "quick_compiler_callbacks.h"
 
+#include "driver/compiler_driver.h"
 #include "verification_results.h"
 #include "verifier/method_verifier-inl.h"
 
@@ -31,6 +32,19 @@ void QuickCompilerCallbacks::ClassRejected(ClassReference ref) {
   if (verification_results_ != nullptr) {
     verification_results_->AddRejectedClass(ref);
   }
+}
+
+bool QuickCompilerCallbacks::CanAssumeVerified(ClassReference ref) {
+  // If we don't have class unloading enabled in the compiler, we will never see class that were
+  // previously verified. Return false to avoid overhead from the lookup in the compiler driver.
+  if (!does_class_unloading_) {
+    return false;
+  }
+  DCHECK(compiler_driver_ != nullptr);
+  // In the case of the quicken filter: avoiding verification of quickened instructions, which the
+  // verifier doesn't currently support.
+  // In the case of the verify filter, avoiding verifiying twice.
+  return compiler_driver_->CanAssumeVerified(ref);
 }
 
 }  // namespace art
