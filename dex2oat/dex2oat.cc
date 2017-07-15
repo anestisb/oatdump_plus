@@ -98,6 +98,9 @@ using android::base::StringPrintf;
 static constexpr size_t kDefaultMinDexFilesForSwap = 2;
 static constexpr size_t kDefaultMinDexFileCumulativeSizeForSwap = 20 * MB;
 
+// Compiler filter override for very large apps.
+static constexpr CompilerFilter::Filter kLargeAppFilter = CompilerFilter::kVerify;
+
 static int original_argc;
 static char** original_argv;
 
@@ -377,7 +380,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      Default: %zu", kDefaultMinDexFilesForSwap);
   UsageError("");
   UsageError("  --very-large-app-threshold=<size>: specifies the minimum total dex file size in");
-  UsageError("      bytes to consider the input \"very large\" and punt on the compilation.");
+  UsageError("      bytes to consider the input \"very large\" and reduce compilation done.");
   UsageError("      Example: --very-large-app-threshold=100000000");
   UsageError("");
   UsageError("  --app-image-fd=<file-descriptor>: specify output file descriptor for app image.");
@@ -1671,14 +1674,13 @@ class Dex2Oat FINAL {
 
     // If we need to downgrade the compiler-filter for size reasons, do that check now.
     if (!IsBootImage() && IsVeryLarge(dex_files_)) {
-      if (!CompilerFilter::IsAsGoodAs(CompilerFilter::kExtract,
-                                      compiler_options_->GetCompilerFilter())) {
-        LOG(INFO) << "Very large app, downgrading to extract.";
+      if (!CompilerFilter::IsAsGoodAs(kLargeAppFilter, compiler_options_->GetCompilerFilter())) {
+        LOG(INFO) << "Very large app, downgrading to verify.";
         // Note: this change won't be reflected in the key-value store, as that had to be
         //       finalized before loading the dex files. This setup is currently required
         //       to get the size from the DexFile objects.
         // TODO: refactor. b/29790079
-        compiler_options_->SetCompilerFilter(CompilerFilter::kExtract);
+        compiler_options_->SetCompilerFilter(kLargeAppFilter);
       }
     }
 
