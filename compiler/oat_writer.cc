@@ -1282,9 +1282,12 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   bool StartClass(const DexFile* dex_file, size_t class_def_index) OVERRIDE
       REQUIRES_SHARED(Locks::mutator_lock_) {
     OatDexMethodVisitor::StartClass(dex_file, class_def_index);
-    if (dex_cache_ == nullptr || dex_cache_->GetDexFile() != dex_file) {
-      dex_cache_ = class_linker_->FindDexCache(Thread::Current(), *dex_file);
-      DCHECK(dex_cache_ != nullptr);
+    if (writer_->GetCompilerDriver()->GetCompilerOptions().IsAotCompilationEnabled()) {
+      // Only need to set the dex cache if we have compilation. Other modes might have unloaded it.
+      if (dex_cache_ == nullptr || dex_cache_->GetDexFile() != dex_file) {
+        dex_cache_ = class_linker_->FindDexCache(Thread::Current(), *dex_file);
+        DCHECK(dex_cache_ != nullptr);
+      }
     }
     return true;
   }

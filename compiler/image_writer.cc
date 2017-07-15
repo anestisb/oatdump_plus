@@ -894,7 +894,7 @@ bool ImageWriter::PruneAppImageClassInternal(
                                                 &my_early_exit,
                                                 visited);
   // Remove the class if the dex file is not in the set of dex files. This happens for classes that
-  // are from uses library if there is no profile. b/30688277
+  // are from uses-library if there is no profile. b/30688277
   mirror::DexCache* dex_cache = klass->GetDexCache();
   if (dex_cache != nullptr) {
     result = result ||
@@ -1153,9 +1153,22 @@ void ImageWriter::PruneNonImageClasses() {
   Thread* self = Thread::Current();
   ScopedAssertNoThreadSuspension sa(__FUNCTION__);
 
-  // Clear class table strong roots so that dex caches can get pruned. We require pruning the class
-  // path dex caches.
-  class_linker->ClearClassTableStrongRoots();
+  // Prune uses-library dex caches. Only prune the uses-library dex caches since we want to make
+  // sure the other ones don't get unloaded before the OatWriter runs.
+  class_linker->VisitClassTables(
+      [&](ClassTable* table) REQUIRES_SHARED(Locks::mutator_lock_) {
+    table->RemoveStrongRoots(
+        [&](GcRoot<mirror::Object> root) REQUIRES_SHARED(Locks::mutator_lock_) {
+      ObjPtr<mirror::Object> obj = root.Read();
+      if (obj->IsDexCache()) {
+        // Return true if the dex file is not one of the ones in the map.
+        return dex_file_oat_index_map_.find(obj->AsDexCache()->GetDexFile()) ==
+            dex_file_oat_index_map_.end();
+      }
+      // Return false to avoid removing.
+      return false;
+    });
+  });
 
   // Remove the undesired classes from the class roots.
   ObjPtr<mirror::ClassLoader> class_loader;

@@ -312,6 +312,17 @@ inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root) {
   return klass.Ptr();
 }
 
+template <class Visitor>
+inline void ClassLinker::VisitClassTables(const Visitor& visitor) {
+  Thread* const self = Thread::Current();
+  WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+  for (const ClassLoaderData& data : class_loaders_) {
+    if (data.class_table != nullptr) {
+      visitor(data.class_table);
+    }
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_CLASS_LINKER_INL_H_

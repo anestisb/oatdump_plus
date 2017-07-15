@@ -121,6 +121,10 @@ class VerifierDeps {
     return GetDexFileDeps(dex_file)->unverified_classes_;
   }
 
+  bool OutputOnly() const {
+    return output_only_;
+  }
+
  private:
   static constexpr uint16_t kUnresolvedMarker = static_cast<uint16_t>(-1);
 
@@ -197,6 +201,8 @@ class VerifierDeps {
 
     bool Equals(const DexFileDeps& rhs) const;
   };
+
+  VerifierDeps(const std::vector<const DexFile*>& dex_files, bool output_only);
 
   // Finds the DexFileDep instance associated with `dex_file`, or nullptr if
   // `dex_file` is not reported as being compiled.
@@ -320,6 +326,9 @@ class VerifierDeps {
 
   // Map from DexFiles into dependencies collected from verification of their methods.
   std::map<const DexFile*, std::unique_ptr<DexFileDeps>> dex_deps_;
+
+  // Output only signifies if we are using the verifier deps to verify or just to generate them.
+  const bool output_only_;
 
   friend class VerifierDepsTest;
   ART_FRIEND_TEST(VerifierDepsTest, StringToId);

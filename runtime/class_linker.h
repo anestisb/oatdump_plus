@@ -635,9 +635,9 @@ class ClassLinker {
   // Create the IMT and conflict tables for a class.
   void FillIMTAndConflictTables(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Clear class table strong roots (other than classes themselves). This is done by dex2oat to
-  // allow pruning dex caches.
-  void ClearClassTableStrongRoots() const
+  // Visit all of the class tables. This is used by dex2oat to allow pruning dex caches.
+  template <class Visitor>
+  void VisitClassTables(const Visitor& visitor)
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
