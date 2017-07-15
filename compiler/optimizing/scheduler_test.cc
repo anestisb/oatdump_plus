@@ -41,8 +41,8 @@ static ::std::vector<CodegenTargetConfig> GetTargetConfigs() {
   ::std::vector<CodegenTargetConfig> v;
   ::std::vector<CodegenTargetConfig> test_config_candidates = {
 #ifdef ART_ENABLE_CODEGEN_arm
-    CodegenTargetConfig(kArm, create_codegen_arm),
-    CodegenTargetConfig(kThumb2, create_codegen_arm),
+    // TODO: Should't this be `kThumb2` instead of `kArm` here?
+    CodegenTargetConfig(kArm, create_codegen_arm_vixl32),
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     CodegenTargetConfig(kArm64, create_codegen_arm64),

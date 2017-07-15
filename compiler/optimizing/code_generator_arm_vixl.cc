@@ -1295,8 +1295,8 @@ class ReadBarrierForHeapReferenceSlowPathARMVIXL : public SlowPathCodeARMVIXL {
         DCHECK(locations->GetLiveRegisters()->ContainsCoreRegister(index_reg.GetCode()));
         if (codegen->IsCoreCalleeSaveRegister(index_reg.GetCode())) {
           // We are about to change the value of `index_reg` (see the
-          // calls to art::arm::Thumb2Assembler::Lsl and
-          // art::arm::Thumb2Assembler::AddConstant below), but it has
+          // calls to art::arm::ArmVIXLMacroAssembler::Lsl and
+          // art::arm::ArmVIXLMacroAssembler::Add below), but it has
           // not been saved by the previous call to
           // art::SlowPathCode::SaveLiveRegisters, as it is a
           // callee-save register --
@@ -8994,7 +8994,7 @@ void CodeGeneratorARMVIXL::MaybeGenerateReadBarrierSlow(HInstruction* instructio
                                                         Location index) {
   if (kEmitCompilerReadBarrier) {
     // Baker's read barriers shall be handled by the fast path
-    // (CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier).
+    // (CodeGeneratorARMVIXL::GenerateReferenceLoadWithBakerReadBarrier).
     DCHECK(!kUseBakerReadBarrier);
     // If heap poisoning is enabled, unpoisoning will be taken care of
     // by the runtime within the slow path.
