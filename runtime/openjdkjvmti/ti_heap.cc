@@ -31,7 +31,6 @@
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "object_callbacks.h"
 #include "object_tagging.h"
 #include "obj_ptr-inl.h"
 #include "primitive.h"
