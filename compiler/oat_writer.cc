@@ -158,25 +158,60 @@ class OatWriter::DexFileSource {
   const void* source_;
 };
 
+// OatClassHeader is the header only part of the oat class that is required even when compilation
+// is not enabled.
+class OatWriter::OatClassHeader {
+ public:
+  OatClassHeader(uint32_t offset,
+                 uint32_t num_non_null_compiled_methods,
+                 uint32_t num_methods,
+                 mirror::Class::Status status)
+      : status_(status),
+        offset_(offset) {
+    // We just arbitrarily say that 0 methods means kOatClassNoneCompiled and that we won't use
+    // kOatClassAllCompiled unless there is at least one compiled method. This means in an
+    // interpreter only system, we can assert that all classes are kOatClassNoneCompiled.
+    if (num_non_null_compiled_methods == 0) {
+      type_ = kOatClassNoneCompiled;
+    } else if (num_non_null_compiled_methods == num_methods) {
+      type_ = kOatClassAllCompiled;
+    } else {
+      type_ = kOatClassSomeCompiled;
+    }
+  }
+
+  bool Write(OatWriter* oat_writer, OutputStream* out, const size_t file_offset) const;
+
+  static size_t SizeOf() {
+    return sizeof(status_) + sizeof(type_);
+  }
+
+  // Data to write.
+  static_assert(mirror::Class::Status::kStatusMax < (1 << 16), "class status won't fit in 16bits");
+  int16_t status_;
+
+  static_assert(OatClassType::kOatClassMax < (1 << 16), "oat_class type won't fit in 16bits");
+  uint16_t type_;
+
+  // Offset of start of OatClass from beginning of OatHeader. It is
+  // used to validate file position when writing.
+  uint32_t offset_;
+};
+
+// The actual oat class body contains the information about compiled methods. It is only required
+// for compiler filters that have any compilation.
 class OatWriter::OatClass {
  public:
-  OatClass(size_t offset,
-           const dchecked_vector<CompiledMethod*>& compiled_methods,
+  OatClass(const dchecked_vector<CompiledMethod*>& compiled_methods,
            uint32_t num_non_null_compiled_methods,
-           mirror::Class::Status status);
+           uint16_t oat_class_type);
   OatClass(OatClass&& src) = default;
-  size_t GetOatMethodOffsetsOffsetFromOatHeader(size_t class_def_method_index_) const;
-  size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;
   size_t SizeOf() const;
-  bool Write(OatWriter* oat_writer, OutputStream* out, const size_t file_offset) const;
+  bool Write(OatWriter* oat_writer, OutputStream* out) const;
 
   CompiledMethod* GetCompiledMethod(size_t class_def_method_index) const {
     return compiled_methods_[class_def_method_index];
   }
-
-  // Offset of start of OatClass from beginning of OatHeader. It is
-  // used to validate file position when writing.
-  size_t offset_;
 
   // CompiledMethods for each class_def_method_index, or null if no method is available.
   dchecked_vector<CompiledMethod*> compiled_methods_;
@@ -188,13 +223,6 @@ class OatWriter::OatClass {
   dchecked_vector<uint32_t> oat_method_offsets_offsets_from_oat_class_;
 
   // Data to write.
-
-  static_assert(mirror::Class::Status::kStatusMax < (1 << 16), "class status won't fit in 16bits");
-  int16_t status_;
-
-  static_assert(OatClassType::kOatClassMax < (1 << 16), "oat_class type won't fit in 16bits");
-  uint16_t type_;
-
   uint32_t method_bitmap_size_;
 
   // bit vector indexed by ClassDef method index. When
@@ -482,6 +510,11 @@ dchecked_vector<std::string> OatWriter::GetSourceLocations() const {
   return locations;
 }
 
+bool OatWriter::MayHaveCompiledMethods() const {
+  return CompilerFilter::IsAnyCompilationEnabled(
+      GetCompilerDriver()->GetCompilerOptions().GetCompilerFilter());
+}
+
 bool OatWriter::WriteAndOpenDexFiles(
     File* vdex_file,
     OutputStream* oat_rodata,
@@ -663,7 +696,10 @@ class OatWriter::OatDexMethodVisitor : public DexMethodVisitor {
 
   bool StartClass(const DexFile* dex_file, size_t class_def_index) OVERRIDE {
     DexMethodVisitor::StartClass(dex_file, class_def_index);
-    DCHECK_LT(oat_class_index_, writer_->oat_classes_.size());
+    if (kIsDebugBuild && writer_->MayHaveCompiledMethods()) {
+      // There are no oat classes if there aren't any compiled methods.
+      CHECK_LT(oat_class_index_, writer_->oat_classes_.size());
+    }
     method_offsets_index_ = 0u;
     return true;
   }
@@ -726,7 +762,11 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
     for (const OatDexFile& oat_dex_file : writer_->oat_dex_files_) {
       num_classes += oat_dex_file.class_offsets_.size();
     }
-    writer_->oat_classes_.reserve(num_classes);
+    // If we aren't compiling only reserve headers.
+    writer_->oat_class_headers_.reserve(num_classes);
+    if (writer->MayHaveCompiledMethods()) {
+      writer->oat_classes_.reserve(num_classes);
+    }
     compiled_methods_.reserve(256u);
     // If there are any classes, the class offsets allocation aligns the offset.
     DCHECK(num_classes == 0u || IsAligned<4u>(offset));
@@ -770,11 +810,19 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
       }
     }
 
-    writer_->oat_classes_.emplace_back(offset_,
-                                       compiled_methods_,
-                                       num_non_null_compiled_methods_,
-                                       status);
-    offset_ += writer_->oat_classes_.back().SizeOf();
+    writer_->oat_class_headers_.emplace_back(offset_,
+                                             num_non_null_compiled_methods_,
+                                             compiled_methods_.size(),
+                                             status);
+    OatClassHeader& header = writer_->oat_class_headers_.back();
+    offset_ += header.SizeOf();
+    if (writer_->MayHaveCompiledMethods()) {
+      writer_->oat_classes_.emplace_back(compiled_methods_,
+                                         num_non_null_compiled_methods_,
+                                         header.type_);
+      offset_ += writer_->oat_classes_.back().SizeOf();
+    }
+
     return DexMethodVisitor::EndClass();
   }
 
@@ -1671,7 +1719,7 @@ bool OatWriter::VisitDexMethods(DexMethodVisitor* visitor) {
       if (UNLIKELY(!visitor->StartClass(dex_file, class_def_index))) {
         return false;
       }
-      if (compiler_driver_->GetCompilerOptions().IsAnyCompilationEnabled()) {
+      if (MayHaveCompiledMethods()) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         const uint8_t* class_data = dex_file->GetClassData(class_def);
         if (class_data != nullptr) {  // ie not an empty class, such as a marker interface
@@ -1739,21 +1787,21 @@ size_t OatWriter::InitOatClasses(size_t offset) {
   offset = visitor.GetOffset();
 
   // Update oat_dex_files_.
-  auto oat_class_it = oat_classes_.begin();
+  auto oat_class_it = oat_class_headers_.begin();
   for (OatDexFile& oat_dex_file : oat_dex_files_) {
     for (uint32_t& class_offset : oat_dex_file.class_offsets_) {
-      DCHECK(oat_class_it != oat_classes_.end());
+      DCHECK(oat_class_it != oat_class_headers_.end());
       class_offset = oat_class_it->offset_;
       ++oat_class_it;
     }
   }
-  CHECK(oat_class_it == oat_classes_.end());
+  CHECK(oat_class_it == oat_class_headers_.end());
 
   return offset;
 }
 
 size_t OatWriter::InitOatMaps(size_t offset) {
-  if (!compiler_driver_->GetCompilerOptions().IsAnyCompilationEnabled()) {
+  if (!MayHaveCompiledMethods()) {
     return offset;
   }
   {
@@ -2291,14 +2339,24 @@ size_t OatWriter::WriteClassOffsets(OutputStream* out, size_t file_offset, size_
 }
 
 size_t OatWriter::WriteClasses(OutputStream* out, size_t file_offset, size_t relative_offset) {
-  for (OatClass& oat_class : oat_classes_) {
+  const bool may_have_compiled = MayHaveCompiledMethods();
+  if (may_have_compiled) {
+    CHECK_EQ(oat_class_headers_.size(), oat_classes_.size());
+  }
+  for (size_t i = 0; i < oat_class_headers_.size(); ++i) {
     // If there are any classes, the class offsets allocation aligns the offset.
     DCHECK_ALIGNED(relative_offset, 4u);
     DCHECK_OFFSET();
-    if (!oat_class.Write(this, out, oat_data_offset_)) {
+    if (!oat_class_headers_[i].Write(this, out, oat_data_offset_)) {
       return 0u;
     }
-    relative_offset += oat_class.SizeOf();
+    relative_offset += oat_class_headers_[i].SizeOf();
+    if (may_have_compiled) {
+      if (!oat_classes_[i].Write(this, out)) {
+        return 0u;
+      }
+      relative_offset += oat_classes_[i].SizeOf();
+    }
   }
   return relative_offset;
 }
@@ -3181,37 +3239,21 @@ bool OatWriter::OatDexFile::WriteClassOffsets(OatWriter* oat_writer, OutputStrea
   return true;
 }
 
-OatWriter::OatClass::OatClass(size_t offset,
-                              const dchecked_vector<CompiledMethod*>& compiled_methods,
+OatWriter::OatClass::OatClass(const dchecked_vector<CompiledMethod*>& compiled_methods,
                               uint32_t num_non_null_compiled_methods,
-                              mirror::Class::Status status)
+                              uint16_t oat_class_type)
     : compiled_methods_(compiled_methods) {
-  uint32_t num_methods = compiled_methods.size();
+  const uint32_t num_methods = compiled_methods.size();
   CHECK_LE(num_non_null_compiled_methods, num_methods);
 
-  offset_ = offset;
   oat_method_offsets_offsets_from_oat_class_.resize(num_methods);
 
-  // Since both kOatClassNoneCompiled and kOatClassAllCompiled could
-  // apply when there are 0 methods, we just arbitrarily say that 0
-  // methods means kOatClassNoneCompiled and that we won't use
-  // kOatClassAllCompiled unless there is at least one compiled
-  // method. This means in an interpretter only system, we can assert
-  // that all classes are kOatClassNoneCompiled.
-  if (num_non_null_compiled_methods == 0) {
-    type_ = kOatClassNoneCompiled;
-  } else if (num_non_null_compiled_methods == num_methods) {
-    type_ = kOatClassAllCompiled;
-  } else {
-    type_ = kOatClassSomeCompiled;
-  }
-
-  status_ = status;
   method_offsets_.resize(num_non_null_compiled_methods);
   method_headers_.resize(num_non_null_compiled_methods);
 
-  uint32_t oat_method_offsets_offset_from_oat_class = sizeof(type_) + sizeof(status_);
-  if (type_ == kOatClassSomeCompiled) {
+  uint32_t oat_method_offsets_offset_from_oat_class = OatClassHeader::SizeOf();
+  // We only create this instance if there are at least some compiled.
+  if (oat_class_type == kOatClassSomeCompiled) {
     method_bitmap_.reset(new BitVector(num_methods, false, Allocator::GetMallocAllocator()));
     method_bitmap_size_ = method_bitmap_->GetSizeOf();
     oat_method_offsets_offset_from_oat_class += sizeof(method_bitmap_size_);
@@ -3228,38 +3270,22 @@ OatWriter::OatClass::OatClass(size_t offset,
     } else {
       oat_method_offsets_offsets_from_oat_class_[i] = oat_method_offsets_offset_from_oat_class;
       oat_method_offsets_offset_from_oat_class += sizeof(OatMethodOffsets);
-      if (type_ == kOatClassSomeCompiled) {
+      if (oat_class_type == kOatClassSomeCompiled) {
         method_bitmap_->SetBit(i);
       }
     }
   }
 }
 
-size_t OatWriter::OatClass::GetOatMethodOffsetsOffsetFromOatHeader(
-    size_t class_def_method_index_) const {
-  uint32_t method_offset = GetOatMethodOffsetsOffsetFromOatClass(class_def_method_index_);
-  if (method_offset == 0) {
-    return 0;
-  }
-  return offset_ + method_offset;
-}
-
-size_t OatWriter::OatClass::GetOatMethodOffsetsOffsetFromOatClass(
-    size_t class_def_method_index_) const {
-  return oat_method_offsets_offsets_from_oat_class_[class_def_method_index_];
-}
-
 size_t OatWriter::OatClass::SizeOf() const {
-  return sizeof(status_)
-          + sizeof(type_)
-          + ((method_bitmap_size_ == 0) ? 0 : sizeof(method_bitmap_size_))
+  return ((method_bitmap_size_ == 0) ? 0 : sizeof(method_bitmap_size_))
           + method_bitmap_size_
           + (sizeof(method_offsets_[0]) * method_offsets_.size());
 }
 
-bool OatWriter::OatClass::Write(OatWriter* oat_writer,
-                                OutputStream* out,
-                                const size_t file_offset) const {
+bool OatWriter::OatClassHeader::Write(OatWriter* oat_writer,
+                                      OutputStream* out,
+                                      const size_t file_offset) const {
   DCHECK_OFFSET_();
   if (!out->WriteFully(&status_, sizeof(status_))) {
     PLOG(ERROR) << "Failed to write class status to " << out->GetLocation();
@@ -3272,9 +3298,11 @@ bool OatWriter::OatClass::Write(OatWriter* oat_writer,
     return false;
   }
   oat_writer->size_oat_class_type_ += sizeof(type_);
+  return true;
+}
 
+bool OatWriter::OatClass::Write(OatWriter* oat_writer, OutputStream* out) const {
   if (method_bitmap_size_ != 0) {
-    CHECK_EQ(kOatClassSomeCompiled, type_);
     if (!out->WriteFully(&method_bitmap_size_, sizeof(method_bitmap_size_))) {
       PLOG(ERROR) << "Failed to write method bitmap size to " << out->GetLocation();
       return false;
