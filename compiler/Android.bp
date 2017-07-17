@@ -361,7 +361,7 @@ art_cc_test {
         "optimizing/ssa_test.cc",
         "optimizing/stack_map_test.cc",
         "optimizing/suspend_check_test.cc",
-        "utils/atomic_method_ref_map_test.cc",
+        "utils/atomic_dex_ref_map_test.cc",
         "utils/dedupe_set_test.cc",
         "utils/intrusive_forward_list_test.cc",
         "utils/string_reference_test.cc",

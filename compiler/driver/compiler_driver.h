@@ -39,7 +39,7 @@
 #include "os.h"
 #include "safe_map.h"
 #include "thread_pool.h"
-#include "utils/atomic_method_ref_map.h"
+#include "utils/atomic_dex_ref_map.h"
 #include "utils/dex_cache_arrays_layout.h"
 
 namespace art {
@@ -489,7 +489,7 @@ class CompilerDriver {
   mutable Mutex compiled_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ClassStateTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
 
-  typedef AtomicMethodRefMap<CompiledMethod*> MethodTable;
+  typedef AtomicDexRefMap<CompiledMethod*> MethodTable;
 
  private:
   // All method references that this compiler has compiled.

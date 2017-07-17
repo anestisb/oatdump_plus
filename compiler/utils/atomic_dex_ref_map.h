@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_ATOMIC_METHOD_REF_MAP_H_
-#define ART_COMPILER_UTILS_ATOMIC_METHOD_REF_MAP_H_
+#ifndef ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_H_
+#define ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_H_
 
 #include "base/dchecked_vector.h"
-#include "method_reference.h"
+#include "dex_file.h"
 #include "safe_map.h"
 
 namespace art {
@@ -27,10 +27,10 @@ class DexFile;
 
 // Used by CompilerCallbacks to track verification information from the Runtime.
 template <typename T>
-class AtomicMethodRefMap {
+class AtomicDexRefMap {
  public:
-  explicit AtomicMethodRefMap() {}
-  ~AtomicMethodRefMap() {}
+  explicit AtomicDexRefMap() {}
+  ~AtomicDexRefMap() {}
 
   // Atomically swap the element in if the existing value matches expected.
   enum InsertResult {
@@ -38,14 +38,14 @@ class AtomicMethodRefMap {
     kInsertResultCASFailure,
     kInsertResultSuccess,
   };
-  InsertResult Insert(MethodReference ref, const T& expected, const T& desired);
+  InsertResult Insert(DexFileReference ref, const T& expected, const T& desired);
 
   // Retreive an item, returns false if the dex file is not added.
-  bool Get(MethodReference ref, T* out) const;
+  bool Get(DexFileReference ref, T* out) const;
 
   // Dex files must be added before method references belonging to them can be used as keys. Not
   // thread safe.
-  void AddDexFile(const DexFile* dex_file);
+  void AddDexFile(const DexFile* dex_file, size_t max_index);
 
   bool HaveDexFile(const DexFile* dex_file) const {
     return arrays_.find(dex_file) != arrays_.end();
@@ -70,4 +70,4 @@ class AtomicMethodRefMap {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_ATOMIC_METHOD_REF_MAP_H_
+#endif  // ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_H_

@@ -102,7 +102,7 @@ $(ART_TEST_TARGET_GTEST_VerifierDepsMulti_DEX): $(ART_TEST_GTEST_VerifierDepsMul
 # Dex file dependencies for each gtest.
 ART_GTEST_dex2oat_environment_tests_DEX_DEPS := Main MainStripped MultiDex MultiDexModifiedSecondary Nested
 
-ART_GTEST_atomic_method_ref_map_test_DEX_DEPS := Interfaces
+ART_GTEST_atomic_dex_ref_map_test_DEX_DEPS := Interfaces
 ART_GTEST_class_linker_test_DEX_DEPS := AllFields ErroneousA ErroneousB ErroneousInit ForClassLoaderA ForClassLoaderB ForClassLoaderC ForClassLoaderD Interfaces MethodTypes MultiDex MyClass Nested Statics StaticsFromCode
 ART_GTEST_class_loader_context_test_DEX_DEPS := Main MultiDex MyClass
 ART_GTEST_class_table_test_DEX_DEPS := XandY
