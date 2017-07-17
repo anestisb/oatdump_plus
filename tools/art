@@ -120,7 +120,36 @@ function verbose_run() {
   env "$@"
 }
 
+# Automatically find the boot image location. It uses core.art by default.
+# On a real device, it might only have a boot.art, so use that instead when core.art does not exist.
+function detect_boot_image_location() {
+  local image_location_dir="$ANDROID_ROOT/framework"
+  local image_location_name="core.art"
+
+  local maybe_arch
+  local core_image_exists="false"
+
+  # Parse ARCHS={a,b,c,d} syntax.
+  local array
+  IFS=, read -a array <<< "${ARCHS:1:(-1)}";
+  for maybe_arch in "${array[@]}"; do
+    if [[ -e "$image_location_dir/$maybe_arch/$image_location_name" ]]; then
+      core_image_exists="true"
+      break
+    fi
+  done
+
+  if [[ "$core_image_exists" == "false" ]]; then
+    image_location_name="boot.art"
+  fi
+
+  local image_location="$image_location_dir/$image_location_name"
+  echo "$image_location"
+}
+
 function run_art() {
+  local image_location="$(detect_boot_image_location)"
+
   verbose_run ANDROID_DATA=$ANDROID_DATA               \
               ANDROID_ROOT=$ANDROID_ROOT               \
               LD_LIBRARY_PATH=$LD_LIBRARY_PATH         \
@@ -129,7 +158,7 @@ function run_art() {
               $LAUNCH_WRAPPER $ART_BINARY_PATH $lib    \
               -XXlib:$LIBART                           \
               -Xnorelocate                             \
-              -Ximage:$ANDROID_ROOT/framework/core.art \
+              -Ximage:"$image_location"                \
               "$@"
 }
 
@@ -215,7 +244,13 @@ LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
 # If ANDROID_DATA is the system ANDROID_DATA or is not set, use our own,
 # and ensure we delete it at the end.
 if [ "$ANDROID_DATA" = "/data" ] || [ "$ANDROID_DATA" = "" ]; then
-  ANDROID_DATA=$PWD/android-data$$
+  if [[ $PWD != / ]]; then
+    ANDROID_DATA="$PWD/android-data$$"
+  else
+    # Use /data/local/tmp when running this from adb shell, since it starts out in /
+    # by default.
+    ANDROID_DATA="$ANDROID_DATA/local/tmp/android-data$$"
+  fi
   mkdir -p $ANDROID_DATA/dalvik-cache/$ARCHS
   DELETE_ANDROID_DATA="yes"
 fi
