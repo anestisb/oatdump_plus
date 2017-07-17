@@ -4895,7 +4895,9 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       if (!super_initialized) {
         // The super class was verified ahead of entering initializing, we should only be here if
         // the super class became erroneous due to initialization.
-        CHECK(handle_scope_super->IsErroneous() && self->IsExceptionPending())
+        // For the case of aot compiler, the super class might also be initializing but we don't
+        // want to process circular dependencies in pre-compile.
+        CHECK(self->IsExceptionPending())
             << "Super class initialization failed for "
             << handle_scope_super->PrettyDescriptor()
             << " that has unexpected status " << handle_scope_super->GetStatus()

@@ -31,18 +31,29 @@ AotClassLinker::~AotClassLinker() {}
 bool AotClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
                                   bool can_init_statics, bool can_init_parents) {
   Runtime* const runtime = Runtime::Current();
+  bool strict_mode_ = runtime->IsActiveStrictTransactionMode();
 
   DCHECK(klass != nullptr);
   if (klass->IsInitialized() || klass->IsInitializing()) {
     return ClassLinker::InitializeClass(self, klass, can_init_statics, can_init_parents);
   }
 
-  if (runtime->IsActiveStrictTransactionMode()) {
+  // Don't initialize klass if it's superclass is not initialized, because superclass might abort
+  // the transaction and rolled back after klass's change is commited.
+  if (strict_mode_ && !klass->IsInterface() && klass->HasSuperClass()) {
+    if (klass->GetSuperClass()->GetStatus() == mirror::Class::kStatusInitializing) {
+      runtime->AbortTransactionAndThrowAbortError(self, "Can't resolve "
+          + klass->PrettyTypeOf() + " because it's superclass is not initialized.");
+      return false;
+    }
+  }
+
+  if (strict_mode_) {
     runtime->EnterTransactionMode(true, klass.Get()->AsClass());
   }
   bool success = ClassLinker::InitializeClass(self, klass, can_init_statics, can_init_parents);
 
-  if (runtime->IsActiveStrictTransactionMode()) {
+  if (strict_mode_) {
     if (success) {
       // Exit Transaction if success.
       runtime->ExitTransactionMode();
