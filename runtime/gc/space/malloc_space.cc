@@ -191,10 +191,14 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   VLOG(heap) << "Size " << GetMemMap()->Size();
   VLOG(heap) << "GrowthLimit " << PrettySize(growth_limit);
   VLOG(heap) << "Capacity " << PrettySize(capacity);
-  // Remap the tail.
+  // Remap the tail. Pass MAP_PRIVATE since we don't want to share the same ashmem as the zygote
+  // space.
   std::string error_msg;
-  std::unique_ptr<MemMap> mem_map(GetMemMap()->RemapAtEnd(End(), alloc_space_name,
-                                                          PROT_READ | PROT_WRITE, &error_msg));
+  std::unique_ptr<MemMap> mem_map(GetMemMap()->RemapAtEnd(End(),
+                                                          alloc_space_name,
+                                                          PROT_READ | PROT_WRITE,
+                                                          MAP_PRIVATE,
+                                                          &error_msg));
   CHECK(mem_map.get() != nullptr) << error_msg;
   void* allocator = CreateAllocator(End(), starting_size_, initial_size_, capacity,
                                     low_memory_mode);
