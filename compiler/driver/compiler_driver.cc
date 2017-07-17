@@ -890,17 +890,18 @@ void CompilerDriver::PreCompile(jobject class_loader,
                                 TimingLogger* timings) {
   CheckThreadPools();
 
-  for (const DexFile* dex_file : dex_files) {
-    // Can be already inserted if the caller is CompileOne. This happens for gtests.
-    if (!compiled_methods_.HaveDexFile(dex_file)) {
-      compiled_methods_.AddDexFile(dex_file);
-    }
-  }
-
   LoadImageClasses(timings);
   VLOG(compiler) << "LoadImageClasses: " << GetMemoryUsageString(false);
 
   if (compiler_options_->IsAnyCompilationEnabled()) {
+    // Avoid adding the dex files in the case where we aren't going to add compiled methods.
+    // This reduces RAM usage for this case.
+    for (const DexFile* dex_file : dex_files) {
+      // Can be already inserted if the caller is CompileOne. This happens for gtests.
+      if (!compiled_methods_.HaveDexFile(dex_file)) {
+        compiled_methods_.AddDexFile(dex_file);
+      }
+    }
     // Resolve eagerly to prepare for compilation.
     Resolve(class_loader, dex_files, timings);
     VLOG(compiler) << "Resolve: " << GetMemoryUsageString(false);
