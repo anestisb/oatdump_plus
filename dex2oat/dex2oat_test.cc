@@ -544,11 +544,11 @@ class Dex2oatVeryLargeTest : public Dex2oatTest {
   void CheckHostResult(bool expect_large) {
     if (!kIsTargetBuild) {
       if (expect_large) {
-        EXPECT_NE(output_.find("Very large app, downgrading to extract."),
+        EXPECT_NE(output_.find("Very large app, downgrading to"),
                   std::string::npos)
             << output_;
       } else {
-        EXPECT_EQ(output_.find("Very large app, downgrading to extract."),
+        EXPECT_EQ(output_.find("Very large app, downgrading to"),
                   std::string::npos)
             << output_;
       }
