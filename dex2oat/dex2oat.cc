@@ -1516,7 +1516,10 @@ class Dex2Oat FINAL {
       return dex2oat::ReturnCode::kOther;
     }
 
-    verification_results_.reset(new VerificationResults(compiler_options_.get()));
+    if (CompilerFilter::IsAnyCompilationEnabled(compiler_options_->GetCompilerFilter())) {
+      // Only modes with compilation require verification results.
+      verification_results_.reset(new VerificationResults(compiler_options_.get()));
+    }
     callbacks_.reset(new QuickCompilerCallbacks(
         verification_results_.get(),
         IsBootImage() ?
@@ -1732,7 +1735,11 @@ class Dex2Oat FINAL {
       }
       // Pre-register dex files so that we can access verification results without locks during
       // compilation and verification.
-      verification_results_->AddDexFile(dex_file);
+      if (verification_results_ != nullptr) {
+        // Verification results are only required for modes that have any compilation. Avoid
+        // adding the dex files if possible to prevent allocating large arrays.
+        verification_results_->AddDexFile(dex_file);
+      }
     }
 
     return dex2oat::ReturnCode::kNoFailure;

@@ -22,11 +22,15 @@
 namespace art {
 
 void QuickCompilerCallbacks::MethodVerified(verifier::MethodVerifier* verifier) {
-  verification_results_->ProcessVerifiedMethod(verifier);
+  if (verification_results_ != nullptr) {
+    verification_results_->ProcessVerifiedMethod(verifier);
+  }
 }
 
 void QuickCompilerCallbacks::ClassRejected(ClassReference ref) {
-  verification_results_->AddRejectedClass(ref);
+  if (verification_results_ != nullptr) {
+    verification_results_->AddRejectedClass(ref);
+  }
 }
 
 }  // namespace art
