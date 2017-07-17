@@ -42,14 +42,6 @@ public class Main {
         System.out.println("Class loader does not match boot class");
       }
       testAddMethodToProfile(file, bootMethod);
-
-      // Test a sampled method that is only warm and not hot.
-      Method reflectMethod = Main.class.getDeclaredMethod("testReflectionInvoke");
-      reflectMethod.invoke(null);
-      testSampledMethodInProfile(file, reflectMethod);
-      if (staticObj == null) {
-        throw new AssertionError("Object was not set");
-      }
     } finally {
       if (file != null) {
         file.delete();
@@ -57,29 +49,14 @@ public class Main {
     }
   }
 
-  static Object staticObj = null;
-
-  static void testReflectionInvoke() {
-    staticObj = new Object();
-  }
-
   static void testAddMethodToProfile(File file, Method m) {
     // Make sure we have a profile info for this method without the need to loop.
     ensureProfilingInfo(m);
-    // Make sure the profile gets processed.
+    // Make sure the profile gets saved.
     ensureProfileProcessing();
     // Verify that the profile was saved and contains the method.
-    if (!profileHasMethod(true, file.getPath(), m)) {
+    if (!presentInProfile(file.getPath(), m)) {
       throw new RuntimeException("Method with index " + m + " not in the profile");
-    }
-  }
-
-  static void testSampledMethodInProfile(File file, Method m) {
-    // Make sure the profile gets processed.
-    ensureProfileProcessing();
-    // Verify that the profile was saved and contains the method.
-    if (!profileHasMethod(false, file.getPath(), m)) {
-      throw new RuntimeException("Method with index " + m + " not sampled in the profile");
     }
   }
 
@@ -87,8 +64,8 @@ public class Main {
   public static native void ensureProfilingInfo(Method method);
   // Ensures the profile saver does its usual processing.
   public static native void ensureProfileProcessing();
-  // Checks if the profile saver has the method as a warm/sampled method.
-  public static native boolean profileHasMethod(boolean hot, String profile, Method method);
+  // Checks if the profiles saver knows about the method.
+  public static native boolean presentInProfile(String profile, Method method);
 
   private static final String TEMP_FILE_NAME_PREFIX = "dummy";
   private static final String TEMP_FILE_NAME_SUFFIX = "-file";
