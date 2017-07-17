@@ -46,6 +46,10 @@ VerificationResults::~VerificationResults() {
 
 void VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier) {
   DCHECK(method_verifier != nullptr);
+  if (!compiler_options_->IsAnyCompilationEnabled()) {
+    // Verified methods are only required for quickening and compilation.
+    return;
+  }
   MethodReference ref = method_verifier->GetMethodReference();
   std::unique_ptr<const VerifiedMethod> verified_method(VerifiedMethod::Create(method_verifier));
   if (verified_method == nullptr) {
@@ -98,6 +102,7 @@ void VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
 
 const VerifiedMethod* VerificationResults::GetVerifiedMethod(MethodReference ref) {
   const VerifiedMethod* ret = nullptr;
+  DCHECK(compiler_options_->IsAnyCompilationEnabled());
   if (atomic_verified_methods_.Get(ref, &ret)) {
     return ret;
   }
