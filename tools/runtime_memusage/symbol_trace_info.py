@@ -38,15 +38,15 @@ def find_match(list_substrings, big_string):
 
 def absolute_to_relative(data_lists, symbol_traces):
     """Address changed to Dex File offset and shifting time to 0 min in ms."""
-    plot_list = data_lists["plot_list"]
-    dex_start_list = data_lists["dex_start_list"]
-    cat_list = data_lists["cat_list"]
+
     offsets = data_lists["offsets"]
-    time_offsets = data_lists["time_offsets"]
+    time_offsets = data_lists["times"]
+
+    # Format of time provided by logcat
     time_format_str = "%H:%M:%S.%f"
-    first_access_time = datetime.strptime(plot_list[0][0],
+    first_access_time = datetime.strptime(data_lists["plot_list"][0][0],
                                           time_format_str)
-    for ind, elem in enumerate(plot_list):
+    for ind, elem in enumerate(data_lists["plot_list"]):
         elem_date_time = datetime.strptime(elem[0], time_format_str)
         # Shift time values so that first access is at time 0 milliseconds
         elem[0] = int((elem_date_time - first_access_time).total_seconds() *
@@ -54,25 +54,23 @@ def absolute_to_relative(data_lists, symbol_traces):
         address_access = int(elem[1], 16)
         # For each poisoned address, find highest Dex File starting address less
         # than address_access
-        dex_file_start = dex_start_list[bisect.bisect(dex_start_list,
-                                                      address_access) - 1
-                                        ]
-        dex_offset = address_access - dex_file_start
+        dex_start_list, dex_size_list = zip(*data_lists["dex_ends_list"])
+        dex_file_ind = bisect.bisect(dex_start_list, address_access) - 1
+        dex_offset = address_access - dex_start_list[dex_file_ind]
+        # Assumes that offsets is already sorted and constrains offset to be
+        # within range of the dex_file
+        max_offset = min(offsets[1], dex_size_list[dex_file_ind])
         # Meant to nullify data that does not meet offset criteria if specified
-        # Assumes that offsets is already sorted
-        if (dex_offset >= offsets[0] and dex_offset < offsets[1] and
-            elem[0] >= time_offsets[0] and elem[0] < time_offsets[1]):
+        if (dex_offset >= offsets[0] and dex_offset < max_offset and
+                elem[0] >= time_offsets[0] and elem[0] < time_offsets[1]):
 
             elem.insert(1, dex_offset)
             # Category that a data point belongs to
-            elem.insert(2, cat_list[ind])
+            elem.insert(2, data_lists["cat_list"][ind])
         else:
-            elem[0] = None
-            elem[1] = None
-            elem.append(None)
-            elem.append(None)
+            elem[:] = 4 * [None]
             symbol_traces[ind] = None
-            cat_list[ind] = None
+            data_lists["cat_list"][ind] = None
 
 
 def print_category_info(cat_split, outname, out_dir_name, title):
@@ -98,7 +96,7 @@ def print_category_info(cat_split, outname, out_dir_name, title):
 def print_categories(categories, symbol_file_split, out_dir_name):
     """Prints details of all categories."""
     symbol_file_split = [trace for trace in symbol_file_split
-                          if trace is not None]
+                         if trace is not None]
     # Info of traces containing a call to current category
     for cat_num, cat_name in enumerate(categories[1:]):
         print("\nCategory #%d" % (cat_num + 1))
@@ -184,8 +182,8 @@ def parse_args(argv):
 def get_dex_offset_data(line, dex_file_item):
     """ Returns a tuple of dex file offset, item name, and data of a line."""
     return (int(line[:line.find(":")], 16),
-                (dex_file_item,
-                 line.split("|")[1].strip())
+            (dex_file_item,
+             line.split("|")[1].strip())
             )
 
 
@@ -206,27 +204,28 @@ def read_data(parsed_argv):
     logcat_file_data = parsed_argv.sanitizer_trace.readlines()
     parsed_argv.sanitizer_trace.close()
 
-    symbol_file_split = parsed_argv.symbol_trace.read().split("Stack Trace")[
-        1:]
+    symbol_file_split = parsed_argv.symbol_trace.read().split("Stack Trace")
+    # Removes text before first trace
+    symbol_file_split = symbol_file_split[1:]
     parsed_argv.symbol_trace.close()
 
     dex_start_file_data = parsed_argv.dex_starts.readlines()
     parsed_argv.dex_starts.close()
 
-    if parsed_argv.dex_file != None:
+    if parsed_argv.dex_file is not None:
         dex_file_data = parsed_argv.dex_file.read()
         parsed_argv.dex_file.close()
         # Splits baksmali dump by each item
         item_split = [s.splitlines() for s in re.split(r"\|\[[0-9]+\] ",
-                                                          dex_file_data)]
+                                                       dex_file_data)]
         # Splits each item by line and creates a list of offsets and a
         # corresponding list of the data associated with that line
         offset_list, offset_data = zip(*[get_dex_offset_data(line, item[0])
-                                      for item in item_split
+                                         for item in item_split
                                          for line in item[1:]
-                                            if re.search("[0-9a-f]{6}:", line)
-                                                is not None
-                                            and line.find("|") != -1])
+                                         if re.search("[0-9a-f]{6}:", line)
+                                         is not None and
+                                         line.find("|") != -1])
         data_lists["offset_list"] = offset_list
         data_lists["offset_data"] = offset_data
     else:
@@ -237,7 +236,8 @@ def read_data(parsed_argv):
                                 if elem[0] in (1, 11)
                                 ]
                                for line in logcat_file_data
-                               if "use-after-poison" in line
+                               if "use-after-poison" in line or
+                               "unknown-crash" in line
                                ]
     # Contains a mapping between traces and the category they belong to
     # based on arguments
@@ -246,27 +246,25 @@ def read_data(parsed_argv):
 
     # Contains a list of starting address of all dex files to calculate dex
     # offsets
-    data_lists["dex_start_list"] = [int(line.split("@")[1], 16)
-                                    for line in dex_start_file_data
-                                    if "RegisterDexFile" in line
-                                    ]
+    data_lists["dex_ends_list"] = [(int(line.split()[9], 16),
+                                    int(line.split()[12])
+                                    )
+                                   for line in dex_start_file_data
+                                   if "RegisterDexFile" in line
+                                   ]
     # Dex File Starting addresses must be sorted because bisect requires sorted
     # lists.
-    data_lists["dex_start_list"].sort()
+    data_lists["dex_ends_list"].sort()
 
     return data_lists, categories, symbol_file_split
 
 
 def main():
     """Takes in trace information and outputs details about them."""
-
     parsed_argv = parse_args(None)
     data_lists, categories, symbol_file_split = read_data(parsed_argv)
 
     # Formats plot_list such that each element is a data point
-    #absolute_to_relative(data_lists["plot_list"], data_lists["dex_start_list"],
-    #                        data_lists["cat_list"], data_lists["offsets"],
-    #                            data_lists["times"], symbol_file_split)
     absolute_to_relative(data_lists, symbol_file_split)
     for file_ext, cat_name in enumerate(categories):
         out_file_name = os.path.join(parsed_argv.out_dir_name, "time_output_" +
@@ -287,10 +285,10 @@ def main():
                         hex(dex_offset) +
                         " " +
                         str(address))
-                    if data_lists.has_key("offset_list"):
+                    if "offset_list" in data_lists:
                         dex_offset_index = bisect.bisect(
-                                              data_lists["offset_list"],
-                                                            dex_offset) - 1
+                            data_lists["offset_list"],
+                            dex_offset) - 1
                         aligned_dex_offset = (data_lists["offset_list"]
                                                         [dex_offset_index])
                         dex_offset_data = (data_lists["offset_data"]

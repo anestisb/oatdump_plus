@@ -33,7 +33,7 @@ def match_to_int(match):
     """
     # Hard coded string are necessary since each trace must have the address
     # accessed, which is printed before trace lines.
-    if match == "use-after-poison":
+    if match == "use-after-poison" or match == "unknown-crash":
         return -2
     elif match == "READ":
         return -1
@@ -43,6 +43,9 @@ def match_to_int(match):
 
 def clean_trace_if_valid(trace, stack_min_size, prune_exact):
     """Cleans trace if it meets a certain standard. Returns None otherwise."""
+    # Note: Sample input may contain "unknown-crash" instead of
+    # "use-after-poison"
+    #
     # Sample input:
     #   trace:
     # "...ERROR: AddressSanitizer: use-after-poison on address 0x0071126a870a...
@@ -68,6 +71,7 @@ def clean_trace_if_valid(trace, stack_min_size, prune_exact):
     trace_line_matches = [(match_to_int(match.group()), match.start())
                           for match in re.finditer("#[0-9]+ "
                                                    "|use-after-poison"
+                                                   "|unknown-crash"
                                                    "|READ", trace)
                           ]
     # Finds the first index where the line number ordering isn't in sequence or
@@ -135,16 +139,17 @@ def main():
                          ]
     trace_clean_split = [trace for trace in trace_clean_split
                          if trace is not None]
-
-    outfile = os.path.join(out_dir_name, trace_file.name + "_filtered")
+    filename = os.path.basename(trace_file.name + "_filtered")
+    outfile = os.path.join(out_dir_name, filename)
     with open(outfile, "w") as output_file:
         output_file.write(STACK_DIVIDER.join(trace_clean_split))
 
     filter_percent = 100.0 - (float(len(trace_clean_split)) /
                               len(trace_split) * 100)
     filter_amount = len(trace_split) - len(trace_clean_split)
-    print("Filtered out %d (%f%%) of %d."
-          % (filter_amount, filter_percent, len(trace_split)))
+    print("Filtered out %d (%f%%) of %d. %d (%f%%) remain."
+          % (filter_amount, filter_percent, len(trace_split),
+             len(trace_split) - filter_amount, 1 - filter_percent))
 
 
 if __name__ == "__main__":

@@ -40,6 +40,17 @@ unnecessary trace information.
 
 ===========================================================================
 Usage: sanitizer_logcat_analysis.sh [options] [LOGCAT_FILE] [CATEGORIES...]
+    -a
+        Forces all pids associated with registered dex
+        files in the logcat to be processed.
+        default: only the last pid is processed
+
+    -b  [DEX_FILE_NUMBER]
+        Outputs data for the specified baksmali
+        dump if -p is provided.
+        default: first baksmali dump in order of dex
+          file registration
+
     -d  OUT_DIRECTORY
         Puts all output in specified directory.
         If not given, output will be put in a local
@@ -52,13 +63,30 @@ Usage: sanitizer_logcat_analysis.sh [options] [LOGCAT_FILE] [CATEGORIES...]
         the -m argument or by prune_sanitizer_output.py
 
     -f
-        forces redo of all commands even if output
-        files exist.
+        Forces redo of all commands even if output
+        files exist. Steps are skipped if their output
+        exist already and this is not enabled.
 
     -m  [MINIMUM_CALLS_PER_TRACE]
         Filters out all traces that do not have
         at least MINIMUM_CALLS_PER_TRACE lines.
         default: specified by prune_sanitizer_output.py
+
+    -o  [OFFSET],[OFFSET]
+        Filters out all Dex File offsets outside the
+        range between provided offsets. 'inf' can be
+        provided for infinity.
+        default: 0,inf
+
+    -p  [PACKAGE_NAME]
+        Using the package name, uses baksmali to get
+        a dump of the Dex File format for the package.
+
+    -t  [TIME_OFFSET],[TIME_OFFSET]
+        Filters out all time offsets outside the
+        range between provided offsets. 'inf' can be
+        provided for infinity.
+        default: 0,inf
 
     CATEGORIES are words that are expected to show in
        a large subset of symbolized traces. Splits
