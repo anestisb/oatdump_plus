@@ -28,14 +28,15 @@ import argparse
 ANDROID_BUILD_TOP = os.environ.get('ANDROID_BUILD_TOP', os.getcwd())
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-j', default='', dest='n_threads')
-parser.add_argument('--run-test', '-r', action='store_true', dest='run_test')
-parser.add_argument('--gtest', '-g', action='store_true', dest='gtest')
-parser.add_argument('--target', action='store_true', dest='target')
-parser.add_argument('--host', action='store_true', dest='host')
+parser.add_argument('-j', default='', dest='n_threads', help='specify number of concurrent tests')
+parser.add_argument('--run-test', '-r', action='store_true', dest='run_test', help='execute run tests')
+parser.add_argument('--gtest', '-g', action='store_true', dest='gtest', help='execute gtest tests')
+parser.add_argument('--target', action='store_true', dest='target', help='test on target system')
+parser.add_argument('--host', action='store_true', dest='host', help='test on build host system')
+parser.add_argument('--help-runner', action='store_true', dest='help_runner', help='show help for optional run test arguments')
 options, unknown = parser.parse_known_args()
 
-if options.run_test or not options.gtest:
+if options.run_test or options.help_runner or not options.gtest:
   testrunner = os.path.join('./',
                           ANDROID_BUILD_TOP,
                             'art/test/testrunner/testrunner.py')
@@ -44,11 +45,14 @@ if options.run_test or not options.gtest:
     if arg == '--run-test' or arg == '--gtest' \
     or arg == '-r' or arg == '-g':
       continue
+    if arg == '--help-runner':
+      run_test_args = ['--help']
+      break
     run_test_args.append(arg)
 
   test_runner_cmd = [testrunner] + run_test_args
   print test_runner_cmd
-  if subprocess.call(test_runner_cmd):
+  if subprocess.call(test_runner_cmd) or options.help_runner:
     sys.exit(1)
 
 if options.gtest or not options.run_test:
