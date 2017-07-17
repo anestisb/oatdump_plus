@@ -260,7 +260,8 @@ TEST_F(Dex2oatImageTest, TestModesAndFilters) {
     std::cout << "Compiled all classes sizes " << compiled_all_classes_sizes << std::endl;
     // Check that oat size is smaller since we didn't compile everything.
     EXPECT_EQ(compiled_all_classes_sizes.art_size, base_sizes.art_size);
-    EXPECT_EQ(compiled_all_classes_sizes.oat_size, base_sizes.oat_size);
+    // TODO(mathieuc): Find a reliable way to check compiled code.
+    // EXPECT_EQ(compiled_all_classes_sizes.oat_size, base_sizes.oat_size);
     EXPECT_EQ(compiled_all_classes_sizes.vdex_size, base_sizes.vdex_size);
   }
   // Test compiled classes.
@@ -274,7 +275,8 @@ TEST_F(Dex2oatImageTest, TestModesAndFilters) {
     classes.Close();
     std::cout << "Compiled classes sizes " << compiled_classes_sizes << std::endl;
     // Check that oat size is smaller since we didn't compile everything.
-    EXPECT_LT(compiled_classes_sizes.oat_size, base_sizes.oat_size);
+    // TODO(mathieuc): Find a reliable way to check compiled code.
+    // EXPECT_LT(compiled_classes_sizes.oat_size, base_sizes.oat_size);
     // Art file should be smaller than image classes version since we included fewer classes in the
     // list.
     EXPECT_LT(compiled_classes_sizes.art_size, image_classes_sizes.art_size);
@@ -289,7 +291,8 @@ TEST_F(Dex2oatImageTest, TestModesAndFilters) {
     methods.Close();
     std::cout << "Compiled all methods sizes " << compiled_all_methods_sizes << std::endl;
     EXPECT_EQ(compiled_all_classes_sizes.art_size, base_sizes.art_size);
-    EXPECT_EQ(compiled_all_classes_sizes.oat_size, base_sizes.oat_size);
+    // TODO(mathieuc): Find a reliable way to check compiled code. b/63746626
+    // EXPECT_EQ(compiled_all_classes_sizes.oat_size, base_sizes.oat_size);
     EXPECT_EQ(compiled_all_classes_sizes.vdex_size, base_sizes.vdex_size);
   }
   static size_t kMethodFrequency = 3;
@@ -329,10 +332,12 @@ TEST_F(Dex2oatImageTest, TestModesAndFilters) {
     // the range is within expected margins (+-5%).
     const double kRatio = 0.95;
     EXPECT_LE(profile_sizes.art_size * kRatio, compiled_methods_sizes.art_size);
-    EXPECT_LE(profile_sizes.oat_size * kRatio, compiled_methods_sizes.oat_size);
+    // TODO(mathieuc): Find a reliable way to check compiled code. b/63746626
+    // EXPECT_LE(profile_sizes.oat_size * kRatio, compiled_methods_sizes.oat_size);
     EXPECT_LE(profile_sizes.vdex_size * kRatio, compiled_methods_sizes.vdex_size);
     EXPECT_GE(profile_sizes.art_size / kRatio, compiled_methods_sizes.art_size);
-    EXPECT_GE(profile_sizes.oat_size / kRatio, compiled_methods_sizes.oat_size);
+    // TODO(mathieuc): Find a reliable way to check compiled code. b/63746626
+    // EXPECT_GE(profile_sizes.oat_size / kRatio, compiled_methods_sizes.oat_size);
     EXPECT_GE(profile_sizes.vdex_size / kRatio, compiled_methods_sizes.vdex_size);
   }
 }
