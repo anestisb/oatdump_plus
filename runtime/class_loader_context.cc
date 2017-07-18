@@ -305,24 +305,41 @@ jobject ClassLoaderContext::CreateClassLoader(
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
 
-  std::vector<const DexFile*> class_path_files;
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
 
-  // TODO(calin): Transition period: assume we only have a classloader until
-  // the oat file assistant implements the full class loader check.
-  if (!class_loader_chain_.empty()) {
-    CHECK_EQ(1u, class_loader_chain_.size());
-    CHECK_EQ(kPathClassLoader, class_loader_chain_[0].type);
-    class_path_files = MakeNonOwningPointerVector(class_loader_chain_[0].opened_dex_files);
+  if (class_loader_chain_.empty()) {
+    return class_linker->CreatePathClassLoader(self, compilation_sources);
   }
 
-  // Classpath: first the class-path given; then the dex files we'll compile.
-  // Thus we'll resolve the class-path first.
-  class_path_files.insert(class_path_files.end(),
-                          compilation_sources.begin(),
-                          compilation_sources.end());
+  // Create the class loaders starting from the top most parent (the one on the last position
+  // in the chain) but omit the first class loader which will contain the compilation_sources and
+  // needs special handling.
+  jobject current_parent = nullptr;  // the starting parent is the BootClassLoader.
+  for (size_t i = class_loader_chain_.size() - 1; i > 0; i--) {
+    std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(
+        class_loader_chain_[i].opened_dex_files);
+    current_parent = class_linker->CreateWellKnownClassLoader(
+        self,
+        class_path_files,
+        GetClassLoaderClass(class_loader_chain_[i].type),
+        current_parent);
+  }
 
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  return class_linker->CreatePathClassLoader(self, class_path_files);
+  // We set up all the parents. Move on to create the first class loader.
+  // Its classpath comes first, followed by compilation sources. This ensures that whenever
+  // we need to resolve classes from it the classpath elements come first.
+
+  std::vector<const DexFile*> first_class_loader_classpath = MakeNonOwningPointerVector(
+      class_loader_chain_[0].opened_dex_files);
+  first_class_loader_classpath.insert(first_class_loader_classpath.end(),
+                                    compilation_sources.begin(),
+                                    compilation_sources.end());
+
+  return class_linker->CreateWellKnownClassLoader(
+      self,
+      first_class_loader_classpath,
+      GetClassLoaderClass(class_loader_chain_[0].type),
+      current_parent);
 }
 
 std::vector<const DexFile*> ClassLoaderContext::FlattenOpenedDexFiles() const {
@@ -621,6 +638,16 @@ bool ClassLoaderContext::VerifyClassLoaderContextMatch(const std::string& contex
     }
   }
   return true;
+}
+
+jclass ClassLoaderContext::GetClassLoaderClass(ClassLoaderType type) {
+  switch (type) {
+    case kPathClassLoader: return WellKnownClasses::dalvik_system_PathClassLoader;
+    case kDelegateLastClassLoader: return WellKnownClasses::dalvik_system_DelegateLastClassLoader;
+    case kInvalidClassLoader: break;  // will fail after the switch.
+  }
+  LOG(FATAL) << "Invalid class loader type " << type;
+  UNREACHABLE();
 }
 
 }  // namespace art

@@ -1102,4 +1102,16 @@ TEST_F(Dex2oatClassLoaderContextTest, ContextWithNotExistentDexFiles) {
   RunTest(context.c_str(), kEmptyClassPathKey, /*expected_success*/ true);
 }
 
+TEST_F(Dex2oatClassLoaderContextTest, ChainContext) {
+  std::vector<std::unique_ptr<const DexFile>> dex_files1 = OpenTestDexFiles("Nested");
+  std::vector<std::unique_ptr<const DexFile>> dex_files2 = OpenTestDexFiles("MultiDex");
+
+  std::string context = "PCL[" + GetTestDexFileName("Nested") + "];" +
+      "DLC[" + GetTestDexFileName("MultiDex") + "]";
+  std::string expected_classpath_key = "PCL[" + CreateClassPathWithChecksums(dex_files1) + "];" +
+      "DLC[" + CreateClassPathWithChecksums(dex_files2) + "]";
+
+  RunTest(context.c_str(), expected_classpath_key.c_str(), true);
+}
+
 }  // namespace art

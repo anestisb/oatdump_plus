@@ -60,11 +60,22 @@ class ClassLoaderContext {
   bool RemoveLocationsFromClassPaths(const dchecked_vector<std::string>& compilation_sources);
 
   // Creates the entire class loader hierarchy according to the current context.
-  // The compilation sources are appended to the classpath of the top class loader
-  // (i.e the class loader whose parent is the BootClassLoader).
-  // Should only be called if OpenDexFiles() returned true.
+  // Returns the first class loader from the chain.
+  //
+  // For example: if the context was built from the spec
+  // "ClassLoaderType1[ClasspathElem1:ClasspathElem2...];ClassLoaderType2[...]..."
+  // the method returns the class loader correponding to ClassLoader1. The parent chain will be
+  // ClassLoader1 --> ClassLoader2 --> ... --> BootClassLoader.
+  //
+  // The compilation sources are appended to the classpath of the first class loader (in the above
+  // example ClassLoader1).
+  //
   // If the context is empty, this method only creates a single PathClassLoader with the
   // given compilation_sources.
+  //
+  // Notes:
+  //   1) the objects are not completely set up. Do not use this outside of tests and the compiler.
+  //   2) should only be called before the first call to OpenDexFiles().
   jobject CreateClassLoader(const std::vector<const DexFile*>& compilation_sources) const;
 
   // Encodes the context as a string suitable to be added in oat files.
@@ -89,6 +100,11 @@ class ClassLoaderContext {
   // The format: ClassLoaderType1[ClasspathElem1:ClasspathElem2...];ClassLoaderType2[...]...
   // ClassLoaderType is either "PCL" (PathClassLoader) or "DLC" (DelegateLastClassLoader).
   // ClasspathElem is the path of dex/jar/apk file.
+  //
+  // The spec represents a class loader chain with the natural interpretation:
+  // ClassLoader1 has ClassLoader2 as parent which has ClassLoader3 as a parent and so on.
+  // The last class loader is assumed to have the BootClassLoader as a parent.
+  //
   // Note that we allowed class loaders with an empty class path in order to support a custom
   // class loader for the source dex files.
   static std::unique_ptr<ClassLoaderContext> Create(const std::string& spec);
@@ -167,6 +183,9 @@ class ClassLoaderContext {
   // Returns the string representation of the class loader type.
   // The returned format can be used when parsing a context spec.
   static const char* GetClassLoaderTypeName(ClassLoaderType type);
+
+  // Returns the WellKnownClass for the given class loader type.
+  static jclass GetClassLoaderClass(ClassLoaderType type);
 
   // The class loader chain represented as a vector.
   // The parent of class_loader_chain_[i] is class_loader_chain_[i++].

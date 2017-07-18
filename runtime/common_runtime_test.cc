@@ -589,18 +589,24 @@ std::unique_ptr<const DexFile> CommonRuntimeTestImpl::OpenTestDexFile(const char
 }
 
 std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_loader) {
-  std::vector<const DexFile*> ret;
-
   ScopedObjectAccess soa(Thread::Current());
 
-  StackHandleScope<2> hs(soa.Self());
+  StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader = hs.NewHandle(
       soa.Decode<mirror::ClassLoader>(jclass_loader));
+  return GetDexFiles(soa, class_loader);
+}
 
-  DCHECK_EQ(class_loader->GetClass(),
-            soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader));
-  DCHECK_EQ(class_loader->GetParent()->GetClass(),
-            soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(
+    ScopedObjectAccess& soa,
+    Handle<mirror::ClassLoader> class_loader) {
+  std::vector<const DexFile*> ret;
+
+  DCHECK(
+      (class_loader->GetClass() ==
+          soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader)) ||
+      (class_loader->GetClass() ==
+          soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DelegateLastClassLoader)));
 
   // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
   // We need to get the DexPathList and loop through it.
@@ -618,6 +624,7 @@ std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_lo
     // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
     // at the mCookie which is a DexFile vector.
     if (dex_elements_obj != nullptr) {
+      StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ObjectArray<mirror::Object>> dex_elements =
           hs.NewHandle(dex_elements_obj->AsObjectArray<mirror::Object>());
       for (int32_t i = 0; i < dex_elements->GetLength(); ++i) {
@@ -755,6 +762,28 @@ std::string CommonRuntimeTestImpl::GetCoreFileLocation(const char* suffix) {
   }
 
   return location;
+}
+
+std::string CommonRuntimeTestImpl::CreateClassPath(
+    const std::vector<std::unique_ptr<const DexFile>>& dex_files) {
+  CHECK(!dex_files.empty());
+  std::string classpath = dex_files[0]->GetLocation();
+  for (size_t i = 1; i < dex_files.size(); i++) {
+    classpath += ":" + dex_files[i]->GetLocation();
+  }
+  return classpath;
+}
+
+std::string CommonRuntimeTestImpl::CreateClassPathWithChecksums(
+    const std::vector<std::unique_ptr<const DexFile>>& dex_files) {
+  CHECK(!dex_files.empty());
+  std::string classpath = dex_files[0]->GetLocation() + "*" +
+      std::to_string(dex_files[0]->GetLocationChecksum());
+  for (size_t i = 1; i < dex_files.size(); i++) {
+    classpath += ":" + dex_files[i]->GetLocation() + "*" +
+        std::to_string(dex_files[i]->GetLocationChecksum());
+  }
+  return classpath;
 }
 
 CheckJniAbortCatcher::CheckJniAbortCatcher() : vm_(Runtime::Current()->GetJavaVM()) {
