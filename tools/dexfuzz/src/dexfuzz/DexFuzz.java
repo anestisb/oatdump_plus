@@ -33,8 +33,9 @@ import dexfuzz.listeners.UpdatingConsoleListener;
  * Entrypoint class for dexfuzz.
  */
 public class DexFuzz {
+  // Last version update 1.4: added array length mutator.
   private static int majorVersion = 1;
-  private static int minorVersion = 3;
+  private static int minorVersion = 4;
   private static int seedChangeVersion = 0;
 
   /**

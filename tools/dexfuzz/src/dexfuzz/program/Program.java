@@ -31,6 +31,7 @@ import dexfuzz.program.mutators.InstructionDeleter;
 import dexfuzz.program.mutators.InstructionDuplicator;
 import dexfuzz.program.mutators.InstructionSwapper;
 import dexfuzz.program.mutators.InvokeChanger;
+import dexfuzz.program.mutators.NewArrayLengthChanger;
 import dexfuzz.program.mutators.NewMethodCaller;
 import dexfuzz.program.mutators.NonsenseStringPrinter;
 import dexfuzz.program.mutators.OppositeBranchChanger;
@@ -201,6 +202,7 @@ public class Program {
     registerMutator(new InstructionDuplicator(rng, mutationStats, mutations));
     registerMutator(new InstructionSwapper(rng, mutationStats, mutations));
     registerMutator(new InvokeChanger(rng, mutationStats, mutations));
+    registerMutator(new NewArrayLengthChanger(rng, mutationStats, mutations));
     registerMutator(new NewMethodCaller(rng, mutationStats, mutations));
     registerMutator(new NonsenseStringPrinter(rng, mutationStats, mutations));
     registerMutator(new OppositeBranchChanger(rng, mutationStats, mutations));
