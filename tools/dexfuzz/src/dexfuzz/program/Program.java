@@ -38,6 +38,7 @@ import dexfuzz.program.mutators.OppositeBranchChanger;
 import dexfuzz.program.mutators.PoolIndexChanger;
 import dexfuzz.program.mutators.RandomBranchChanger;
 import dexfuzz.program.mutators.RandomInstructionGenerator;
+import dexfuzz.program.mutators.RegisterClobber;
 import dexfuzz.program.mutators.SwitchBranchShifter;
 import dexfuzz.program.mutators.TryBlockShifter;
 import dexfuzz.program.mutators.ValuePrinter;
@@ -209,6 +210,7 @@ public class Program {
     registerMutator(new PoolIndexChanger(rng, mutationStats, mutations));
     registerMutator(new RandomBranchChanger(rng, mutationStats, mutations));
     registerMutator(new RandomInstructionGenerator(rng, mutationStats, mutations));
+    registerMutator(new RegisterClobber(rng, mutationStats, mutations));
     registerMutator(new SwitchBranchShifter(rng, mutationStats, mutations));
     registerMutator(new TryBlockShifter(rng, mutationStats, mutations));
     registerMutator(new ValuePrinter(rng, mutationStats, mutations));
