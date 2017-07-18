@@ -5653,12 +5653,18 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
     return false;
   }
   // Verify
-  if (super->IsFinal() || super->IsInterface()) {
+  if (super->IsFinal()) {
+    ThrowVerifyError(klass.Get(),
+                     "Superclass %s of %s is declared final",
+                     super->PrettyDescriptor().c_str(),
+                     klass->PrettyDescriptor().c_str());
+    return false;
+  }
+  if (super->IsInterface()) {
     ThrowIncompatibleClassChangeError(klass.Get(),
-                                      "Superclass %s of %s is %s",
+                                      "Superclass %s of %s is an interface",
                                       super->PrettyDescriptor().c_str(),
-                                      klass->PrettyDescriptor().c_str(),
-                                      super->IsFinal() ? "declared final" : "an interface");
+                                      klass->PrettyDescriptor().c_str());
     return false;
   }
   if (!klass->CanAccess(super)) {

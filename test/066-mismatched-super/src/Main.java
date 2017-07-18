@@ -20,10 +20,16 @@
 public class Main {
     public static void main(String[] args) {
         try {
-            Indirect.main();
+            Base base = new Base();
             System.out.println("Succeeded unexpectedly");
         } catch (IncompatibleClassChangeError icce) {
             System.out.println("Got expected ICCE");
+        }
+        try {
+            ExtendsFinal ef = new ExtendsFinal();
+            System.out.println("Succeeded unexpectedly");
+        } catch (VerifyError ve) {
+            System.out.println("Got expected VerifyError");
         }
     }
 }
