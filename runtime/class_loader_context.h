@@ -78,6 +78,13 @@ class ClassLoaderContext {
   // Should only be called if OpenDexFiles() returned true.
   std::vector<const DexFile*> FlattenOpenedDexFiles() const;
 
+  // Verifies that the current context is identical to the context encoded as `context_spec`.
+  // Identical means:
+  //    - the number and type of the class loaders from the chain matches
+  //    - the class loader from the same position have the same classpath
+  //      (the order and checksum of the dex files matches)
+  bool VerifyClassLoaderContextMatch(const std::string& context_spec);
+
   // Creates the class loader context from the given string.
   // The format: ClassLoaderType1[ClasspathElem1:ClasspathElem2...];ClassLoaderType2[...]...
   // ClassLoaderType is either "PCL" (PathClassLoader) or "DLC" (DelegateLastClassLoader).
@@ -85,17 +92,6 @@ class ClassLoaderContext {
   // Note that we allowed class loaders with an empty class path in order to support a custom
   // class loader for the source dex files.
   static std::unique_ptr<ClassLoaderContext> Create(const std::string& spec);
-
-  // Decodes the class loader context stored in the oat file with EncodeContextForOatFile.
-  // Returns true if the format matches, or false otherwise. If the return is true, the out
-  // arguments will contain the classpath dex files, their checksums and whether or not the
-  // context is a special shared library.
-  // The method asserts that the context is made out of only one PathClassLoader.
-  static bool DecodePathClassLoaderContextFromOatFileKey(
-      const std::string& context_spec,
-      std::vector<std::string>* out_classpath,
-      std::vector<uint32_t>* out_checksums,
-      bool* out_is_special_shared_library);
 
   // Creates a context for the given class_loader and dex_elements.
   // The method will walk the parent chain starting from `class_loader` and add their dex files
