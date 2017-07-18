@@ -181,9 +181,6 @@ class ConcurrentCopying : public GarbageCollector {
   void VerifyGrayImmuneObjects()
       REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
-  static void VerifyNoMissingCardMarkCallback(mirror::Object* obj, void* arg)
-      REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!mark_stack_lock_);
   void VerifyNoMissingCardMarks()
       REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
@@ -348,7 +345,6 @@ class ConcurrentCopying : public GarbageCollector {
   class ActivateReadBarrierEntrypointsCallback;
   class ActivateReadBarrierEntrypointsCheckpoint;
   class AssertToSpaceInvariantFieldVisitor;
-  class AssertToSpaceInvariantObjectVisitor;
   class AssertToSpaceInvariantRefsVisitor;
   class ClearBlackPtrsVisitor;
   class ComputeUnevacFromSpaceLiveRatioVisitor;
@@ -365,7 +361,6 @@ class ConcurrentCopying : public GarbageCollector {
   class ThreadFlipVisitor;
   class VerifyGrayImmuneObjectsVisitor;
   class VerifyNoFromSpaceRefsFieldVisitor;
-  class VerifyNoFromSpaceRefsObjectVisitor;
   class VerifyNoFromSpaceRefsVisitor;
   class VerifyNoMissingCardMarkVisitor;
 

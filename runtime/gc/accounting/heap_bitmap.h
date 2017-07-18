@@ -47,11 +47,8 @@ class HeapBitmap {
   ContinuousSpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) const;
   LargeObjectBitmap* GetLargeObjectBitmap(const mirror::Object* obj) const;
 
-  void Walk(ObjectCallback* callback, void* arg)
-      REQUIRES_SHARED(Locks::heap_bitmap_lock_);
-
   template <typename Visitor>
-  void Visit(const Visitor& visitor)
+  ALWAYS_INLINE void Visit(Visitor&& visitor)
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

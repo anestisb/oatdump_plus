@@ -26,7 +26,6 @@
 #include "object-inl.h"
 #include "object_array.h"
 #include "object_array-inl.h"
-#include "object_callbacks.h"
 #include "stack_trace_element.h"
 #include "string.h"
 #include "utils.h"

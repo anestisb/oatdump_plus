@@ -22,6 +22,7 @@
 #include "base/mutex.h"
 #include "class_linker.h"
 #include "gc/heap.h"
+#include "gc/heap-visit-objects-inl.h"
 #include "gc_root-inl.h"
 #include "java_frame_root_info.h"
 #include "jni_env_ext.h"
@@ -30,7 +31,6 @@
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "object_callbacks.h"
 #include "object_tagging.h"
 #include "obj_ptr-inl.h"
 #include "primitive.h"
@@ -653,33 +653,25 @@ void HeapUtil::Unregister() {
   art::Runtime::Current()->RemoveSystemWeakHolder(&gIndexCachingTable);
 }
 
-template <typename Callback>
-struct IterateThroughHeapData {
-  IterateThroughHeapData(Callback _cb,
-                         ObjectTagTable* _tag_table,
-                         jvmtiEnv* _env,
-                         art::ObjPtr<art::mirror::Class> klass,
-                         jint _heap_filter,
-                         const jvmtiHeapCallbacks* _callbacks,
-                         const void* _user_data)
-      : cb(_cb),
-        tag_table(_tag_table),
-        heap_filter(_heap_filter),
-        filter_klass(klass),
-        env(_env),
-        callbacks(_callbacks),
-        user_data(_user_data),
-        stop_reports(false) {
+template <typename T>
+static jvmtiError DoIterateThroughHeap(T fn,
+                                       jvmtiEnv* env,
+                                       ObjectTagTable* tag_table,
+                                       jint heap_filter_int,
+                                       jclass klass,
+                                       const jvmtiHeapCallbacks* callbacks,
+                                       const void* user_data) {
+  if (callbacks == nullptr) {
+    return ERR(NULL_POINTER);
   }
 
-  static void ObjectCallback(art::mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    IterateThroughHeapData* ithd = reinterpret_cast<IterateThroughHeapData*>(arg);
-    ithd->ObjectCallback(obj);
-  }
+  art::Thread* self = art::Thread::Current();
+  art::ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
 
-  void ObjectCallback(art::mirror::Object* obj)
-      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  bool stop_reports = false;
+  const HeapFilter heap_filter(heap_filter_int);
+  art::ObjPtr<art::mirror::Class> filter_klass = soa.Decode<art::mirror::Class>(klass);
+  auto visitor = [&](art::mirror::Object* obj) REQUIRES_SHARED(art::Locks::mutator_lock_) {
     // Early return, as we can't really stop visiting.
     if (stop_reports) {
       return;
@@ -713,7 +705,7 @@ struct IterateThroughHeapData {
     }
 
     jlong saved_tag = tag;
-    jint ret = cb(obj, callbacks, class_tag, size, &tag, length, const_cast<void*>(user_data));
+    jint ret = fn(obj, callbacks, class_tag, size, &tag, length, const_cast<void*>(user_data));
 
     if (tag != saved_tag) {
       tag_table->Set(obj, tag);
@@ -734,44 +726,8 @@ struct IterateThroughHeapData {
     if (!stop_reports) {
       stop_reports = ReportPrimitiveField::Report(obj, tag_table, callbacks, user_data);
     }
-  }
-
-  Callback cb;
-  ObjectTagTable* tag_table;
-  const HeapFilter heap_filter;
-  art::ObjPtr<art::mirror::Class> filter_klass;
-  jvmtiEnv* env;
-  const jvmtiHeapCallbacks* callbacks;
-  const void* user_data;
-
-  bool stop_reports;
-};
-
-template <typename T>
-static jvmtiError DoIterateThroughHeap(T fn,
-                                       jvmtiEnv* env,
-                                       ObjectTagTable* tag_table,
-                                       jint heap_filter,
-                                       jclass klass,
-                                       const jvmtiHeapCallbacks* callbacks,
-                                       const void* user_data) {
-  if (callbacks == nullptr) {
-    return ERR(NULL_POINTER);
-  }
-
-  art::Thread* self = art::Thread::Current();
-  art::ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
-
-  using Iterator = IterateThroughHeapData<T>;
-  Iterator ithd(fn,
-                tag_table,
-                env,
-                soa.Decode<art::mirror::Class>(klass),
-                heap_filter,
-                callbacks,
-                user_data);
-
-  art::Runtime::Current()->GetHeap()->VisitObjects(Iterator::ObjectCallback, &ithd);
+  };
+  art::Runtime::Current()->GetHeap()->VisitObjects(visitor);
 
   return ERR(NONE);
 }

@@ -25,6 +25,7 @@
 #include "allocator_type.h"
 #include "arch/instruction_set.h"
 #include "atomic.h"
+#include "base/mutex.h"
 #include "base/time_utils.h"
 #include "gc/gc_cause.h"
 #include "gc/collector/gc_type.h"
@@ -50,9 +51,6 @@ class Thread;
 class ThreadPool;
 class TimingLogger;
 class VariableSizedHandleScope;
-
-// Same as in object_callbacks.h. Just avoid the include.
-typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
 
 namespace mirror {
   class Class;
@@ -250,10 +248,12 @@ class Heap {
   }
 
   // Visit all of the live objects in the heap.
-  void VisitObjects(ObjectCallback callback, void* arg)
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitObjects(Visitor&& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_);
-  void VisitObjectsPaused(ObjectCallback callback, void* arg)
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitObjectsPaused(Visitor&& visitor)
       REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !*gc_complete_lock_);
 
   void CheckPreconditionsForAllocObject(ObjPtr<mirror::Class> c, size_t byte_count)
@@ -1007,9 +1007,6 @@ class Heap {
 
   size_t GetPercentFree();
 
-  static void VerificationCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::heap_bitmap_lock_);
-
   // Swap the allocation stack with the live stack.
   void SwapStacks() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1051,10 +1048,12 @@ class Heap {
   // Trim 0 pages at the end of reference tables.
   void TrimIndirectReferenceTables(Thread* self);
 
-  void VisitObjectsInternal(ObjectCallback callback, void* arg)
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitObjectsInternal(Visitor&& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_);
-  void VisitObjectsInternalRegionSpace(ObjectCallback callback, void* arg)
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitObjectsInternalRegionSpace(Visitor&& visitor)
       REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !*gc_complete_lock_);
 
   void UpdateGcCountRateHistograms() REQUIRES(gc_complete_lock_);

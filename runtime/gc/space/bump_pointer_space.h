@@ -25,9 +25,6 @@ namespace mirror {
 class Object;
 }
 
-// Same as in object_callbacks.h. Just avoid the include.
-typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
-
 namespace gc {
 
 namespace collector {
@@ -149,8 +146,10 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   // Go through all of the blocks and visit the continuous objects.
-  void Walk(ObjectCallback* callback, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!block_lock_);
+  template <typename Visitor>
+  ALWAYS_INLINE void Walk(Visitor&& visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!block_lock_);
 
   accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() OVERRIDE;
 

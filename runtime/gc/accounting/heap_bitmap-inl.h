@@ -26,7 +26,7 @@ namespace gc {
 namespace accounting {
 
 template <typename Visitor>
-inline void HeapBitmap::Visit(const Visitor& visitor) {
+inline void HeapBitmap::Visit(Visitor&& visitor) {
   for (const auto& bitmap : continuous_space_bitmaps_) {
     bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor);
   }

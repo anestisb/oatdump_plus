@@ -79,11 +79,6 @@ class PatchOat {
   static bool ReplaceOatFileWithSymlink(const std::string& input_oat_filename,
                                         const std::string& output_oat_filename);
 
-  static void BitmapCallback(mirror::Object* obj, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    reinterpret_cast<PatchOat*>(arg)->VisitObject(obj);
-  }
-
   void VisitObject(mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void FixupMethod(ArtMethod* object, ArtMethod* copy)

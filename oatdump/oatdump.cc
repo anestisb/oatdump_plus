@@ -42,6 +42,7 @@
 #include "dex_instruction-inl.h"
 #include "disassembler.h"
 #include "elf_builder.h"
+#include "gc/accounting/space_bitmap-inl.h"
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
@@ -1930,9 +1931,12 @@ class ImageDumper {
           }
         }
       }
+      auto dump_visitor = [&](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+        DumpObject(obj);
+      };
       ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
       // Dump the normal objects before ArtMethods.
-      image_space_.GetLiveBitmap()->Walk(ImageDumper::Callback, this);
+      image_space_.GetLiveBitmap()->Walk(dump_visitor);
       indent_os << "\n";
       // TODO: Dump fields.
       // Dump methods after.
@@ -1941,7 +1945,7 @@ class ImageDumper {
                                           image_space_.Begin(),
                                           image_header_.GetPointerSize());
       // Dump the large objects separately.
-      heap->GetLargeObjectsSpace()->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
+      heap->GetLargeObjectsSpace()->GetLiveBitmap()->Walk(dump_visitor);
       indent_os << "\n";
     }
     os << "STATS:\n" << std::flush;
@@ -2156,20 +2160,18 @@ class ImageDumper {
     return oat_code_begin + GetQuickOatCodeSize(m);
   }
 
-  static void Callback(mirror::Object* obj, void* arg) REQUIRES_SHARED(Locks::mutator_lock_) {
+  void DumpObject(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
-    DCHECK(arg != nullptr);
-    ImageDumper* state = reinterpret_cast<ImageDumper*>(arg);
-    if (!state->InDumpSpace(obj)) {
+    if (!InDumpSpace(obj)) {
       return;
     }
 
     size_t object_bytes = obj->SizeOf();
     size_t alignment_bytes = RoundUp(object_bytes, kObjectAlignment) - object_bytes;
-    state->stats_.object_bytes += object_bytes;
-    state->stats_.alignment_bytes += alignment_bytes;
+    stats_.object_bytes += object_bytes;
+    stats_.alignment_bytes += alignment_bytes;
 
-    std::ostream& os = state->vios_.Stream();
+    std::ostream& os = vios_.Stream();
 
     mirror::Class* obj_class = obj->GetClass();
     if (obj_class->IsArrayClass()) {
@@ -2186,9 +2188,9 @@ class ImageDumper {
     } else {
       os << StringPrintf("%p: %s\n", obj, obj_class->PrettyDescriptor().c_str());
     }
-    ScopedIndentation indent1(&state->vios_);
+    ScopedIndentation indent1(&vios_);
     DumpFields(os, obj, obj_class);
-    const PointerSize image_pointer_size = state->image_header_.GetPointerSize();
+    const PointerSize image_pointer_size = image_header_.GetPointerSize();
     if (obj->IsObjectArray()) {
       auto* obj_array = obj->AsObjectArray<mirror::Object>();
       for (int32_t i = 0, length = obj_array->GetLength(); i < length; i++) {
@@ -2215,22 +2217,22 @@ class ImageDumper {
       mirror::Class* klass = obj->AsClass();
       if (klass->NumStaticFields() != 0) {
         os << "STATICS:\n";
-        ScopedIndentation indent2(&state->vios_);
+        ScopedIndentation indent2(&vios_);
         for (ArtField& field : klass->GetSFields()) {
           PrintField(os, &field, field.GetDeclaringClass());
         }
       }
     } else {
-      auto it = state->dex_caches_.find(obj);
-      if (it != state->dex_caches_.end()) {
+      auto it = dex_caches_.find(obj);
+      if (it != dex_caches_.end()) {
         auto* dex_cache = down_cast<mirror::DexCache*>(obj);
-        const auto& field_section = state->image_header_.GetImageSection(
+        const auto& field_section = image_header_.GetImageSection(
             ImageHeader::kSectionArtFields);
-        const auto& method_section = state->image_header_.GetMethodsSection();
+        const auto& method_section = image_header_.GetMethodsSection();
         size_t num_methods = dex_cache->NumResolvedMethods();
         if (num_methods != 0u) {
           os << "Methods (size=" << num_methods << "):\n";
-          ScopedIndentation indent2(&state->vios_);
+          ScopedIndentation indent2(&vios_);
           auto* resolved_methods = dex_cache->GetResolvedMethods();
           for (size_t i = 0, length = dex_cache->NumResolvedMethods(); i < length; ++i) {
             auto* elem = mirror::DexCache::GetElementPtrSize(resolved_methods,
@@ -2254,7 +2256,7 @@ class ImageDumper {
             if (elem == nullptr) {
               msg = "null";
             } else if (method_section.Contains(
-                reinterpret_cast<uint8_t*>(elem) - state->image_space_.Begin())) {
+                reinterpret_cast<uint8_t*>(elem) - image_space_.Begin())) {
               msg = reinterpret_cast<ArtMethod*>(elem)->PrettyMethod();
             } else {
               msg = "<not in method section>";
@@ -2265,7 +2267,7 @@ class ImageDumper {
         size_t num_fields = dex_cache->NumResolvedFields();
         if (num_fields != 0u) {
           os << "Fields (size=" << num_fields << "):\n";
-          ScopedIndentation indent2(&state->vios_);
+          ScopedIndentation indent2(&vios_);
           auto* resolved_fields = dex_cache->GetResolvedFields();
           for (size_t i = 0, length = dex_cache->NumResolvedFields(); i < length; ++i) {
             auto* elem = mirror::DexCache::GetNativePairPtrSize(
@@ -2288,7 +2290,7 @@ class ImageDumper {
             if (elem == nullptr) {
               msg = "null";
             } else if (field_section.Contains(
-                reinterpret_cast<uint8_t*>(elem) - state->image_space_.Begin())) {
+                reinterpret_cast<uint8_t*>(elem) - image_space_.Begin())) {
               msg = reinterpret_cast<ArtField*>(elem)->PrettyField();
             } else {
               msg = "<not in field section>";
@@ -2299,7 +2301,7 @@ class ImageDumper {
         size_t num_types = dex_cache->NumResolvedTypes();
         if (num_types != 0u) {
           os << "Types (size=" << num_types << "):\n";
-          ScopedIndentation indent2(&state->vios_);
+          ScopedIndentation indent2(&vios_);
           auto* resolved_types = dex_cache->GetResolvedTypes();
           for (size_t i = 0; i < num_types; ++i) {
             auto pair = resolved_types[i].load(std::memory_order_relaxed);
@@ -2331,7 +2333,7 @@ class ImageDumper {
       }
     }
     std::string temp;
-    state->stats_.Update(obj_class->GetDescriptor(&temp), object_bytes);
+    stats_.Update(obj_class->GetDescriptor(&temp), object_bytes);
   }
 
   void DumpMethod(ArtMethod* method, std::ostream& indent_os)

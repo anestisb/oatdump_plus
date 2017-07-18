@@ -44,6 +44,7 @@
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/collector/concurrent_copying.h"
 #include "gc/heap.h"
+#include "gc/heap-visit-objects-inl.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "gc/verification.h"
@@ -117,19 +118,17 @@ bool ImageWriter::IsInBootOatFile(const void* ptr) const {
   return false;
 }
 
-static void ClearDexFileCookieCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(obj != nullptr);
-  Class* klass = obj->GetClass();
-  if (klass == WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DexFile)) {
-    ArtField* field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
-    // Null out the cookie to enable determinism. b/34090128
-    field->SetObject</*kTransactionActive*/false>(obj, nullptr);
-  }
-}
-
 static void ClearDexFileCookies() REQUIRES_SHARED(Locks::mutator_lock_) {
-  Runtime::Current()->GetHeap()->VisitObjects(ClearDexFileCookieCallback, nullptr);
+  auto visitor = [](Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(obj != nullptr);
+    Class* klass = obj->GetClass();
+    if (klass == WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DexFile)) {
+      ArtField* field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
+      // Null out the cookie to enable determinism. b/34090128
+      field->SetObject</*kTransactionActive*/false>(obj, nullptr);
+    }
+  };
+  Runtime::Current()->GetHeap()->VisitObjects(visitor);
 }
 
 bool ImageWriter::PrepareImageAddressSpace() {
@@ -1176,21 +1175,19 @@ void ImageWriter::PruneNonImageClasses() {
 
 void ImageWriter::CheckNonImageClassesRemoved() {
   if (compiler_driver_.GetImageClasses() != nullptr) {
+    auto visitor = [&](Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+      if (obj->IsClass() && !IsInBootImage(obj)) {
+        Class* klass = obj->AsClass();
+        if (!KeepClass(klass)) {
+          DumpImageClasses();
+          std::string temp;
+          CHECK(KeepClass(klass))
+              << Runtime::Current()->GetHeap()->GetVerification()->FirstPathFromRootSet(klass);
+        }
+      }
+    };
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    heap->VisitObjects(CheckNonImageClassesRemovedCallback, this);
-  }
-}
-
-void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
-  ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
-  if (obj->IsClass() && !image_writer->IsInBootImage(obj)) {
-    Class* klass = obj->AsClass();
-    if (!image_writer->KeepClass(klass)) {
-      image_writer->DumpImageClasses();
-      std::string temp;
-      CHECK(image_writer->KeepClass(klass))
-          << Runtime::Current()->GetHeap()->GetVerification()->FirstPathFromRootSet(klass);
-    }
+    heap->VisitObjects(visitor);
   }
 }
 
@@ -1532,26 +1529,6 @@ void ImageWriter::AssignMethodOffset(ArtMethod* method,
   offset += ArtMethod::Size(target_ptr_size_);
 }
 
-void ImageWriter::EnsureBinSlotAssignedCallback(mirror::Object* obj, void* arg) {
-  ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
-  DCHECK(writer != nullptr);
-  if (!Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(obj)) {
-    CHECK(writer->IsImageBinSlotAssigned(obj)) << mirror::Object::PrettyTypeOf(obj) << " " << obj;
-  }
-}
-
-void ImageWriter::DeflateMonitorCallback(mirror::Object* obj, void* arg ATTRIBUTE_UNUSED) {
-  Monitor::Deflate(Thread::Current(), obj);
-}
-
-void ImageWriter::UnbinObjectsIntoOffsetCallback(mirror::Object* obj, void* arg) {
-  ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
-  DCHECK(writer != nullptr);
-  if (!writer->IsInBootImage(obj)) {
-    writer->UnbinObjectsIntoOffset(obj);
-  }
-}
-
 void ImageWriter::UnbinObjectsIntoOffset(mirror::Object* obj) {
   DCHECK(!IsInBootImage(obj));
   CHECK(obj != nullptr);
@@ -1686,7 +1663,12 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
   // Deflate monitors before we visit roots since deflating acquires the monitor lock. Acquiring
   // this lock while holding other locks may cause lock order violations.
-  heap->VisitObjects(DeflateMonitorCallback, this);
+  {
+    auto deflate_monitor = [](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+      Monitor::Deflate(Thread::Current(), obj);
+    };
+    heap->VisitObjects(deflate_monitor);
+  }
 
   // Work list of <object, oat_index> for objects. Everything on the stack must already be
   // assigned a bin slot.
@@ -1748,7 +1730,15 @@ void ImageWriter::CalculateNewObjectOffsets() {
   }
 
   // Verify that all objects have assigned image bin slots.
-  heap->VisitObjects(EnsureBinSlotAssignedCallback, this);
+  {
+    auto ensure_bin_slots_assigned = [&](mirror::Object* obj)
+        REQUIRES_SHARED(Locks::mutator_lock_) {
+      if (!Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(obj)) {
+        CHECK(IsImageBinSlotAssigned(obj)) << mirror::Object::PrettyTypeOf(obj) << " " << obj;
+      }
+    };
+    heap->VisitObjects(ensure_bin_slots_assigned);
+  }
 
   // Calculate size of the dex cache arrays slot and prepare offsets.
   PrepareDexCacheArraySlots();
@@ -1812,7 +1802,15 @@ void ImageWriter::CalculateNewObjectOffsets() {
   }
 
   // Transform each object's bin slot into an offset which will be used to do the final copy.
-  heap->VisitObjects(UnbinObjectsIntoOffsetCallback, this);
+  {
+    auto unbin_objects_into_offset = [&](mirror::Object* obj)
+        REQUIRES_SHARED(Locks::mutator_lock_) {
+      if (!IsInBootImage(obj)) {
+        UnbinObjectsIntoOffset(obj);
+      }
+    };
+    heap->VisitObjects(unbin_objects_into_offset);
+  }
 
   size_t i = 0;
   for (ImageInfo& image_info : image_infos_) {
@@ -2119,8 +2117,11 @@ void ImageWriter::CopyAndFixupNativeData(size_t oat_index) {
 }
 
 void ImageWriter::CopyAndFixupObjects() {
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  heap->VisitObjects(CopyAndFixupObjectsCallback, this);
+  auto visitor = [&](Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(obj != nullptr);
+    CopyAndFixupObject(obj);
+  };
+  Runtime::Current()->GetHeap()->VisitObjects(visitor);
   // Fix up the object previously had hash codes.
   for (const auto& hash_pair : saved_hashcode_map_) {
     Object* obj = hash_pair.first;
@@ -2128,12 +2129,6 @@ void ImageWriter::CopyAndFixupObjects() {
     obj->SetLockWord<kVerifyNone>(LockWord::FromHashCode(hash_pair.second, 0U), false);
   }
   saved_hashcode_map_.clear();
-}
-
-void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
-  DCHECK(obj != nullptr);
-  DCHECK(arg != nullptr);
-  reinterpret_cast<ImageWriter*>(arg)->CopyAndFixupObject(obj);
 }
 
 void ImageWriter::FixupPointerArray(mirror::Object* dst,

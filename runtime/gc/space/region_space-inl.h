@@ -184,8 +184,8 @@ uint64_t RegionSpace::GetObjectsAllocatedInternal() {
   return bytes;
 }
 
-template<bool kToSpaceOnly>
-void RegionSpace::WalkInternal(ObjectCallback* callback, void* arg) {
+template<bool kToSpaceOnly, typename Visitor>
+void RegionSpace::WalkInternal(Visitor&& visitor) {
   // TODO: MutexLock on region_lock_ won't work due to lock order
   // issues (the classloader classes lock and the monitor lock). We
   // call this with threads suspended.
@@ -201,7 +201,7 @@ void RegionSpace::WalkInternal(ObjectCallback* callback, void* arg) {
       DCHECK_GT(r->LiveBytes(), 0u) << "Visiting dead large object";
       mirror::Object* obj = reinterpret_cast<mirror::Object*>(r->Begin());
       DCHECK(obj->GetClass() != nullptr);
-      callback(obj, arg);
+      visitor(obj);
     } else if (r->IsLargeTail()) {
       // Do nothing.
     } else {
@@ -215,14 +215,12 @@ void RegionSpace::WalkInternal(ObjectCallback* callback, void* arg) {
         GetLiveBitmap()->VisitMarkedRange(
             reinterpret_cast<uintptr_t>(pos),
             reinterpret_cast<uintptr_t>(top),
-            [callback, arg](mirror::Object* obj) {
-          callback(obj, arg);
-        });
+            visitor);
       } else {
         while (pos < top) {
           mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
           if (obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
-            callback(obj, arg);
+            visitor(obj);
             pos = reinterpret_cast<uint8_t*>(GetNextObject(obj));
           } else {
             break;

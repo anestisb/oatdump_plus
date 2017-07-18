@@ -137,27 +137,6 @@ void SpaceBitmap<kAlignment>::CopyFrom(SpaceBitmap* source_bitmap) {
 }
 
 template<size_t kAlignment>
-void SpaceBitmap<kAlignment>::Walk(ObjectCallback* callback, void* arg) {
-  CHECK(bitmap_begin_ != nullptr);
-  CHECK(callback != nullptr);
-
-  uintptr_t end = OffsetToIndex(HeapLimit() - heap_begin_ - 1);
-  Atomic<uintptr_t>* bitmap_begin = bitmap_begin_;
-  for (uintptr_t i = 0; i <= end; ++i) {
-    uintptr_t w = bitmap_begin[i].LoadRelaxed();
-    if (w != 0) {
-      uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
-      do {
-        const size_t shift = CTZ(w);
-        mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
-        (*callback)(obj, arg);
-        w ^= (static_cast<uintptr_t>(1)) << shift;
-      } while (w != 0);
-    }
-  }
-}
-
-template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::SweepWalk(const SpaceBitmap<kAlignment>& live_bitmap,
                                         const SpaceBitmap<kAlignment>& mark_bitmap,
                                         uintptr_t sweep_begin, uintptr_t sweep_end,
