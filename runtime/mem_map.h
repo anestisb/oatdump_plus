@@ -25,6 +25,7 @@
 #include <string>
 
 #include "android-base/thread_annotations.h"
+#include "android-base/unique_fd.h"
 
 namespace art {
 
@@ -36,6 +37,8 @@ namespace art {
 #endif
 #define USE_ART_LOW_4G_ALLOCATOR 0
 #endif
+
+using android::base::unique_fd;
 
 #ifdef __linux__
 static constexpr bool kMadviseZeroes = true;
@@ -168,11 +171,14 @@ class MemMap {
   }
 
   // Unmap the pages at end and remap them to create another memory map.
+  // sharing_flags should be either MAP_PRIVATE or MAP_SHARED.
   MemMap* RemapAtEnd(uint8_t* new_end,
                      const char* tail_name,
                      int tail_prot,
+                     int sharing_flags,
                      std::string* error_msg,
-                     bool use_ashmem = true);
+                     bool use_ashmem = true,
+                     unique_fd* shmem_fd = nullptr);
 
   static bool CheckNoGaps(MemMap* begin_map, MemMap* end_map)
       REQUIRES(!MemMap::mem_maps_lock_);
