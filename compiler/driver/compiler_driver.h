@@ -117,12 +117,12 @@ class CompilerDriver {
   void CompileAll(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
                   TimingLogger* timings)
-      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_, !dex_to_dex_references_lock_);
+      REQUIRES(!Locks::mutator_lock_, !dex_to_dex_references_lock_);
 
   // Compile a single Method.
   void CompileOne(Thread* self, ArtMethod* method, TimingLogger* timings)
       REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!compiled_classes_lock_, !dex_to_dex_references_lock_);
+      REQUIRES(!dex_to_dex_references_lock_);
 
   VerificationResults* GetVerificationResults() const;
 
@@ -153,8 +153,7 @@ class CompilerDriver {
   std::unique_ptr<const std::vector<uint8_t>> CreateQuickResolutionTrampoline() const;
   std::unique_ptr<const std::vector<uint8_t>> CreateQuickToInterpreterBridge() const;
 
-  bool GetCompiledClass(ClassReference ref, mirror::Class::Status* status) const
-      REQUIRES(!compiled_classes_lock_);
+  bool GetCompiledClass(ClassReference ref, mirror::Class::Status* status) const;
 
   CompiledMethod* GetCompiledMethod(MethodReference ref) const;
   size_t GetNonRelativeLinkerPatchCount() const;
@@ -337,8 +336,7 @@ class CompilerDriver {
   // according to the profile file.
   bool ShouldVerifyClassBasedOnProfile(const DexFile& dex_file, uint16_t class_idx) const;
 
-  void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
-      REQUIRES(!compiled_classes_lock_);
+  void RecordClassStatus(ClassReference ref, mirror::Class::Status status);
 
   // Checks if the specified method has been verified without failures. Returns
   // false if the method is not in the verification results (GetVerificationResults).
@@ -387,7 +385,7 @@ class CompilerDriver {
   void PreCompile(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
                   TimingLogger* timings)
-      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
+      REQUIRES(!Locks::mutator_lock_);
 
   void LoadImageClasses(TimingLogger* timings) REQUIRES(!Locks::mutator_lock_);
 
@@ -408,12 +406,9 @@ class CompilerDriver {
 
   // Do fast verification through VerifierDeps if possible. Return whether
   // verification was successful.
-  // NO_THREAD_SAFETY_ANALYSIS as the method accesses a guarded value in a
-  // single-threaded way.
   bool FastVerify(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
-                  TimingLogger* timings)
-      NO_THREAD_SAFETY_ANALYSIS;
+                  TimingLogger* timings);
 
   void Verify(jobject class_loader,
               const std::vector<const DexFile*>& dex_files,
@@ -441,12 +436,12 @@ class CompilerDriver {
   void InitializeClasses(jobject class_loader,
                          const std::vector<const DexFile*>& dex_files,
                          TimingLogger* timings)
-      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
+      REQUIRES(!Locks::mutator_lock_);
   void InitializeClasses(jobject class_loader,
                          const DexFile& dex_file,
                          const std::vector<const DexFile*>& dex_files,
                          TimingLogger* timings)
-      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
+      REQUIRES(!Locks::mutator_lock_);
 
   void UpdateImageClasses(TimingLogger* timings) REQUIRES(!Locks::mutator_lock_);
 
@@ -484,10 +479,9 @@ class CompilerDriver {
   std::map<ClassReference, bool> requires_constructor_barrier_
       GUARDED_BY(requires_constructor_barrier_lock_);
 
-  using ClassStateTable = SafeMap<const ClassReference, mirror::Class::Status>;
-  // All class references that this compiler has compiled.
-  mutable Mutex compiled_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  ClassStateTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
+  // All class references that this compiler has compiled. Indexed by class defs.
+  using ClassStateTable = AtomicDexRefMap<mirror::Class::Status>;
+  ClassStateTable compiled_classes_;
 
   typedef AtomicDexRefMap<CompiledMethod*> MethodTable;
 
