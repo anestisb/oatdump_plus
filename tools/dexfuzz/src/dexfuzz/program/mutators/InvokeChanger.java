@@ -136,7 +136,7 @@ public class InvokeChanger extends CodeMutator {
 
     String oldInsnString = invokeInsn.toString();
 
-    Opcode newOpcode = isInvokeCalIInst(invokeInsn);
+    Opcode newOpcode = getDifferentInvokeCallOpcode(invokeInsn);
 
     invokeInsn.insn.info = Instruction.getOpcodeInfo(newOpcode);
 
@@ -148,7 +148,7 @@ public class InvokeChanger extends CodeMutator {
     invokeCallInsns = null;
   }
 
-  private Opcode isInvokeCalIInst(MInsn mInsn) {
+  private Opcode getDifferentInvokeCallOpcode(MInsn mInsn) {
     Opcode opcode = mInsn.insn.info.opcode;
     if (isSimpleInvokeInst(opcode)) {
       int index = opcode.ordinal() - Opcode.INVOKE_VIRTUAL.ordinal();
@@ -159,7 +159,7 @@ public class InvokeChanger extends CodeMutator {
       int length = INVOKE_RANGE_LIST.length;
       return INVOKE_RANGE_LIST[(index + 1 + rng.nextInt(length - 1)) % length];
     }
-      return opcode;
+    return opcode;
   }
 
   private boolean isSimpleInvokeInst(Opcode opcode){
