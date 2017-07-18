@@ -2246,7 +2246,7 @@ class InitializeClassVisitor : public CompilationVisitor {
     const bool is_boot_image = manager_->GetCompiler()->GetCompilerOptions().IsBootImage();
     const bool is_app_image = manager_->GetCompiler()->GetCompilerOptions().IsAppImage();
 
-    mirror::Class::Status old_status = klass->GetStatus();;
+    mirror::Class::Status old_status = klass->GetStatus();
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
       // Don't initialize classes in boot space when compiling app image
@@ -2363,6 +2363,14 @@ class InitializeClassVisitor : public CompilationVisitor {
               }
             }
           }
+        }
+        // If the class still isn't initialized, at least try some checks that initialization
+        // would do so they can be skipped at runtime.
+        if (!klass->IsInitialized() &&
+            manager_->GetClassLinker()->ValidateSuperClassDescriptors(klass)) {
+          old_status = mirror::Class::kStatusSuperclassValidated;
+        } else {
+          soa.Self()->ClearException();
         }
         soa.Self()->AssertNoPendingException();
       }
@@ -2861,13 +2869,14 @@ bool CompilerDriver::GetCompiledClass(ClassReference ref, mirror::Class::Status*
 
 void CompilerDriver::RecordClassStatus(ClassReference ref, mirror::Class::Status status) {
   switch (status) {
-    case mirror::Class::kStatusNotReady:
     case mirror::Class::kStatusErrorResolved:
     case mirror::Class::kStatusErrorUnresolved:
+    case mirror::Class::kStatusNotReady:
+    case mirror::Class::kStatusResolved:
     case mirror::Class::kStatusRetryVerificationAtRuntime:
     case mirror::Class::kStatusVerified:
+    case mirror::Class::kStatusSuperclassValidated:
     case mirror::Class::kStatusInitialized:
-    case mirror::Class::kStatusResolved:
       break;  // Expected states.
     default:
       LOG(FATAL) << "Unexpected class status for class "

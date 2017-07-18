@@ -4405,8 +4405,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file,
 
   uint16_t class_def_index = klass->GetDexClassDefIndex();
   oat_file_class_status = oat_dex_file->GetOatClass(class_def_index).GetStatus();
-  if (oat_file_class_status == mirror::Class::kStatusVerified ||
-      oat_file_class_status == mirror::Class::kStatusInitialized) {
+  if (oat_file_class_status >= mirror::Class::kStatusVerified) {
     return true;
   }
   // If we only verified a subset of the classes at compile time, we can end up with classes that
@@ -4885,7 +4884,13 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       return WaitForInitializeClass(klass, self, lock);
     }
 
-    if (!ValidateSuperClassDescriptors(klass)) {
+    bool has_oat_class = false;
+    const OatFile::OatClass oat_class =
+        (Runtime::Current()->IsStarted() && !Runtime::Current()->IsAotCompiler())
+            ? OatFile::FindOatClass(klass->GetDexFile(), klass->GetDexClassDefIndex(), &has_oat_class)
+            : OatFile::OatClass::Invalid();
+    if (oat_class.GetStatus() < mirror::Class::kStatusSuperclassValidated &&
+        !ValidateSuperClassDescriptors(klass)) {
       mirror::Class::SetStatus(klass, mirror::Class::kStatusErrorResolved, self);
       return false;
     }

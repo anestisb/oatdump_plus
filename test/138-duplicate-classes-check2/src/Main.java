@@ -15,12 +15,30 @@
  */
 
 import java.io.File;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 
 /**
  * Structural hazard test.
  */
 public class Main {
+    public static String TEST_NAME = "138-duplicate-classes-check2";
+
+    public static ClassLoader getClassLoaderFor(String location) throws Exception {
+        try {
+            Class<?> class_loader_class = Class.forName("dalvik.system.PathClassLoader");
+            Constructor<?> ctor =
+                    class_loader_class.getConstructor(String.class, ClassLoader.class);
+            /* on Dalvik, this is a DexFile; otherwise, it's null */
+            return (ClassLoader) ctor.newInstance(location + "/" + TEST_NAME + "-ex.jar",
+                                                  Main.class.getClassLoader());
+        } catch (ClassNotFoundException e) {
+            // Running on RI. Use URLClassLoader.
+            return new java.net.URLClassLoader(
+                    new java.net.URL[] { new java.net.URL("file://" + location + "/classes-ex/") });
+        }
+    }
+
     public static void main(String[] args) {
         new Main().run();
     }
@@ -29,15 +47,18 @@ public class Main {
         System.out.println(new A().i);
 
         // Now run the class from the -ex file.
-
-        FancyLoader loader = new FancyLoader(getClass().getClassLoader());
-
         try {
-            Class<?> testEx = loader.loadClass("TestEx");
-            Method test = testEx.getDeclaredMethod("test");
-            test.invoke(null);
-        } catch (Exception exc) {
-            exc.printStackTrace(System.out);
+            /* this is the "alternate" DEX/Jar file */
+            ClassLoader new_loader = getClassLoaderFor(System.getenv("DEX_LOCATION"));
+            Class<?> klass = (Class<?>) new_loader.loadClass("TestEx");
+            if (klass == null) {
+                throw new AssertionError("loadClass failed");
+            }
+            Method run_test = klass.getMethod("test");
+            run_test.invoke(null);
+        } catch (Exception e) {
+            System.out.println(e.toString());
+            e.printStackTrace(System.out);
         }
     }
 }

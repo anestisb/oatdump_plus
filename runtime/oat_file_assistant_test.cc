@@ -23,6 +23,7 @@
 
 #include "art_field-inl.h"
 #include "class_linker-inl.h"
+#include "common_runtime_test.h"
 #include "dexopt_test.h"
 #include "oat_file_assistant.h"
 #include "oat_file_manager.h"
@@ -1059,7 +1060,7 @@ class RaceGenerateTask : public Task {
     const OatFile* oat_file = nullptr;
     dex_files = Runtime::Current()->GetOatFileManager().OpenDexFilesFromOat(
         dex_location_.c_str(),
-        /*class_loader*/nullptr,
+        Runtime::Current()->GetSystemClassLoader(),
         /*dex_elements*/nullptr,
         &oat_file,
         &error_msgs);
@@ -1088,6 +1089,10 @@ class RaceGenerateTask : public Task {
 TEST_F(OatFileAssistantTest, RaceToGenerate) {
   std::string dex_location = GetScratchDir() + "/RaceToGenerate.jar";
   std::string oat_location = GetOdexDir() + "/RaceToGenerate.oat";
+
+  // Start the runtime to initialize the system's class loader.
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  runtime_->Start();
 
   // We use the lib core dex file, because it's large, and hopefully should
   // take a while to generate.

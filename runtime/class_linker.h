@@ -675,6 +675,10 @@ class ClassLinker {
   void VisitClassLoaders(ClassLoaderVisitor* visitor) const
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
 
+  // Checks that a class and its superclass from another class loader have the same virtual methods.
+  bool ValidateSuperClassDescriptors(Handle<mirror::Class> klass)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   struct DexCacheData {
     // Construct an invalid data object.
     DexCacheData()
@@ -907,8 +911,6 @@ class ClassLinker {
   bool WaitForInitializeClass(Handle<mirror::Class> klass,
                               Thread* self,
                               ObjectLock<mirror::Class>& lock);
-  bool ValidateSuperClassDescriptors(Handle<mirror::Class> klass)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsSameDescriptorInDifferentClassContexts(Thread* self,
                                                 const char* descriptor,

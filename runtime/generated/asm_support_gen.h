@@ -48,7 +48,7 @@ DEFINE_CHECK_EQ(static_cast<int32_t>(CODEITEM_INSNS_OFFSET), (static_cast<int32_
 DEFINE_CHECK_EQ(static_cast<int32_t>(MIRROR_OBJECT_CLASS_OFFSET), (static_cast<int32_t>(art::mirror::Object:: ClassOffset().Int32Value())))
 #define MIRROR_OBJECT_LOCK_WORD_OFFSET 4
 DEFINE_CHECK_EQ(static_cast<int32_t>(MIRROR_OBJECT_LOCK_WORD_OFFSET), (static_cast<int32_t>(art::mirror::Object:: MonitorOffset().Int32Value())))
-#define MIRROR_CLASS_STATUS_INITIALIZED 0xa
+#define MIRROR_CLASS_STATUS_INITIALIZED 0xb
 DEFINE_CHECK_EQ(static_cast<uint32_t>(MIRROR_CLASS_STATUS_INITIALIZED), (static_cast<uint32_t>((art::mirror::Class::kStatusInitialized))))
 #define ACCESS_FLAGS_CLASS_IS_FINALIZABLE 0x80000000
 DEFINE_CHECK_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), (static_cast<uint32_t>((art::kAccClassIsFinalizable))))
