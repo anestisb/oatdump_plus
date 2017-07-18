@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Copyright (C) 2017 The Android Open Source Project
 #
@@ -22,17 +22,24 @@ ALL_PIDS=false
 USE_TEMP=true
 DO_REDO=false
 PACKAGE_NAME=""
+BAKSMALI_NUM=0
 # EXACT_ARG and MIN_ARG are passed to prune_sanitizer_output.py
 EXACT_ARG=""
-MIN_ARG=""
-OFFSET_ARGS=""
-TIME_ARGS=""
+MIN_ARG=()
+OFFSET_ARGS=()
+TIME_ARGS=()
 usage() {
   echo "Usage: $0 [options] [LOGCAT_FILE] [CATEGORIES...]"
   echo "    -a"
   echo "        Forces all pids associated with registered dex"
   echo "        files in the logcat to be processed."
   echo "        default: only the last pid is processed"
+  echo
+  echo "    -b  [DEX_FILE_NUMBER]"
+  echo "        Outputs data for the specified baksmali"
+  echo "        dump if -p is provided."
+  echo "        default: first baksmali dump in order of dex"
+  echo "          file registration"
   echo
   echo "    -d  OUT_DIRECTORY"
   echo "        Puts all output in specified directory."
@@ -80,10 +87,17 @@ usage() {
 }
 
 
-while getopts ":ad:efm:o:p:t:" opt ; do
+while getopts ":ab:d:efm:o:p:t:" opt ; do
 case ${opt} in
   a)
     ALL_PIDS=true
+    ;;
+  b)
+    if ! [[ "$OPTARG" -eq "$OPTARG" ]]; then
+      usage
+      exit
+    fi
+    BAKSMALI_NUM=$OPTARG
     ;;
   d)
     USE_TEMP=false
@@ -96,35 +110,37 @@ case ${opt} in
     DO_REDO=true
     ;;
   m)
-    if ! [ "$OPTARG" -eq "$OPTARG" ]; then
+    if ! [[ "$OPTARG" -eq "$OPTARG" ]]; then
       usage
       exit
     fi
-    MIN_ARG='-m '"$OPTARG"
+    MIN_ARG=( "-m" "$OPTARG" )
     ;;
   o)
     set -f
-    OLD_IFS=$IFS
+    old_ifs=$IFS
     IFS=","
     OFFSET_ARGS=( $OPTARG )
-    if [ "${#OFFSET_ARGS[@]}" -ne 2 ]; then
+    if [[ "${#OFFSET_ARGS[@]}" -ne 2 ]]; then
       usage
       exit
     fi
     OFFSET_ARGS=( "--offsets" "${OFFSET_ARGS[@]}" )
-    IFS=$OLD_IFS
+    IFS=$old_ifs
+    set +f
     ;;
   t)
     set -f
-    OLD_IFS=$IFS
+    old_ifs=$IFS
     IFS=","
     TIME_ARGS=( $OPTARG )
-    if [ "${#TIME_ARGS[@]}" -ne 2 ]; then
+    if [[ "${#TIME_ARGS[@]}" -ne 2 ]]; then
       usage
       exit
     fi
     TIME_ARGS=( "--times" "${TIME_ARGS[@]}" )
-    IFS=$OLD_IFS
+    IFS=$old_ifs
+    set +f
     ;;
   p)
     PACKAGE_NAME=$OPTARG
@@ -136,7 +152,7 @@ esac
 done
 shift $((OPTIND -1))
 
-if [ $# -lt 1 ]; then
+if [[ $# -lt 1 ]]; then
   usage
   exit
 fi
@@ -145,21 +161,24 @@ LOGCAT_FILE=$1
 NUM_CAT=$(($# - 1))
 
 # Use a temp directory that will be deleted
-if [ $USE_TEMP = true ]; then
-  OUT_DIR=$(mktemp -d --tmpdir=$PWD)
+if [[ $USE_TEMP = true ]]; then
+  OUT_DIR=$(mktemp -d --tmpdir="$PWD")
   DO_REDO=true
 fi
 
-if [ ! -d "$OUT_DIR" ]; then
-  mkdir $OUT_DIR
+if [[ ! -d "$OUT_DIR" ]]; then
+  mkdir "$OUT_DIR"
   DO_REDO=true
 fi
 
 # Note: Steps are skipped if their output exists until -f flag is enabled
 echo "Output folder: $OUT_DIR"
-unique_pids=( $(grep "RegisterDexFile" "$LOGCAT_FILE" | grep -v "zygote64" | tr -s ' ' | cut -f3 -d' ' | awk '!a[$0]++') )
+# Finds the lines matching pattern criteria and prints out unique instances of
+# the 3rd word (PID)
+unique_pids=( $(awk '/RegisterDexFile:/ && !/zygote/ {if(!a[$3]++) print $3}' \
+  "$LOGCAT_FILE") )
 echo "List of pids: ${unique_pids[@]}"
-if [ $ALL_PIDS = false ]; then
+if [[ $ALL_PIDS = false ]]; then
   unique_pids=( ${unique_pids[-1]} )
 fi
 
@@ -168,99 +187,142 @@ do
   echo
   echo "Current pid: $pid"
   echo
-  PID_DIR=$OUT_DIR/$pid
-  if [ ! -d "$PID_DIR" ]; then
-    mkdir $PID_DIR
+  pid_dir=$OUT_DIR/$pid
+  if [[ ! -d "$pid_dir" ]]; then
+    mkdir "$pid_dir"
     DO_REDO[$pid]=true
   fi
 
-  INTERMEDIATES_DIR=$PID_DIR/intermediates
-  RESULTS_DIR=$PID_DIR/results
-  LOGCAT_PID_FILE=$PID_DIR/logcat
+  intermediates_dir=$pid_dir/intermediates
+  results_dir=$pid_dir/results
+  logcat_pid_file=$pid_dir/logcat
 
-  if [ ! -f "$PID_DIR/logcat" ] || [ "${DO_REDO[$pid]}" = true ] || [ $DO_REDO = true ]; then
+  if [[ ! -f "$logcat_pid_file" ]] || \
+     [[ "${DO_REDO[$pid]}" = true ]] || \
+     [[ $DO_REDO = true ]]; then
     DO_REDO[$pid]=true
-    awk '{if($3 == '$pid') print $0}' $LOGCAT_FILE > $LOGCAT_PID_FILE
+    awk "{if(\$3 == $pid) print \$0}" "$LOGCAT_FILE" > "$logcat_pid_file"
   fi
 
-  if [ ! -d "$INTERMEDIATES_DIR" ]; then
-    mkdir $INTERMEDIATES_DIR
+  if [[ ! -d "$intermediates_dir" ]]; then
+    mkdir "$intermediates_dir"
     DO_REDO[$pid]=true
   fi
 
   # Step 1 - Only output lines related to Sanitizer
   # Folder that holds all file output
-  ASAN_OUT=$INTERMEDIATES_DIR/asan_output
-  if [ ! -f $ASAN_OUT ] || [ "${DO_REDO[$pid]}" = true ] || [ $DO_REDO = true ]; then
+  asan_out=$intermediates_dir/asan_output
+  if [[ ! -f "$asan_out" ]] || \
+     [[ "${DO_REDO[$pid]}" = true ]] || \
+     [[ $DO_REDO = true ]]; then
     DO_REDO[$pid]=true
     echo "Extracting ASAN output"
-    grep "app_process64" $LOGCAT_PID_FILE > $ASAN_OUT
+    grep "app_process64" "$logcat_pid_file" > "$asan_out"
   else
     echo "Skipped: Extracting ASAN output"
   fi
 
   # Step 2 - Only output lines containing Dex File Start Addresses
-  DEX_START=$INTERMEDIATES_DIR/dex_start
-  if [ ! -f $DEX_START ] || [ "${DO_REDO[$pid]}" = true ] || [ $DO_REDO = true ]; then
+  dex_start=$intermediates_dir/dex_start
+  if [[ ! -f "$dex_start" ]] || \
+     [[ "${DO_REDO[$pid]}" = true ]] || \
+     [[ $DO_REDO = true ]]; then
     DO_REDO[$pid]=true
     echo "Extracting Start of Dex File(s)"
-    grep "RegisterDexFile" $LOGCAT_PID_FILE > $DEX_START
+    if [[ ! -z "$PACKAGE_NAME" ]]; then
+      awk '/RegisterDexFile:/ && /'"$PACKAGE_NAME"'/ && /\/data\/app/' \
+        "$logcat_pid_file" > "$dex_start"
+    else
+      grep "RegisterDexFile:" "$logcat_pid_file" > "$dex_start"
+    fi
   else
     echo "Skipped: Extracting Start of Dex File(s)"
   fi
 
   # Step 3 - Clean Sanitizer output from Step 2 since logcat cannot
   # handle large amounts of output.
-  ASAN_OUT_FILTERED=$INTERMEDIATES_DIR/asan_output_filtered
-  if [ ! -f $ASAN_OUT_FILTERED ] || [ "${DO_REDO[$pid]}" = true ] || [ $DO_REDO = true ]; then
+  asan_out_filtered=$intermediates_dir/asan_output_filtered
+  if [[ ! -f "$asan_out_filtered" ]] || \
+     [[ "${DO_REDO[$pid]}" = true ]] || \
+     [[ $DO_REDO = true ]]; then
     DO_REDO[$pid]=true
     echo "Filtering/Cleaning ASAN output"
-    python $ANDROID_BUILD_TOP/art/tools/runtime_memusage/prune_sanitizer_output.py \
-    $EXACT_ARG $MIN_ARG -d $INTERMEDIATES_DIR $ASAN_OUT
+    python "$ANDROID_BUILD_TOP"/art/tools/runtime_memusage/prune_sanitizer_output.py \
+      "$EXACT_ARG" "${MIN_ARG[@]}" -d "$intermediates_dir" "$asan_out"
   else
     echo "Skipped: Filtering/Cleaning ASAN output"
   fi
 
   # Step 4 - Retrieve symbolized stack traces from Step 3 output
-  SYM_FILTERED=$INTERMEDIATES_DIR/sym_filtered
-  if [ ! -f $SYM_FILTERED ] || [ "${DO_REDO[$pid]}" = true ] || [ $DO_REDO = true ]; then
+  sym_filtered=$intermediates_dir/sym_filtered
+  if [[ ! -f "$sym_filtered" ]] || \
+     [[ "${DO_REDO[$pid]}" = true ]] || \
+     [[ $DO_REDO = true ]]; then
     DO_REDO[$pid]=true
     echo "Retrieving symbolized traces"
-    $ANDROID_BUILD_TOP/development/scripts/stack $ASAN_OUT_FILTERED > $SYM_FILTERED
+    "$ANDROID_BUILD_TOP"/development/scripts/stack "$asan_out_filtered" \
+      > "$sym_filtered"
   else
     echo "Skipped: Retrieving symbolized traces"
   fi
 
   # Step 4.5 - Obtain Dex File Format of dex file related to package
-  BAKSMALI_DMP_OUT="$INTERMEDIATES_DIR""/baksmali_dex_file"
-  BAKSMALI_DMP_ARG="--dex-file="$BAKSMALI_DMP_OUT
-  if [ ! -f $BAKSMALI_DMP_OUT ] || [ "${DO_REDO[$pid]}" = true ] || [ $DO_REDO = true ]; then
-    if [ $PACKAGE_NAME != "" ]; then
+  filtered_dex_start=$intermediates_dir/filtered_dex_start
+  baksmali_dmp_ctr=0
+  baksmali_dmp_prefix=$intermediates_dir"/baksmali_dex_file_"
+  baksmali_dmp_files=( $baksmali_dmp_prefix* )
+  baksmali_dmp_arg="--dex-file "${baksmali_dmp_files[$BAKSMALI_NUM]}
+  apk_dex_files=( )
+  if [[ ! -f "$baksmali_dmp_prefix""$BAKSMALI_NUM" ]] || \
+     [[ ! -f "$filtered_dex_start" ]] || \
+     [[ "${DO_REDO[$pid]}" = true ]] || \
+     [[ $DO_REDO = true ]]; then
+    if [[ ! -z "$PACKAGE_NAME" ]]; then
+      DO_REDO[$pid]=true
       # Extracting Dex File path on device from Dex File related to package
-      apk_directory=$(dirname $(grep $PACKAGE_NAME $DEX_START | tail -n1 | awk '{print $8}'))
-      apk_dex_files=$(adb shell find $apk_directory -name "*.?dex" -type f 2> /dev/null)
-      for apk_file in $apk_dex_files; do
-        base_name=$(basename $apk_file)
-        adb pull $apk_file $INTERMEDIATES_DIR/base."${base_name#*.}"
+      apk_directory=$(dirname "$(tail -n1 "$dex_start" | awk "{print \$8}")")
+      for dex_file in $(awk "{print \$8}" "$dex_start"); do
+        apk_dex_files+=( $(basename "$dex_file") )
       done
-      oatdump --oat-file=$INTERMEDIATES_DIR/base.odex --export-dex-to=$INTERMEDIATES_DIR --output=/dev/null
-      export_dex=( $INTERMEDIATES_DIR/*apk_export* )
-      baksmali -JXmx1024M dump $export_dex > $BAKSMALI_DMP_OUT 2> /dev/null
-      if ! [ -s $BAKSMALI_DMP_OUT ]; then
-        rm $BAKSMALI_DMP_OUT
-        BAKSMALI_DMP_ARG=""
-        echo "Failed to retrieve Dex File format"
-      fi
+      apk_oat_files=$(adb shell find "$apk_directory" -name "*.?dex" -type f \
+        2> /dev/null)
+      # Pulls the .odex and .vdex files associated with the package
+      for apk_file in $apk_oat_files; do
+        base_name=$(basename "$apk_file")
+        adb pull "$apk_file" "$intermediates_dir/base.${base_name#*.}"
+      done
+      oatdump --oat-file="$intermediates_dir"/base.odex \
+        --export-dex-to="$intermediates_dir" --output=/dev/null
+      for dex_file in "${apk_dex_files[@]}"; do
+        exported_dex_file=$intermediates_dir/$dex_file"_export.dex"
+        baksmali_dmp_out="$baksmali_dmp_prefix""$((baksmali_dmp_ctr++))"
+        baksmali -JXmx1024M dump "$exported_dex_file" \
+          > "$baksmali_dmp_out" 2> "$intermediates_dir"/error
+        if ! [[ -s "$baksmali_dmp_out" ]]; then
+          rm "$baksmali_dmp_prefix"*
+          baksmali_dmp_arg=""
+          echo "Failed to retrieve Dex File format"
+          break
+        fi
+      done
+      baksmali_dmp_files=( "$baksmali_dmp_prefix"* )
+      baksmali_dmp_arg="--dex-file "${baksmali_dmp_files[$BAKSMALI_NUM]}
+      # Gets the baksmali dump associated with BAKSMALI_NUM
+      awk "NR == $((BAKSMALI_NUM + 1))" "$dex_start" > "$filtered_dex_start"
+      results_dir=$results_dir"_"$BAKSMALI_NUM
+      echo "Skipped: Retrieving Dex File format from baksmali; no package given"
     else
-      BAKSMALI_DMP_ARG=""
-      echo "Failed to retrieve Dex File format"
+      cp "$dex_start" "$filtered_dex_start"
+      baksmali_dmp_arg=""
     fi
   else
+    awk "NR == $((BAKSMALI_NUM + 1))" "$dex_start" > "$filtered_dex_start"
+    results_dir=$results_dir"_"$BAKSMALI_NUM
     echo "Skipped: Retrieving Dex File format from baksmali"
   fi
 
-  if [ ! -d "$RESULTS_DIR" ]; then
-    mkdir $RESULTS_DIR
+  if [[ ! -d "$results_dir" ]]; then
+    mkdir "$results_dir"
     DO_REDO[$pid]=true
   fi
 
@@ -268,35 +330,45 @@ do
   # and trace data
   # Only the category names are needed for the commands giving final output
   shift
-  TIME_OUTPUT=($RESULTS_DIR/time_output_*.dat)
-  if [ ! -e ${TIME_OUTPUT[0]} ] || [ "${DO_REDO[$pid]}" = true ] || [ $DO_REDO = true ]; then
+  time_output=($results_dir/time_output_*.dat)
+  if [[ ! -e ${time_output[0]} ]] || \
+     [[ "${DO_REDO[$pid]}" = true ]] || \
+     [[ $DO_REDO = true ]]; then
     DO_REDO[$pid]=true
     echo "Creating Categorized Time Table"
-    python $ANDROID_BUILD_TOP/art/tools/runtime_memusage/symbol_trace_info.py \
-      -d $RESULTS_DIR ${OFFSET_ARGS[@]} ${TIME_ARGS[@]} $BAKSMALI_DMP_ARG $ASAN_OUT_FILTERED $SYM_FILTERED $DEX_START $@
+    baksmali_dmp_args=( $baksmali_dmp_arg )
+    python "$ANDROID_BUILD_TOP"/art/tools/runtime_memusage/symbol_trace_info.py \
+      -d "$results_dir" "${OFFSET_ARGS[@]}" "${baksmali_dmp_args[@]}" \
+      "${TIME_ARGS[@]}" "$asan_out_filtered" "$sym_filtered" \
+      "$filtered_dex_start" "$@"
   else
     echo "Skipped: Creating Categorized Time Table"
   fi
 
   # Step 6 - Use graph data from Step 5 to plot graph
   # Contains the category names used for legend of gnuplot
-  PLOT_CATS=`echo \"Uncategorized $@\"`
-  PACKAGE_STRING=""
-  if [ $PACKAGE_NAME != "" ]; then
-    PACKAGE_STRING="Package name: "$PACKAGE_NAME" "
+  plot_cats="\"Uncategorized $*\""
+  package_string=""
+  dex_name=""
+  if [[ ! -z "$PACKAGE_NAME" ]]; then
+    package_string="Package name: $PACKAGE_NAME "
+  fi
+  if [[ ! -z "$baksmali_dmp_arg" ]]; then
+    dex_file_path="$(awk "{print \$8}" "$filtered_dex_start" | tail -n1)"
+    dex_name="Dex File name: $(basename "$dex_file_path") "
   fi
   echo "Plotting Categorized Time Table"
   # Plots the information from logcat
   gnuplot --persist -e \
-    'filename(n) = sprintf("'"$RESULTS_DIR"'/time_output_%d.dat", n);
-     catnames = '"$PLOT_CATS"';
-     set title "'"$PACKAGE_STRING"'PID: '"$pid"'";
+    'filename(n) = sprintf("'"$results_dir"'/time_output_%d.dat", n);
+     catnames = '"$plot_cats"';
+     set title "'"$package_string""$dex_name"'PID: '"$pid"'";
      set xlabel "Time (milliseconds)";
      set ylabel "Dex File Offset (bytes)";
      plot for [i=0:'"$NUM_CAT"'] filename(i) using 1:2 title word(catnames, i + 1);'
 
-  if [ $USE_TEMP = true ]; then
+  if [[ $USE_TEMP = true ]]; then
     echo "Removing temp directory and files"
-    rm -rf $OUT_DIR
+    rm -rf "$OUT_DIR"
   fi
 done
