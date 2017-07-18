@@ -21,7 +21,7 @@
 
 #include "android-base/logging.h"
 #include "base/macros.h"
-#include "ScopedLocalRef.h"
+#include "nativehelper/ScopedLocalRef.h"
 
 namespace art {
 

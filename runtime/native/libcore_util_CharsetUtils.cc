@@ -18,14 +18,13 @@
 
 #include <string.h>
 
-#include "nativehelper/jni_macros.h"
-
 #include "jni_internal.h"
-#include "mirror/string.h"
 #include "mirror/string-inl.h"
+#include "mirror/string.h"
 #include "native_util.h"
+#include "nativehelper/ScopedPrimitiveArray.h"
+#include "nativehelper/jni_macros.h"
 #include "scoped_fast_native_object_access-inl.h"
-#include "ScopedPrimitiveArray.h"
 #include "unicode/utf16.h"
 
 

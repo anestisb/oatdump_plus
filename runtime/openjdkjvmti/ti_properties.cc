@@ -35,8 +35,8 @@
 #include <vector>
 
 #include "jni.h"
-#include "ScopedLocalRef.h"
-#include "ScopedUtfChars.h"
+#include "nativehelper/ScopedLocalRef.h"
+#include "nativehelper/ScopedUtfChars.h"
 
 #include "art_jvmti.h"
 #include "runtime.h"

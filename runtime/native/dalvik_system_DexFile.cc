@@ -19,7 +19,6 @@
 #include <sstream>
 
 #include "android-base/stringprintf.h"
-#include "nativehelper/jni_macros.h"
 
 #include "base/logging.h"
 #include "base/stl_util.h"
@@ -32,14 +31,15 @@
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "native_util.h"
+#include "nativehelper/jni_macros.h"
+#include "nativehelper/ScopedLocalRef.h"
+#include "nativehelper/ScopedUtfChars.h"
 #include "oat_file.h"
 #include "oat_file_assistant.h"
 #include "oat_file_manager.h"
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedLocalRef.h"
-#include "ScopedUtfChars.h"
 #include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"

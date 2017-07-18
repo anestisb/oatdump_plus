@@ -23,10 +23,10 @@
 #include "method_reference.h"
 #include "mirror/class-inl.h"
 #include "mirror/executable.h"
+#include "nativehelper/ScopedUtfChars.h"
 #include "oat_file_assistant.h"
 #include "oat_file_manager.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedUtfChars.h"
 #include "thread.h"
 
 namespace art {

@@ -19,7 +19,6 @@
 #include <sstream>
 
 #include "android-base/stringprintf.h"
-#include "ScopedLocalRef.h"
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -32,6 +31,7 @@
 #include "mirror/method_type.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "obj_ptr-inl.h"
 #include "thread.h"
 #include "verifier/method_verifier.h"

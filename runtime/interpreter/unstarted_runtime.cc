@@ -27,7 +27,6 @@
 #include <unordered_map>
 
 #include "android-base/stringprintf.h"
-#include "ScopedLocalRef.h"
 
 #include "art_method-inl.h"
 #include "base/casts.h"
@@ -48,6 +47,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "nth_caller_visitor.h"
 #include "reflection.h"
 #include "thread-inl.h"

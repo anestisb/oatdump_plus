@@ -18,8 +18,6 @@
 
 #include <iostream>
 
-#include "nativehelper/jni_macros.h"
-
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
@@ -28,7 +26,6 @@
 #include "dex_file-inl.h"
 #include "dex_file_annotations.h"
 #include "jni_internal.h"
-#include "nth_caller_visitor.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/field-inl.h"
@@ -37,12 +34,14 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "native_util.h"
+#include "nativehelper/jni_macros.h"
+#include "nativehelper/ScopedLocalRef.h"
+#include "nativehelper/ScopedUtfChars.h"
+#include "nth_caller_visitor.h"
 #include "obj_ptr-inl.h"
 #include "reflection.h"
-#include "scoped_thread_state_change-inl.h"
 #include "scoped_fast_native_object_access-inl.h"
-#include "ScopedLocalRef.h"
-#include "ScopedUtfChars.h"
+#include "scoped_thread_state_change-inl.h"
 #include "utf.h"
 #include "well_known_classes.h"
 

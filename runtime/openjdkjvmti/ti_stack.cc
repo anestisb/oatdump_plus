@@ -37,8 +37,8 @@
 #include <vector>
 
 #include "art_field-inl.h"
-#include "art_method-inl.h"
 #include "art_jvmti.h"
+#include "art_method-inl.h"
 #include "barrier.h"
 #include "base/bit_utils.h"
 #include "base/enums.h"
@@ -50,8 +50,8 @@
 #include "jni_internal.h"
 #include "mirror/class.h"
 #include "mirror/dex_cache.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedLocalRef.h"
 #include "stack.h"
 #include "thread-current-inl.h"
 #include "thread_list.h"

@@ -18,8 +18,8 @@
 
 #include <backtrace/BacktraceMap.h>
 #include <dirent.h>
-#include <ScopedLocalRef.h>
-#include <ScopedUtfChars.h>
+#include "nativehelper/ScopedLocalRef.h"
+#include "nativehelper/ScopedUtfChars.h"
 #include <sys/types.h>
 #include <unistd.h>
 

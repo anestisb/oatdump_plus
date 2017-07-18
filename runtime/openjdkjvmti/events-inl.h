@@ -21,7 +21,7 @@
 
 #include "events.h"
 #include "jni_internal.h"
-#include "ScopedLocalRef.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "ti_breakpoint.h"
 
 #include "art_jvmti.h"

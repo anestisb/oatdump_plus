@@ -18,9 +18,9 @@
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jit/profiling_info.h"
+#include "nativehelper/ScopedUtfChars.h"
 #include "oat_quick_method_header.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedUtfChars.h"
 #include "stack.h"
 #include "stack_map.h"
 

@@ -34,17 +34,17 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "nativebridge/native_bridge.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "nativeloader/native_loader.h"
 #include "object_callbacks.h"
 #include "parsed_options.h"
 #include "runtime-inl.h"
 #include "runtime_options.h"
-#include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "sigchain.h"
-#include "ti/agent.h"
 #include "thread-inl.h"
 #include "thread_list.h"
+#include "ti/agent.h"
 
 namespace art {
 

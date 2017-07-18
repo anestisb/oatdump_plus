@@ -53,12 +53,12 @@
 #include "mirror/string-inl.h"
 #include "monitor.h"
 #include "native/scoped_fast_native_object_access-inl.h"
+#include "nativehelper/ScopedLocalRef.h"
+#include "nativehelper/ScopedUtfChars.h"
 #include "runtime.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "thread_list.h"
-#include "scoped_thread_state_change-inl.h"
-#include "ScopedLocalRef.h"
-#include "ScopedUtfChars.h"
 #include "verify_object.h"
 
 #undef LOG_TAG

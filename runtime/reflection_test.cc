@@ -18,13 +18,13 @@
 
 #include <float.h>
 #include <limits.h>
-#include "ScopedLocalRef.h"
 
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "common_compiler_test.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace art {

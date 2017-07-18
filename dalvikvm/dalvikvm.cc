@@ -21,10 +21,10 @@
 #include <algorithm>
 #include <memory>
 
-#include "jni.h"
 #include "JniInvocation.h"
-#include "ScopedLocalRef.h"
-#include "toStringArray.h"
+#include "jni.h"
+#include "nativehelper/ScopedLocalRef.h"
+#include "nativehelper/toStringArray.h"
 
 namespace art {
 
