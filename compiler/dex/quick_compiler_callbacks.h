@@ -30,9 +30,7 @@ class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
                            CompilerCallbacks::CallbackMode mode)
         : CompilerCallbacks(mode),
           verification_results_(verification_results),
-          verifier_deps_(nullptr) {
-      CHECK(verification_results != nullptr);
-    }
+          verifier_deps_(nullptr) {}
 
     ~QuickCompilerCallbacks() { }
 

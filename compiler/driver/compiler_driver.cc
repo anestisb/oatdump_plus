@@ -514,8 +514,9 @@ static void CompileMethod(Thread* self,
     // TODO: Refactor the compilation to avoid having to distinguish the two passes
     // here. That should be done on a higher level. http://b/29089975
     if (driver->GetCurrentDexToDexMethods()->IsBitSet(method_idx)) {
-      const VerifiedMethod* verified_method =
-          driver->GetVerificationResults()->GetVerifiedMethod(method_ref);
+      VerificationResults* results = driver->GetVerificationResults();
+      DCHECK(results != nullptr);
+      const VerifiedMethod* verified_method = results->GetVerifiedMethod(method_ref);
       // Do not optimize if a VerifiedMethod is missing. SafeCast elision,
       // for example, relies on it.
       compiled_method = optimizer::ArtCompileDEX(
@@ -576,12 +577,12 @@ static void CompileMethod(Thread* self,
   } else if ((access_flags & kAccAbstract) != 0) {
     // Abstract methods don't have code.
   } else {
-    const VerifiedMethod* verified_method =
-        driver->GetVerificationResults()->GetVerifiedMethod(method_ref);
+    VerificationResults* results = driver->GetVerificationResults();
+    DCHECK(results != nullptr);
+    const VerifiedMethod* verified_method = results->GetVerifiedMethod(method_ref);
     bool compile = compilation_enabled &&
         // Basic checks, e.g., not <clinit>.
-        driver->GetVerificationResults()
-            ->IsCandidateForCompilation(method_ref, access_flags) &&
+        results->IsCandidateForCompilation(method_ref, access_flags) &&
         // Did not fail to create VerifiedMethod metadata.
         verified_method != nullptr &&
         // Do not have failures that should punt to the interpreter.
