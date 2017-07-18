@@ -18,4 +18,10 @@ class Second {
   public String getSecond() {
     return "I Second That.";
   }
+
+  // This method makes sure the second dex file has quickening
+  // instructions.
+  public String callSecond() {
+    return getSecond();
+  }
 }

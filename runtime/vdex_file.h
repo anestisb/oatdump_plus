@@ -39,7 +39,14 @@ class DexFile;
 //   DEX[1]              the bytecode may have been quickened
 //   ...
 //   DEX[D]
-//
+//   QuickeningInfo
+//     uint8[]                     quickening data
+//     unaligned_uint32_t[2][]     table of offsets pair:
+//                                    uint32_t[0] contains code_item_offset
+//                                    uint32_t[1] contains quickening data offset from the start
+//                                                of QuickeningInfo
+//     unalgined_uint32_t[D]       start offsets (from the start of QuickeningInfo) in previous
+//                                 table for each dex file
 
 class VdexFile {
  public:
@@ -65,8 +72,8 @@ class VdexFile {
 
    private:
     static constexpr uint8_t kVdexMagic[] = { 'v', 'd', 'e', 'x' };
-    // Last update: Smaller quickening info
-    static constexpr uint8_t kVdexVersion[] = { '0', '0', '7', '\0' };
+    // Last update: Change quickening info format.
+    static constexpr uint8_t kVdexVersion[] = { '0', '0', '8', '\0' };
 
     uint8_t magic_[4];
     uint8_t version_[4];
@@ -131,13 +138,21 @@ class VdexFile {
     return reinterpret_cast<const uint32_t*>(Begin() + sizeof(Header))[dex_file_index];
   }
 
-  // Opens all the dex files contained in this vdex file.
+  // Open all the dex files contained in this vdex file.
   bool OpenAllDexFiles(std::vector<std::unique_ptr<const DexFile>>* dex_files,
                        std::string* error_msg);
 
   // In-place unquicken the given `dex_files` based on `quickening_info`.
   static void Unquicken(const std::vector<const DexFile*>& dex_files,
                         const ArrayRef<const uint8_t>& quickening_info);
+
+  // Fully unquicken `target_dex_file` based on quickening info stored
+  // in this vdex file for `original_dex_file`.
+  void FullyUnquickenDexFile(const DexFile& target_dex_file,
+                             const DexFile& original_dex_file) const;
+
+  // Return the quickening info of the given code item.
+  const uint8_t* GetQuickenedInfoOf(const DexFile& dex_file, uint32_t code_item_offset) const;
 
  private:
   explicit VdexFile(MemMap* mmap) : mmap_(mmap) {}
@@ -157,6 +172,8 @@ class VdexFile {
   size_t GetSizeOfChecksumsSection() const {
     return sizeof(VdexChecksum) * GetHeader().GetNumberOfDexFiles();
   }
+
+  uint32_t GetDexFileIndex(const DexFile& dex_file) const;
 
   std::unique_ptr<MemMap> mmap_;
 
