@@ -19,7 +19,7 @@ include art/build/Android.common_test.mk
 
 # Dependencies for actually running a run-test.
 TEST_ART_RUN_TEST_DEPENDENCIES := \
-  $(DX) \
+  $(HOST_OUT_EXECUTABLES)/dx \
   $(HOST_OUT_EXECUTABLES)/jasmin \
   $(HOST_OUT_EXECUTABLES)/smali \
   $(HOST_OUT_EXECUTABLES)/dexmerger \
