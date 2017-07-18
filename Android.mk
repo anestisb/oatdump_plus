@@ -386,11 +386,15 @@ ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
 endif
 ifeq (true,$(art_target_include_debug_build))
 LOCAL_REQUIRED_MODULES += \
+    dex2oatd \
+    dexoptanalyzerd \
     libartd \
     libartd-compiler \
     libopenjdkd \
     libopenjdkjvmd \
     libopenjdkjvmtid \
+    patchoatd \
+    profmand \
 
 endif
 endif
