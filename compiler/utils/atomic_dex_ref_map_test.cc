@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "atomic_method_ref_map-inl.h"
+#include "atomic_dex_ref_map-inl.h"
 
 #include <memory>
 
@@ -25,46 +25,46 @@
 
 namespace art {
 
-class AtomicMethodRefMapTest : public CommonRuntimeTest {};
+class AtomicDexRefMapTest : public CommonRuntimeTest {};
 
-TEST_F(AtomicMethodRefMapTest, RunTests) {
+TEST_F(AtomicDexRefMapTest, RunTests) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<const DexFile> dex(OpenTestDexFile("Interfaces"));
   ASSERT_TRUE(dex != nullptr);
-  using Map = AtomicMethodRefMap<int>;
+  using Map = AtomicDexRefMap<int>;
   Map map;
   int value = 123;
   // Error case: Not already inserted.
-  EXPECT_FALSE(map.Get(MethodReference(dex.get(), 1), &value));
+  EXPECT_FALSE(map.Get(DexFileReference(dex.get(), 1), &value));
   EXPECT_FALSE(map.HaveDexFile(dex.get()));
   // Error case: Dex file not registered.
-  EXPECT_TRUE(map.Insert(MethodReference(dex.get(), 1), 0, 1) == Map::kInsertResultInvalidDexFile);
-  map.AddDexFile(dex.get());
+  EXPECT_TRUE(map.Insert(DexFileReference(dex.get(), 1), 0, 1) == Map::kInsertResultInvalidDexFile);
+  map.AddDexFile(dex.get(), dex->NumMethodIds());
   EXPECT_TRUE(map.HaveDexFile(dex.get()));
   EXPECT_GT(dex->NumMethodIds(), 10u);
   // After we have added the get should succeed but return the default value.
-  EXPECT_TRUE(map.Get(MethodReference(dex.get(), 1), &value));
+  EXPECT_TRUE(map.Get(DexFileReference(dex.get(), 1), &value));
   EXPECT_EQ(value, 0);
   // Actually insert an item and make sure we can retreive it.
   static const int kInsertValue = 44;
-  EXPECT_TRUE(map.Insert(MethodReference(dex.get(), 1), 0, kInsertValue) ==
+  EXPECT_TRUE(map.Insert(DexFileReference(dex.get(), 1), 0, kInsertValue) ==
               Map::kInsertResultSuccess);
-  EXPECT_TRUE(map.Get(MethodReference(dex.get(), 1), &value));
+  EXPECT_TRUE(map.Get(DexFileReference(dex.get(), 1), &value));
   EXPECT_EQ(value, kInsertValue);
   static const int kInsertValue2 = 123;
-  EXPECT_TRUE(map.Insert(MethodReference(dex.get(), 2), 0, kInsertValue2) ==
+  EXPECT_TRUE(map.Insert(DexFileReference(dex.get(), 2), 0, kInsertValue2) ==
               Map::kInsertResultSuccess);
-  EXPECT_TRUE(map.Get(MethodReference(dex.get(), 1), &value));
+  EXPECT_TRUE(map.Get(DexFileReference(dex.get(), 1), &value));
   EXPECT_EQ(value, kInsertValue);
-  EXPECT_TRUE(map.Get(MethodReference(dex.get(), 2), &value));
+  EXPECT_TRUE(map.Get(DexFileReference(dex.get(), 2), &value));
   EXPECT_EQ(value, kInsertValue2);
   // Error case: Incorrect expected value for CAS.
-  EXPECT_TRUE(map.Insert(MethodReference(dex.get(), 1), 0, kInsertValue + 1) ==
+  EXPECT_TRUE(map.Insert(DexFileReference(dex.get(), 1), 0, kInsertValue + 1) ==
       Map::kInsertResultCASFailure);
   // Correctly overwrite the value and verify.
-  EXPECT_TRUE(map.Insert(MethodReference(dex.get(), 1), kInsertValue, kInsertValue + 1) ==
+  EXPECT_TRUE(map.Insert(DexFileReference(dex.get(), 1), kInsertValue, kInsertValue + 1) ==
       Map::kInsertResultSuccess);
-  EXPECT_TRUE(map.Get(MethodReference(dex.get(), 1), &value));
+  EXPECT_TRUE(map.Get(DexFileReference(dex.get(), 1), &value));
   EXPECT_EQ(value, kInsertValue + 1);
 }
 

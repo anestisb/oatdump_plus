@@ -33,7 +33,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
-#include "utils/atomic_method_ref_map-inl.h"
+#include "utils/atomic_dex_ref_map-inl.h"
 #include "verifier/method_verifier-inl.h"
 
 namespace art {
@@ -97,9 +97,9 @@ class VerifierDepsTest : public CommonCompilerTest {
     callbacks_->SetVerifierDeps(nullptr);
     // Clear entries in the verification results to avoid hitting a DCHECK that
     // we always succeed inserting a new entry after verifying.
-    AtomicMethodRefMap<const VerifiedMethod*>* map =
+    AtomicDexRefMap<const VerifiedMethod*>* map =
         &compiler_driver_->GetVerificationResults()->atomic_verified_methods_;
-    map->Visit([](const MethodReference& ref ATTRIBUTE_UNUSED, const VerifiedMethod* method) {
+    map->Visit([](const DexFileReference& ref ATTRIBUTE_UNUSED, const VerifiedMethod* method) {
       delete method;
     });
     map->ClearEntries();

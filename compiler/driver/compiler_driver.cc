@@ -71,7 +71,7 @@
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
 #include "transaction.h"
-#include "utils/atomic_method_ref_map-inl.h"
+#include "utils/atomic_dex_ref_map-inl.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "utils/swap_space.h"
 #include "vdex_file.h"
@@ -321,7 +321,7 @@ CompilerDriver::CompilerDriver(
 }
 
 CompilerDriver::~CompilerDriver() {
-  compiled_methods_.Visit([this](const MethodReference& ref ATTRIBUTE_UNUSED,
+  compiled_methods_.Visit([this](const DexFileReference& ref ATTRIBUTE_UNUSED,
                                  CompiledMethod* method) {
     if (method != nullptr) {
       CompiledMethod::ReleaseSwapAllocatedCompiledMethod(this, method);
@@ -900,7 +900,7 @@ void CompilerDriver::PreCompile(jobject class_loader,
     for (const DexFile* dex_file : dex_files) {
       // Can be already inserted if the caller is CompileOne. This happens for gtests.
       if (!compiled_methods_.HaveDexFile(dex_file)) {
-        compiled_methods_.AddDexFile(dex_file);
+        compiled_methods_.AddDexFile(dex_file, dex_file->NumMethodIds());
       }
     }
     // Resolve eagerly to prepare for compilation.
@@ -2848,9 +2848,10 @@ void CompilerDriver::AddCompiledMethod(const MethodReference& method_ref,
                                        size_t non_relative_linker_patch_count) {
   DCHECK(GetCompiledMethod(method_ref) == nullptr)
       << method_ref.dex_file->PrettyMethod(method_ref.dex_method_index);
-  MethodTable::InsertResult result = compiled_methods_.Insert(method_ref,
-                                                              /*expected*/ nullptr,
-                                                              compiled_method);
+  MethodTable::InsertResult result = compiled_methods_.Insert(
+      DexFileReference(method_ref.dex_file, method_ref.dex_method_index),
+      /*expected*/ nullptr,
+      compiled_method);
   CHECK(result == MethodTable::kInsertResultSuccess);
   non_relative_linker_patch_count_.FetchAndAddRelaxed(non_relative_linker_patch_count);
   DCHECK(GetCompiledMethod(method_ref) != nullptr)
@@ -2898,7 +2899,7 @@ void CompilerDriver::RecordClassStatus(ClassReference ref, mirror::Class::Status
 
 CompiledMethod* CompilerDriver::GetCompiledMethod(MethodReference ref) const {
   CompiledMethod* compiled_method = nullptr;
-  compiled_methods_.Get(ref, &compiled_method);
+  compiled_methods_.Get(DexFileReference(ref.dex_file, ref.dex_method_index), &compiled_method);
   return compiled_method;
 }
 
