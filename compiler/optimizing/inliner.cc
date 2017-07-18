@@ -146,7 +146,10 @@ void HInliner::Run() {
   //   that this method is actually inlined;
   // - if a method's name contains the substring "$noinline$", do not
   //   inline that method.
-  const bool honor_inlining_directives = IsCompilingWithCoreImage();
+  // We limit this to AOT compilation, as the JIT may or may not inline
+  // depending on the state of classes at runtime.
+  const bool honor_inlining_directives =
+      IsCompilingWithCoreImage() && Runtime::Current()->IsAotCompiler();
 
   // Keep a copy of all blocks when starting the visit.
   ArenaVector<HBasicBlock*> blocks = graph_->GetReversePostOrder();
