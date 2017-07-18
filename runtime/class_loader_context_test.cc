@@ -45,16 +45,30 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
 
   void VerifyClassLoaderPCL(ClassLoaderContext* context,
                             size_t index,
-                            std::string classpath) {
+                            const std::string& classpath) {
     VerifyClassLoaderInfo(
         context, index, ClassLoaderContext::kPathClassLoader, classpath);
   }
 
   void VerifyClassLoaderDLC(ClassLoaderContext* context,
                             size_t index,
-                            std::string classpath) {
+                            const std::string& classpath) {
     VerifyClassLoaderInfo(
         context, index, ClassLoaderContext::kDelegateLastClassLoader, classpath);
+  }
+
+  void VerifyClassLoaderPCLFromTestDex(ClassLoaderContext* context,
+                                       size_t index,
+                                       const std::string& test_name) {
+    VerifyClassLoaderFromTestDex(
+        context, index, ClassLoaderContext::kPathClassLoader, test_name);
+  }
+
+  void VerifyClassLoaderDLCFromTestDex(ClassLoaderContext* context,
+                                       size_t index,
+                                       const std::string& test_name) {
+    VerifyClassLoaderFromTestDex(
+        context, index, ClassLoaderContext::kDelegateLastClassLoader, test_name);
   }
 
   void VerifyOpenDexFiles(
@@ -83,11 +97,23 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
     }
   }
 
+  std::unique_ptr<ClassLoaderContext> CreateContextForClassLoader(jobject class_loader) {
+    return ClassLoaderContext::CreateContextForClassLoader(class_loader, nullptr);
+  }
+
+  void VerifyContextForClassLoader(ClassLoaderContext* context) {
+    ASSERT_TRUE(context != nullptr);
+    ASSERT_TRUE(context->dex_files_open_attempted_);
+    ASSERT_TRUE(context->dex_files_open_result_);
+    ASSERT_FALSE(context->owns_the_dex_files_);
+    ASSERT_FALSE(context->special_shared_library_);
+  }
+
  private:
   void VerifyClassLoaderInfo(ClassLoaderContext* context,
                              size_t index,
                              ClassLoaderContext::ClassLoaderType type,
-                             std::string classpath) {
+                             const std::string& classpath) {
     ASSERT_TRUE(context != nullptr);
     ASSERT_GT(context->class_loader_chain_.size(), index);
     ClassLoaderContext::ClassLoaderInfo& info = context->class_loader_chain_[index];
@@ -95,6 +121,18 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
     std::vector<std::string> expected_classpath;
     Split(classpath, ':', &expected_classpath);
     ASSERT_EQ(expected_classpath, info.classpath);
+  }
+
+  void VerifyClassLoaderFromTestDex(ClassLoaderContext* context,
+                                    size_t index,
+                                    ClassLoaderContext::ClassLoaderType type,
+                                    const std::string& test_name) {
+    std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(test_name.c_str());
+    std::vector<std::vector<std::unique_ptr<const DexFile>>*> all_dex_files;
+    all_dex_files.push_back(&dex_files);
+
+    VerifyClassLoaderInfo(context, index, type, GetTestDexFileName(test_name.c_str()));
+    VerifyOpenDexFiles(context, index, all_dex_files);
   }
 };
 
@@ -332,6 +370,36 @@ TEST_F(ClassLoaderContextTest, DecodeOatFileKeySpecialLibrary) {
   ASSERT_TRUE(is_special_shared_library);
   ASSERT_TRUE(classpath.empty());
   ASSERT_TRUE(checksums.empty());
+}
+
+// TODO(calin) add a test which creates the context for a class loader together with dex_elements.
+TEST_F(ClassLoaderContextTest, CreateContextForClassLoader) {
+  // The chain is
+  //    ClassLoaderA (PathClassLoader)
+  //       ^
+  //       |
+  //    ClassLoaderB (DelegateLastClassLoader)
+  //       ^
+  //       |
+  //    ClassLoaderC (PathClassLoader)
+  //       ^
+  //       |
+  //    ClassLoaderD (DelegateLastClassLoader)
+
+  jobject class_loader_a = LoadDexInPathClassLoader("ForClassLoaderA", nullptr);
+  jobject class_loader_b = LoadDexInDelegateLastClassLoader("ForClassLoaderB", class_loader_a);
+  jobject class_loader_c = LoadDexInPathClassLoader("ForClassLoaderC", class_loader_b);
+  jobject class_loader_d = LoadDexInDelegateLastClassLoader("ForClassLoaderD", class_loader_c);
+
+  std::unique_ptr<ClassLoaderContext> context = CreateContextForClassLoader(class_loader_d);
+
+  VerifyContextForClassLoader(context.get());
+  VerifyContextSize(context.get(), 4);
+
+  VerifyClassLoaderDLCFromTestDex(context.get(), 0, "ForClassLoaderD");
+  VerifyClassLoaderPCLFromTestDex(context.get(), 1, "ForClassLoaderC");
+  VerifyClassLoaderDLCFromTestDex(context.get(), 2, "ForClassLoaderB");
+  VerifyClassLoaderPCLFromTestDex(context.get(), 3, "ForClassLoaderA");
 }
 
 }  // namespace art
