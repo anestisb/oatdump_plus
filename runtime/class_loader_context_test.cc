@@ -488,4 +488,12 @@ TEST_F(ClassLoaderContextTest, VerifyClassLoaderContextMatchAfterEncoding) {
   ASSERT_TRUE(context->VerifyClassLoaderContextMatch(context->EncodeContextForOatFile("")));
 }
 
+TEST_F(ClassLoaderContextTest, VerifyClassLoaderContextMatchAfterEncodingMultidex) {
+  jobject class_loader = LoadDexInPathClassLoader("MultiDex", nullptr);
+
+  std::unique_ptr<ClassLoaderContext> context = CreateContextForClassLoader(class_loader);
+
+  ASSERT_TRUE(context->VerifyClassLoaderContextMatch(context->EncodeContextForOatFile("")));
+}
+
 }  // namespace art

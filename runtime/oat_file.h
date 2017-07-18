@@ -289,8 +289,8 @@ class OatFile {
   // If not null, abs_dex_location is used to resolve the absolute dex
   // location of relative dex locations encoded in the oat file.
   // For example, given absolute location "/data/app/foo/base.apk", encoded
-  // dex locations "base.apk", "base.apk:classes2.dex", etc. would be resolved
-  // to "/data/app/foo/base.apk", "/data/app/foo/base.apk:classes2.dex", etc.
+  // dex locations "base.apk", "base.apk!classes2.dex", etc. would be resolved
+  // to "/data/app/foo/base.apk", "/data/app/foo/base.apk!classes2.dex", etc.
   // Relative encoded dex locations that don't match the given abs_dex_location
   // are left unchanged.
   static std::string ResolveRelativeEncodedDexLocation(

@@ -15,4 +15,4 @@
 # limitations under the License.
 
 exec ${RUN} "$@" \
-    -Xcompiler-option --no-inline-from=core-oj,569-checker-pattern-replacement.jar:classes2.dex
+    -Xcompiler-option --no-inline-from="core-oj,569-checker-pattern-replacement.jar!classes2.dex"

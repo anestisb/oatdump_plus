@@ -47,9 +47,8 @@
 namespace art {
 
 const uint8_t ProfileCompilationInfo::kProfileMagic[] = { 'p', 'r', 'o', '\0' };
-// Last profile version: Move startup methods to use a bitmap. Also add support for post-startup
-// methods.
-const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '8', '\0' };
+// Last profile version: update the multidex separator.
+const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '9', '\0' };
 
 static constexpr uint16_t kMaxDexFileKeyLength = PATH_MAX;
 
@@ -1341,7 +1340,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
 
   os << "ProfileInfo:";
 
-  const std::string kFirstDexFileKeySubstitute = ":classes.dex";
+  const std::string kFirstDexFileKeySubstitute = "!classes.dex";
 
   for (const DexFileData* dex_data : info_) {
     os << "\n";
