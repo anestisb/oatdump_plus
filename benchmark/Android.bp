@@ -58,9 +58,7 @@ art_cc_library {
     ],
     static_libs: [
     ],
-    include_dirs: [
-        "libnativehelper/include/nativehelper"  // only for jni.h
-    ],
+    header_libs: ["jni_headers"],
     stl: "libc++_static",
     clang: true,
     target: {
