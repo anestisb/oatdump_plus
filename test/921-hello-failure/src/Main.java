@@ -35,6 +35,7 @@ public class Main {
     MissingField.doTest(new Transform4("there"));
     FieldChange.doTest(new Transform4("there again"));
     Unmodifiable.doTest(new Transform[] { new Transform(), });
+    Undefault.doTest(new Transform5());
   }
 
   // TODO Replace this shim with a better re-write of this test.
