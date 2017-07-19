@@ -233,8 +233,8 @@ else:
 
 HOST_OUT_EXECUTABLES = os.path.join(ANDROID_BUILD_TOP,
                                     _get_build_var("HOST_OUT_EXECUTABLES"))
-os.environ['JACK'] = HOST_OUT_EXECUTABLES + '/jack'
-os.environ['DX'] = HOST_OUT_EXECUTABLES + '/dx'
-os.environ['SMALI'] = HOST_OUT_EXECUTABLES + '/smali'
-os.environ['JASMIN'] = HOST_OUT_EXECUTABLES + '/jasmin'
-os.environ['DXMERGER'] = HOST_OUT_EXECUTABLES + '/dexmerger'
+
+# Set up default values for $JACK, $DX, $SMALI, etc to the $HOST_OUT_EXECUTABLES/$name path.
+for tool in ['jack', 'dx', 'smali', 'jasmin', 'dxmerger']:
+  binary = tool if tool != 'dxmerger' else 'dexmerger'
+  os.environ.setdefault(tool.upper(), HOST_OUT_EXECUTABLES + '/' + binary)
