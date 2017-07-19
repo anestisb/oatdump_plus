@@ -50,11 +50,8 @@ void JitLogger::OpenPerfMapLog() {
   }
 }
 
-void JitLogger::WritePerfMapLog(JitCodeCache* code_cache, ArtMethod* method, bool osr) {
+void JitLogger::WritePerfMapLog(const void* ptr, size_t code_size, ArtMethod* method) {
   if (perf_file_ != nullptr) {
-    const void* ptr = osr ? code_cache->LookupOsrMethodHeader(method)->GetCode()
-                          : method->GetEntryPointFromQuickCompiledCode();
-    size_t code_size = code_cache->GetMemorySizeOfCodePointer(ptr);
     std::string method_name = method->PrettyMethod();
 
     std::ostringstream stream;
@@ -270,11 +267,8 @@ void JitLogger::OpenJitDumpLog() {
   WriteJitDumpHeader();
 }
 
-void JitLogger::WriteJitDumpLog(JitCodeCache* code_cache, ArtMethod* method, bool osr) {
+void JitLogger::WriteJitDumpLog(const void* ptr, size_t code_size, ArtMethod* method) {
   if (jit_dump_file_ != nullptr) {
-    const void* code = osr ? code_cache->LookupOsrMethodHeader(method)->GetCode()
-                           : method->GetEntryPointFromQuickCompiledCode();
-    size_t code_size = code_cache->GetMemorySizeOfCodePointer(code);
     std::string method_name = method->PrettyMethod();
 
     PerfJitCodeLoad jit_code;
@@ -285,7 +279,7 @@ void JitLogger::WriteJitDumpLog(JitCodeCache* code_cache, ArtMethod* method, boo
     jit_code.process_id_ = static_cast<uint32_t>(getpid());
     jit_code.thread_id_ = static_cast<uint32_t>(art::GetTid());
     jit_code.vma_ = 0x0;
-    jit_code.code_address_ = reinterpret_cast<uint64_t>(code);
+    jit_code.code_address_ = reinterpret_cast<uint64_t>(ptr);
     jit_code.code_size_ = code_size;
     jit_code.code_id_ = code_index_++;
 
@@ -297,7 +291,7 @@ void JitLogger::WriteJitDumpLog(JitCodeCache* code_cache, ArtMethod* method, boo
     // Use UNUSED() here to avoid compiler warnings.
     UNUSED(jit_dump_file_->WriteFully(reinterpret_cast<const char*>(&jit_code), sizeof(jit_code)));
     UNUSED(jit_dump_file_->WriteFully(method_name.c_str(), method_name.size() + 1));
-    UNUSED(jit_dump_file_->WriteFully(code, code_size));
+    UNUSED(jit_dump_file_->WriteFully(ptr, code_size));
 
     WriteJitDumpDebugInfo();
   }

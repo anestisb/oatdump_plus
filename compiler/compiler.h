@@ -25,6 +25,7 @@ namespace art {
 
 namespace jit {
   class JitCodeCache;
+  class JitLogger;
 }  // namespace jit
 namespace mirror {
   class ClassLoader;
@@ -76,7 +77,8 @@ class Compiler {
   virtual bool JitCompile(Thread* self ATTRIBUTE_UNUSED,
                           jit::JitCodeCache* code_cache ATTRIBUTE_UNUSED,
                           ArtMethod* method ATTRIBUTE_UNUSED,
-                          bool osr ATTRIBUTE_UNUSED)
+                          bool osr ATTRIBUTE_UNUSED,
+                          jit::JitLogger* jit_logger ATTRIBUTE_UNUSED)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     return false;
   }
