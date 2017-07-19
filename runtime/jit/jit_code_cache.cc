@@ -100,14 +100,15 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
 
   // Generating debug information is for using the Linux perf tool on
   // host which does not work with ashmem.
-  bool use_ashmem = !generate_debug_info;
+  // Also, target linux does not support ashmem.
+  bool use_ashmem = !generate_debug_info && !kIsTargetLinux;
 
   // With 'perf', we want a 1-1 mapping between an address and a method.
   bool garbage_collect_code = !generate_debug_info;
 
   // We only use two mappings (separating rw from rx) if we are able to use ashmem.
   // See the above comment for debug information and not using ashmem.
-  bool use_two_mappings = !generate_debug_info;
+  bool use_two_mappings = use_ashmem;
 
   // We need to have 32 bit offsets from method headers in code cache which point to things
   // in the data cache. If the maps are more than 4G apart, having multiple maps wouldn't work.
