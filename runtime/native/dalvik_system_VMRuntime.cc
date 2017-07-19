@@ -22,15 +22,14 @@
 extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #endif
 #include <limits.h>
-#include <ScopedUtfChars.h>
+#include "nativehelper/ScopedUtfChars.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "toStringArray.h"
+#include "nativehelper/toStringArray.h"
 #pragma GCC diagnostic pop
 
 #include "android-base/stringprintf.h"
-#include "nativehelper/jni_macros.h"
 
 #include "art_method-inl.h"
 #include "arch/instruction_set.h"
@@ -53,6 +52,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "native_util.h"
+#include "nativehelper/jni_macros.h"
 #include "runtime.h"
 #include "scoped_fast_native_object_access-inl.h"
 #include "scoped_thread_state_change-inl.h"

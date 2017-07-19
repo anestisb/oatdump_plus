@@ -43,14 +43,14 @@
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
 #include "mirror/string.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "obj_ptr-inl.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedLocalRef.h"
-#include "ti_phase.h"
 #include "thread-current-inl.h"
 #include "thread_list.h"
+#include "ti_phase.h"
 #include "well_known_classes.h"
 
 namespace openjdkjvmti {

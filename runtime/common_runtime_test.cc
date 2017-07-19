@@ -20,30 +20,30 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
-#include <ScopedLocalRef.h>
+#include "nativehelper/ScopedLocalRef.h"
 #include <stdlib.h>
 
 #include "../../external/icu/icu4c/source/common/unicode/uvernum.h"
 #include "android-base/stringprintf.h"
 
 #include "art_field-inl.h"
-#include "base/macros.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
-#include "gc_root-inl.h"
 #include "gc/heap.h"
+#include "gc_root-inl.h"
 #include "gtest/gtest.h"
 #include "handle_scope-inl.h"
 #include "interpreter/unstarted_runtime.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
+#include "mem_map.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mem_map.h"
 #include "native/dalvik_system_DexFile.h"
 #include "noop_compiler_callbacks.h"
 #include "os.h"

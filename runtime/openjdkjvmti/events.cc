@@ -31,9 +31,9 @@
 
 #include "events-inl.h"
 
+#include "art_field-inl.h"
 #include "art_jvmti.h"
 #include "art_method-inl.h"
-#include "art_field-inl.h"
 #include "base/logging.h"
 #include "gc/allocation_listener.h"
 #include "gc/gc_pause_listener.h"
@@ -45,8 +45,8 @@
 #include "jni_internal.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "runtime.h"
-#include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"

@@ -32,20 +32,20 @@
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/scoped_gc_critical_section.h"
 #include "instrumentation.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "os.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedLocalRef.h"
 #include "stack.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "utils.h"
-#include "entrypoints/quick/quick_entrypoints.h"
 
 namespace art {
 

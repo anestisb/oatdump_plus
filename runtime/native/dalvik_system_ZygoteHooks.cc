@@ -19,7 +19,6 @@
 #include <stdlib.h>
 
 #include "android-base/stringprintf.h"
-#include "nativehelper/jni_macros.h"
 
 #include "arch/instruction_set.h"
 #include "art_method-inl.h"
@@ -27,11 +26,12 @@
 #include "java_vm_ext.h"
 #include "jit/jit.h"
 #include "jni_internal.h"
-#include "JNIHelp.h"
 #include "native_util.h"
+#include "nativehelper/jni_macros.h"
+#include "nativehelper/JNIHelp.h"
+#include "nativehelper/ScopedUtfChars.h"
 #include "non_debuggable_classes.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedUtfChars.h"
 #include "stack.h"
 #include "thread-current-inl.h"
 #include "thread_list.h"

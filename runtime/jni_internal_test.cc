@@ -24,8 +24,8 @@
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
 #include "mirror/string-inl.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
-#include "ScopedLocalRef.h"
 
 namespace art {
 

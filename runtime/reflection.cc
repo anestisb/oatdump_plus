@@ -28,10 +28,10 @@
 #include "mirror/class-inl.h"
 #include "mirror/executable.h"
 #include "mirror/object_array-inl.h"
+#include "nativehelper/ScopedLocalRef.h"
 #include "nth_caller_visitor.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack_reference.h"
-#include "ScopedLocalRef.h"
 #include "well_known_classes.h"
 
 namespace art {
