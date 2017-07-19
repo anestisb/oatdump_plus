@@ -33,9 +33,9 @@ import dexfuzz.listeners.UpdatingConsoleListener;
  * Entrypoint class for dexfuzz.
  */
 public class DexFuzz {
-  // Last version update 1.5: added register clobber mutator.
+  // Last version update 1.6: added temporary register to ArrayLengthChanger.
   private static int majorVersion = 1;
-  private static int minorVersion = 5;
+  private static int minorVersion = 6;
   private static int seedChangeVersion = 0;
 
   /**
