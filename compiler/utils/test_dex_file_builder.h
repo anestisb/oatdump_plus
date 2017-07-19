@@ -17,11 +17,12 @@
 #ifndef ART_COMPILER_UTILS_TEST_DEX_FILE_BUILDER_H_
 #define ART_COMPILER_UTILS_TEST_DEX_FILE_BUILDER_H_
 
-#include <cstring>
-#include <set>
-#include <map>
-#include <vector>
 #include <zlib.h>
+
+#include <cstring>
+#include <map>
+#include <set>
+#include <vector>
 
 #include "base/bit_utils.h"
 #include "base/logging.h"

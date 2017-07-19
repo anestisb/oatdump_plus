@@ -16,10 +16,12 @@
 
 #include "utils/swap_space.h"
 
-#include <cstdio>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <cstdio>
+
 #include "gtest/gtest.h"
 
 #include "base/unix_file/fd_file.h"

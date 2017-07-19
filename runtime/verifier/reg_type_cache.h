@@ -48,6 +48,7 @@ class ImpreciseConstType;
 class IntegerType;
 class LongHiType;
 class LongLoType;
+class MethodVerifier;
 class PreciseConstType;
 class PreciseReferenceType;
 class RegType;

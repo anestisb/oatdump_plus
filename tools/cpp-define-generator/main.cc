@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+#include <ios>
 #include <iostream>
 #include <sstream>
-#include <type_traits>
-#include <ios>
-#include <algorithm>
 #include <string>
+#include <type_traits>
 
 // Art Offset file dependencies
 #define DEFINE_INCLUDE_DEPENDENCIES

@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
 
 #include "common_runtime_test.h"
 
 #include "android-base/stringprintf.h"
 
-#include "runtime/os.h"
 #include "runtime/arch/instruction_set.h"
 #include "runtime/exec_utils.h"
-#include "runtime/utils.h"
-#include "runtime/gc/space/image_space.h"
 #include "runtime/gc/heap.h"
+#include "runtime/gc/space/image_space.h"
+#include "runtime/os.h"
 #include "runtime/runtime.h"
+#include "runtime/utils.h"
 
 #include <sys/types.h>
 #include <unistd.h>

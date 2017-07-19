@@ -17,8 +17,8 @@
 #include "dalvik_system_VMRuntime.h"
 
 #ifdef ART_TARGET_ANDROID
-#include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/time.h>
 extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #endif
 #include <limits.h>
@@ -31,8 +31,8 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 
 #include "android-base/stringprintf.h"
 
-#include "art_method-inl.h"
 #include "arch/instruction_set.h"
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"

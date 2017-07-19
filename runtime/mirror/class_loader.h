@@ -18,9 +18,9 @@
 #define ART_RUNTIME_MIRROR_CLASS_LOADER_H_
 
 #include "base/mutex.h"
+#include "obj_ptr.h"
 #include "object.h"
 #include "object_reference.h"
-#include "obj_ptr.h"
 
 namespace art {
 

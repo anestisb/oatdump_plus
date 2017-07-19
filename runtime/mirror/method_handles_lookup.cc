@@ -18,11 +18,11 @@
 
 #include "class-inl.h"
 #include "gc_root-inl.h"
-#include "object-inl.h"
 #include "handle_scope.h"
 #include "jni_internal.h"
 #include "mirror/method_handle_impl.h"
 #include "modifiers.h"
+#include "object-inl.h"
 #include "well_known_classes.h"
 
 namespace art {

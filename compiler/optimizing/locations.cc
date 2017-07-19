@@ -18,8 +18,8 @@
 
 #include <type_traits>
 
-#include "nodes.h"
 #include "code_generator.h"
+#include "nodes.h"
 
 namespace art {
 

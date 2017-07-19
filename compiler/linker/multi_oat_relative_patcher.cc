@@ -16,9 +16,9 @@
 
 #include "multi_oat_relative_patcher.h"
 
-#include "globals.h"
 #include "base/bit_utils.h"
 #include "base/logging.h"
+#include "globals.h"
 
 namespace art {
 namespace linker {

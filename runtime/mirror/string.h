@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_MIRROR_STRING_H_
 #define ART_RUNTIME_MIRROR_STRING_H_
 
-#include "gc_root.h"
 #include "gc/allocator_type.h"
+#include "gc_root.h"
 #include "object.h"
 
 namespace art {

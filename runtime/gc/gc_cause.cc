@@ -15,8 +15,8 @@
  */
 
 #include "gc_cause.h"
-#include "globals.h"
 #include "base/logging.h"
+#include "globals.h"
 
 #include <ostream>
 

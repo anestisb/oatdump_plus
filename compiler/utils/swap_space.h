@@ -17,12 +17,12 @@
 #ifndef ART_COMPILER_UTILS_SWAP_SPACE_H_
 #define ART_COMPILER_UTILS_SWAP_SPACE_H_
 
+#include <stddef.h>
+#include <stdint.h>
 #include <cstdlib>
 #include <list>
-#include <vector>
 #include <set>
-#include <stdint.h>
-#include <stddef.h>
+#include <vector>
 
 #include "base/logging.h"
 #include "base/macros.h"

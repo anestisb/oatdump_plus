@@ -21,8 +21,8 @@
 #include "art_method.h"
 #include "class.h"
 #include "gc_root.h"
-#include "object.h"
 #include "method_type.h"
+#include "object.h"
 
 namespace art {
 

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
-#include <memory>
-#include <stdio.h>
 #include <dlfcn.h>
+#include <inttypes.h>
+
+#include <cstdio>
+#include <memory>
 
 #include "android-base/stringprintf.h"
 #include "jni.h"
@@ -26,8 +27,8 @@
 // Test infrastructure
 #include "jni_binder.h"
 #include "jvmti_helper.h"
-#include "test_env.h"
 #include "scoped_local_ref.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test987AgentBind {

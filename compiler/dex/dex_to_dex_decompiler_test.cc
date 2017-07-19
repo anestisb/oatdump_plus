@@ -19,16 +19,16 @@
 #include "class_linker.h"
 #include "compiler/common_compiler_test.h"
 #include "compiler/compiled_method.h"
-#include "compiler/driver/compiler_options.h"
 #include "compiler/driver/compiler_driver.h"
+#include "compiler/driver/compiler_options.h"
 #include "compiler_callbacks.h"
 #include "dex_file.h"
 #include "handle_scope-inl.h"
-#include "verifier/method_verifier-inl.h"
 #include "mirror/class_loader.h"
 #include "runtime.h"
-#include "thread.h"
 #include "scoped_thread_state_change-inl.h"
+#include "thread.h"
+#include "verifier/method_verifier-inl.h"
 
 namespace art {
 

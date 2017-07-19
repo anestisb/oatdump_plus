@@ -20,13 +20,13 @@
 #include <limits>
 
 #include "arch/code_offset.h"
-#include "base/bit_vector.h"
 #include "base/bit_utils.h"
+#include "base/bit_vector.h"
 #include "bit_memory_region.h"
 #include "dex_file.h"
+#include "leb128.h"
 #include "memory_region.h"
 #include "method_info.h"
-#include "leb128.h"
 
 namespace art {
 

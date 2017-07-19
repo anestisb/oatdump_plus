@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "bit_memory_region.h"
 #include "memory_region.h"
 
 #include "gtest/gtest.h"
+
+#include "bit_memory_region.h"
 
 namespace art {
 

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "art_method-inl.h"
 #include "executable.h"
+
+#include "art_method-inl.h"
 
 namespace art {
 namespace mirror {

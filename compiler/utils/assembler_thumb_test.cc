@@ -16,10 +16,10 @@
 
 #include <dirent.h>
 #include <errno.h>
-#include <fstream>
-#include <map>
 #include <string.h>
 #include <sys/types.h>
+#include <fstream>
+#include <map>
 
 #include "gtest/gtest.h"
 

@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+#include "reference_type_propagation.h"
+
 #include "base/arena_allocator.h"
 #include "builder.h"
 #include "nodes.h"
 #include "object_lock.h"
 #include "optimizing_unit_test.h"
-#include "reference_type_propagation.h"
 
 namespace art {
 

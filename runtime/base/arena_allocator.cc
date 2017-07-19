@@ -26,8 +26,8 @@
 #include "logging.h"
 #include "mem_map.h"
 #include "mutex.h"
-#include "thread-current-inl.h"
 #include "systrace.h"
+#include "thread-current-inl.h"
 
 namespace art {
 

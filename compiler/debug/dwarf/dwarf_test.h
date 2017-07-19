@@ -17,13 +17,14 @@
 #ifndef ART_COMPILER_DEBUG_DWARF_DWARF_TEST_H_
 #define ART_COMPILER_DEBUG_DWARF_DWARF_TEST_H_
 
-#include <cstring>
 #include <dirent.h>
+#include <stdio.h>
+#include <sys/types.h>
+
+#include <cstring>
 #include <memory>
 #include <set>
-#include <stdio.h>
 #include <string>
-#include <sys/types.h>
 
 #include "base/unix_file/fd_file.h"
 #include "common_runtime_test.h"

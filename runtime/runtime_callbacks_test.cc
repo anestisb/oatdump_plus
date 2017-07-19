@@ -16,7 +16,6 @@
 
 #include "runtime_callbacks.h"
 
-#include "jni.h"
 #include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -24,6 +23,8 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
+
+#include "jni.h"
 
 #include "art_method-inl.h"
 #include "base/mutex.h"

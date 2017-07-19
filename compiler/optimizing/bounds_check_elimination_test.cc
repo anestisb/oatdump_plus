@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "base/arena_allocator.h"
 #include "bounds_check_elimination.h"
+
+#include "base/arena_allocator.h"
 #include "builder.h"
 #include "gvn.h"
 #include "induction_var_analysis.h"

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "fault_handler.h"
 #include <sys/ucontext.h>
+#include "fault_handler.h"
 
 #include "art_method.h"
 #include "base/callee_save_type.h"

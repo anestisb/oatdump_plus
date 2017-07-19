@@ -33,7 +33,6 @@
 
 #include <limits>
 
-
 #include "art_jvmti.h"
 #include "base/mutex.h"
 #include "events-inl.h"

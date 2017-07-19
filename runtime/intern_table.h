@@ -23,8 +23,8 @@
 #include "base/allocator.h"
 #include "base/hash_set.h"
 #include "base/mutex.h"
-#include "gc_root.h"
 #include "gc/weak_root_state.h"
+#include "gc_root.h"
 
 namespace art {
 

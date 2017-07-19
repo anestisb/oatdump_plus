@@ -18,8 +18,9 @@
 #define ART_RUNTIME_BASE_TIME_UTILS_H_
 
 #include <stdint.h>
-#include <string>
 #include <time.h>
+
+#include <string>
 
 #include "base/macros.h"
 

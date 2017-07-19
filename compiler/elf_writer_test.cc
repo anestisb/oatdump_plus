@@ -18,9 +18,9 @@
 
 #include "base/unix_file/fd_file.h"
 #include "common_compiler_test.h"
+#include "elf_builder.h"
 #include "elf_file.h"
 #include "elf_file_impl.h"
-#include "elf_builder.h"
 #include "elf_writer_quick.h"
 #include "oat.h"
 #include "utils.h"

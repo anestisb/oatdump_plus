@@ -39,7 +39,7 @@ static inline InvokeType GetIntrinsicInvokeType(Intrinsics i) {
     case Intrinsics::k ## Name: \
       return IsStatic;
 #include "intrinsics_list.h"
-INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS
   }
@@ -55,7 +55,7 @@ static inline IntrinsicNeedsEnvironmentOrCache NeedsEnvironmentOrCache(Intrinsic
     case Intrinsics::k ## Name: \
       return NeedsEnvironmentOrCache;
 #include "intrinsics_list.h"
-INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS
   }
@@ -71,7 +71,7 @@ static inline IntrinsicSideEffects GetSideEffects(Intrinsics i) {
     case Intrinsics::k ## Name: \
       return SideEffects;
 #include "intrinsics_list.h"
-INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS
   }
@@ -87,7 +87,7 @@ static inline IntrinsicExceptions GetExceptions(Intrinsics i) {
     case Intrinsics::k ## Name: \
       return Exceptions;
 #include "intrinsics_list.h"
-INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS
   }
@@ -172,7 +172,7 @@ std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic) {
       os << # Name; \
       break;
 #include "intrinsics_list.h"
-INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef STATIC_INTRINSICS_LIST
 #undef VIRTUAL_INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS

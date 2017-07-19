@@ -26,10 +26,10 @@
 #include "array-inl.h"
 #include "class.h"
 #include "gc/heap.h"
-#include "object-inl.h"
-#include "obj_ptr-inl.h"
-#include "runtime.h"
 #include "handle_scope-inl.h"
+#include "obj_ptr-inl.h"
+#include "object-inl.h"
+#include "runtime.h"
 #include "thread.h"
 #include "utils.h"
 

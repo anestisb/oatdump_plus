@@ -16,17 +16,17 @@
 
 #include <gtest/gtest.h>
 
-#include "base/unix_file/fd_file.h"
 #include "art_method-inl.h"
+#include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
-#include "method_reference.h"
-#include "mirror/class-inl.h"
-#include "mirror/class_loader.h"
 #include "handle_scope-inl.h"
 #include "jit/profile_compilation_info.h"
 #include "linear_alloc.h"
+#include "method_reference.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
 #include "scoped_thread_state_change-inl.h"
 #include "type_reference.h"
 

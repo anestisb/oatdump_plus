@@ -28,8 +28,8 @@
 
 #include "base/allocator.h"
 #include "base/bit_utils.h"
-#include "base/mutex.h"
 #include "base/logging.h"
+#include "base/mutex.h"
 #include "globals.h"
 #include "thread.h"
 

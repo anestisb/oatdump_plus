@@ -17,12 +17,12 @@
 #ifndef ART_COMPILER_OPTIMIZING_OPTIMIZING_UNIT_TEST_H_
 #define ART_COMPILER_OPTIMIZING_OPTIMIZING_UNIT_TEST_H_
 
-#include "nodes.h"
 #include "builder.h"
 #include "common_compiler_test.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "handle_scope.h"
+#include "nodes.h"
 #include "scoped_thread_state_change.h"
 #include "ssa_builder.h"
 #include "ssa_liveness_analysis.h"

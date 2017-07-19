@@ -14,18 +14,21 @@
  * limitations under the License.
  */
 
-#include <string>
-#include <vector>
+#include "oat_file_assistant.h"
+
 #include <sys/param.h>
 
-#include "android-base/strings.h"
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
+
+#include "android-base/strings.h"
 
 #include "art_field-inl.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dexopt_test.h"
-#include "oat_file_assistant.h"
 #include "oat_file_manager.h"
 #include "os.h"
 #include "scoped_thread_state_change-inl.h"

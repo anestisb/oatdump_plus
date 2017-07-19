@@ -17,8 +17,8 @@
 #ifndef ART_COMPILER_LINKER_MIPS_RELATIVE_PATCHER_MIPS_H_
 #define ART_COMPILER_LINKER_MIPS_RELATIVE_PATCHER_MIPS_H_
 
-#include "linker/relative_patcher.h"
 #include "arch/mips/instruction_set_features_mips.h"
+#include "linker/relative_patcher.h"
 
 namespace art {
 namespace linker {

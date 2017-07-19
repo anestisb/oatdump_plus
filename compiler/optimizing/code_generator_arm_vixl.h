@@ -22,8 +22,8 @@
 #include "common_arm.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
-#include "string_reference.h"
 #include "parallel_move_resolver.h"
+#include "string_reference.h"
 #include "type_reference.h"
 #include "utils/arm/assembler_arm_vixl.h"
 

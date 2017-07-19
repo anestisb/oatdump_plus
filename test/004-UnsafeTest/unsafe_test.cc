@@ -17,8 +17,8 @@
 #include "art_method-inl.h"
 #include "jni.h"
 #include "mirror/array.h"
-#include "mirror/class.h"
 #include "mirror/class-inl.h"
+#include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change-inl.h"
 

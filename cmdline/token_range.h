@@ -18,10 +18,10 @@
 #define ART_CMDLINE_TOKEN_RANGE_H_
 
 #include <assert.h>
-#include <vector>
-#include <string>
 #include <algorithm>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "android-base/strings.h"
 

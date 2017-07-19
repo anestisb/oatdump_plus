@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "load_store_analysis.h"
 #include "load_store_elimination.h"
 
 #include "escape.h"
+#include "load_store_analysis.h"
 #include "side_effects_analysis.h"
 
 #include <iostream>

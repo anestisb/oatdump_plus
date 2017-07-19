@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
-#include <iostream>
 #include <pthread.h>
-#include <stdio.h>
+
+#include <cstdio>
+#include <iostream>
 #include <vector>
 
 #include "android-base/logging.h"
 #include "jni.h"
+#include "jvmti.h"
+
 #include "scoped_local_ref.h"
 #include "scoped_primitive_array.h"
-
-#include "jvmti.h"
 
 // Test infrastructure
 #include "jvmti_helper.h"

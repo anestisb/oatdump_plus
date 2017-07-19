@@ -19,8 +19,8 @@
 
 #include "dex_file_types.h"
 #include "invoke_type.h"
-#include "optimization.h"
 #include "jit/profile_compilation_info.h"
+#include "optimization.h"
 
 namespace art {
 

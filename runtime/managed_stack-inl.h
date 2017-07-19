@@ -19,10 +19,6 @@
 
 #include "managed_stack.h"
 
-#include <cstring>
-#include <stdint.h>
-#include <string>
-
 #include "interpreter/shadow_frame.h"
 
 namespace art {

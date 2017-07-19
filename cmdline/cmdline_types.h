@@ -20,9 +20,9 @@
 
 #include <list>
 
-#include "memory_representation.h"
-#include "detail/cmdline_debug_detail.h"
 #include "cmdline_type_parser.h"
+#include "detail/cmdline_debug_detail.h"
+#include "memory_representation.h"
 
 #include "android-base/strings.h"
 

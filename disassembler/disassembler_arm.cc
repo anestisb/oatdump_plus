@@ -26,8 +26,8 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "aarch32/instructions-aarch32.h"
 #include "aarch32/disasm-aarch32.h"
+#include "aarch32/instructions-aarch32.h"
 #pragma GCC diagnostic pop
 
 namespace art {

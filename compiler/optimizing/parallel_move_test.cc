@@ -18,8 +18,8 @@
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 
-#include "gtest/gtest.h"
 #include "gtest/gtest-typed-test.h"
+#include "gtest/gtest.h"
 
 namespace art {
 

@@ -18,9 +18,9 @@
 
 #include "base/bit_utils.h"
 #include "base/length_prefixed_array.h"
-#include "mirror/object_array.h"
-#include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/object_array.h"
 #include "utils.h"
 
 namespace art {

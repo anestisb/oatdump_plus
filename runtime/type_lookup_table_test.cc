@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
+#include "type_lookup_table.h"
 
 #include <memory>
 
 #include "common_runtime_test.h"
 #include "dex_file-inl.h"
 #include "scoped_thread_state_change-inl.h"
-#include "type_lookup_table.h"
 #include "utf-inl.h"
 
 namespace art {

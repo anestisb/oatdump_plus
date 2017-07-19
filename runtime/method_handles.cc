@@ -19,13 +19,13 @@
 #include "android-base/stringprintf.h"
 
 #include "common_dex_operations.h"
-#include "jvalue.h"
 #include "jvalue-inl.h"
+#include "jvalue.h"
 #include "mirror/emulated_stack_frame.h"
 #include "mirror/method_handle_impl-inl.h"
 #include "mirror/method_type.h"
-#include "reflection.h"
 #include "reflection-inl.h"
+#include "reflection.h"
 #include "well_known_classes.h"
 
 namespace art {

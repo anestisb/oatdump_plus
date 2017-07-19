@@ -17,11 +17,12 @@
 #include "instruction_set_features_arm.h"
 
 #if defined(ART_TARGET_ANDROID) && defined(__arm__)
-#include <sys/auxv.h>
 #include <asm/hwcap.h>
+#include <sys/auxv.h>
 #endif
 
 #include "signal.h"
+
 #include <fstream>
 
 #include "android-base/stringprintf.h"

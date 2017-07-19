@@ -21,8 +21,8 @@
 #include "art_field-inl.h"
 #include "dex_file-inl.h"
 #include "mem_map.h"
-#include "mirror/object-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
 #include "mirror/object_array.h"
 
 namespace art {

@@ -44,10 +44,10 @@
 
 #include "android-base/stringprintf.h"
 
-#include "dexdump_cfg.h"
 #include "dex_file-inl.h"
 #include "dex_file_types.h"
 #include "dex_instruction-inl.h"
+#include "dexdump_cfg.h"
 
 namespace art {
 

@@ -16,8 +16,8 @@
 
 #include "art_method-inl.h"
 #include "callee_save_frame.h"
-#include "mirror/array.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "mirror/array.h"
 
 namespace art {
 

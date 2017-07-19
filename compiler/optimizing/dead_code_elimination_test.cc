@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include "dead_code_elimination.h"
+
 #include "arch/x86/instruction_set_features_x86.h"
 #include "code_generator_x86.h"
-#include "dead_code_elimination.h"
 #include "driver/compiler_options.h"
 #include "graph_checker.h"
 #include "optimizing_unit_test.h"

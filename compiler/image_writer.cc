@@ -16,9 +16,9 @@
 
 #include "image_writer.h"
 
-#include <sys/stat.h>
 #include <lz4.h>
 #include <lz4hc.h>
+#include <sys/stat.h>
 
 #include <memory>
 #include <numeric>
@@ -43,8 +43,8 @@
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/collector/concurrent_copying.h"
-#include "gc/heap.h"
 #include "gc/heap-visit-objects-inl.h"
+#include "gc/heap.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "gc/verification.h"
@@ -59,8 +59,8 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_ext.h"
 #include "mirror/class_loader.h"
-#include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
+#include "mirror/dex_cache.h"
 #include "mirror/executable.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"

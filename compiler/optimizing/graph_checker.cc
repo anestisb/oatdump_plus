@@ -17,8 +17,8 @@
 #include "graph_checker.h"
 
 #include <algorithm>
-#include <string>
 #include <sstream>
+#include <string>
 
 #include "android-base/stringprintf.h"
 

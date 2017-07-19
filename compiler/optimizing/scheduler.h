@@ -20,11 +20,11 @@
 #include <fstream>
 
 #include "base/time_utils.h"
+#include "code_generator.h"
 #include "driver/compiler_driver.h"
 #include "load_store_analysis.h"
 #include "nodes.h"
 #include "optimization.h"
-#include "code_generator.h"
 
 namespace art {
 

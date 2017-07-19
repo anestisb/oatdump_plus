@@ -20,31 +20,31 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <string>
-#include <vector>
-#include <set>
 #include <map>
+#include <set>
+#include <string>
 #include <unordered_set>
+#include <vector>
 
 #include "android-base/stringprintf.h"
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/unix_file/fd_file.h"
-#include "gc/space/image_space.h"
 #include "gc/heap.h"
+#include "gc/space/image_space.h"
+#include "image.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "image.h"
-#include "scoped_thread_state_change-inl.h"
 #include "os.h"
+#include "scoped_thread_state_change-inl.h"
 
-#include "cmdline.h"
 #include "backtrace/BacktraceMap.h"
+#include "cmdline.h"
 
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <signal.h>
 
 namespace art {
 

@@ -21,7 +21,6 @@
 #include "base/casts.h"
 #include "utils.h"
 
-
 #include "arm/instruction_set_features_arm.h"
 #include "arm64/instruction_set_features_arm64.h"
 #include "mips/instruction_set_features_mips.h"

@@ -19,8 +19,8 @@
 
 #include "arch/instruction_set.h"
 #include "base/macros.h"
-#include "quick/quick_method_frame_info.h"
 #include "method_info.h"
+#include "quick/quick_method_frame_info.h"
 #include "stack_map.h"
 #include "utils.h"
 

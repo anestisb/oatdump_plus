@@ -24,8 +24,8 @@
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "gc/accounting/space_bitmap.h"
-#include "gc/space/image_space.h"
 #include "gc/heap.h"
+#include "gc/space/image_space.h"
 #include "os.h"
 #include "runtime.h"
 

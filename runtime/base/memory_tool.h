@@ -52,8 +52,8 @@ constexpr size_t kMemoryToolStackGuardSizeScale = 2;
 
 #else
 
-#include <valgrind.h>
 #include <memcheck/memcheck.h>
+#include <valgrind.h>
 #define MEMORY_TOOL_MAKE_NOACCESS(p, s) VALGRIND_MAKE_MEM_NOACCESS(p, s)
 #define MEMORY_TOOL_MAKE_UNDEFINED(p, s) VALGRIND_MAKE_MEM_UNDEFINED(p, s)
 #define MEMORY_TOOL_MAKE_DEFINED(p, s) VALGRIND_MAKE_MEM_DEFINED(p, s)

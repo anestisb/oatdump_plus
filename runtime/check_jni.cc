@@ -16,9 +16,10 @@
 
 #include "check_jni.h"
 
-#include <iomanip>
 #include <sys/mman.h>
 #include <zlib.h>
+
+#include <iomanip>
 
 #include "android-base/stringprintf.h"
 
@@ -26,8 +27,8 @@
 #include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/to_str.h"
-#include "class_linker.h"
 #include "class_linker-inl.h"
+#include "class_linker.h"
 #include "dex_file-inl.h"
 #include "gc/space/space.h"
 #include "java_vm_ext.h"

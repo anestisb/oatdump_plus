@@ -17,10 +17,11 @@
 #include "image_space.h"
 
 #include <lz4.h>
-#include <random>
 #include <sys/statvfs.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <random>
 
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
@@ -30,8 +31,8 @@
 #include "base/callee_save_type.h"
 #include "base/enums.h"
 #include "base/macros.h"
-#include "base/stl_util.h"
 #include "base/scoped_flock.h"
+#include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
 #include "exec_utils.h"

@@ -39,8 +39,8 @@
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
-#include "mirror/class.h"
 #include "mirror/class-inl.h"
+#include "mirror/class.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/method_handle_impl.h"
 #include "mirror/object-inl.h"
@@ -51,8 +51,8 @@
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "utils.h"
-#include "verifier_deps.h"
 #include "verifier_compiler_binding.h"
+#include "verifier_deps.h"
 
 namespace art {
 namespace verifier {

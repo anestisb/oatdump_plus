@@ -16,10 +16,11 @@
 
 #include "sun_misc_Unsafe.h"
 
-#include <atomic>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+
+#include <cstdlib>
+#include <cstring>
+#include <atomic>
 
 #include "nativehelper/jni_macros.h"
 

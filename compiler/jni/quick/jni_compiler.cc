@@ -17,36 +17,36 @@
 #include "jni_compiler.h"
 
 #include <algorithm>
+#include <fstream>
 #include <ios>
 #include <memory>
 #include <vector>
-#include <fstream>
 
 #include "art_method.h"
 #include "base/arena_allocator.h"
 #include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "memory_region.h"
 #include "calling_convention.h"
 #include "class_linker.h"
 #include "compiled_method.h"
+#include "debug/dwarf/debug_frame_opcode_writer.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "jni_env_ext.h"
-#include "debug/dwarf/debug_frame_opcode_writer.h"
+#include "memory_region.h"
+#include "thread.h"
+#include "utils.h"
+#include "utils/arm/managed_register_arm.h"
+#include "utils/arm64/managed_register_arm64.h"
 #include "utils/assembler.h"
 #include "utils/jni_macro_assembler.h"
 #include "utils/managed_register.h"
-#include "utils/arm/managed_register_arm.h"
-#include "utils/arm64/managed_register_arm64.h"
 #include "utils/mips/managed_register_mips.h"
 #include "utils/mips64/managed_register_mips64.h"
 #include "utils/x86/managed_register_x86.h"
-#include "utils.h"
-#include "thread.h"
 
 #define __ jni_asm->
 

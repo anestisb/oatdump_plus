@@ -23,9 +23,9 @@
 
 #include "base/arena_containers.h"
 #include "base/logging.h"
+#include "offsets.h"
 #include "utils/arm64/managed_register_arm64.h"
 #include "utils/assembler.h"
-#include "offsets.h"
 
 // TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push

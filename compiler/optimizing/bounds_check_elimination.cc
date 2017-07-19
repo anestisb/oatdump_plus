@@ -20,8 +20,8 @@
 
 #include "base/arena_containers.h"
 #include "induction_var_range.h"
-#include "side_effects_analysis.h"
 #include "nodes.h"
+#include "side_effects_analysis.h"
 
 namespace art {
 

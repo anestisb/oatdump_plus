@@ -27,7 +27,6 @@
 #include "scoped_fast_native_object_access-inl.h"
 #include "unicode/utf16.h"
 
-
 namespace art {
 
 /**

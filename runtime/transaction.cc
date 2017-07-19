@@ -16,8 +16,8 @@
 
 #include "transaction.h"
 
-#include "base/stl_util.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc_root-inl.h"
 #include "intern_table.h"

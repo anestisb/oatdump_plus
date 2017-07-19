@@ -16,20 +16,20 @@
 
 #include "profile_compilation_info.h"
 
-#include "errno.h"
-#include <limits.h>
-#include <string>
-#include <vector>
-#include <stdlib.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/uio.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <zlib.h>
-#include <base/time_utils.h>
+
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
+#include <string>
+#include <vector>
+
+#include "android-base/file.h"
 
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
@@ -37,12 +37,12 @@
 #include "base/scoped_flock.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
+#include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "jit/profiling_info.h"
 #include "os.h"
 #include "safe_map.h"
 #include "utils.h"
-#include "android-base/file.h"
 
 namespace art {
 

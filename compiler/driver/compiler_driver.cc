@@ -16,9 +16,9 @@
 
 #include "compiler_driver.h"
 
+#include <unistd.h>
 #include <unordered_set>
 #include <vector>
-#include <unistd.h>
 
 #ifndef __APPLE__
 #include <malloc.h>  // For mallinfo
@@ -409,7 +409,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
                          ClassName, MethodName, Signature) \
   SetupIntrinsic(soa.Self(), Intrinsics::k##Name, InvokeType, ClassName, MethodName, Signature);
 #include "intrinsics_list.h"
-INTRINSICS_LIST(SETUP_INTRINSICS)
+    INTRINSICS_LIST(SETUP_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef SETUP_INTRINSICS
   }

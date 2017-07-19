@@ -16,8 +16,8 @@
 
 #include "object_lock.h"
 
-#include "mirror/object-inl.h"
 #include "mirror/class_ext.h"
+#include "mirror/object-inl.h"
 #include "monitor.h"
 
 namespace art {

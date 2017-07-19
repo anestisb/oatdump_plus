@@ -20,14 +20,14 @@
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "block_builder.h"
-#include "dex_file.h"
 #include "dex_file-inl.h"
+#include "dex_file.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "instruction_builder.h"
+#include "nodes.h"
 #include "optimizing_compiler_stats.h"
 #include "primitive.h"
-#include "nodes.h"
 #include "ssa_builder.h"
 
 namespace art {

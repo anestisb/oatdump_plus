@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include <atomic>
 #include <signal.h>
 #include <sys/types.h>
+
+#include <atomic>
 
 #include "android-base/logging.h"
 #include "android-base/macros.h"

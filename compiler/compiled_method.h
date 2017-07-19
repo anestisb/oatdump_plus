@@ -17,8 +17,8 @@
 #ifndef ART_COMPILER_COMPILED_METHOD_H_
 #define ART_COMPILER_COMPILED_METHOD_H_
 
-#include <memory>
 #include <iosfwd>
+#include <memory>
 #include <string>
 #include <vector>
 

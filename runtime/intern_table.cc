@@ -18,14 +18,14 @@
 
 #include <memory>
 
-#include "gc_root-inl.h"
 #include "gc/collector/garbage_collector.h"
 #include "gc/space/image_space.h"
 #include "gc/weak_root_state.h"
+#include "gc_root-inl.h"
 #include "image-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "object_callbacks.h"
 #include "scoped_thread_state_change-inl.h"

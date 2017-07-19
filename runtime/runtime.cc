@@ -23,9 +23,10 @@
 #include <sys/prctl.h>
 #endif
 
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/syscall.h>
-#include "base/memory_tool.h"
+
 #if defined(__APPLE__)
 #include <crt_externs.h>  // for _NSGetEnviron
 #endif
@@ -33,9 +34,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
-#include <memory_representation.h>
 #include <vector>
-#include <fcntl.h>
 
 #include "android-base/strings.h"
 
@@ -60,6 +59,7 @@
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
 #include "base/enums.h"
+#include "base/memory_tool.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
@@ -88,6 +88,7 @@
 #include "jit/profile_saver.h"
 #include "jni_internal.h"
 #include "linear_alloc.h"
+#include "memory_representation.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_ext.h"

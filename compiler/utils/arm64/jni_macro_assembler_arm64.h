@@ -25,9 +25,9 @@
 #include "base/arena_containers.h"
 #include "base/enums.h"
 #include "base/logging.h"
+#include "offsets.h"
 #include "utils/assembler.h"
 #include "utils/jni_macro_assembler.h"
-#include "offsets.h"
 
 // TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push

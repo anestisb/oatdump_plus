@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "scheduler.h"
+
 #include "base/arena_allocator.h"
 #include "builder.h"
 #include "codegen_test_utils.h"
@@ -23,7 +25,6 @@
 #include "optimizing_unit_test.h"
 #include "pc_relative_fixups_x86.h"
 #include "register_allocator.h"
-#include "scheduler.h"
 
 #ifdef ART_ENABLE_CODEGEN_arm64
 #include "scheduler_arm64.h"

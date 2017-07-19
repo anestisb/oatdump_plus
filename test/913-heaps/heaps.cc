@@ -15,15 +15,15 @@
  */
 
 #include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
 
+#include <cstdio>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <vector>
 
-#include "android-base/macros.h"
 #include "android-base/logging.h"
+#include "android-base/macros.h"
 #include "android-base/stringprintf.h"
 
 #include "jni.h"

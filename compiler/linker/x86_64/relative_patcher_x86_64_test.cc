@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "linker/relative_patcher_test.h"
 #include "linker/x86_64/relative_patcher_x86_64.h"
+
+#include "linker/relative_patcher_test.h"
 
 namespace art {
 namespace linker {

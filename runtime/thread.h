@@ -17,12 +17,13 @@
 #ifndef ART_RUNTIME_THREAD_H_
 #define ART_RUNTIME_THREAD_H_
 
+#include <setjmp.h>
+
 #include <bitset>
 #include <deque>
 #include <iosfwd>
 #include <list>
 #include <memory>
-#include <setjmp.h>
 #include <string>
 
 #include "arch/context.h"

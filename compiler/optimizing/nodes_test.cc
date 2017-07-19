@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "base/arena_allocator.h"
 #include "nodes.h"
+
+#include "base/arena_allocator.h"
 #include "optimizing_unit_test.h"
 
 #include "gtest/gtest.h"

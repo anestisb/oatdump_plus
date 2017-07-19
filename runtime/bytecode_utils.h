@@ -18,8 +18,8 @@
 #define ART_RUNTIME_BYTECODE_UTILS_H_
 
 #include "base/arena_object.h"
-#include "dex_file.h"
 #include "dex_file-inl.h"
+#include "dex_file.h"
 #include "dex_instruction-inl.h"
 
 namespace art {

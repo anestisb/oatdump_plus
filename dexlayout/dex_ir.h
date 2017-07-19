@@ -19,9 +19,10 @@
 #ifndef ART_DEXLAYOUT_DEX_IR_H_
 #define ART_DEXLAYOUT_DEX_IR_H_
 
+#include <stdint.h>
+
 #include <map>
 #include <vector>
-#include <stdint.h>
 
 #include "base/stl_util.h"
 #include "dex_file-inl.h"

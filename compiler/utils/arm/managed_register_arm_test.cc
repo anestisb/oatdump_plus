@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "globals.h"
 #include "managed_register_arm.h"
+#include "globals.h"
 #include "gtest/gtest.h"
 
 namespace art {

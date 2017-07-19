@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
-#include "common_arm64.h"
+// Note: this include order may seem strange and is against the regular style. However it is the
+//       required order as nodes_shared does not have the right dependency chain and compilation
+//       will fail (as AsType on HInstruction will be defined before the full Instruction).
+#include "nodes.h"
+
 #include "nodes_shared.h"
+
+#include "common_arm64.h"
 
 namespace art {
 

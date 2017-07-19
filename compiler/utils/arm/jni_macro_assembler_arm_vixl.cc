@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+#include "jni_macro_assembler_arm_vixl.h"
+
 #include <iostream>
 #include <type_traits>
 
-#include "jni_macro_assembler_arm_vixl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "thread.h"
 

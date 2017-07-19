@@ -16,10 +16,10 @@
 
 #include "jni_macro_assembler_x86.h"
 
-#include "utils/assembler.h"
 #include "base/casts.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "thread.h"
+#include "utils/assembler.h"
 
 namespace art {
 namespace x86 {

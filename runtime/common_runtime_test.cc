@@ -16,12 +16,12 @@
 
 #include "common_runtime_test.h"
 
-#include <cstdio>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
-#include "nativehelper/ScopedLocalRef.h"
 #include <stdlib.h>
+#include <cstdio>
+#include "nativehelper/ScopedLocalRef.h"
 
 #include "../../external/icu/icu4c/source/common/unicode/uvernum.h"
 #include "android-base/stringprintf.h"

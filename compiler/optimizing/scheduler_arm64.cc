@@ -15,6 +15,7 @@
  */
 
 #include "scheduler_arm64.h"
+
 #include "code_generator_utils.h"
 #include "mirror/array-inl.h"
 

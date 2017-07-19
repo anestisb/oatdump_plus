@@ -22,8 +22,8 @@
 #include "dex_file_types.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 
 namespace art {
 

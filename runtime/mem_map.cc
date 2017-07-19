@@ -38,7 +38,6 @@
 #include "globals.h"
 #include "utils.h"
 
-
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
 #endif

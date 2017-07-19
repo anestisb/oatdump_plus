@@ -19,14 +19,15 @@
 
 #include "dedupe_set.h"
 
-#include <algorithm>
 #include <inttypes.h>
+
+#include <algorithm>
 #include <unordered_map>
 
 #include "android-base/stringprintf.h"
 
-#include "base/mutex.h"
 #include "base/hash_set.h"
+#include "base/mutex.h"
 #include "base/stl_util.h"
 #include "base/time_utils.h"
 

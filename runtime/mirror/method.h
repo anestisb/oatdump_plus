@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_MIRROR_METHOD_H_
 #define ART_RUNTIME_MIRROR_METHOD_H_
 
-#include "gc_root.h"
 #include "executable.h"
+#include "gc_root.h"
 
 namespace art {
 namespace mirror {

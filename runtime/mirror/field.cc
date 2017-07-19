@@ -18,8 +18,8 @@
 
 #include "class-inl.h"
 #include "dex_cache-inl.h"
-#include "object_array-inl.h"
 #include "object-inl.h"
+#include "object_array-inl.h"
 
 namespace art {
 namespace mirror {

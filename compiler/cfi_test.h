@@ -17,9 +17,9 @@
 #ifndef ART_COMPILER_CFI_TEST_H_
 #define ART_COMPILER_CFI_TEST_H_
 
-#include <vector>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 #include "arch/instruction_set.h"
 #include "base/enums.h"

@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_BASE_ARENA_ALLOCATOR_H_
 #define ART_RUNTIME_BASE_ARENA_ALLOCATOR_H_
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "base/bit_utils.h"
 #include "base/dchecked_vector.h"

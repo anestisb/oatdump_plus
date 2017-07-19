@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "base/logging.h"
 #include "calling_convention_arm.h"
+
+#include "base/logging.h"
 #include "handle_scope-inl.h"
 #include "utils/arm/managed_register_arm.h"
 

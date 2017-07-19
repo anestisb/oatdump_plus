@@ -22,9 +22,9 @@
 
 #include <math.h>
 
+#include <atomic>
 #include <iostream>
 #include <sstream>
-#include <atomic>
 
 #include "android-base/stringprintf.h"
 

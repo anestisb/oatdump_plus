@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include "linker/arm64/relative_patcher_arm64.h"
+
 #include "base/casts.h"
 #include "linker/relative_patcher_test.h"
-#include "linker/arm64/relative_patcher_arm64.h"
 #include "lock_word.h"
 #include "mirror/array-inl.h"
 #include "mirror/object.h"

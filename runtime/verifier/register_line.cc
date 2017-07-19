@@ -20,8 +20,8 @@
 
 #include "dex_instruction-inl.h"
 #include "method_verifier-inl.h"
-#include "register_line-inl.h"
 #include "reg_type-inl.h"
+#include "register_line-inl.h"
 
 namespace art {
 namespace verifier {

@@ -18,12 +18,13 @@
 #ifndef ART_RUNTIME_FAULT_HANDLER_H_
 #define ART_RUNTIME_FAULT_HANDLER_H_
 
-#include <signal.h>
-#include <vector>
 #include <setjmp.h>
+#include <signal.h>
 #include <stdint.h>
 
-#include "base/mutex.h"   // For annotalysis.
+#include <vector>
+
+#include "base/mutex.h"  // For annotalysis.
 
 namespace art {
 

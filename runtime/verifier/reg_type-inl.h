@@ -21,8 +21,8 @@
 
 #include "base/casts.h"
 #include "base/scoped_arena_allocator.h"
-#include "mirror/class.h"
 #include "method_verifier.h"
+#include "mirror/class.h"
 #include "verifier_deps.h"
 
 namespace art {

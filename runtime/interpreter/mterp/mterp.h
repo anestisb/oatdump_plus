@@ -17,6 +17,9 @@
 #ifndef ART_RUNTIME_INTERPRETER_MTERP_MTERP_H_
 #define ART_RUNTIME_INTERPRETER_MTERP_MTERP_H_
 
+#include <cstddef>
+#include <cstdint>
+
 /*
  * Mterp assembly handler bases
  */
@@ -26,6 +29,9 @@ extern "C" void* artMterpAsmAltInstructionStart[];
 extern "C" void* artMterpAsmAltInstructionEnd[];
 
 namespace art {
+
+class Thread;
+
 namespace interpreter {
 
 void InitMterpTls(Thread* self);

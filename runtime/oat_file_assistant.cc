@@ -25,8 +25,8 @@
 
 #include "base/logging.h"
 #include "base/stl_util.h"
-#include "compiler_filter.h"
 #include "class_linker.h"
+#include "compiler_filter.h"
 #include "exec_utils.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
