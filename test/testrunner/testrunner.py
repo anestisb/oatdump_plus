@@ -50,7 +50,6 @@ import itertools
 import json
 import multiprocessing
 import os
-import operator
 import re
 import subprocess
 import sys
@@ -76,11 +75,9 @@ ADDRESS_SIZES = set()
 OPTIMIZING_COMPILER_TYPES = set()
 JVMTI_TYPES = set()
 ADDRESS_SIZES_TARGET = {'host': set(), 'target': set()}
-TIME_STATS = {}
 # timeout for individual tests.
 # TODO: make it adjustable per tests and for buildbots
 timeout = 3000 # 50 minutes
-global_timeout = 14100  # 235 minutes (The go/ab timeout is 14500)
 
 # DISABLED_TEST_CONTAINER holds information about the disabled tests. It is a map
 # that has key as the test name (like 001-HelloWorld), and value as set of
@@ -358,7 +355,7 @@ def run_tests(tests):
         # stops creating any any thread and wait for all the exising threads
         # to end.
         while threading.active_count() > 2:
-          time.sleep(1)
+          time.sleep(0.1)
           return
       test_name = 'test-art-'
       test_name += target + '-run-test-'
@@ -509,13 +506,11 @@ def run_test(command, test, test_variant, test_name):
       test_skipped = True
     else:
       test_skipped = False
-      start_recording_time(test_name)
       if gdb:
         proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, universal_newlines=True)
       else:
         proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, stdout = subprocess.PIPE,
                                 universal_newlines=True)
-      stop_recording_time(test_name)
       script_output = proc.communicate(timeout=timeout)[0]
       test_passed = not proc.wait()
 
@@ -734,7 +729,6 @@ def print_text(output):
   sys.stdout.flush()
 
 def print_analysis():
-  print_mutex.acquire()
   if not verbose:
     # Without --verbose, the testrunner erases passing test info. It
     # does that by overriding the printed text with white spaces all across
@@ -768,7 +762,6 @@ def print_analysis():
     print_text(COLOR_ERROR + '----------' + COLOR_NORMAL + '\n')
     for failed_test in sorted([test_info[0] for test_info in failed_tests]):
       print_text(('%s\n' % (failed_test)))
-  print_mutex.release()
 
 
 def parse_test_name(test_name):
@@ -997,33 +990,7 @@ def parse_option():
 
   return test
 
-def start_recording_time(key):
-  """To begin recording time for the event associated with the key.
-  """
-  TIME_STATS[key] = -(time.time())
-
-def stop_recording_time(key):
-  """To stop timer for the event associated with the key.
-  """
-  TIME_STATS[key] = time.time() + TIME_STATS[key]
-
-def print_time_info():
-  """Print time information for different invocation.
-  """
-  print_mutex.acquire()
-  print_text('\nTIME INFO\n')
-  for key in TIME_STATS:
-    # Handle unfinised jobs.
-    if TIME_STATS[key] < 0:
-      TIME_STATS[key] = time.time() + TIME_STATS[key]
-
-  info_list = sorted(TIME_STATS.items(), key=operator.itemgetter(1), reverse=True)
-  for time_info_tuple in info_list:
-    print_text('%s : %.2f sec\n' % (time_info_tuple[0], time_info_tuple[1]))
-  print_mutex.release()
-
 def main():
-  start_time = time.time()
   gather_test_info()
   user_requested_test = parse_option()
   setup_test_env()
@@ -1039,10 +1006,8 @@ def main():
     build_command += ' ' + build_targets
     # Add 'dist' to avoid Jack issues b/36169180.
     build_command += ' dist'
-    start_recording_time(build_command)
     if subprocess.call(build_command.split()):
       sys.exit(1)
-    stop_recording_time(build_command)
   if user_requested_test:
     test_runner_thread = threading.Thread(target=run_tests, args=(user_requested_test,))
   else:
@@ -1051,13 +1016,6 @@ def main():
   try:
     test_runner_thread.start()
     while threading.active_count() > 1:
-      if (time.time() - start_time > global_timeout):
-        # to ensure that the run ends before the go/ab bots
-        # time out the invocation.
-        print_text("FAILED: timeout reached")
-        print_time_info()
-        print_analysis()
-        sys.exit(1)
       time.sleep(0.1)
     print_analysis()
   except Exception as e:
