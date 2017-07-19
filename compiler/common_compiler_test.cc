@@ -207,8 +207,10 @@ void CommonCompilerTest::SetUpRuntimeOptions(RuntimeOptions* options) {
 
   compiler_options_.reset(new CompilerOptions);
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
-  callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
-                                              CompilerCallbacks::CallbackMode::kCompileApp));
+  QuickCompilerCallbacks* callbacks =
+      new QuickCompilerCallbacks(CompilerCallbacks::CallbackMode::kCompileApp);
+  callbacks->SetVerificationResults(verification_results_.get());
+  callbacks_.reset(callbacks);
 }
 
 Compiler::Kind CommonCompilerTest::GetCompilerKind() const {

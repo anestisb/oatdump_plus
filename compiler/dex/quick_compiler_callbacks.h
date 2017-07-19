@@ -26,11 +26,8 @@ class VerificationResults;
 
 class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
   public:
-    QuickCompilerCallbacks(VerificationResults* verification_results,
-                           CompilerCallbacks::CallbackMode mode)
-        : CompilerCallbacks(mode),
-          verification_results_(verification_results),
-          verifier_deps_(nullptr) {}
+    explicit QuickCompilerCallbacks(CompilerCallbacks::CallbackMode mode)
+        : CompilerCallbacks(mode) {}
 
     ~QuickCompilerCallbacks() { }
 
@@ -52,8 +49,12 @@ class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
       verifier_deps_.reset(deps);
     }
 
+    void SetVerificationResults(VerificationResults* verification_results) {
+      verification_results_ = verification_results;
+    }
+
   private:
-    VerificationResults* const verification_results_;
+    VerificationResults* verification_results_ = nullptr;
     std::unique_ptr<verifier::VerifierDeps> verifier_deps_;
 };
 
