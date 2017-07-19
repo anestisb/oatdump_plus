@@ -45,7 +45,7 @@ ClassLoaderContext::ClassLoaderContext()
     : special_shared_library_(false),
       dex_files_open_attempted_(false),
       dex_files_open_result_(false),
-      owns_the_dex_files_(false) {}
+      owns_the_dex_files_(true) {}
 
 ClassLoaderContext::ClassLoaderContext(bool owns_the_dex_files)
     : special_shared_library_(false),
