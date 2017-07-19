@@ -70,7 +70,7 @@ RUNTIME_OPTIONS_KEY (bool,                UseTLAB,                        (kUseT
 RUNTIME_OPTIONS_KEY (bool,                EnableHSpaceCompactForOOM,      true)
 RUNTIME_OPTIONS_KEY (bool,                UseJitCompilation,              false)
 RUNTIME_OPTIONS_KEY (bool,                DumpNativeStackOnSigQuit,       true)
-RUNTIME_OPTIONS_KEY (unsigned int,        JITCompileThreshold,            jit::Jit::kDefaultCompileThreshold)
+RUNTIME_OPTIONS_KEY (unsigned int,        JITCompileThreshold)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITWarmupThreshold)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITOsrThreshold)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITPriorityThreadWeight)
