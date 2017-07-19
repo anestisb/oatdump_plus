@@ -233,8 +233,27 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
     for (int i = kLockLevelCount - 1; i >= 0; --i) {
       if (i != level_) {
         BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
-        // We expect waits to happen while holding the thread list suspend thread lock.
-        if (held_mutex != nullptr) {
+        // We allow the thread to wait even if the user_code_suspension_lock_ is held so long as we
+        // are some thread's resume_cond_ (level_ == kThreadSuspendCountLock). This just means that
+        // gc or some other internal process is suspending the thread while it is trying to suspend
+        // some other thread. So long as the current thread is not being suspended by a
+        // SuspendReason::kForUserCode (which needs the user_code_suspension_lock_ to clear) this is
+        // fine.
+        if (held_mutex == Locks::user_code_suspension_lock_ && level_ == kThreadSuspendCountLock) {
+          // No thread safety analysis is fine since we have both the user_code_suspension_lock_
+          // from the line above and the ThreadSuspendCountLock since it is our level_. We use this
+          // lambda to avoid having to annotate the whole function as NO_THREAD_SAFETY_ANALYSIS.
+          auto is_suspending_for_user_code = [self]() NO_THREAD_SAFETY_ANALYSIS {
+            return self->GetUserCodeSuspendCount() != 0;
+          };
+          if (is_suspending_for_user_code()) {
+            LOG(ERROR) << "Holding \"" << held_mutex->name_ << "\" "
+                      << "(level " << LockLevel(i) << ") while performing wait on "
+                      << "\"" << name_ << "\" (level " << level_ << ") "
+                      << "with SuspendReason::kForUserCode pending suspensions";
+            bad_mutexes_held = true;
+          }
+        } else if (held_mutex != nullptr) {
           LOG(ERROR) << "Holding \"" << held_mutex->name_ << "\" "
                      << "(level " << LockLevel(i) << ") while performing wait on "
                      << "\"" << name_ << "\" (level " << level_ << ")";
@@ -243,7 +262,7 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
       }
     }
     if (gAborting == 0) {  // Avoid recursive aborts.
-      CHECK(!bad_mutexes_held);
+      CHECK(!bad_mutexes_held) << this;
     }
   }
 }
