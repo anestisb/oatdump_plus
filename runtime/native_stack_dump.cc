@@ -337,7 +337,7 @@ void DumpNativeStack(std::ostream& os,
     } else {
       os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIxPTR "  "
                                                             : "%08" PRIxPTR "  ",
-                         BacktraceMap::GetRelativePc(it->map, it->pc));
+                         it->rel_pc);
       os << it->map.name;
       os << " (";
       if (!it->func_name.empty()) {
