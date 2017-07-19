@@ -134,7 +134,7 @@ static jobjectArray VMClassLoader_getBootClassPathEntries(JNIEnv* env, jclass) {
   for (size_t i = 0; i < path.size(); ++i) {
     const DexFile* dex_file = path[i];
 
-    // For multidex locations, e.g., x.jar:classes2.dex, we want to look into x.jar.
+    // For multidex locations, e.g., x.jar!classes2.dex, we want to look into x.jar.
     const std::string& location(dex_file->GetBaseLocation());
 
     ScopedLocalRef<jstring> javaPath(env, env->NewStringUTF(location.c_str()));

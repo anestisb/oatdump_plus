@@ -45,13 +45,13 @@ TEST_F(OatFileTest, ResolveRelativeEncodedDexLocation) {
       OatFile::ResolveRelativeEncodedDexLocation(
         "/data/app/foo/base.apk", "foo/base.apk"));
 
-  EXPECT_EQ(std::string("/data/app/foo/base.apk:classes2.dex"),
+  EXPECT_EQ(std::string("/data/app/foo/base.apk!classes2.dex"),
       OatFile::ResolveRelativeEncodedDexLocation(
-        "/data/app/foo/base.apk", "base.apk:classes2.dex"));
+        "/data/app/foo/base.apk", "base.apk!classes2.dex"));
 
-  EXPECT_EQ(std::string("/data/app/foo/base.apk:classes11.dex"),
+  EXPECT_EQ(std::string("/data/app/foo/base.apk!classes11.dex"),
       OatFile::ResolveRelativeEncodedDexLocation(
-        "/data/app/foo/base.apk", "base.apk:classes11.dex"));
+        "/data/app/foo/base.apk", "base.apk!classes11.dex"));
 
   EXPECT_EQ(std::string("base.apk"),
       OatFile::ResolveRelativeEncodedDexLocation(

@@ -62,11 +62,11 @@ class DexFile {
   static const uint16_t kDexNoIndex16 = 0xFFFF;
 
   // The separator character in MultiDex locations.
-  static constexpr char kMultiDexSeparator = ':';
+  static constexpr char kMultiDexSeparator = '!';
 
   // A string version of the previous. This is a define so that we can merge string literals in the
   // preprocessor.
-  #define kMultiDexSeparatorString ":"
+  #define kMultiDexSeparatorString "!"
 
   // Raw header_item.
   struct Header {
@@ -499,7 +499,7 @@ class DexFile {
     return GetBaseLocation(location.c_str());
   }
 
-  // Returns the ':classes*.dex' part of the dex location. Returns an empty
+  // Returns the '!classes*.dex' part of the dex location. Returns an empty
   // string if there is no multidex suffix for the given location.
   // The kMultiDexSeparator is included in the returned suffix.
   static std::string GetMultiDexSuffix(const std::string& location) {
