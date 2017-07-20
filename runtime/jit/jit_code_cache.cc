@@ -744,6 +744,87 @@ static void ClearMethodCounter(ArtMethod* method, bool was_warm) {
   method->SetCounter(std::min(jit_warmup_threshold - 1, 1));
 }
 
+#ifdef __aarch64__
+
+static void FlushJitCodeCacheRange(uint8_t* code_ptr,
+                                   uint8_t* writable_ptr ATTRIBUTE_UNUSED,
+                                   size_t code_size) {
+  // Cache maintenance instructions can cause permission faults when a
+  // page is not present (e.g. swapped out or not backed). These
+  // faults should be handled by the kernel, but a bug in some Linux
+  // kernels may surface these permission faults to user-land which
+  // does not currently deal with them (b/63885946). To work around
+  // this, we read a value from each page to fault it in before
+  // attempting to perform cache maintenance operations.
+  //
+  // For reference, this behavior is caused by this commit:
+  // https://android.googlesource.com/kernel/msm/+/3fbe6bc28a6b9939d0650f2f17eb5216c719950c
+
+  // The cache-line size could be probed for from the CPU, but
+  // assuming a safe lower bound is safe for CPUs that have different
+  // cache-line sizes for big and little cores.
+  static const uintptr_t kSafeCacheLineSize = 32;
+
+  // Ensure stores are present in data cache.
+  __asm __volatile("dsb sy");
+
+  uintptr_t addr = RoundDown(reinterpret_cast<uintptr_t>(code_ptr), kSafeCacheLineSize);
+  const uintptr_t limit_addr = RoundUp(reinterpret_cast<uintptr_t>(code_ptr) + code_size,
+                                       kSafeCacheLineSize);
+  volatile uint8_t mutant;
+  while (addr < limit_addr) {
+    // Read from the cache-line to minimize the chance that a cache
+    // maintenance instruction causes a fault (see kernel bug comment
+    // above).
+    mutant = *reinterpret_cast<const uint8_t*>(addr);
+
+    // Invalidating the data cache line is only strictly necessary
+    // when the JIT code cache has two mappings (the default). We know
+    // this cache line is clean so this is just invalidating it (using
+    // "dc ivac" would be preferable, but is privileged).
+    __asm volatile("dc cvau, %0" :: "r"(addr));
+
+    // Invalidate the instruction cache line to force instructions in
+    // range to be re-fetched following update.
+    __asm volatile("ic ivau, %0" :: "r"(addr));
+
+    addr += kSafeCacheLineSize;
+  }
+
+  // Drain data and instruction buffers.
+  __asm __volatile("dsb sy");
+  __asm __volatile("isb sy");
+}
+
+#else  // __aarch64
+
+static void FlushJitCodeCacheRange(uint8_t* code_ptr,
+                                   uint8_t* writable_ptr,
+                                   size_t code_size) {
+  if (writable_ptr != code_ptr) {
+    // When there are two mappings of the JIT code cache, RX and
+    // RW, flush the RW version first as we've just dirtied the
+    // cache lines with new code. Flushing the RX version first
+    // can cause a permission fault as the those addresses are not
+    // writable, but can appear dirty in the cache. There is a lot
+    // of potential subtlety here depending on how the cache is
+    // indexed and tagged.
+    //
+    // Flushing the RX version after the RW version is just
+    // invalidating cachelines in the instruction cache. This is
+    // necessary as the instruction cache will often have a
+    // different set of cache lines present and because the JIT
+    // code cache can start a new function at any boundary within
+    // a cache-line.
+    FlushDataCache(reinterpret_cast<char*>(writable_ptr),
+                   reinterpret_cast<char*>(writable_ptr + code_size));
+  }
+  FlushInstructionCache(reinterpret_cast<char*>(code_ptr),
+                        reinterpret_cast<char*>(code_ptr + code_size));
+}
+
+#endif  // __aarch64
+
 uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
                                           ArtMethod* method,
                                           uint8_t* stack_map,
@@ -795,33 +876,8 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
           core_spill_mask,
           fp_spill_mask,
           code_size);
-      // Flush caches before we remove write permission because some ARMv8 Qualcomm kernels may
-      // trigger a segfault if a page fault occurs when requesting a cache maintenance operation.
-      // This is a kernel bug that we need to work around until affected devices (e.g. Nexus 5X and
-      // 6P) stop being supported or their kernels are fixed.
-      //
-      // For reference, this behavior is caused by this commit:
-      // https://android.googlesource.com/kernel/msm/+/3fbe6bc28a6b9939d0650f2f17eb5216c719950c
-      if (writable_ptr != code_ptr) {
-        // When there are two mappings of the JIT code cache, RX and
-        // RW, flush the RW version first as we've just dirtied the
-        // cache lines with new code. Flushing the RX version first
-        // can cause a permission fault as the those addresses are not
-        // writable, but can appear dirty in the cache. There is a lot
-        // of potential subtlety here depending on how the cache is
-        // indexed and tagged.
-        //
-        // Flushing the RX version after the RW version is just
-        // invalidating cachelines in the instruction cache. This is
-        // necessary as the instruction cache will often have a
-        // different set of cache lines present and because the JIT
-        // code cache can start a new function at any boundary within
-        // a cache-line.
-        FlushDataCache(reinterpret_cast<char*>(writable_ptr),
-                       reinterpret_cast<char*>(writable_ptr + code_size));
-      }
-      FlushInstructionCache(reinterpret_cast<char*>(code_ptr),
-                            reinterpret_cast<char*>(code_ptr + code_size));
+
+      FlushJitCodeCacheRange(code_ptr, writable_ptr, code_size);
 
       DCHECK(!Runtime::Current()->IsAotCompiler());
       if (has_should_deoptimize_flag) {
