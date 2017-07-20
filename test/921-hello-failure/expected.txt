@@ -53,3 +53,6 @@ hello there again - FieldChange
 hello - Unmodifiable
 Transformation error : java.lang.Exception(Failed to redefine class <[LTransform;> due to JVMTI_ERROR_UNMODIFIABLE_CLASS)
 hello - Unmodifiable
+hello - Undefault
+Transformation error : java.lang.Exception(Failed to redefine class <LTransform5;> due to JVMTI_ERROR_UNSUPPORTED_REDEFINITION_METHOD_ADDED)
+hello - Undefault
