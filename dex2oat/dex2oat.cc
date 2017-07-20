@@ -1520,12 +1520,11 @@ class Dex2Oat FINAL {
       return dex2oat::ReturnCode::kOther;
     }
 
-    if (CompilerFilter::IsAnyCompilationEnabled(compiler_options_->GetCompilerFilter())) {
-      // Only modes with compilation require verification results.
-      verification_results_.reset(new VerificationResults(compiler_options_.get()));
-    }
+    // Verification results are null since we don't know if we will need them yet as the compler
+    // filter may change.
+    // This needs to be done before PrepareRuntimeOptions since the callbacks are passed to the
+    // runtime.
     callbacks_.reset(new QuickCompilerCallbacks(
-        verification_results_.get(),
         IsBootImage() ?
             CompilerCallbacks::CallbackMode::kCompileBootImage :
             CompilerCallbacks::CallbackMode::kCompileApp));
@@ -1662,6 +1661,28 @@ class Dex2Oat FINAL {
 
     dex_files_ = MakeNonOwningPointerVector(opened_dex_files_);
 
+    // If we need to downgrade the compiler-filter for size reasons.
+    if (!IsBootImage() && IsVeryLarge(dex_files_)) {
+      if (!CompilerFilter::IsAsGoodAs(kLargeAppFilter, compiler_options_->GetCompilerFilter())) {
+        LOG(INFO) << "Very large app, downgrading to verify.";
+        // Note: this change won't be reflected in the key-value store, as that had to be
+        //       finalized before loading the dex files. This setup is currently required
+        //       to get the size from the DexFile objects.
+        // TODO: refactor. b/29790079
+        compiler_options_->SetCompilerFilter(kLargeAppFilter);
+      }
+    }
+
+    if (CompilerFilter::IsAnyCompilationEnabled(compiler_options_->GetCompilerFilter())) {
+      // Only modes with compilation require verification results, do this here instead of when we
+      // create the compilation callbacks since the compilation mode may have been changed by the
+      // very large app logic.
+      // Avoiding setting the verification results saves RAM by not adding the dex files later in
+      // the function.
+      verification_results_.reset(new VerificationResults(compiler_options_.get()));
+      callbacks_->SetVerificationResults(verification_results_.get());
+    }
+
     // We had to postpone the swap decision till now, as this is the point when we actually
     // know about the dex files we're going to use.
 
@@ -1678,19 +1699,6 @@ class Dex2Oat FINAL {
       }
     }
     // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
-
-    // If we need to downgrade the compiler-filter for size reasons, do that check now.
-    if (!IsBootImage() && IsVeryLarge(dex_files_)) {
-      if (!CompilerFilter::IsAsGoodAs(kLargeAppFilter, compiler_options_->GetCompilerFilter())) {
-        LOG(INFO) << "Very large app, downgrading to verify.";
-        // Note: this change won't be reflected in the key-value store, as that had to be
-        //       finalized before loading the dex files. This setup is currently required
-        //       to get the size from the DexFile objects.
-        // TODO: refactor. b/29790079
-        compiler_options_->SetCompilerFilter(kLargeAppFilter);
-      }
-    }
-
     if (IsBootImage()) {
       // For boot image, pass opened dex files to the Runtime::Create().
       // Note: Runtime acquires ownership of these dex files.

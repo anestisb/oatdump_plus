@@ -104,8 +104,8 @@ class OatTest : public CommonCompilerTest {
       compiler_options_->ParseCompilerOption(option, Usage);
     }
     verification_results_.reset(new VerificationResults(compiler_options_.get()));
-    callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
-                                                CompilerCallbacks::CallbackMode::kCompileApp));
+    callbacks_.reset(new QuickCompilerCallbacks(CompilerCallbacks::CallbackMode::kCompileApp));
+    callbacks_->SetVerificationResults(verification_results_.get());
     Runtime::Current()->SetCompilerCallbacks(callbacks_.get());
     timer_.reset(new CumulativeLogger("Compilation times"));
     compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
