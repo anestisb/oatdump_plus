@@ -222,6 +222,11 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader,
   }
 }
 
+const RegType& RegTypeCache::MakeUnresolvedReference() {
+  // The descriptor is intentionally invalid so nothing else will match this type.
+  return AddEntry(new (&arena_) UnresolvedReferenceType(AddString("a"), entries_.size()));
+}
+
 const RegType* RegTypeCache::FindClass(mirror::Class* klass, bool precise) const {
   DCHECK(klass != nullptr);
   if (klass->IsPrimitive()) {

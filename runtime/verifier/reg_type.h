@@ -355,6 +355,10 @@ class RegType {
    * the perversion of Object being assignable to an interface type (note, however, that we don't
    * allow assignment of Object or Interface to any concrete class and are therefore type safe).
    *
+   * Note: This may return null in case of internal errors, e.g., OOME when a new class would have
+   *       to be created but there is no heap space. The exception will stay pending, and it is
+   *       the job of the caller to handle it.
+   *
    * [1] Java bytecode verification: algorithms and formalizations, Xavier Leroy
    */
   static mirror::Class* ClassJoin(mirror::Class* s, mirror::Class* t)

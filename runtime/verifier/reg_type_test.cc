@@ -22,6 +22,7 @@
 #include "base/casts.h"
 #include "base/scoped_arena_allocator.h"
 #include "common_runtime_test.h"
+#include "compiler_callbacks.h"
 #include "reg_type_cache-inl.h"
 #include "reg_type-inl.h"
 #include "scoped_thread_state_change-inl.h"
@@ -675,6 +676,110 @@ TEST_F(RegTypeTest, ConstPrecision) {
   EXPECT_TRUE(imprecise_const.IsImpreciseConstant());
   EXPECT_TRUE(precise_const.IsPreciseConstant());
   EXPECT_FALSE(imprecise_const.Equals(precise_const));
+}
+
+class RegTypeOOMTest : public RegTypeTest {
+ protected:
+  void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
+    // Use a smaller heap
+    for (std::pair<std::string, const void*>& pair : *options) {
+      if (pair.first.find("-Xmx") == 0) {
+        pair.first = "-Xmx4M";  // Smallest we can go.
+      }
+    }
+    options->push_back(std::make_pair("-Xint", nullptr));
+
+    // We must not appear to be a compiler, or we'll abort on the host.
+    callbacks_.reset();
+  }
+
+  static const size_t kMaxHandles = 1000000;  // Use arbitrary large amount for now.
+  static void FillHeap(Thread* self,
+                       ClassLinker* class_linker,
+                       std::unique_ptr<StackHandleScope<kMaxHandles>>* hsp,
+                       std::vector<MutableHandle<mirror::Object>>* handles)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    Runtime::Current()->GetHeap()->SetIdealFootprint(1 * GB);
+
+    hsp->reset(new StackHandleScope<kMaxHandles>(self));
+    // Class java.lang.Object.
+    Handle<mirror::Class> c((*hsp)->NewHandle(
+        class_linker->FindSystemClass(self, "Ljava/lang/Object;")));
+    // Array helps to fill memory faster.
+    Handle<mirror::Class> ca((*hsp)->NewHandle(
+        class_linker->FindSystemClass(self, "[Ljava/lang/Object;")));
+
+    // Start allocating with 128K
+    size_t length = 128 * KB / 4;
+    while (length > 10) {
+      MutableHandle<mirror::Object> h((*hsp)->NewHandle<mirror::Object>(
+          mirror::ObjectArray<mirror::Object>::Alloc(self, ca.Get(), length / 4)));
+      if (self->IsExceptionPending() || h == nullptr) {
+        self->ClearException();
+
+        // Try a smaller length
+        length = length / 8;
+        // Use at most half the reported free space.
+        size_t mem = Runtime::Current()->GetHeap()->GetFreeMemory();
+        if (length * 8 > mem) {
+          length = mem / 8;
+        }
+      } else {
+        handles->push_back(h);
+      }
+    }
+
+    // Allocate simple objects till it fails.
+    while (!self->IsExceptionPending()) {
+      MutableHandle<mirror::Object> h = (*hsp)->NewHandle<mirror::Object>(c->AllocObject(self));
+      if (!self->IsExceptionPending() && h != nullptr) {
+        handles->push_back(h);
+      }
+    }
+    self->ClearException();
+  }
+};
+
+TEST_F(RegTypeOOMTest, ClassJoinOOM) {
+  // Tests that we don't abort with OOMs.
+
+  ArenaStack stack(Runtime::Current()->GetArenaPool());
+  ScopedArenaAllocator allocator(&stack);
+  ScopedObjectAccess soa(Thread::Current());
+
+  // We cannot allow moving GC. Otherwise we'd have to ensure the reg types are updated (reference
+  // reg types store a class pointer in a GCRoot, which is normally updated through active verifiers
+  // being registered with their thread), which is unnecessarily complex.
+  Runtime::Current()->GetHeap()->IncrementDisableMovingGC(soa.Self());
+
+  // We merge nested array of primitive wrappers. These have a join type of an array of Number of
+  // the same depth. We start with depth five, as we want at least two newly created classes to
+  // test recursion (it's just more likely that nobody uses such deep arrays in runtime bringup).
+  constexpr const char* kIntArrayFive = "[[[[[Ljava/lang/Integer;";
+  constexpr const char* kFloatArrayFive = "[[[[[Ljava/lang/Float;";
+  constexpr const char* kNumberArrayFour = "[[[[Ljava/lang/Number;";
+  constexpr const char* kNumberArrayFive = "[[[[[Ljava/lang/Number;";
+
+  RegTypeCache cache(true, allocator);
+  const RegType& int_array_array = cache.From(nullptr, kIntArrayFive, false);
+  ASSERT_TRUE(int_array_array.HasClass());
+  const RegType& float_array_array = cache.From(nullptr, kFloatArrayFive, false);
+  ASSERT_TRUE(float_array_array.HasClass());
+
+  // Check assumptions: the joined classes don't exist, yet.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  ASSERT_TRUE(class_linker->LookupClass(soa.Self(), kNumberArrayFour, nullptr) == nullptr);
+  ASSERT_TRUE(class_linker->LookupClass(soa.Self(), kNumberArrayFive, nullptr) == nullptr);
+
+  // Fill the heap.
+  std::unique_ptr<StackHandleScope<kMaxHandles>> hsp;
+  std::vector<MutableHandle<mirror::Object>> handles;
+  FillHeap(soa.Self(), class_linker, &hsp, &handles);
+
+  const RegType& join_type = int_array_array.Merge(float_array_array, &cache, nullptr);
+  ASSERT_TRUE(join_type.IsUnresolvedReference());
+
+  Runtime::Current()->GetHeap()->DecrementDisableMovingGC(soa.Self());
 }
 
 }  // namespace verifier

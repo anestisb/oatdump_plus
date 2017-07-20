@@ -97,6 +97,10 @@ class RegTypeCache {
       REQUIRES_SHARED(Locks::mutator_lock_);
   const RegType& FromUnresolvedSuperClass(const RegType& child)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Note: this should not be used outside of RegType::ClassJoin!
+  const RegType& MakeUnresolvedReference() REQUIRES_SHARED(Locks::mutator_lock_);
+
   const ConstantType& Zero() REQUIRES_SHARED(Locks::mutator_lock_) {
     return FromCat1Const(0, true);
   }
