@@ -29,12 +29,11 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
  public:
   // Process a CPU variant string like "atom" or "nehalem" and create InstructionSetFeatures.
   static X86FeaturesUniquePtr FromVariant(const std::string& variant,
-                                                                      std::string* error_msg,
-                                                                      bool x86_64 = false);
+                                          std::string* error_msg,
+                                          bool x86_64 = false);
 
   // Parse a bitmap and create an InstructionSetFeatures.
-  static X86FeaturesUniquePtr FromBitmap(uint32_t bitmap,
-                                                                     bool x86_64 = false);
+  static X86FeaturesUniquePtr FromBitmap(uint32_t bitmap, bool x86_64 = false);
 
   // Turn C pre-processor #defines into the equivalent instruction set features.
   static X86FeaturesUniquePtr FromCppDefines(bool x86_64 = false);
@@ -51,6 +50,8 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
   static X86FeaturesUniquePtr FromAssembly(bool x86_64 = false);
 
   bool Equals(const InstructionSetFeatures* other) const OVERRIDE;
+
+  bool HasAtLeast(const InstructionSetFeatures* other) const OVERRIDE;
 
   virtual InstructionSet GetInstructionSet() const OVERRIDE {
     return kX86;

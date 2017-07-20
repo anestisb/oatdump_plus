@@ -279,10 +279,9 @@ bool ArmInstructionSetFeatures::HasAtLeast(const InstructionSetFeatures* other) 
     return false;
   }
   const ArmInstructionSetFeatures* other_as_arm = other->AsArmInstructionSetFeatures();
-
-  return (has_div_ || (has_div_ == other_as_arm->has_div_))
-      && (has_atomic_ldrd_strd_ || (has_atomic_ldrd_strd_ == other_as_arm->has_atomic_ldrd_strd_))
-      && (has_armv8a_ || (has_armv8a_ == other_as_arm->has_armv8a_));
+  return (has_div_ || !other_as_arm->has_div_)
+      && (has_atomic_ldrd_strd_ || !other_as_arm->has_atomic_ldrd_strd_)
+      && (has_armv8a_ || !other_as_arm->has_armv8a_);
 }
 
 uint32_t ArmInstructionSetFeatures::AsBitmap() const {
