@@ -29,8 +29,6 @@ using helpers::HasShifterOperand;
 
 namespace arm {
 
-using helpers::ShifterOperandSupportsExtension;
-
 bool InstructionSimplifierArmVisitor::TryMergeIntoShifterOperand(HInstruction* use,
                                                                  HInstruction* bitfield_op,
                                                                  bool do_merge) {
@@ -76,7 +74,7 @@ bool InstructionSimplifierArmVisitor::TryMergeIntoShifterOperand(HInstruction* u
       : kMaxLongShiftDistance;
 
   if (HDataProcWithShifterOp::IsExtensionOp(op_kind)) {
-    if (!ShifterOperandSupportsExtension(use)) {
+    if (!use->IsAdd() && (!use->IsSub() || use->GetType() != Primitive::kPrimLong)) {
       return false;
     }
   // Shift by 1 is a special case that results in the same number and type of instructions
