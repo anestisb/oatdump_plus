@@ -278,7 +278,7 @@ if [ "$JIT_PROFILE" = "yes" ]; then
           -Xps-profile-path:$PROFILE_PATH      \
           -Xusejit:true                        \
           "${ARGS_WITH_QUICKEN[@]}"            \
-          "&>" "$ANDROID_DATA/profile_gen.log"
+          &> "$ANDROID_DATA/profile_gen.log"
   EXIT_STATUS=$?
 
   if [ $EXIT_STATUS != 0 ]; then
