@@ -563,6 +563,7 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Bnezc(GpuRegister rs, uint32_t imm21);
   void Bc1eqz(FpuRegister ft, uint16_t imm16);
   void Bc1nez(FpuRegister ft, uint16_t imm16);
+  void Beqz(GpuRegister rt, uint16_t imm16);
 
   void AddS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
   void SubS(FpuRegister fd, FpuRegister fs, FpuRegister ft);

@@ -24,4 +24,24 @@
 #define FRAME_SIZE_SAVE_REFS_AND_ARGS 112
 #define FRAME_SIZE_SAVE_EVERYTHING 256
 
+// &art_quick_read_barrier_mark_introspection is the first of many entry points:
+//   21 entry points for long field offsets, large array indices and variable array indices
+//     (see macro BRB_FIELD_LONG_OFFSET_ENTRY)
+//   21 entry points for short field offsets and small array indices
+//     (see macro BRB_FIELD_SHORT_OFFSET_ENTRY)
+//   21 entry points for GC roots
+//     (see macro BRB_GC_ROOT_ENTRY)
+
+// There are as many entry points of each kind as there are registers that
+// can hold a reference: V0-V1, A0-A3, T0-T7, S2-S8.
+#define BAKER_MARK_INTROSPECTION_REGISTER_COUNT 21
+
+#define BAKER_MARK_INTROSPECTION_FIELD_ARRAY_ENTRY_SIZE (8 * 4)  // 8 instructions in
+                                                                 // BRB_FIELD_*_OFFSET_ENTRY.
+
+#define BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRIES_OFFSET \
+    (2 * BAKER_MARK_INTROSPECTION_REGISTER_COUNT * BAKER_MARK_INTROSPECTION_FIELD_ARRAY_ENTRY_SIZE)
+
+#define BAKER_MARK_INTROSPECTION_GC_ROOT_ENTRY_SIZE (4 * 4)  // 4 instructions in BRB_GC_ROOT_ENTRY.
+
 #endif  // ART_RUNTIME_ARCH_MIPS_ASM_SUPPORT_MIPS_H_

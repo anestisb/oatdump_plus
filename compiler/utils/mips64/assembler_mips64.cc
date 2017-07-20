@@ -795,6 +795,10 @@ void Mips64Assembler::Bc1nez(FpuRegister ft, uint16_t imm16) {
   EmitFI(0x11, 0xD, ft, imm16);
 }
 
+void Mips64Assembler::Beqz(GpuRegister rt, uint16_t imm16) {
+  EmitI(0x4, ZERO, rt, imm16);
+}
+
 void Mips64Assembler::EmitBcondc(BranchCondition cond,
                                  GpuRegister rs,
                                  GpuRegister rt,

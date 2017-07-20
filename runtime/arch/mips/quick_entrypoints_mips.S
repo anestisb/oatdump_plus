@@ -2721,6 +2721,385 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg22, $s7
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, $s8
 // RA (register 31) is reserved.
 
+// Caller code:
+// Short constant offset/index:
+// R2:                           | R6:
+//  lw      $t9, pReadBarrierMarkReg00
+//  beqz    $t9, skip_call       |  beqzc   $t9, skip_call
+//  addiu   $t9, $t9, thunk_disp |  nop
+//  jalr    $t9                  |  jialc   $t9, thunk_disp
+//  nop                          |
+// skip_call:                    | skip_call:
+//  lw      `out`, ofs(`obj`)    |  lw      `out`, ofs(`obj`)
+// [subu    `out`, $zero, `out`] | [subu    `out`, $zero, `out`]  # Unpoison reference.
+.macro BRB_FIELD_SHORT_OFFSET_ENTRY obj
+1:
+    # Explicit null check. May be redundant (for array elements or when the field
+    # offset is larger than the page size, 4KB).
+    # $ra will be adjusted to point to lw's stack map when throwing NPE.
+    beqz    \obj, .Lintrospection_throw_npe
+#if defined(_MIPS_ARCH_MIPS32R6)
+    lapc    $gp, .Lintrospection_exits                  # $gp = address of .Lintrospection_exits.
+#else
+    addiu   $gp, $t9, (.Lintrospection_exits - 1b)      # $gp = address of .Lintrospection_exits.
+#endif
+    .set push
+    .set noat
+    lw      $at, MIRROR_OBJECT_LOCK_WORD_OFFSET(\obj)
+    sll     $at, $at, 31 - LOCK_WORD_READ_BARRIER_STATE_SHIFT   # Move barrier state bit
+                                                                # to sign bit.
+    bltz    $at, .Lintrospection_field_array            # If gray, load reference, mark.
+    move    $t8, \obj                                   # Move `obj` to $t8 for common code.
+    .set pop
+    jalr    $zero, $ra                                  # Otherwise, load-load barrier and return.
+    sync
+.endm
+
+// Caller code (R2):
+// Long constant offset/index:   | Variable index:
+//  lw      $t9, pReadBarrierMarkReg00
+//  lui     $t8, ofs_hi          |  sll     $t8, `index`, 2
+//  beqz    $t9, skip_call       |  beqz    $t9, skip_call
+//  addiu   $t9, $t9, thunk_disp |  addiu   $t9, $t9, thunk_disp
+//  jalr    $t9                  |  jalr    $t9
+// skip_call:                    | skip_call:
+//  addu    $t8, $t8, `obj`      |  addu    $t8, $t8, `obj`
+//  lw      `out`, ofs_lo($t8)   |  lw      `out`, ofs($t8)
+// [subu    `out`, $zero, `out`] | [subu    `out`, $zero, `out`]  # Unpoison reference.
+//
+// Caller code (R6):
+// Long constant offset/index:   | Variable index:
+//  lw      $t9, pReadBarrierMarkReg00
+//  beqz    $t9, skip_call       |  beqz    $t9, skip_call
+//  aui     $t8, `obj`, ofs_hi   |  lsa     $t8, `index`, `obj`, 2
+//  jialc   $t9, thunk_disp      |  jialc   $t9, thunk_disp
+// skip_call:                    | skip_call:
+//  lw      `out`, ofs_lo($t8)   |  lw      `out`, ofs($t8)
+// [subu    `out`, $zero, `out`] | [subu    `out`, $zero, `out`]  # Unpoison reference.
+.macro BRB_FIELD_LONG_OFFSET_ENTRY obj
+1:
+    # No explicit null check for variable indices or large constant indices/offsets
+    # as it must have been done earlier.
+#if defined(_MIPS_ARCH_MIPS32R6)
+    lapc    $gp, .Lintrospection_exits                  # $gp = address of .Lintrospection_exits.
+#else
+    addiu   $gp, $t9, (.Lintrospection_exits - 1b)      # $gp = address of .Lintrospection_exits.
+#endif
+    .set push
+    .set noat
+    lw      $at, MIRROR_OBJECT_LOCK_WORD_OFFSET(\obj)
+    sll     $at, $at, 31 - LOCK_WORD_READ_BARRIER_STATE_SHIFT   # Move barrier state bit
+                                                                # to sign bit.
+    bltz    $at, .Lintrospection_field_array            # If gray, load reference, mark.
+    nop
+    .set pop
+    jalr    $zero, $ra                                  # Otherwise, load-load barrier and return.
+    sync
+    break                                               # Padding to 8 instructions.
+.endm
+
+.macro BRB_GC_ROOT_ENTRY root
+1:
+#if defined(_MIPS_ARCH_MIPS32R6)
+    lapc    $gp, .Lintrospection_exit_\root             # $gp = exit point address.
+#else
+    addiu   $gp, $t9, (.Lintrospection_exit_\root - 1b)  # $gp = exit point address.
+#endif
+    bnez    \root, .Lintrospection_common
+    move    $t8, \root                                  # Move reference to $t8 for common code.
+    jalr    $zero, $ra                                  # Return if null.
+    # The next instruction (from the following BRB_GC_ROOT_ENTRY) fills the delay slot.
+    # This instruction has no effect (actual NOP for the last entry; otherwise changes $gp,
+    # which is unused after that anyway).
+.endm
+
+.macro BRB_FIELD_EXIT out
+.Lintrospection_exit_\out:
+    jalr    $zero, $ra
+    move    \out, $t8                                   # Return reference in expected register.
+.endm
+
+.macro BRB_FIELD_EXIT_BREAK
+    break
+    break
+.endm
+
+ENTRY_NO_GP art_quick_read_barrier_mark_introspection
+    # Entry points for offsets/indices not fitting into int16_t and for variable indices.
+    BRB_FIELD_LONG_OFFSET_ENTRY $v0
+    BRB_FIELD_LONG_OFFSET_ENTRY $v1
+    BRB_FIELD_LONG_OFFSET_ENTRY $a0
+    BRB_FIELD_LONG_OFFSET_ENTRY $a1
+    BRB_FIELD_LONG_OFFSET_ENTRY $a2
+    BRB_FIELD_LONG_OFFSET_ENTRY $a3
+    BRB_FIELD_LONG_OFFSET_ENTRY $t0
+    BRB_FIELD_LONG_OFFSET_ENTRY $t1
+    BRB_FIELD_LONG_OFFSET_ENTRY $t2
+    BRB_FIELD_LONG_OFFSET_ENTRY $t3
+    BRB_FIELD_LONG_OFFSET_ENTRY $t4
+    BRB_FIELD_LONG_OFFSET_ENTRY $t5
+    BRB_FIELD_LONG_OFFSET_ENTRY $t6
+    BRB_FIELD_LONG_OFFSET_ENTRY $t7
+    BRB_FIELD_LONG_OFFSET_ENTRY $s2
+    BRB_FIELD_LONG_OFFSET_ENTRY $s3
+    BRB_FIELD_LONG_OFFSET_ENTRY $s4
+    BRB_FIELD_LONG_OFFSET_ENTRY $s5
+    BRB_FIELD_LONG_OFFSET_ENTRY $s6
+    BRB_FIELD_LONG_OFFSET_ENTRY $s7
+    BRB_FIELD_LONG_OFFSET_ENTRY $s8
+
+    # Entry points for offsets/indices fitting into int16_t.
+    BRB_FIELD_SHORT_OFFSET_ENTRY $v0
+    BRB_FIELD_SHORT_OFFSET_ENTRY $v1
+    BRB_FIELD_SHORT_OFFSET_ENTRY $a0
+    BRB_FIELD_SHORT_OFFSET_ENTRY $a1
+    BRB_FIELD_SHORT_OFFSET_ENTRY $a2
+    BRB_FIELD_SHORT_OFFSET_ENTRY $a3
+    BRB_FIELD_SHORT_OFFSET_ENTRY $t0
+    BRB_FIELD_SHORT_OFFSET_ENTRY $t1
+    BRB_FIELD_SHORT_OFFSET_ENTRY $t2
+    BRB_FIELD_SHORT_OFFSET_ENTRY $t3
+    BRB_FIELD_SHORT_OFFSET_ENTRY $t4
+    BRB_FIELD_SHORT_OFFSET_ENTRY $t5
+    BRB_FIELD_SHORT_OFFSET_ENTRY $t6
+    BRB_FIELD_SHORT_OFFSET_ENTRY $t7
+    BRB_FIELD_SHORT_OFFSET_ENTRY $s2
+    BRB_FIELD_SHORT_OFFSET_ENTRY $s3
+    BRB_FIELD_SHORT_OFFSET_ENTRY $s4
+    BRB_FIELD_SHORT_OFFSET_ENTRY $s5
+    BRB_FIELD_SHORT_OFFSET_ENTRY $s6
+    BRB_FIELD_SHORT_OFFSET_ENTRY $s7
+    BRB_FIELD_SHORT_OFFSET_ENTRY $s8
+
+    .global art_quick_read_barrier_mark_introspection_gc_roots
+art_quick_read_barrier_mark_introspection_gc_roots:
+    # Entry points for GC roots.
+    BRB_GC_ROOT_ENTRY $v0
+    BRB_GC_ROOT_ENTRY $v1
+    BRB_GC_ROOT_ENTRY $a0
+    BRB_GC_ROOT_ENTRY $a1
+    BRB_GC_ROOT_ENTRY $a2
+    BRB_GC_ROOT_ENTRY $a3
+    BRB_GC_ROOT_ENTRY $t0
+    BRB_GC_ROOT_ENTRY $t1
+    BRB_GC_ROOT_ENTRY $t2
+    BRB_GC_ROOT_ENTRY $t3
+    BRB_GC_ROOT_ENTRY $t4
+    BRB_GC_ROOT_ENTRY $t5
+    BRB_GC_ROOT_ENTRY $t6
+    BRB_GC_ROOT_ENTRY $t7
+    BRB_GC_ROOT_ENTRY $s2
+    BRB_GC_ROOT_ENTRY $s3
+    BRB_GC_ROOT_ENTRY $s4
+    BRB_GC_ROOT_ENTRY $s5
+    BRB_GC_ROOT_ENTRY $s6
+    BRB_GC_ROOT_ENTRY $s7
+    BRB_GC_ROOT_ENTRY $s8
+    .global art_quick_read_barrier_mark_introspection_end_of_entries
+art_quick_read_barrier_mark_introspection_end_of_entries:
+    nop                         # Fill the delay slot of the last BRB_GC_ROOT_ENTRY.
+
+.Lintrospection_throw_npe:
+    b       art_quick_throw_null_pointer_exception
+    addiu   $ra, $ra, 4         # Skip lw, make $ra point to lw's stack map.
+
+    .set push
+    .set noat
+
+    // Fields and array elements.
+
+.Lintrospection_field_array:
+    // Get the field/element address using $t8 and the offset from the lw instruction.
+    lh      $at, 0($ra)         # $ra points to lw: $at = field/element offset.
+    addiu   $ra, $ra, 4 + HEAP_POISON_INSTR_SIZE  # Skip lw(+subu).
+    addu    $t8, $t8, $at       # $t8 = field/element address.
+
+    // Calculate the address of the exit point, store it in $gp and load the reference into $t8.
+    lb      $at, (-HEAP_POISON_INSTR_SIZE - 2)($ra)   # $ra-HEAP_POISON_INSTR_SIZE-4 points to
+                                                      # "lw `out`, ...".
+    andi    $at, $at, 31        # Extract `out` from lw.
+    sll     $at, $at, 3         # Multiply `out` by the exit point size (BRB_FIELD_EXIT* macros).
+
+    lw      $t8, 0($t8)         # $t8 = reference.
+    UNPOISON_HEAP_REF $t8
+
+    // Return if null reference.
+    bnez    $t8, .Lintrospection_common
+    addu    $gp, $gp, $at       # $gp = address of the exit point.
+
+    // Early return through the exit point.
+.Lintrospection_return_early:
+    jalr    $zero, $gp          # Move $t8 to `out` and return.
+    nop
+
+    // Code common for GC roots, fields and array elements.
+
+.Lintrospection_common:
+    // Check lock word for mark bit, if marked return.
+    lw      $t9, MIRROR_OBJECT_LOCK_WORD_OFFSET($t8)
+    sll     $at, $t9, 31 - LOCK_WORD_MARK_BIT_SHIFT     # Move mark bit to sign bit.
+    bltz    $at, .Lintrospection_return_early
+#if (LOCK_WORD_STATE_SHIFT != 30) || (LOCK_WORD_STATE_FORWARDING_ADDRESS != 3)
+    // The below code depends on the lock word state being in the highest bits
+    // and the "forwarding address" state having all bits set.
+#error "Unexpected lock word state shift or forwarding address state value."
+#endif
+    // Test that both the forwarding state bits are 1.
+    sll     $at, $t9, 1
+    and     $at, $at, $t9                               # Sign bit = 1 IFF both bits are 1.
+    bgez    $at, .Lintrospection_mark
+    nop
+
+    .set pop
+
+    // Shift left by the forwarding address shift. This clears out the state bits since they are
+    // in the top 2 bits of the lock word.
+    jalr    $zero, $gp          # Move $t8 to `out` and return.
+    sll     $t8, $t9, LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
+
+.Lintrospection_mark:
+    // Partially set up the stack frame preserving only $ra.
+    addiu   $sp, $sp, -160      # Includes 16 bytes of space for argument registers $a0-$a3.
+    .cfi_adjust_cfa_offset 160
+    sw      $ra, 156($sp)
+    .cfi_rel_offset 31, 156
+
+    // Set up $gp, clobbering $ra and using the branch delay slot for a useful instruction.
+    bal     1f
+    sw      $gp, 152($sp)       # Preserve the exit point address.
+1:
+    .cpload $ra
+
+    // Finalize the stack frame and call.
+    sw      $t7, 148($sp)
+    .cfi_rel_offset 15, 148
+    sw      $t6, 144($sp)
+    .cfi_rel_offset 14, 144
+    sw      $t5, 140($sp)
+    .cfi_rel_offset 13, 140
+    sw      $t4, 136($sp)
+    .cfi_rel_offset 12, 136
+    sw      $t3, 132($sp)
+    .cfi_rel_offset 11, 132
+    sw      $t2, 128($sp)
+    .cfi_rel_offset 10, 128
+    sw      $t1, 124($sp)
+    .cfi_rel_offset 9, 124
+    sw      $t0, 120($sp)
+    .cfi_rel_offset 8, 120
+    sw      $a3, 116($sp)
+    .cfi_rel_offset 7, 116
+    sw      $a2, 112($sp)
+    .cfi_rel_offset 6, 112
+    sw      $a1, 108($sp)
+    .cfi_rel_offset 5, 108
+    sw      $a0, 104($sp)
+    .cfi_rel_offset 4, 104
+    sw      $v1, 100($sp)
+    .cfi_rel_offset 3, 100
+    sw      $v0, 96($sp)
+    .cfi_rel_offset 2, 96
+
+    la      $t9, artReadBarrierMark
+
+    sdc1    $f18, 88($sp)
+    sdc1    $f16, 80($sp)
+    sdc1    $f14, 72($sp)
+    sdc1    $f12, 64($sp)
+    sdc1    $f10, 56($sp)
+    sdc1    $f8,  48($sp)
+    sdc1    $f6,  40($sp)
+    sdc1    $f4,  32($sp)
+    sdc1    $f2,  24($sp)
+    sdc1    $f0,  16($sp)
+
+    jalr    $t9                 # $v0 <- artReadBarrierMark(reference)
+    move    $a0, $t8            # Pass reference in $a0.
+    move    $t8, $v0
+
+    lw      $ra, 156($sp)
+    .cfi_restore 31
+    lw      $gp, 152($sp)       # $gp = address of the exit point.
+    lw      $t7, 148($sp)
+    .cfi_restore 15
+    lw      $t6, 144($sp)
+    .cfi_restore 14
+    lw      $t5, 140($sp)
+    .cfi_restore 13
+    lw      $t4, 136($sp)
+    .cfi_restore 12
+    lw      $t3, 132($sp)
+    .cfi_restore 11
+    lw      $t2, 128($sp)
+    .cfi_restore 10
+    lw      $t1, 124($sp)
+    .cfi_restore 9
+    lw      $t0, 120($sp)
+    .cfi_restore 8
+    lw      $a3, 116($sp)
+    .cfi_restore 7
+    lw      $a2, 112($sp)
+    .cfi_restore 6
+    lw      $a1, 108($sp)
+    .cfi_restore 5
+    lw      $a0, 104($sp)
+    .cfi_restore 4
+    lw      $v1, 100($sp)
+    .cfi_restore 3
+    lw      $v0, 96($sp)
+    .cfi_restore 2
+
+    ldc1    $f18, 88($sp)
+    ldc1    $f16, 80($sp)
+    ldc1    $f14, 72($sp)
+    ldc1    $f12, 64($sp)
+    ldc1    $f10, 56($sp)
+    ldc1    $f8,  48($sp)
+    ldc1    $f6,  40($sp)
+    ldc1    $f4,  32($sp)
+    ldc1    $f2,  24($sp)
+    ldc1    $f0,  16($sp)
+
+    // Return through the exit point.
+    jalr    $zero, $gp          # Move $t8 to `out` and return.
+    addiu   $sp, $sp, 160
+    .cfi_adjust_cfa_offset -160
+
+.Lintrospection_exits:
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT $v0
+    BRB_FIELD_EXIT $v1
+    BRB_FIELD_EXIT $a0
+    BRB_FIELD_EXIT $a1
+    BRB_FIELD_EXIT $a2
+    BRB_FIELD_EXIT $a3
+    BRB_FIELD_EXIT $t0
+    BRB_FIELD_EXIT $t1
+    BRB_FIELD_EXIT $t2
+    BRB_FIELD_EXIT $t3
+    BRB_FIELD_EXIT $t4
+    BRB_FIELD_EXIT $t5
+    BRB_FIELD_EXIT $t6
+    BRB_FIELD_EXIT $t7
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT $s2
+    BRB_FIELD_EXIT $s3
+    BRB_FIELD_EXIT $s4
+    BRB_FIELD_EXIT $s5
+    BRB_FIELD_EXIT $s6
+    BRB_FIELD_EXIT $s7
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT_BREAK
+    BRB_FIELD_EXIT $s8
+    BRB_FIELD_EXIT_BREAK
+END art_quick_read_barrier_mark_introspection
+
 .extern artInvokePolymorphic
 ENTRY art_quick_invoke_polymorphic
     SETUP_SAVE_REFS_AND_ARGS_FRAME
