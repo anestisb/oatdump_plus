@@ -210,12 +210,6 @@ void InstructionSimplifierArm64Visitor::VisitXor(HXor* instruction) {
   }
 }
 
-void InstructionSimplifierArm64Visitor::VisitVecMul(HVecMul* instruction) {
-  if (TryCombineVecMultiplyAccumulate(instruction, kArm64)) {
-    RecordSimplification();
-  }
-}
-
 void InstructionSimplifierArm64Visitor::VisitVecLoad(HVecLoad* instruction) {
   if (!instruction->IsStringCharAt()
       && TryExtractVecArrayAccessAddress(instruction, instruction->GetIndex())) {
