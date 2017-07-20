@@ -56,8 +56,8 @@ static mirror::Object* CreateWeakReference(mirror::Object* referent)
       h_ref_class->AllocObject(self)));
   CHECK(h_ref_instance != nullptr);
 
-  ArtMethod* constructor = h_ref_class->FindDeclaredDirectMethod(
-      "<init>", "(Ljava/lang/Object;)V", class_linker->GetImagePointerSize());
+  ArtMethod* constructor = h_ref_class->FindConstructor(
+      "(Ljava/lang/Object;)V", class_linker->GetImagePointerSize());
   CHECK(constructor != nullptr);
 
   uint32_t args[2];

@@ -67,9 +67,10 @@ ArtMethod* ArtMethod::GetCanonicalMethod(PointerSize pointer_size) {
     return this;
   } else {
     mirror::Class* declaring_class = GetDeclaringClass();
-    ArtMethod* ret = declaring_class->FindDeclaredVirtualMethod(declaring_class->GetDexCache(),
-                                                                GetDexMethodIndex(),
-                                                                pointer_size);
+    DCHECK(declaring_class->IsInterface());
+    ArtMethod* ret = declaring_class->FindInterfaceMethod(declaring_class->GetDexCache(),
+                                                          GetDexMethodIndex(),
+                                                          pointer_size);
     DCHECK(ret != nullptr);
     return ret;
   }

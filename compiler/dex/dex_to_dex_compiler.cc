@@ -291,13 +291,14 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
   ScopedObjectAccess soa(Thread::Current());
 
   ClassLinker* class_linker = unit_.GetClassLinker();
-  ArtMethod* resolved_method = class_linker->ResolveMethod<ClassLinker::kForceICCECheck>(
-      GetDexFile(),
-      method_idx,
-      unit_.GetDexCache(),
-      unit_.GetClassLoader(),
-      /* referrer */ nullptr,
-      kVirtual);
+  ArtMethod* resolved_method =
+      class_linker->ResolveMethod<ClassLinker::ResolveMode::kCheckICCEAndIAE>(
+          GetDexFile(),
+          method_idx,
+          unit_.GetDexCache(),
+          unit_.GetClassLoader(),
+          /* referrer */ nullptr,
+          kVirtual);
 
   if (UNLIKELY(resolved_method == nullptr)) {
     // Clean up any exception left by type resolution.

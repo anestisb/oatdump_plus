@@ -533,7 +533,11 @@ inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method,
                                                        PointerSize pointer_size) {
   ObjPtr<Class> declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class != nullptr) << PrettyClass();
-  DCHECK(declaring_class->IsInterface()) << method->PrettyMethod();
+  if (UNLIKELY(!declaring_class->IsInterface())) {
+    DCHECK(declaring_class->IsObjectClass()) << method->PrettyMethod();
+    DCHECK(method->IsPublic() && !method->IsStatic());
+    return FindVirtualMethodForVirtual(method, pointer_size);
+  }
   DCHECK(!method->IsCopied());
   // TODO cache to improve lookup speed
   const int32_t iftable_count = GetIfTableCount();

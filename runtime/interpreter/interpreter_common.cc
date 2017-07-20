@@ -593,10 +593,8 @@ bool DoInvokePolymorphic(Thread* self,
   }
 
   ArtMethod* invoke_method =
-      class_linker->ResolveMethod<ClassLinker::kForceICCECheck>(self,
-                                                                invoke_method_idx,
-                                                                shadow_frame.GetMethod(),
-                                                                kVirtual);
+      class_linker->ResolveMethod<ClassLinker::ResolveMode::kCheckICCEAndIAE>(
+          self, invoke_method_idx, shadow_frame.GetMethod(), kVirtual);
 
   // There is a common dispatch method for method handles that takes
   // arguments either from a range or an array of arguments depending

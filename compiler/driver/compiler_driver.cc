@@ -373,14 +373,12 @@ static void SetupIntrinsic(Thread* self,
       REQUIRES_SHARED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   PointerSize image_size = class_linker->GetImagePointerSize();
-  mirror::Class* cls = class_linker->FindSystemClass(self, class_name);
+  ObjPtr<mirror::Class> cls = class_linker->FindSystemClass(self, class_name);
   if (cls == nullptr) {
     LOG(FATAL) << "Could not find class of intrinsic " << class_name;
   }
-  ArtMethod* method = (invoke_type == kStatic || invoke_type == kDirect)
-      ? cls->FindDeclaredDirectMethod(method_name, signature, image_size)
-      : cls->FindDeclaredVirtualMethod(method_name, signature, image_size);
-  if (method == nullptr) {
+  ArtMethod* method = cls->FindClassMethod(method_name, signature, image_size);
+  if (method == nullptr || method->GetDeclaringClass() != cls) {
     LOG(FATAL) << "Could not find method of intrinsic "
                << class_name << " " << method_name << " " << signature;
   }
@@ -543,7 +541,7 @@ static void CompileMethod(Thread* self,
 
       // TODO: Lookup annotation from DexFile directly without resolving method.
       ArtMethod* method =
-          Runtime::Current()->GetClassLinker()->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+          Runtime::Current()->GetClassLinker()->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
               dex_file,
               method_idx,
               dex_cache,
@@ -1755,7 +1753,7 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
       }
       if (resolve_fields_and_methods) {
         while (it.HasNextDirectMethod()) {
-          ArtMethod* method = class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+          ArtMethod* method = class_linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
               dex_file, it.GetMemberIndex(), dex_cache, class_loader, nullptr,
               it.GetMethodInvokeType(class_def));
           if (method == nullptr) {
@@ -1764,7 +1762,7 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
           it.Next();
         }
         while (it.HasNextVirtualMethod()) {
-          ArtMethod* method = class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+          ArtMethod* method = class_linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
               dex_file, it.GetMemberIndex(), dex_cache, class_loader, nullptr,
               it.GetMethodInvokeType(class_def));
           if (method == nullptr) {

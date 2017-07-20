@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
@@ -63,21 +64,27 @@ class ProxyTest : public CommonCompilerTest {
     jsize array_index = 0;
     // Fill the method array
     DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
-    ArtMethod* method = javaLangObject->FindDeclaredVirtualMethod(
+    ArtMethod* method = javaLangObject->FindClassMethod(
         "equals", "(Ljava/lang/Object;)Z", kRuntimePointerSize);
     CHECK(method != nullptr);
+    CHECK(!method->IsDirect());
+    CHECK(method->GetDeclaringClass() == javaLangObject);
     DCHECK(!Runtime::Current()->IsActiveTransaction());
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
             mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), method)));
-    method = javaLangObject->FindDeclaredVirtualMethod("hashCode", "()I", kRuntimePointerSize);
+    method = javaLangObject->FindClassMethod("hashCode", "()I", kRuntimePointerSize);
     CHECK(method != nullptr);
+    CHECK(!method->IsDirect());
+    CHECK(method->GetDeclaringClass() == javaLangObject);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
             mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), method)));
-    method = javaLangObject->FindDeclaredVirtualMethod(
+    method = javaLangObject->FindClassMethod(
         "toString", "()Ljava/lang/String;", kRuntimePointerSize);
     CHECK(method != nullptr);
+    CHECK(!method->IsDirect());
+    CHECK(method->GetDeclaringClass() == javaLangObject);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
             mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), method)));

@@ -664,10 +664,7 @@ void HInstructionBuilder::BuildReturn(const Instruction& instruction,
     // TODO: remove redundant constructor fences (b/36656456).
     if (RequiresConstructorBarrier(dex_compilation_unit_, compiler_driver_)) {
       // Compiling instance constructor.
-      if (kIsDebugBuild) {
-        std::string method_name = graph_->GetMethodName();
-        CHECK_EQ(std::string("<init>"), method_name);
-      }
+      DCHECK_STREQ("<init>", graph_->GetMethodName());
 
       HInstruction* fence_target = current_this_parameter_;
       DCHECK(fence_target != nullptr);
@@ -710,29 +707,18 @@ static InvokeType GetInvokeTypeFromOpCode(Instruction::Code opcode) {
 
 ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType invoke_type) {
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<2> hs(soa.Self());
 
   ClassLinker* class_linker = dex_compilation_unit_->GetClassLinker();
   Handle<mirror::ClassLoader> class_loader = dex_compilation_unit_->GetClassLoader();
-  Handle<mirror::Class> compiling_class(hs.NewHandle(GetCompilingClass()));
-  // We fetch the referenced class eagerly (that is, the class pointed by in the MethodId
-  // at method_idx), as `CanAccessResolvedMethod` expects it be be in the dex cache.
-  Handle<mirror::Class> methods_class(hs.NewHandle(class_linker->ResolveReferencedClassOfMethod(
-      method_idx, dex_compilation_unit_->GetDexCache(), class_loader)));
 
-  if (UNLIKELY(methods_class == nullptr)) {
-    // Clean up any exception left by type resolution.
-    soa.Self()->ClearException();
-    return nullptr;
-  }
-
-  ArtMethod* resolved_method = class_linker->ResolveMethod<ClassLinker::kForceICCECheck>(
-      *dex_compilation_unit_->GetDexFile(),
-      method_idx,
-      dex_compilation_unit_->GetDexCache(),
-      class_loader,
-      /* referrer */ nullptr,
-      invoke_type);
+  ArtMethod* resolved_method =
+      class_linker->ResolveMethod<ClassLinker::ResolveMode::kCheckICCEAndIAE>(
+          *dex_compilation_unit_->GetDexFile(),
+          method_idx,
+          dex_compilation_unit_->GetDexCache(),
+          class_loader,
+          graph_->GetArtMethod(),
+          invoke_type);
 
   if (UNLIKELY(resolved_method == nullptr)) {
     // Clean up any exception left by type resolution.
@@ -740,17 +726,14 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
     return nullptr;
   }
 
-  // Check access. The class linker has a fast path for looking into the dex cache
-  // and does not check the access if it hits it.
-  if (compiling_class == nullptr) {
+  // The referrer may be unresolved for AOT if we're compiling a class that cannot be
+  // resolved because, for example, we don't find a superclass in the classpath.
+  if (graph_->GetArtMethod() == nullptr) {
+    // The class linker cannot check access without a referrer, so we have to do it.
+    // Fall back to HInvokeUnresolved if the method isn't public.
     if (!resolved_method->IsPublic()) {
       return nullptr;
     }
-  } else if (!compiling_class->CanAccessResolvedMethod(resolved_method->GetDeclaringClass(),
-                                                       resolved_method,
-                                                       dex_compilation_unit_->GetDexCache().Get(),
-                                                       method_idx)) {
-    return nullptr;
   }
 
   // We have to special case the invoke-super case, as ClassLinker::ResolveMethod does not.
@@ -758,19 +741,26 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
   // make this an invoke-unresolved to handle cross-dex invokes or abstract super methods, both of
   // which require runtime handling.
   if (invoke_type == kSuper) {
+    ObjPtr<mirror::Class> compiling_class = GetCompilingClass();
     if (compiling_class == nullptr) {
       // We could not determine the method's class we need to wait until runtime.
       DCHECK(Runtime::Current()->IsAotCompiler());
       return nullptr;
     }
-    if (!methods_class->IsAssignableFrom(compiling_class.Get())) {
+    ObjPtr<mirror::Class> referenced_class = class_linker->LookupResolvedType(
+        *dex_compilation_unit_->GetDexFile(),
+        dex_compilation_unit_->GetDexFile()->GetMethodId(method_idx).class_idx_,
+        dex_compilation_unit_->GetDexCache().Get(),
+        class_loader.Get());
+    DCHECK(referenced_class != nullptr);  // We have already resolved a method from this class.
+    if (!referenced_class->IsAssignableFrom(compiling_class)) {
       // We cannot statically determine the target method. The runtime will throw a
       // NoSuchMethodError on this one.
       return nullptr;
     }
     ArtMethod* actual_method;
-    if (methods_class->IsInterface()) {
-      actual_method = methods_class->FindVirtualMethodForInterfaceSuper(
+    if (referenced_class->IsInterface()) {
+      actual_method = referenced_class->FindVirtualMethodForInterfaceSuper(
           resolved_method, class_linker->GetImagePointerSize());
     } else {
       uint16_t vtable_index = resolved_method->GetMethodIndex();
@@ -795,12 +785,6 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
       return nullptr;
     }
     resolved_method = actual_method;
-  }
-
-  // Check for incompatible class changes. The class linker has a fast path for
-  // looking into the dex cache and does not check incompatible class changes if it hits it.
-  if (resolved_method->CheckIncompatibleClassChange(invoke_type)) {
-    return nullptr;
   }
 
   return resolved_method;

@@ -632,9 +632,10 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
       hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_ClassLoader)));
   CHECK(cl->EnsureInitialized(soa.Self(), class_loader_class, true, true));
 
-  ArtMethod* getSystemClassLoader = class_loader_class->FindDirectMethod(
+  ArtMethod* getSystemClassLoader = class_loader_class->FindClassMethod(
       "getSystemClassLoader", "()Ljava/lang/ClassLoader;", pointer_size);
   CHECK(getSystemClassLoader != nullptr);
+  CHECK(getSystemClassLoader->IsStatic());
 
   JValue result = InvokeWithJValues(soa,
                                     nullptr,

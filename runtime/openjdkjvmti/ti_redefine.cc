@@ -40,6 +40,7 @@
 #include "art_method-inl.h"
 #include "base/array_ref.h"
 #include "base/logging.h"
+#include "base/stringpiece.h"
 #include "class_linker-inl.h"
 #include "debugger.h"
 #include "dex_file.h"
@@ -572,13 +573,15 @@ void Redefiner::ClassRedefinition::FindAndAllocateObsoleteMethods(art::mirror::C
 // Try and get the declared method. First try to get a virtual method then a direct method if that's
 // not found.
 static art::ArtMethod* FindMethod(art::Handle<art::mirror::Class> klass,
-                                  const char* name,
+                                  art::StringPiece name,
                                   art::Signature sig) REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  art::ArtMethod* m = klass->FindDeclaredVirtualMethod(name, sig, art::kRuntimePointerSize);
-  if (m == nullptr) {
-    m = klass->FindDeclaredDirectMethod(name, sig, art::kRuntimePointerSize);
+  DCHECK(!klass->IsProxyClass());
+  for (art::ArtMethod& m : klass->GetDeclaredMethodsSlice(art::kRuntimePointerSize)) {
+    if (m.GetName() == name && m.GetSignature() == sig) {
+      return &m;
+    }
   }
-  return m;
+  return nullptr;
 }
 
 bool Redefiner::ClassRedefinition::CheckSameMethods() {

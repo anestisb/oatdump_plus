@@ -372,8 +372,7 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uin
 }
 
 // Based on ClassLinker::ResolveMethod.
-static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, uint32_t method_idx,
-                                          InvokeType invoke_type)
+static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, uint32_t method_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = dex_cache->GetResolvedMethod(method_idx, kRuntimePointerSize);
   if (method != nullptr) {
@@ -381,25 +380,15 @@ static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, ui
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(method_idx);
-  ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(method_id.class_idx_);
+  ObjPtr<mirror::Class> klass =
+      ClassLinker::LookupResolvedType(method_id.class_idx_, dex_cache.Get(), nullptr);
   if (klass == nullptr) {
     return;
   }
-  switch (invoke_type) {
-    case kDirect:
-    case kStatic:
-      method = klass->FindDirectMethod(dex_cache.Get(), method_idx, kRuntimePointerSize);
-      break;
-    case kInterface:
-      method = klass->FindInterfaceMethod(dex_cache.Get(), method_idx, kRuntimePointerSize);
-      break;
-    case kSuper:
-    case kVirtual:
-      method = klass->FindVirtualMethod(dex_cache.Get(), method_idx, kRuntimePointerSize);
-      break;
-    default:
-      LOG(FATAL) << "Unreachable - invocation type: " << invoke_type;
-      UNREACHABLE();
+  if (klass->IsInterface()) {
+    method = klass->FindInterfaceMethod(dex_cache.Get(), method_idx, kRuntimePointerSize);
+  } else {
+    method = klass->FindClassMethod(dex_cache.Get(), method_idx, kRuntimePointerSize);
   }
   if (method == nullptr) {
     return;
@@ -557,13 +546,11 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
         }
         for (; it.HasNextDirectMethod(); it.Next()) {
           uint32_t method_idx = it.GetMemberIndex();
-          InvokeType invoke_type = it.GetMethodInvokeType(class_def);
-          PreloadDexCachesResolveMethod(dex_cache, method_idx, invoke_type);
+          PreloadDexCachesResolveMethod(dex_cache, method_idx);
         }
         for (; it.HasNextVirtualMethod(); it.Next()) {
           uint32_t method_idx = it.GetMemberIndex();
-          InvokeType invoke_type = it.GetMethodInvokeType(class_def);
-          PreloadDexCachesResolveMethod(dex_cache, method_idx, invoke_type);
+          PreloadDexCachesResolveMethod(dex_cache, method_idx);
         }
       }
     }

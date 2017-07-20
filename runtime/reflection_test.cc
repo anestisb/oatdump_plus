@@ -108,9 +108,9 @@ class ReflectionTest : public CommonCompilerTest {
                                                        class_loader);
     CHECK(c != nullptr);
 
-    *method = is_static ? c->FindDirectMethod(method_name, method_signature, kRuntimePointerSize)
-                        : c->FindVirtualMethod(method_name, method_signature, kRuntimePointerSize);
-    CHECK(method != nullptr);
+    *method = c->FindClassMethod(method_name, method_signature, kRuntimePointerSize);
+    CHECK(*method != nullptr);
+    CHECK_EQ(is_static, (*method)->IsStatic());
 
     if (is_static) {
       *receiver = nullptr;
@@ -520,10 +520,11 @@ TEST_F(ReflectionTest, StaticMainMethod) {
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LMain;", class_loader);
   ASSERT_TRUE(klass != nullptr);
 
-  ArtMethod* method = klass->FindDirectMethod("main",
-                                              "([Ljava/lang/String;)V",
-                                              kRuntimePointerSize);
+  ArtMethod* method = klass->FindClassMethod("main",
+                                             "([Ljava/lang/String;)V",
+                                             kRuntimePointerSize);
   ASSERT_TRUE(method != nullptr);
+  ASSERT_TRUE(method->IsStatic());
 
   // Start runtime.
   bool started = runtime_->Start();

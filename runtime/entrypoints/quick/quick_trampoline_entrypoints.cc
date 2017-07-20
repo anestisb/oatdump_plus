@@ -1182,7 +1182,7 @@ extern "C" const void* artQuickResolutionTrampoline(
     HandleWrapper<mirror::Object> h_receiver(
         hs.NewHandleWrapper(virtual_or_interface ? &receiver : &dummy));
     DCHECK_EQ(caller->GetDexFile(), called_method.dex_file);
-    called = linker->ResolveMethod<ClassLinker::kForceICCECheck>(
+    called = linker->ResolveMethod<ClassLinker::ResolveMode::kCheckICCEAndIAE>(
         self, called_method.dex_method_index, caller, invoke_type);
 
     // Update .bss entry in oat file if any.
@@ -1235,8 +1235,11 @@ extern "C" const void* artQuickResolutionTrampoline(
         Handle<mirror::ClassLoader> class_loader(
             hs.NewHandle(caller->GetDeclaringClass()->GetClassLoader()));
         // TODO Maybe put this into a mirror::Class function.
-        mirror::Class* ref_class = linker->ResolveReferencedClassOfMethod(
-            called_method.dex_method_index, dex_cache, class_loader);
+        ObjPtr<mirror::Class> ref_class = linker->LookupResolvedType(
+            *dex_cache->GetDexFile(),
+            dex_cache->GetDexFile()->GetMethodId(called_method.dex_method_index).class_idx_,
+            dex_cache.Get(),
+            class_loader.Get());
         if (ref_class->IsInterface()) {
           called = ref_class->FindVirtualMethodForInterfaceSuper(called, kRuntimePointerSize);
         } else {
@@ -2622,10 +2625,8 @@ extern "C" uintptr_t artInvokePolymorphic(
 
   // Resolve method - it's either MethodHandle.invoke() or MethodHandle.invokeExact().
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  ArtMethod* resolved_method = linker->ResolveMethod<ClassLinker::kForceICCECheck>(self,
-                                                                                   inst->VRegB(),
-                                                                                   caller_method,
-                                                                                   kVirtual);
+  ArtMethod* resolved_method = linker->ResolveMethod<ClassLinker::ResolveMode::kCheckICCEAndIAE>(
+      self, inst->VRegB(), caller_method, kVirtual);
   DCHECK((resolved_method ==
           jni::DecodeArtMethod(WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact)) ||
          (resolved_method ==

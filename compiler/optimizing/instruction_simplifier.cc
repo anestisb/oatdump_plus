@@ -1867,33 +1867,35 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
       ArtMethod* method = nullptr;
       switch (source_component_type) {
         case Primitive::kPrimBoolean:
-          method = system->FindDeclaredDirectMethod("arraycopy", "([ZI[ZII)V", image_size);
+          method = system->FindClassMethod("arraycopy", "([ZI[ZII)V", image_size);
           break;
         case Primitive::kPrimByte:
-          method = system->FindDeclaredDirectMethod("arraycopy", "([BI[BII)V", image_size);
+          method = system->FindClassMethod("arraycopy", "([BI[BII)V", image_size);
           break;
         case Primitive::kPrimChar:
-          method = system->FindDeclaredDirectMethod("arraycopy", "([CI[CII)V", image_size);
+          method = system->FindClassMethod("arraycopy", "([CI[CII)V", image_size);
           break;
         case Primitive::kPrimShort:
-          method = system->FindDeclaredDirectMethod("arraycopy", "([SI[SII)V", image_size);
+          method = system->FindClassMethod("arraycopy", "([SI[SII)V", image_size);
           break;
         case Primitive::kPrimInt:
-          method = system->FindDeclaredDirectMethod("arraycopy", "([II[III)V", image_size);
+          method = system->FindClassMethod("arraycopy", "([II[III)V", image_size);
           break;
         case Primitive::kPrimFloat:
-          method = system->FindDeclaredDirectMethod("arraycopy", "([FI[FII)V", image_size);
+          method = system->FindClassMethod("arraycopy", "([FI[FII)V", image_size);
           break;
         case Primitive::kPrimLong:
-          method = system->FindDeclaredDirectMethod("arraycopy", "([JI[JII)V", image_size);
+          method = system->FindClassMethod("arraycopy", "([JI[JII)V", image_size);
           break;
         case Primitive::kPrimDouble:
-          method = system->FindDeclaredDirectMethod("arraycopy", "([DI[DII)V", image_size);
+          method = system->FindClassMethod("arraycopy", "([DI[DII)V", image_size);
           break;
         default:
           LOG(FATAL) << "Unreachable";
       }
       DCHECK(method != nullptr);
+      DCHECK(method->IsStatic());
+      DCHECK(method->GetDeclaringClass() == system);
       invoke->SetResolvedMethod(method);
       // Sharpen the new invoke. Note that we do not update the dex method index of
       // the invoke, as we would need to look it up in the current dex file, and it

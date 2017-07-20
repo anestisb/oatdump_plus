@@ -39,7 +39,6 @@
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
-#include "method_resolution_kind.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -230,7 +229,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
     }
     previous_method_idx = method_idx;
     InvokeType type = it->GetMethodInvokeType(class_def);
-    ArtMethod* method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+    ArtMethod* method = linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
         *dex_file, method_idx, dex_cache, class_loader, nullptr, type);
     if (method == nullptr) {
       DCHECK(self->IsExceptionPending());
@@ -3821,21 +3820,6 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
   return *common_super;
 }
 
-inline static MethodResolutionKind GetMethodResolutionKind(
-    MethodType method_type, bool is_interface) {
-  if (method_type == METHOD_DIRECT || method_type == METHOD_STATIC) {
-    return kDirectMethodResolution;
-  } else if (method_type == METHOD_INTERFACE) {
-    return kInterfaceMethodResolution;
-  } else if (method_type == METHOD_SUPER && is_interface) {
-    return kInterfaceMethodResolution;
-  } else {
-    DCHECK(method_type == METHOD_VIRTUAL || method_type == METHOD_SUPER
-           || method_type == METHOD_POLYMORPHIC);
-    return kVirtualMethodResolution;
-  }
-}
-
 ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
     uint32_t dex_method_idx, MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
@@ -3849,47 +3833,41 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   if (klass_type.IsUnresolvedTypes()) {
     return nullptr;  // Can't resolve Class so no more to do here
   }
-  mirror::Class* klass = klass_type.GetClass();
+  ObjPtr<mirror::Class> klass = klass_type.GetClass();
   const RegType& referrer = GetDeclaringClass();
   auto* cl = Runtime::Current()->GetClassLinker();
   auto pointer_size = cl->GetImagePointerSize();
-  MethodResolutionKind res_kind = GetMethodResolutionKind(method_type, klass->IsInterface());
 
   ArtMethod* res_method = dex_cache_->GetResolvedMethod(dex_method_idx, pointer_size);
-  bool stash_method = false;
   if (res_method == nullptr) {
-    const char* name = dex_file_->GetMethodName(method_id);
-    const Signature signature = dex_file_->GetMethodSignature(method_id);
-
-    if (res_kind == kDirectMethodResolution) {
-      res_method = klass->FindDirectMethod(name, signature, pointer_size);
-    } else if (res_kind == kVirtualMethodResolution) {
-      res_method = klass->FindVirtualMethod(name, signature, pointer_size);
+    // Try to find the method with the appropriate lookup for the klass type (interface or not).
+    // If this lookup does not match `method_type`, errors shall be reported below.
+    if (klass->IsInterface()) {
+      res_method = klass->FindInterfaceMethod(dex_cache_.Get(), dex_method_idx, pointer_size);
     } else {
-      DCHECK_EQ(res_kind, kInterfaceMethodResolution);
-      res_method = klass->FindInterfaceMethod(name, signature, pointer_size);
+      res_method = klass->FindClassMethod(dex_cache_.Get(), dex_method_idx, pointer_size);
     }
-
     if (res_method != nullptr) {
-      stash_method = true;
-    } else {
-      // If a virtual or interface method wasn't found with the expected type, look in
-      // the direct methods. This can happen when the wrong invoke type is used or when
-      // a class has changed, and will be flagged as an error in later checks.
-      // Note that in this case, we do not put the resolved method in the Dex cache
-      // because it was not discovered using the expected type of method resolution.
-      if (res_kind != kDirectMethodResolution) {
-        // Record result of the initial resolution attempt.
-        VerifierDeps::MaybeRecordMethodResolution(*dex_file_, dex_method_idx, res_kind, nullptr);
-        // Change resolution type to 'direct' and try to resolve again.
-        res_kind = kDirectMethodResolution;
-        res_method = klass->FindDirectMethod(name, signature, pointer_size);
-      }
+      dex_cache_->SetResolvedMethod(dex_method_idx, res_method, pointer_size);
     }
   }
 
-  // Record result of method resolution attempt.
-  VerifierDeps::MaybeRecordMethodResolution(*dex_file_, dex_method_idx, res_kind, res_method);
+  // Record result of method resolution attempt. The klass resolution has recorded whether
+  // the class is an interface or not and therefore the type of the lookup performed above.
+  // TODO: Maybe we should not record dependency if the invoke type does not match the lookup type.
+  VerifierDeps::MaybeRecordMethodResolution(*dex_file_, dex_method_idx, res_method);
+
+  if (res_method == nullptr) {
+    // Try to find the method also with the other type for better error reporting below
+    // but do not store such bogus lookup result in the DexCache or VerifierDeps.
+    if (klass->IsInterface()) {
+      res_method = klass->FindClassMethod(dex_cache_.Get(), dex_method_idx, pointer_size);
+    } else {
+      // If there was an interface method with the same signature,
+      // we would have found it also in the "copied" methods.
+      DCHECK(klass->FindInterfaceMethod(dex_cache_.Get(), dex_method_idx, pointer_size) == nullptr);
+    }
+  }
 
   if (res_method == nullptr) {
     Fail(VERIFY_ERROR_NO_METHOD) << "couldn't find method "
@@ -3938,11 +3916,6 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
           << " is in a non-interface class " << klass->PrettyClass();
       return nullptr;
     }
-  }
-
-  // Only stash after the above passed. Otherwise the method wasn't guaranteed to be correct.
-  if (stash_method) {
-    dex_cache_->SetResolvedMethod(dex_method_idx, res_method, pointer_size);
   }
 
   // Check if access is allowed.

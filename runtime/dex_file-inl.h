@@ -181,19 +181,18 @@ inline bool Signature::operator==(const Signature& rhs) const {
   if (lhs_shorty.find('L', 1) != StringPiece::npos) {
     const DexFile::TypeList* params = dex_file_->GetProtoParameters(*proto_id_);
     const DexFile::TypeList* rhs_params = rhs.dex_file_->GetProtoParameters(*rhs.proto_id_);
-    // Both lists are empty or have contents, or else shorty is broken.
-    DCHECK_EQ(params == nullptr, rhs_params == nullptr);
-    if (params != nullptr) {
-      uint32_t params_size = params->Size();
-      DCHECK_EQ(params_size, rhs_params->Size());  // Parameter list size must match.
-      for (uint32_t i = 0; i < params_size; ++i) {
-        const DexFile::TypeId& param_id = dex_file_->GetTypeId(params->GetTypeItem(i).type_idx_);
-        const DexFile::TypeId& rhs_param_id =
-            rhs.dex_file_->GetTypeId(rhs_params->GetTypeItem(i).type_idx_);
-        if (!DexFileStringEquals(dex_file_, param_id.descriptor_idx_,
-                                 rhs.dex_file_, rhs_param_id.descriptor_idx_)) {
-          return false;  // Parameter type mismatch.
-        }
+    // We found a reference parameter in the matching shorty, so both lists must be non-empty.
+    DCHECK(params != nullptr);
+    DCHECK(rhs_params != nullptr);
+    uint32_t params_size = params->Size();
+    DCHECK_EQ(params_size, rhs_params->Size());  // Parameter list size must match.
+    for (uint32_t i = 0; i < params_size; ++i) {
+      const DexFile::TypeId& param_id = dex_file_->GetTypeId(params->GetTypeItem(i).type_idx_);
+      const DexFile::TypeId& rhs_param_id =
+          rhs.dex_file_->GetTypeId(rhs_params->GetTypeItem(i).type_idx_);
+      if (!DexFileStringEquals(dex_file_, param_id.descriptor_idx_,
+                               rhs.dex_file_, rhs_param_id.descriptor_idx_)) {
+        return false;  // Parameter type mismatch.
       }
     }
   }
