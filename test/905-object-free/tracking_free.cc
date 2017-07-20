@@ -61,7 +61,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test905_setupObjectFreeCallback(
   JavaVM* jvm = nullptr;
   env->GetJavaVM(&jvm);
   CHECK_EQ(jvm->GetEnv(reinterpret_cast<void**>(&jvmti_env2), JVMTI_VERSION_1_2), 0);
-  SetAllCapabilities(jvmti_env2);
+  SetStandardCapabilities(jvmti_env2);
   setupObjectFreeCallback(env, jvmti_env2, ObjectFree2);
 }
 

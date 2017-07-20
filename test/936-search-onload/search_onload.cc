@@ -39,7 +39,7 @@ jint OnLoad(JavaVM* vm,
     printf("Unable to get jvmti env!\n");
     return 1;
   }
-  SetAllCapabilities(jvmti_env);
+  SetStandardCapabilities(jvmti_env);
 
   char* dex_loc = getenv("DEX_LOCATION");
   std::string dex1 = android::base::StringPrintf("%s/936-search-onload.jar", dex_loc);

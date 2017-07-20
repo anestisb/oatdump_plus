@@ -62,7 +62,7 @@ static jint MinimalOnLoad(JavaVM* vm,
     printf("Unable to get jvmti env!\n");
     return 1;
   }
-  SetAllCapabilities(jvmti_env);
+  SetStandardCapabilities(jvmti_env);
   return 0;
 }
 

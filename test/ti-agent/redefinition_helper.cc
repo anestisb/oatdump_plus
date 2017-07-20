@@ -332,7 +332,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Redefinition_doCommonClassRetransform
                     "Unable to create temporary jvmtiEnv for RetransformClasses call.");
       return;
     }
-    SetAllCapabilities(real_env);
+    SetStandardCapabilities(real_env);
   } else {
     real_env = jvmti_env;
   }
@@ -373,15 +373,14 @@ jint OnLoad(JavaVM* vm,
 }  // namespace common_transform
 
 static void SetupCommonRedefine() {
-  jvmtiCapabilities caps;
-  jvmti_env->GetPotentialCapabilities(&caps);
+  jvmtiCapabilities caps = GetStandardCapabilities();
   caps.can_retransform_classes = 0;
   caps.can_retransform_any_class = 0;
   jvmti_env->AddCapabilities(&caps);
 }
 
 static void SetupCommonRetransform() {
-  SetAllCapabilities(jvmti_env);
+  SetStandardCapabilities(jvmti_env);
   jvmtiEventCallbacks cb;
   memset(&cb, 0, sizeof(cb));
   cb.ClassFileLoadHook = common_retransform::CommonClassFileLoadHookRetransformable;
@@ -392,8 +391,7 @@ static void SetupCommonRetransform() {
 
 static void SetupCommonTransform() {
   // Don't set the retransform caps
-  jvmtiCapabilities caps;
-  jvmti_env->GetPotentialCapabilities(&caps);
+  jvmtiCapabilities caps = GetStandardCapabilities();
   caps.can_retransform_classes = 0;
   caps.can_retransform_any_class = 0;
   jvmti_env->AddCapabilities(&caps);
