@@ -2359,7 +2359,7 @@ class InitializeClassVisitor : public CompilationVisitor {
                   *file_log << exception->Dump() << "\n";
                 }
                 soa.Self()->ClearException();
-                runtime->RollbackAndExitTransactionMode();
+                runtime->RollbackAllTransactions();
                 CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
               } else if (is_boot_image) {
                 // For boot image, we want to put the updated status in the oat class since we can't

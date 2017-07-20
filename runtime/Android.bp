@@ -25,6 +25,7 @@ cc_defaults {
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: [
+        "aot_class_linker.cc",
         "art_field.cc",
         "art_method.cc",
         "atomic.cc",

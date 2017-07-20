@@ -56,6 +56,10 @@ class Transaction FINAL {
       REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsAborted() REQUIRES(!log_lock_);
 
+  // If the transaction is rollbacking. Transactions will set this flag when they start rollbacking,
+  // because the nested transaction should be disabled when rollbacking to restore the memory.
+  bool IsRollingBack();
+
   // If the transaction is in strict mode, then all access of static fields will be constrained,
   // one class's clinit will not be allowed to read or modify another class's static fields, unless
   // the transaction is aborted.
@@ -294,6 +298,7 @@ class Transaction FINAL {
   std::list<InternStringLog> intern_string_logs_ GUARDED_BY(log_lock_);
   std::list<ResolveStringLog> resolve_string_logs_ GUARDED_BY(log_lock_);
   bool aborted_ GUARDED_BY(log_lock_);
+  bool rolling_back_;  // Single thread, no race.
   bool strict_ GUARDED_BY(log_lock_);
   std::string abort_message_ GUARDED_BY(log_lock_);
   mirror::Class* root_ GUARDED_BY(log_lock_);
