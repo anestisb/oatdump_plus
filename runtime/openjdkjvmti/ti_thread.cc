@@ -701,7 +701,7 @@ jvmtiError ThreadUtil::RunAgentThread(jvmtiEnv* jvmti_env,
 
 jvmtiError ThreadUtil::SuspendOther(art::Thread* self,
                                     jthread target_jthread,
-                                    art::Thread* target) {
+                                    const art::Thread* target) {
   // Loop since we need to bail out and try again if we would end up getting suspended while holding
   // the user_code_suspension_lock_ due to a SuspendReason::kForUserCode. In this situation we
   // release the lock, wait to get resumed and try again.
@@ -729,12 +729,12 @@ jvmtiError ThreadUtil::SuspendOther(art::Thread* self,
       if (state == art::ThreadState::kTerminated || state == art::ThreadState::kStarting) {
         return ERR(THREAD_NOT_ALIVE);
       }
-      target = art::Runtime::Current()->GetThreadList()->SuspendThreadByPeer(
+      art::Thread* ret_target = art::Runtime::Current()->GetThreadList()->SuspendThreadByPeer(
           target_jthread,
           /* request_suspension */ true,
           art::SuspendReason::kForUserCode,
           &timeout);
-      if (target == nullptr && !timeout) {
+      if (ret_target == nullptr && !timeout) {
         // TODO It would be good to get more information about why exactly the thread failed to
         // suspend.
         return ERR(INTERNAL);
