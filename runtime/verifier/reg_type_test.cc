@@ -681,62 +681,10 @@ TEST_F(RegTypeTest, ConstPrecision) {
 class RegTypeOOMTest : public RegTypeTest {
  protected:
   void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
-    // Use a smaller heap
-    for (std::pair<std::string, const void*>& pair : *options) {
-      if (pair.first.find("-Xmx") == 0) {
-        pair.first = "-Xmx4M";  // Smallest we can go.
-      }
-    }
-    options->push_back(std::make_pair("-Xint", nullptr));
+    SetUpRuntimeOptionsForFillHeap(options);
 
     // We must not appear to be a compiler, or we'll abort on the host.
     callbacks_.reset();
-  }
-
-  static const size_t kMaxHandles = 1000000;  // Use arbitrary large amount for now.
-  static void FillHeap(Thread* self,
-                       ClassLinker* class_linker,
-                       std::unique_ptr<StackHandleScope<kMaxHandles>>* hsp,
-                       std::vector<MutableHandle<mirror::Object>>* handles)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    Runtime::Current()->GetHeap()->SetIdealFootprint(1 * GB);
-
-    hsp->reset(new StackHandleScope<kMaxHandles>(self));
-    // Class java.lang.Object.
-    Handle<mirror::Class> c((*hsp)->NewHandle(
-        class_linker->FindSystemClass(self, "Ljava/lang/Object;")));
-    // Array helps to fill memory faster.
-    Handle<mirror::Class> ca((*hsp)->NewHandle(
-        class_linker->FindSystemClass(self, "[Ljava/lang/Object;")));
-
-    // Start allocating with 128K
-    size_t length = 128 * KB / 4;
-    while (length > 10) {
-      MutableHandle<mirror::Object> h((*hsp)->NewHandle<mirror::Object>(
-          mirror::ObjectArray<mirror::Object>::Alloc(self, ca.Get(), length / 4)));
-      if (self->IsExceptionPending() || h == nullptr) {
-        self->ClearException();
-
-        // Try a smaller length
-        length = length / 8;
-        // Use at most half the reported free space.
-        size_t mem = Runtime::Current()->GetHeap()->GetFreeMemory();
-        if (length * 8 > mem) {
-          length = mem / 8;
-        }
-      } else {
-        handles->push_back(h);
-      }
-    }
-
-    // Allocate simple objects till it fails.
-    while (!self->IsExceptionPending()) {
-      MutableHandle<mirror::Object> h = (*hsp)->NewHandle<mirror::Object>(c->AllocObject(self));
-      if (!self->IsExceptionPending() && h != nullptr) {
-        handles->push_back(h);
-      }
-    }
-    self->ClearException();
   }
 };
 
@@ -772,9 +720,8 @@ TEST_F(RegTypeOOMTest, ClassJoinOOM) {
   ASSERT_TRUE(class_linker->LookupClass(soa.Self(), kNumberArrayFive, nullptr) == nullptr);
 
   // Fill the heap.
-  std::unique_ptr<StackHandleScope<kMaxHandles>> hsp;
-  std::vector<MutableHandle<mirror::Object>> handles;
-  FillHeap(soa.Self(), class_linker, &hsp, &handles);
+  VariableSizedHandleScope hs(soa.Self());
+  FillHeap(soa.Self(), class_linker, &hs);
 
   const RegType& join_type = int_array_array.Merge(float_array_array, &cache, nullptr);
   ASSERT_TRUE(join_type.IsUnresolvedReference());

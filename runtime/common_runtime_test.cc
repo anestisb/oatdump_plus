@@ -785,6 +785,60 @@ std::string CommonRuntimeTestImpl::CreateClassPathWithChecksums(
   return classpath;
 }
 
+void CommonRuntimeTestImpl::FillHeap(Thread* self,
+                                     ClassLinker* class_linker,
+                                     VariableSizedHandleScope* handle_scope) {
+  DCHECK(handle_scope != nullptr);
+
+  Runtime::Current()->GetHeap()->SetIdealFootprint(1 * GB);
+
+  // Class java.lang.Object.
+  Handle<mirror::Class> c(handle_scope->NewHandle(
+      class_linker->FindSystemClass(self, "Ljava/lang/Object;")));
+  // Array helps to fill memory faster.
+  Handle<mirror::Class> ca(handle_scope->NewHandle(
+      class_linker->FindSystemClass(self, "[Ljava/lang/Object;")));
+
+  // Start allocating with ~128K
+  size_t length = 128 * KB;
+  while (length > 40) {
+    const int32_t array_length = length / 4;  // Object[] has elements of size 4.
+    MutableHandle<mirror::Object> h(handle_scope->NewHandle<mirror::Object>(
+        mirror::ObjectArray<mirror::Object>::Alloc(self, ca.Get(), array_length)));
+    if (self->IsExceptionPending() || h == nullptr) {
+      self->ClearException();
+
+      // Try a smaller length
+      length = length / 2;
+      // Use at most a quarter the reported free space.
+      size_t mem = Runtime::Current()->GetHeap()->GetFreeMemory();
+      if (length * 4 > mem) {
+        length = mem / 4;
+      }
+    }
+  }
+
+  // Allocate simple objects till it fails.
+  while (!self->IsExceptionPending()) {
+    handle_scope->NewHandle<mirror::Object>(c->AllocObject(self));
+  }
+  self->ClearException();
+}
+
+void CommonRuntimeTestImpl::SetUpRuntimeOptionsForFillHeap(RuntimeOptions *options) {
+  // Use a smaller heap
+  bool found = false;
+  for (std::pair<std::string, const void*>& pair : *options) {
+    if (pair.first.find("-Xmx") == 0) {
+      pair.first = "-Xmx4M";  // Smallest we can go.
+      found = true;
+    }
+  }
+  if (!found) {
+    options->emplace_back("-Xmx4M", nullptr);
+  }
+}
+
 CheckJniAbortCatcher::CheckJniAbortCatcher() : vm_(Runtime::Current()->GetJavaVM()) {
   vm_->SetCheckJniAbortHook(Hook, &actual_);
 }
