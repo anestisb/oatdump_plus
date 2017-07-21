@@ -153,6 +153,11 @@ func hostFlags(ctx android.BaseContext) []string {
 	cflags = append(cflags, "-DART_BASE_ADDRESS_MIN_DELTA="+minDelta)
 	cflags = append(cflags, "-DART_BASE_ADDRESS_MAX_DELTA="+maxDelta)
 
+	if len(ctx.AConfig().SanitizeHost()) > 0 && !envFalse(ctx, "ART_ENABLE_ADDRESS_SANITIZER") {
+		// We enable full sanitization on the host by default.
+		cflags = append(cflags, "-DART_ENABLE_ADDRESS_SANITIZER=1")
+	}
+
 	return cflags
 }
 
