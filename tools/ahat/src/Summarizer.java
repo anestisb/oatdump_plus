@@ -60,14 +60,7 @@ class Summarizer {
       formatted.append("root ");
     }
 
-    // Annotate classes as classes.
-    DocString linkText = new DocString();
-    if (inst.isClassObj()) {
-      linkText.append("class ");
-    }
-
-    linkText.append(inst.toString());
-
+    DocString linkText = DocString.text(inst.toString());
     if (inst.isPlaceHolder()) {
       // Don't make links to placeholder objects.
       formatted.append(linkText);

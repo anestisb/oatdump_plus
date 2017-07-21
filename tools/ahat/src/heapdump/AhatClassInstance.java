@@ -19,6 +19,7 @@ package com.android.ahat.heapdump;
 import com.android.tools.perflib.heap.ClassInstance;
 import com.android.tools.perflib.heap.Instance;
 import java.awt.image.BufferedImage;
+import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -29,8 +30,8 @@ public class AhatClassInstance extends AhatInstance {
     super(id);
   }
 
-  @Override void initialize(AhatSnapshot snapshot, Instance inst) {
-    super.initialize(snapshot, inst);
+  @Override void initialize(AhatSnapshot snapshot, Instance inst, Site site) {
+    super.initialize(snapshot, inst, site);
 
     ClassInstance classInst = (ClassInstance)inst;
     List<ClassInstance.FieldValue> fieldValues = classInst.getValues();
@@ -40,15 +41,7 @@ public class AhatClassInstance extends AhatInstance {
       String name = field.getField().getName();
       String type = field.getField().getType().toString();
       Value value = snapshot.getValue(field.getValue());
-
       mFieldValues[i] = new FieldValue(name, type, value);
-
-      if (field.getValue() instanceof Instance) {
-        Instance ref = (Instance)field.getValue();
-        if (ref.getNextInstanceToGcRoot() == inst) {
-          value.asAhatInstance().setNextInstanceToGcRoot(this, "." + name);
-        }
-      }
     }
   }
 
@@ -99,6 +92,30 @@ public class AhatClassInstance extends AhatInstance {
    */
   public List<FieldValue> getInstanceFields() {
     return Arrays.asList(mFieldValues);
+  }
+
+  @Override
+  ReferenceIterator getReferences() {
+    List<Reference> refs = new AbstractList<Reference>() {
+      @Override
+      public int size() {
+        return mFieldValues.length;
+      }
+
+      @Override
+      public Reference get(int index) {
+        FieldValue field = mFieldValues[index];
+        Value value = field.value;
+        if (value != null && value.isAhatInstance()) {
+          boolean strong = !field.name.equals("referent")
+                        || !isInstanceOfClass("java.lang.ref.Reference");
+          AhatInstance ref = value.asAhatInstance();
+          return new Reference(AhatClassInstance.this, "." + field.name, ref, strong);
+        }
+        return null;
+      }
+    };
+    return new ReferenceIterator(refs);
   }
 
   /**

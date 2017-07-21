@@ -337,7 +337,7 @@ public class InstanceTest {
   public void classObjToString() throws IOException {
     TestDump dump = TestDump.getTestDump();
     AhatInstance obj = dump.getAhatSnapshot().findClass("Main");
-    assertEquals("Main", obj.toString());
+    assertEquals("class Main", obj.toString());
   }
 
   @Test
@@ -367,6 +367,18 @@ public class InstanceTest {
     AhatInstance obj = dump.getDumpedAhatInstance("anObject");
     assertFalse(obj.isRoot());
     assertNull(obj.getRootTypes());
+  }
+
+  @Test
+  public void reverseReferences() throws IOException {
+    TestDump dump = TestDump.getTestDump();
+    AhatInstance obj = dump.getDumpedAhatInstance("anObject");
+    AhatInstance ref = dump.getDumpedAhatInstance("aReference");
+    AhatInstance weak = dump.getDumpedAhatInstance("aWeakReference");
+    assertTrue(obj.getHardReverseReferences().contains(ref));
+    assertFalse(obj.getHardReverseReferences().contains(weak));
+    assertFalse(obj.getSoftReverseReferences().contains(ref));
+    assertTrue(obj.getSoftReverseReferences().contains(weak));
   }
 
   @Test

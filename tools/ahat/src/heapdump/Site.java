@@ -42,15 +42,15 @@ public class Site implements Diffable<Site> {
   private int mDepth;
 
   // The total size of objects allocated in this site (including child sites),
-  // organized by heap index. Heap indices outside the range of mSizesByHeap
-  // implicitly have size 0.
+  // organized by heap index. Computed as part of computeObjectsInfos.
   private Size[] mSizesByHeap;
 
   // List of child sites.
   private List<Site> mChildren;
 
-  // List of all objects allocated in this site (including child sites).
+  // List of objects allocated at this site (not including child sites).
   private List<AhatInstance> mObjects;
+
   private List<ObjectsInfo> mObjectsInfos;
   private Map<AhatHeap, Map<AhatClassObj, ObjectsInfo>> mObjectsInfoMap;
 
@@ -111,7 +111,6 @@ public class Site implements Diffable<Site> {
     mLineNumber = line;
     mId = id;
     mDepth = depth;
-    mSizesByHeap = new Size[0];
     mChildren = new ArrayList<Site>();
     mObjects = new ArrayList<AhatInstance>();
     mObjectsInfos = new ArrayList<ObjectsInfo>();
@@ -130,67 +129,102 @@ public class Site implements Diffable<Site> {
   }
 
   private static Site add(Site site, StackFrame[] frames, int depth, AhatInstance inst) {
-    while (true) {
-      site.mObjects.add(inst);
+    while (depth > 0) {
+      StackFrame next = frames[depth - 1];
+      Site child = null;
+      for (int i = 0; i < site.mChildren.size(); i++) {
+        Site curr = site.mChildren.get(i);
+        if (curr.mLineNumber == next.getLineNumber()
+            && curr.mMethodName.equals(next.getMethodName())
+            && curr.mSignature.equals(next.getSignature())
+            && curr.mFilename.equals(next.getFilename())) {
+          child = curr;
+          break;
+        }
+      }
+      if (child == null) {
+        child = new Site(site, next.getMethodName(), next.getSignature(),
+            next.getFilename(), next.getLineNumber(), inst.getId(), depth - 1);
+        site.mChildren.add(child);
+      }
+      depth = depth - 1;
+      site = child;
+    }
+    site.mObjects.add(inst);
+    return site;
+  }
 
-      ObjectsInfo info = site.getObjectsInfo(inst.getHeap(), inst.getClassObj());
+  /**
+   * Recompute the ObjectsInfos for this and all child sites.
+   * This should be done after the sites tree has been formed. It should also
+   * be done after dominators computation has been performed to ensure only
+   * reachable objects are included in the ObjectsInfos.
+   *
+   * @param numHeaps - The number of heaps in the heap dump.
+   */
+  void computeObjectsInfos(int numHeaps) {
+    // Count up the total sizes by heap.
+    mSizesByHeap = new Size[numHeaps];
+    for (int i = 0; i < numHeaps; ++i) {
+      mSizesByHeap[i] = Size.ZERO;
+    }
+
+    // Add all reachable objects allocated at this site.
+    for (AhatInstance inst : mObjects) {
       if (inst.isReachable()) {
         AhatHeap heap = inst.getHeap();
-        if (heap.getIndex() >= site.mSizesByHeap.length) {
-          Size[] newSizes = new Size[heap.getIndex() + 1];
-          for (int i = 0; i < site.mSizesByHeap.length; i++) {
-            newSizes[i] = site.mSizesByHeap[i];
-          }
-          for (int i = site.mSizesByHeap.length; i < heap.getIndex() + 1; i++) {
-            newSizes[i] = Size.ZERO;
-          }
-          site.mSizesByHeap = newSizes;
-        }
-        site.mSizesByHeap[heap.getIndex()]
-          = site.mSizesByHeap[heap.getIndex()].plus(inst.getSize());
-
+        Size size = inst.getSize();
+        ObjectsInfo info = getObjectsInfo(heap, inst.getClassObj());
         info.numInstances++;
-        info.numBytes = info.numBytes.plus(inst.getSize());
+        info.numBytes = info.numBytes.plus(size);
+        mSizesByHeap[heap.getIndex()] = mSizesByHeap[heap.getIndex()].plus(size);
       }
+    }
 
-      if (depth > 0) {
-        StackFrame next = frames[depth - 1];
-        Site child = null;
-        for (int i = 0; i < site.mChildren.size(); i++) {
-          Site curr = site.mChildren.get(i);
-          if (curr.mLineNumber == next.getLineNumber()
-              && curr.mMethodName.equals(next.getMethodName())
-              && curr.mSignature.equals(next.getSignature())
-              && curr.mFilename.equals(next.getFilename())) {
-            child = curr;
-            break;
-          }
-        }
-        if (child == null) {
-          child = new Site(site, next.getMethodName(), next.getSignature(),
-              next.getFilename(), next.getLineNumber(), inst.getId(), depth - 1);
-          site.mChildren.add(child);
-        }
-        depth = depth - 1;
-        site = child;
-      } else {
-        return site;
+    // Add objects allocated in child sites.
+    for (Site child : mChildren) {
+      child.computeObjectsInfos(numHeaps);
+      for (ObjectsInfo childInfo : child.mObjectsInfos) {
+        ObjectsInfo info = getObjectsInfo(childInfo.heap, childInfo.classObj);
+        info.numInstances += childInfo.numInstances;
+        info.numBytes = info.numBytes.plus(childInfo.numBytes);
+      }
+      for (int i = 0; i < numHeaps; ++i) {
+        mSizesByHeap[i] = mSizesByHeap[i].plus(child.mSizesByHeap[i]);
       }
     }
   }
 
   // Get the size of a site for a specific heap.
   public Size getSize(AhatHeap heap) {
-    int index = heap.getIndex();
-    return index >= 0 && index < mSizesByHeap.length ? mSizesByHeap[index] : Size.ZERO;
+    return mSizesByHeap[heap.getIndex()];
   }
 
   /**
-   * Get the list of objects allocated under this site. Includes objects
-   * allocated in children sites.
+   * Collect the objects allocated under this site, optionally filtered by
+   * heap name or class name. Includes objects allocated in children sites.
+   * @param heapName - The name of the heap the collected objects should
+   *                   belong to. This may be null to indicate objects of
+   *                   every heap should be collected.
+   * @param className - The name of the class the collected objects should
+   *                    belong to. This may be null to indicate objects of
+   *                    every class should be collected.
+   * @param objects - Out parameter. A collection of objects that all
+   *                  collected objects should be added to.
    */
-  public Collection<AhatInstance> getObjects() {
-    return mObjects;
+  public void getObjects(String heapName, String className, Collection<AhatInstance> objects) {
+    for (AhatInstance inst : mObjects) {
+      if ((heapName == null || inst.getHeap().getName().equals(heapName))
+          && (className == null || inst.getClassName().equals(className))) {
+        objects.add(inst);
+      }
+    }
+
+    // Recursively visit children. Recursion should be okay here because the
+    // stack depth is limited by a reasonable amount (128 frames or so).
+    for (Site child : mChildren) {
+      child.getObjects(heapName, className, objects);
+    }
   }
 
   /**
@@ -220,8 +254,8 @@ public class Site implements Diffable<Site> {
   // Get the combined size of the site for all heaps.
   public Size getTotalSize() {
     Size total = Size.ZERO;
-    for (int i = 0; i < mSizesByHeap.length; i++) {
-      total = total.plus(mSizesByHeap[i]);
+    for (Size size : mSizesByHeap) {
+      total = total.plus(size);
     }
     return total;
   }

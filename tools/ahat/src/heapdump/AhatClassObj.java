@@ -19,6 +19,7 @@ package com.android.ahat.heapdump;
 import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Field;
 import com.android.tools.perflib.heap.Instance;
+import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -34,8 +35,8 @@ public class AhatClassObj extends AhatInstance {
     super(id);
   }
 
-  @Override void initialize(AhatSnapshot snapshot, Instance inst) {
-    super.initialize(snapshot, inst);
+  @Override void initialize(AhatSnapshot snapshot, Instance inst, Site site) {
+    super.initialize(snapshot, inst, site);
 
     ClassObj classObj = (ClassObj)inst;
     mClassName = classObj.getClassName();
@@ -58,13 +59,6 @@ public class AhatClassObj extends AhatInstance {
       String type = field.getKey().getType().toString();
       Value value = snapshot.getValue(field.getValue());
       mStaticFieldValues[index++] = new FieldValue(name, type, value);
-
-      if (field.getValue() instanceof Instance) {
-        Instance ref = (Instance)field.getValue();
-        if (ref.getNextInstanceToGcRoot() == inst) {
-          value.asAhatInstance().setNextInstanceToGcRoot(this, "." + name);
-        }
-      }
     }
   }
 
@@ -96,6 +90,27 @@ public class AhatClassObj extends AhatInstance {
     return Arrays.asList(mStaticFieldValues);
   }
 
+  @Override
+  ReferenceIterator getReferences() {
+    List<Reference> refs = new AbstractList<Reference>() {
+      @Override
+      public int size() {
+        return mStaticFieldValues.length;
+      }
+
+      @Override
+      public Reference get(int index) {
+        FieldValue field = mStaticFieldValues[index];
+        Value value = field.value;
+        if (value != null && value.isAhatInstance()) {
+          return new Reference(AhatClassObj.this, "." + field.name, value.asAhatInstance(), true);
+        }
+        return null;
+      }
+    };
+    return new ReferenceIterator(refs);
+  }
+
   @Override public boolean isClassObj() {
     return true;
   }
@@ -105,11 +120,10 @@ public class AhatClassObj extends AhatInstance {
   }
 
   @Override public String toString() {
-    return mClassName;
+    return "class " + mClassName;
   }
 
   @Override AhatInstance newPlaceHolderInstance() {
     return new AhatPlaceHolderClassObj(this);
   }
 }
-
