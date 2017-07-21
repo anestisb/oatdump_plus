@@ -298,15 +298,16 @@ class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
 
 // Based on ClassLinker::ResolveString.
 static void PreloadDexCachesResolveString(
-    Handle<mirror::DexCache> dex_cache, dex::StringIndex string_idx, StringTable& strings)
+    ObjPtr<mirror::DexCache> dex_cache, dex::StringIndex string_idx, StringTable& strings)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::String>  string = dex_cache->GetResolvedString(string_idx);
-  if (string != nullptr) {
-    return;
+  uint32_t slot_idx = dex_cache->StringSlotIndex(string_idx);
+  auto pair = dex_cache->GetStrings()[slot_idx].load(std::memory_order_relaxed);
+  if (!pair.object.IsNull()) {
+    return;  // The entry already contains some String.
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
   const char* utf8 = dex_file->StringDataByIdx(string_idx);
-  string = strings[utf8];
+  ObjPtr<mirror::String> string = strings[utf8];
   if (string == nullptr) {
     return;
   }
@@ -319,18 +320,17 @@ static void PreloadDexCachesResolveType(Thread* self,
                                         ObjPtr<mirror::DexCache> dex_cache,
                                         dex::TypeIndex type_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(type_idx);
-  if (klass != nullptr) {
-    return;
+  uint32_t slot_idx = dex_cache->TypeSlotIndex(type_idx);
+  auto pair = dex_cache->GetResolvedTypes()[slot_idx].load(std::memory_order_relaxed);
+  if (!pair.object.IsNull()) {
+    return;  // The entry already contains some Class.
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
   const char* class_name = dex_file->StringByTypeIdx(type_idx);
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  if (class_name[1] == '\0') {
-    klass = linker->FindPrimitiveClass(class_name[0]);
-  } else {
-    klass = linker->LookupClass(self, class_name, nullptr);
-  }
+  ObjPtr<mirror::Class> klass = (class_name[1] == '\0')
+      ? linker->FindPrimitiveClass(class_name[0])
+      : linker->LookupClass(self, class_name, nullptr);
   if (klass == nullptr) {
     return;
   }
@@ -345,26 +345,27 @@ static void PreloadDexCachesResolveType(Thread* self,
 }
 
 // Based on ClassLinker::ResolveField.
-static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uint32_t field_idx,
+static void PreloadDexCachesResolveField(ObjPtr<mirror::DexCache> dex_cache,
+                                         uint32_t field_idx,
                                          bool is_static)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtField* field = dex_cache->GetResolvedField(field_idx, kRuntimePointerSize);
-  if (field != nullptr) {
-    return;
+  uint32_t slot_idx = dex_cache->FieldSlotIndex(field_idx);
+  auto pair = mirror::DexCache::GetNativePairPtrSize(dex_cache->GetResolvedFields(),
+                                                     slot_idx,
+                                                     kRuntimePointerSize);
+  if (pair.object != nullptr) {
+    return;  // The entry already contains some ArtField.
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
   const DexFile::FieldId& field_id = dex_file->GetFieldId(field_idx);
-  Thread* const self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Class> klass(hs.NewHandle(dex_cache->GetResolvedType(field_id.class_idx_)));
+  ObjPtr<mirror::Class> klass =
+      ClassLinker::LookupResolvedType(field_id.class_idx_, dex_cache, nullptr);
   if (klass == nullptr) {
     return;
   }
-  if (is_static) {
-    field = mirror::Class::FindStaticField(self, klass.Get(), dex_cache.Get(), field_idx);
-  } else {
-    field = klass->FindInstanceField(dex_cache.Get(), field_idx);
-  }
+  ArtField* field = is_static
+      ? mirror::Class::FindStaticField(Thread::Current(), klass, dex_cache, field_idx)
+      : klass->FindInstanceField(dex_cache, field_idx);
   if (field == nullptr) {
     return;
   }
@@ -372,24 +373,25 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uin
 }
 
 // Based on ClassLinker::ResolveMethod.
-static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, uint32_t method_idx)
+static void PreloadDexCachesResolveMethod(ObjPtr<mirror::DexCache> dex_cache, uint32_t method_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtMethod* method = dex_cache->GetResolvedMethod(method_idx, kRuntimePointerSize);
-  if (method != nullptr) {
-    return;
+  uint32_t slot_idx = dex_cache->MethodSlotIndex(method_idx);
+  auto pair = mirror::DexCache::GetNativePairPtrSize(dex_cache->GetResolvedMethods(),
+                                                     slot_idx,
+                                                     kRuntimePointerSize);
+  if (pair.object != nullptr) {
+    return;  // The entry already contains some ArtMethod.
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(method_idx);
   ObjPtr<mirror::Class> klass =
-      ClassLinker::LookupResolvedType(method_id.class_idx_, dex_cache.Get(), nullptr);
+      ClassLinker::LookupResolvedType(method_id.class_idx_, dex_cache, nullptr);
   if (klass == nullptr) {
     return;
   }
-  if (klass->IsInterface()) {
-    method = klass->FindInterfaceMethod(dex_cache.Get(), method_idx, kRuntimePointerSize);
-  } else {
-    method = klass->FindClassMethod(dex_cache.Get(), method_idx, kRuntimePointerSize);
-  }
+  ArtMethod* method = klass->IsInterface()
+      ? klass->FindInterfaceMethod(dex_cache, method_idx, kRuntimePointerSize)
+      : klass->FindClassMethod(dex_cache, method_idx, kRuntimePointerSize);
   if (method == nullptr) {
     return;
   }
@@ -451,27 +453,31 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
     }
     ObjPtr<mirror::DexCache> const dex_cache = class_linker->FindDexCache(self, *dex_file);
     DCHECK(dex_cache != nullptr);  // Boot class path dex caches are never unloaded.
-    for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
-      ObjPtr<mirror::String> string = dex_cache->GetResolvedString(dex::StringIndex(j));
-      if (string != nullptr) {
+    for (size_t j = 0, num_strings = dex_cache->NumStrings(); j < num_strings; ++j) {
+      auto pair = dex_cache->GetStrings()[j].load(std::memory_order_relaxed);
+      if (!pair.object.IsNull()) {
         filled->num_strings++;
       }
     }
-    for (size_t j = 0; j < dex_cache->NumResolvedTypes(); j++) {
-      ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(dex::TypeIndex(j));
-      if (klass != nullptr) {
+    for (size_t j = 0, num_types = dex_cache->NumResolvedTypes(); j < num_types; ++j) {
+      auto pair = dex_cache->GetResolvedTypes()[j].load(std::memory_order_relaxed);
+      if (!pair.object.IsNull()) {
         filled->num_types++;
       }
     }
-    for (size_t j = 0; j < dex_cache->NumResolvedFields(); j++) {
-      ArtField* field = dex_cache->GetResolvedField(j, class_linker->GetImagePointerSize());
-      if (field != nullptr) {
+    for (size_t j = 0, num_fields = dex_cache->NumResolvedFields(); j < num_fields; ++j) {
+      auto pair = mirror::DexCache::GetNativePairPtrSize(dex_cache->GetResolvedFields(),
+                                                         j,
+                                                         kRuntimePointerSize);
+      if (pair.object != nullptr) {
         filled->num_fields++;
       }
     }
-    for (size_t j = 0; j < dex_cache->NumResolvedMethods(); j++) {
-      ArtMethod* method = dex_cache->GetResolvedMethod(j, kRuntimePointerSize);
-      if (method != nullptr) {
+    for (size_t j = 0, num_methods = dex_cache->NumResolvedMethods(); j < num_methods; ++j) {
+      auto pair = mirror::DexCache::GetNativePairPtrSize(dex_cache->GetResolvedMethods(),
+                                                         j,
+                                                         kRuntimePointerSize);
+      if (pair.object != nullptr) {
         filled->num_methods++;
       }
     }
@@ -511,8 +517,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   for (size_t i = 0; i < boot_class_path.size(); i++) {
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != nullptr);
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->RegisterDexFile(*dex_file, nullptr)));
+    ObjPtr<mirror::DexCache> dex_cache = linker->RegisterDexFile(*dex_file, nullptr);
     CHECK(dex_cache != nullptr);  // Boot class path dex caches are never unloaded.
     if (kPreloadDexCachesStrings) {
       for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
@@ -522,7 +527,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
     if (kPreloadDexCachesTypes) {
       for (size_t j = 0; j < dex_cache->NumResolvedTypes(); j++) {
-        PreloadDexCachesResolveType(soa.Self(), dex_cache.Get(), dex::TypeIndex(j));
+        PreloadDexCachesResolveType(soa.Self(), dex_cache, dex::TypeIndex(j));
       }
     }
 
