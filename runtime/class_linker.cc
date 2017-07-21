@@ -5431,7 +5431,8 @@ bool ClassLinker::LinkClass(Thread* self,
   ArtMethod* imt_data[ImTable::kSize];
   // If there are any new conflicts compared to super class.
   bool new_conflict = false;
-  std::fill_n(imt_data, arraysize(imt_data), Runtime::Current()->GetImtUnimplementedMethod());
+  Runtime* const runtime = Runtime::Current();
+  std::fill_n(imt_data, arraysize(imt_data), runtime->GetImtUnimplementedMethod());
   if (!LinkMethods(self, klass, interfaces, &new_conflict, imt_data)) {
     return false;
   }
@@ -5490,8 +5491,12 @@ bool ClassLinker::LinkClass(Thread* self,
     // Update CHA info based on whether we override methods.
     // Have to do this before setting the class as resolved which allows
     // instantiation of klass.
-    Runtime::Current()->GetClassHierarchyAnalysis()->UpdateAfterLoadingOf(klass);
-
+    if (!runtime->IsAotCompiler()) {
+      // AOT compiler doesn't use CHA.
+      // If this is enabled for the compiler, the cha_dependency_map_ probably needs to be
+      // cleared if unloading happens after compilation.
+      runtime->GetClassHierarchyAnalysis()->UpdateAfterLoadingOf(klass);
+    }
     // This will notify waiters on klass that saw the not yet resolved
     // class in the class_table_ during EnsureResolved.
     mirror::Class::SetStatus(klass, mirror::Class::kStatusResolved, self);
@@ -5538,7 +5543,9 @@ bool ClassLinker::LinkClass(Thread* self,
     // Update CHA info based on whether we override methods.
     // Have to do this before setting the class as resolved which allows
     // instantiation of klass.
-    Runtime::Current()->GetClassHierarchyAnalysis()->UpdateAfterLoadingOf(h_new_class);
+    if (!runtime->IsAotCompiler()) {
+      runtime->GetClassHierarchyAnalysis()->UpdateAfterLoadingOf(h_new_class);
+    }
 
     // This will notify waiters on temp class that saw the not yet resolved class in the
     // class_table_ during EnsureResolved.
