@@ -99,6 +99,15 @@ art_global_defaults {
                 // Bug: 15446488. We don't omit the frame pointer to work around
                 // clang/libunwind bugs that cause SEGVs in run-test-004-ThreadStress.
                 "-fno-omit-frame-pointer",
+                // The build assumes that all our x86/x86_64 hosts (such as buildbots and developer
+                // desktops) support at least sse4.2/popcount. This firstly implies that the ART
+                // runtime binary itself may exploit these features. Secondly, this implies that
+                // the ART runtime passes these feature flags to dex2oat and JIT by calling the
+                // method InstructionSetFeatures::FromCppDefines(). Since invoking dex2oat directly
+                // does not pick up these flags, cross-compiling from a x86/x86_64 host to a
+                // x86/x86_64 target should not be affected.
+                "-msse4.2",
+                "-mpopcnt",
             ],
             host_ldlibs: [
                 "-ldl",
