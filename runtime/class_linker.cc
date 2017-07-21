@@ -2315,11 +2315,16 @@ void ClassLinker::DeleteClassLoader(Thread* self, const ClassLoaderData& data) {
   JavaVMExt* const vm = runtime->GetJavaVM();
   vm->DeleteWeakGlobalRef(self, data.weak_root);
   // Notify the JIT that we need to remove the methods and/or profiling info.
+  ClassHierarchyAnalysis* const cha = runtime->GetClassHierarchyAnalysis();
   if (runtime->GetJit() != nullptr) {
     jit::JitCodeCache* code_cache = runtime->GetJit()->GetCodeCache();
     if (code_cache != nullptr) {
+      // For the JIT case, RemoveMethodsIn removes the CHA dependencies.
       code_cache->RemoveMethodsIn(self, *data.allocator);
     }
+  } else {
+    // If we don't have a JIT, we need to manually remove the CHA dependencies manually.
+    cha->RemoveDependenciesForLinearAlloc(data.allocator);
   }
   delete data.allocator;
   delete data.class_table;

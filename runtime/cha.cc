@@ -19,6 +19,7 @@
 #include "art_method-inl.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "linear_alloc.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
@@ -577,6 +578,19 @@ void ClassHierarchyAnalysis::InvalidateSingleImplementationMethods(
     size_t threads_running_checkpoint = runtime->GetThreadList()->RunCheckpoint(&checkpoint);
     if (threads_running_checkpoint != 0) {
       checkpoint.WaitForThreadsToRunThroughCheckpoint(threads_running_checkpoint);
+    }
+  }
+}
+
+void ClassHierarchyAnalysis::RemoveDependenciesForLinearAlloc(const LinearAlloc* linear_alloc) {
+  MutexLock mu(Thread::Current(), *Locks::cha_lock_);
+  for (auto it = cha_dependency_map_.begin(); it != cha_dependency_map_.end(); ) {
+    // Use unsafe to avoid locking since the allocator is going to be deleted.
+    if (linear_alloc->ContainsUnsafe(it->first)) {
+      // About to delete the ArtMethod, erase the entry from the map.
+      it = cha_dependency_map_.erase(it);
+    } else {
+      ++it;
     }
   }
 }
