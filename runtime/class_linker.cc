@@ -2854,7 +2854,11 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
     // Interface object should get the right size here. Regular class will
     // figure out the right size later and be replaced with one of the right
     // size when the class becomes resolved.
-    klass.Assign(AllocClass(self, SizeOfClassWithoutEmbeddedTables(dex_file, dex_class_def)));
+    if (CanAllocClass()) {
+      klass.Assign(AllocClass(self, SizeOfClassWithoutEmbeddedTables(dex_file, dex_class_def)));
+    } else {
+      return nullptr;
+    }
   }
   if (UNLIKELY(klass == nullptr)) {
     self->AssertPendingOOMException();

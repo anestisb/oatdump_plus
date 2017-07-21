@@ -185,19 +185,40 @@ public class Test913 {
   }
 
   private static void doTestPrimitiveFieldsClasses() {
+    boolean correctHeapValue = false;
+
     setTag(IntObject.class, 10000);
-    System.out.println(followReferencesPrimitiveFields(IntObject.class));
+    String heapTrace = followReferencesPrimitiveFields(IntObject.class);
+
+    if (!checkInitialized(IntObject.class)) {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=3) 0000000000000000");
+    } else {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=3) 0000000000000005");
+    }
+
+    if (!correctHeapValue)
+      System.out.println("Heap Trace for IntObject is not as expected:\n" + heapTrace);
+
     System.out.println(getTag(IntObject.class));
     setTag(IntObject.class, 0);
 
     setTag(FloatObject.class, 10000);
-    System.out.println(followReferencesPrimitiveFields(FloatObject.class));
+    heapTrace = followReferencesPrimitiveFields(FloatObject.class);
+
+    if (!checkInitialized(FloatObject.class)) {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=11) 0000000000000000");
+    } else {
+      correctHeapValue = heapTrace.equals("10000@0 (static, int, index=11) 0000000000000006");
+    }
+
+    if (!correctHeapValue)
+      System.out.println("Heap Trace for FloatObject is not as expected:\n" + heapTrace);
+
     System.out.println(getTag(FloatObject.class));
     setTag(FloatObject.class, 0);
 
-    boolean correctHeapValue = false;
     setTag(Inf1.class, 10000);
-    String heapTrace = followReferencesPrimitiveFields(Inf1.class);
+    heapTrace = followReferencesPrimitiveFields(Inf1.class);
 
     if (!checkInitialized(Inf1.class)) {
       correctHeapValue = heapTrace.equals("10000@0 (static, int, index=0) 0000000000000000");

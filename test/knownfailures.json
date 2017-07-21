@@ -708,8 +708,8 @@
     },
     {
         "tests": "660-clinit",
-        "variant": "no-image | no-dex2oat | no-prebuild",
-        "description": ["Tests <clinit> for app images, which --no-image, --no-prebuild and",
-                        "--no-dex2oat do not create"]
+        "variant": "no-image | no-dex2oat | no-prebuild | interp-ac",
+        "description": ["Tests <clinit> for app images, which --no-image, --no-prebuild, interp-ac",
+                        "and --no-dex2oat do not create"]
     }
 ]
