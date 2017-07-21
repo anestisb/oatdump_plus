@@ -1522,15 +1522,13 @@ class Dex2Oat FINAL {
 
     // Verification results are null since we don't know if we will need them yet as the compler
     // filter may change.
-    // This needs to be done before PrepareRuntimeOptions since the callbacks are passed to the
-    // runtime.
     callbacks_.reset(new QuickCompilerCallbacks(
         IsBootImage() ?
             CompilerCallbacks::CallbackMode::kCompileBootImage :
             CompilerCallbacks::CallbackMode::kCompileApp));
 
     RuntimeArgumentMap runtime_options;
-    if (!PrepareRuntimeOptions(&runtime_options)) {
+    if (!PrepareRuntimeOptions(&runtime_options, callbacks_.get())) {
       return dex2oat::ReturnCode::kOther;
     }
 
@@ -2464,7 +2462,8 @@ class Dex2Oat FINAL {
     }
   }
 
-  bool PrepareRuntimeOptions(RuntimeArgumentMap* runtime_options) {
+  bool PrepareRuntimeOptions(RuntimeArgumentMap* runtime_options,
+                             QuickCompilerCallbacks* callbacks) {
     RuntimeOptions raw_options;
     if (boot_image_filename_.empty()) {
       std::string boot_class_path = "-Xbootclasspath:";
@@ -2482,7 +2481,7 @@ class Dex2Oat FINAL {
       raw_options.push_back(std::make_pair(runtime_args_[i], nullptr));
     }
 
-    raw_options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
+    raw_options.push_back(std::make_pair("compilercallbacks", callbacks));
     raw_options.push_back(
         std::make_pair("imageinstructionset", GetInstructionSetString(instruction_set_)));
 
