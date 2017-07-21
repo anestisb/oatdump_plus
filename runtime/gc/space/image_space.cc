@@ -1268,17 +1268,19 @@ class ImageSpaceLoader {
           }
           dex_cache->FixupResolvedTypes<kWithoutReadBarrier>(new_types, fixup_adapter);
         }
-        ArtMethod** methods = dex_cache->GetResolvedMethods();
+        mirror::MethodDexCacheType* methods = dex_cache->GetResolvedMethods();
         if (methods != nullptr) {
-          ArtMethod** new_methods = fixup_adapter.ForwardObject(methods);
+          mirror::MethodDexCacheType* new_methods = fixup_adapter.ForwardObject(methods);
           if (methods != new_methods) {
             dex_cache->SetResolvedMethods(new_methods);
           }
           for (size_t j = 0, num = dex_cache->NumResolvedMethods(); j != num; ++j) {
-            ArtMethod* orig = mirror::DexCache::GetElementPtrSize(new_methods, j, pointer_size);
+            auto pair = mirror::DexCache::GetNativePairPtrSize(new_methods, j, pointer_size);
+            ArtMethod* orig = pair.object;
             ArtMethod* copy = fixup_adapter.ForwardObject(orig);
             if (orig != copy) {
-              mirror::DexCache::SetElementPtrSize(new_methods, j, copy, pointer_size);
+              pair.object = copy;
+              mirror::DexCache::SetNativePairPtrSize(new_methods, j, pair, pointer_size);
             }
           }
         }

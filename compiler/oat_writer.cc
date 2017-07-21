@@ -1116,6 +1116,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
                          const std::vector<const DexFile*>* dex_files)
       : OatDexMethodVisitor(writer, offset),
         pointer_size_(GetInstructionSetPointerSize(writer_->compiler_driver_->GetInstructionSet())),
+        class_loader_(writer->HasImage() ? writer->image_writer_->GetClassLoader() : nullptr),
         dex_files_(dex_files),
         class_linker_(Runtime::Current()->GetClassLinker()) {}
 
@@ -1131,10 +1132,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     if (!IsImageClass()) {
       return true;
     }
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache = hs.NewHandle(
-        class_linker_->FindDexCache(Thread::Current(), *dex_file));
+    ObjPtr<mirror::DexCache> dex_cache = class_linker_->FindDexCache(Thread::Current(), *dex_file);
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
     mirror::Class* klass = dex_cache->GetResolvedType(class_def.class_idx_);
     if (klass != nullptr) {
@@ -1182,36 +1180,36 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
       ++method_offsets_index_;
     }
 
-    // Unchecked as we hold mutator_lock_ on entry.
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker_->FindDexCache(
-        Thread::Current(), *dex_file_)));
+    Thread* self = Thread::Current();
+    ObjPtr<mirror::DexCache> dex_cache = class_linker_->FindDexCache(self, *dex_file_);
     ArtMethod* method;
     if (writer_->HasBootImage()) {
       const InvokeType invoke_type = it.GetMethodInvokeType(
           dex_file_->GetClassDef(class_def_index_));
+      // Unchecked as we hold mutator_lock_ on entry.
+      ScopedObjectAccessUnchecked soa(self);
+      StackHandleScope<1> hs(self);
       method = class_linker_->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
           *dex_file_,
           it.GetMemberIndex(),
-          dex_cache,
+          hs.NewHandle(dex_cache),
           ScopedNullHandle<mirror::ClassLoader>(),
           nullptr,
           invoke_type);
       if (method == nullptr) {
         LOG(FATAL_WITHOUT_ABORT) << "Unexpected failure to resolve a method: "
             << dex_file_->PrettyMethod(it.GetMemberIndex(), true);
-        soa.Self()->AssertPendingException();
-        mirror::Throwable* exc = soa.Self()->GetException();
+        self->AssertPendingException();
+        mirror::Throwable* exc = self->GetException();
         std::string dump = exc->Dump();
         LOG(FATAL) << dump;
         UNREACHABLE();
       }
     } else {
-      // Should already have been resolved by the compiler, just peek into the dex cache.
+      // Should already have been resolved by the compiler.
       // It may not be resolved if the class failed to verify, in this case, don't set the
-      // entrypoint. This is not fatal since the dex cache will contain a resolution method.
-      method = dex_cache->GetResolvedMethod(it.GetMemberIndex(), pointer_size_);
+      // entrypoint. This is not fatal since we shall use a resolution method.
+      method = class_linker_->LookupResolvedMethod(it.GetMemberIndex(), dex_cache, class_loader_);
     }
     if (method != nullptr &&
         compiled_method != nullptr &&
@@ -1252,6 +1250,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
 
  private:
   const PointerSize pointer_size_;
+  ObjPtr<mirror::ClassLoader> class_loader_;
   const std::vector<const DexFile*>* dex_files_;
   ClassLinker* const class_linker_;
   std::vector<std::pair<ArtMethod*, ArtMethod*>> methods_to_process_;
@@ -1471,7 +1470,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     ObjPtr<mirror::DexCache> dex_cache =
         (dex_file_ == ref.dex_file) ? dex_cache_ : class_linker_->FindDexCache(
             Thread::Current(), *ref.dex_file);
-    ArtMethod* method = dex_cache->GetResolvedMethod(ref.dex_method_index, pointer_size_);
+    ArtMethod* method =
+        class_linker_->LookupResolvedMethod(ref.dex_method_index, dex_cache, class_loader_);
     CHECK(method != nullptr);
     return method;
   }

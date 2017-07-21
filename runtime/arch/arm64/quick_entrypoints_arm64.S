@@ -2052,17 +2052,28 @@ END art_quick_proxy_invoke_handler
      * x0 is the conflict ArtMethod.
      * xIP1 is a hidden argument that holds the target interface method's dex method index.
      *
-     * Note that this stub writes to xIP0, xIP1, and x0.
+     * Note that this stub writes to xIP0, xIP1, x13-x15, and x0.
      */
-    .extern artInvokeInterfaceTrampoline
+    .extern artLookupResolvedMethod
 ENTRY art_quick_imt_conflict_trampoline
     ldr xIP0, [sp, #0]  // Load referrer
+    ubfx x15, xIP1, #0, #METHOD_DEX_CACHE_HASH_BITS  // Calculate DexCache method slot index.
     ldr xIP0, [xIP0, #ART_METHOD_DEX_CACHE_METHODS_OFFSET_64]   // Load dex cache methods array
-    ldr xIP0, [xIP0, xIP1, lsl #POINTER_SIZE_SHIFT]  // Load interface method
+    add xIP0, xIP0, x15, lsl #(POINTER_SIZE_SHIFT + 1)  // Load DexCache method slot address.
+
+    // Relaxed atomic load x14:x15 from the dex cache slot.
+.Limt_conflict_trampoline_retry_load:
+    ldxp x14, x15, [xIP0]
+    stxp w13, x14, x15, [xIP0]
+    cbnz w13, .Limt_conflict_trampoline_retry_load
+
+    cmp x15, xIP1       // Compare method index to see if we had a DexCache method hit.
+    bne .Limt_conflict_trampoline_dex_cache_miss
+.Limt_conflict_trampoline_have_interface_method:
     ldr xIP1, [x0, #ART_METHOD_JNI_OFFSET_64]  // Load ImtConflictTable
     ldr x0, [xIP1]  // Load first entry in ImtConflictTable.
 .Limt_table_iterate:
-    cmp x0, xIP0
+    cmp x0, x14
     // Branch if found. Benchmarks have shown doing a branch here is better.
     beq .Limt_table_found
     // If the entry is null, the interface method is not in the ImtConflictTable.
@@ -2079,8 +2090,46 @@ ENTRY art_quick_imt_conflict_trampoline
 .Lconflict_trampoline:
     // Call the runtime stub to populate the ImtConflictTable and jump to the
     // resolved method.
-    mov x0, xIP0  // Load interface method
+    mov x0, x14  // Load interface method
     INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
+.Limt_conflict_trampoline_dex_cache_miss:
+    // We're not creating a proper runtime method frame here,
+    // artLookupResolvedMethod() is not allowed to walk the stack.
+
+    // Save GPR args and return address, allocate space for FPR args, align stack.
+    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, (8 * 8 + 8 * 8 + 8 + 8)
+    SAVE_TWO_REGS x2, x3, 16
+    SAVE_TWO_REGS x4, x5, 32
+    SAVE_TWO_REGS x6, x7, 48
+    SAVE_REG      xLR, (8 * 8 + 8 * 8 + 8)
+
+    // Save FPR args.
+    stp d0, d1, [sp, #64]
+    stp d2, d3, [sp, #80]
+    stp d4, d5, [sp, #96]
+    stp d6, d7, [sp, #112]
+
+    mov x0, xIP1                            // Pass method index.
+    ldr x1, [sp, #(8 * 8 + 8 * 8 + 8 + 8)]  // Pass referrer.
+    bl artLookupResolvedMethod              // (uint32_t method_index, ArtMethod* referrer)
+    mov x14, x0   // Move the interface method to x14 where the loop above expects it.
+
+    // Restore FPR args.
+    ldp d0, d1, [sp, #64]
+    ldp d2, d3, [sp, #80]
+    ldp d4, d5, [sp, #96]
+    ldp d6, d7, [sp, #112]
+
+    // Restore GPR args and return address.
+    RESTORE_REG      xLR, (8 * 8 + 8 * 8 + 8)
+    RESTORE_TWO_REGS x2, x3, 16
+    RESTORE_TWO_REGS x4, x5, 32
+    RESTORE_TWO_REGS x6, x7, 48
+    RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, (8 * 8 + 8 * 8 + 8 + 8)
+
+    // If the method wasn't resolved, skip the lookup and go to artInvokeInterfaceTrampoline().
+    cbz x14, .Lconflict_trampoline
+    b .Limt_conflict_trampoline_have_interface_method
 END art_quick_imt_conflict_trampoline
 
 ENTRY art_quick_resolution_trampoline

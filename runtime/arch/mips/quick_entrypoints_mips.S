@@ -2066,6 +2066,10 @@ END art_quick_proxy_invoke_handler
      * Note that this stub writes to a0, t7 and t8.
      */
 ENTRY art_quick_imt_conflict_trampoline
+// FIXME: The DexCache method array has been changed to hash-based cache with eviction.
+// We need a relaxed atomic load of a 64-bit location to try and load the method
+// and call artQuickResolutionTrampoline() if the index does not match.
+#if 0
     lw      $t8, 0($sp)                                      # Load referrer.
     lw      $t8, ART_METHOD_DEX_CACHE_METHODS_OFFSET_32($t8) # Load dex cache methods array.
     sll     $t7, $t7, POINTER_SIZE_SHIFT                     # Calculate offset.
@@ -2095,6 +2099,9 @@ ENTRY art_quick_imt_conflict_trampoline
 .Lconflict_trampoline:
     # Call the runtime stub to populate the ImtConflictTable and jump to the resolved method.
     move    $a0, $t7                                         # Load interface method.
+#else
+    move   $a0, $zero
+#endif
     INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 END art_quick_imt_conflict_trampoline
 

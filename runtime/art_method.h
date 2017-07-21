@@ -53,6 +53,10 @@ class Object;
 template <typename MirrorType> class ObjectArray;
 class PointerArray;
 class String;
+
+template <typename T> struct NativeDexCachePair;
+using MethodDexCachePair = NativeDexCachePair<ArtMethod>;
+using MethodDexCacheType = std::atomic<MethodDexCachePair>;
 }  // namespace mirror
 
 class ArtMethod FINAL {
@@ -352,7 +356,7 @@ class ArtMethod FINAL {
     dex_method_index_ = new_idx;
   }
 
-  ALWAYS_INLINE ArtMethod** GetDexCacheResolvedMethods(PointerSize pointer_size)
+  ALWAYS_INLINE mirror::MethodDexCacheType* GetDexCacheResolvedMethods(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
   ALWAYS_INLINE ArtMethod* GetDexCacheResolvedMethod(uint16_t method_index,
                                                      PointerSize pointer_size)
@@ -362,13 +366,14 @@ class ArtMethod FINAL {
                                                ArtMethod* new_method,
                                                PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  ALWAYS_INLINE void SetDexCacheResolvedMethods(ArtMethod** new_dex_cache_methods,
+  ALWAYS_INLINE void SetDexCacheResolvedMethods(mirror::MethodDexCacheType* new_dex_cache_methods,
                                                 PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
   bool HasDexCacheResolvedMethods(PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
   bool HasSameDexCacheResolvedMethods(ArtMethod* other, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool HasSameDexCacheResolvedMethods(ArtMethod** other_cache, PointerSize pointer_size)
+  bool HasSameDexCacheResolvedMethods(mirror::MethodDexCacheType* other_cache,
+                                      PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the Class* from the type index into this method's dex cache.
@@ -714,7 +719,7 @@ class ArtMethod FINAL {
   // Must be the last fields in the method.
   struct PtrSizedFields {
     // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
-    ArtMethod** dex_cache_resolved_methods_;
+    mirror::MethodDexCacheType* dex_cache_resolved_methods_;
 
     // Pointer to JNI function registered to this method, or a function to resolve the JNI function,
     // or the profiling data for non-native methods, or an ImtConflictTable, or the

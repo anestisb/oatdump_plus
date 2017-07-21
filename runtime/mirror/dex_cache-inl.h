@@ -208,24 +208,38 @@ inline void DexCache::ClearResolvedField(uint32_t field_idx, PointerSize ptr_siz
   }
 }
 
+inline uint32_t DexCache::MethodSlotIndex(uint32_t method_idx) {
+  DCHECK_LT(method_idx, GetDexFile()->NumMethodIds());
+  const uint32_t slot_idx = method_idx % kDexCacheMethodCacheSize;
+  DCHECK_LT(slot_idx, NumResolvedMethods());
+  return slot_idx;
+}
+
 inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx, PointerSize ptr_size) {
   DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), ptr_size);
-  DCHECK_LT(method_idx, NumResolvedMethods());  // NOTE: Unchecked, i.e. not throwing AIOOB.
-  ArtMethod* method = GetElementPtrSize<ArtMethod*>(GetResolvedMethods(), method_idx, ptr_size);
-  // Hide resolution trampoline methods from the caller
-  if (method != nullptr && method->IsRuntimeMethod()) {
-    DCHECK_EQ(method, Runtime::Current()->GetResolutionMethod());
-    return nullptr;
-  }
-  return method;
+  auto pair = GetNativePairPtrSize(GetResolvedMethods(), MethodSlotIndex(method_idx), ptr_size);
+  return pair.GetObjectForIndex(method_idx);
 }
 
 inline void DexCache::SetResolvedMethod(uint32_t method_idx,
                                         ArtMethod* method,
                                         PointerSize ptr_size) {
   DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), ptr_size);
-  DCHECK_LT(method_idx, NumResolvedMethods());  // NOTE: Unchecked, i.e. not throwing AIOOB.
-  SetElementPtrSize(GetResolvedMethods(), method_idx, method, ptr_size);
+  DCHECK(method != nullptr);
+  MethodDexCachePair pair(method, method_idx);
+  SetNativePairPtrSize(GetResolvedMethods(), MethodSlotIndex(method_idx), pair, ptr_size);
+}
+
+inline void DexCache::ClearResolvedMethod(uint32_t method_idx, PointerSize ptr_size) {
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), ptr_size);
+  uint32_t slot_idx = MethodSlotIndex(method_idx);
+  auto* resolved_methods = GetResolvedMethods();
+  // This is racy but should only be called from the single-threaded ImageWriter.
+  DCHECK(Runtime::Current()->IsAotCompiler());
+  if (GetNativePairPtrSize(resolved_methods, slot_idx, ptr_size).index == method_idx) {
+    MethodDexCachePair cleared(nullptr, MethodDexCachePair::InvalidIndexForSlot(slot_idx));
+    SetNativePairPtrSize(resolved_methods, slot_idx, cleared, ptr_size);
+  }
 }
 
 template <typename PtrType>

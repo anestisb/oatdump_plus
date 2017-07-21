@@ -1641,17 +1641,29 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     int3
     int3
 #else
-    movq __SIZEOF_POINTER__(%rsp), %r10 // Load referrer
-    movq ART_METHOD_DEX_CACHE_METHODS_OFFSET_64(%r10), %r10   // Load dex cache methods array
-    movq 0(%r10, %rax, __SIZEOF_POINTER__), %r10 // Load interface method
+    movq __SIZEOF_POINTER__(%rsp), %r10 // Load referrer.
+    movq ART_METHOD_DEX_CACHE_METHODS_OFFSET_64(%r10), %r10   // Load dex cache methods array.
+    mov %eax, %r11d  // Remember method index in R11.
+    andl LITERAL(METHOD_DEX_CACHE_SIZE_MINUS_ONE), %eax  // Calculate DexCache method slot index.
+    shll LITERAL(1), %eax       // Multiply by 2 as entries have size 2 * __SIZEOF_POINTER__.
+    leaq 0(%r10, %rax, __SIZEOF_POINTER__), %r10 // Load DexCache method slot address.
+    PUSH rdx                    // Preserve RDX as we need to clobber it by LOCK CMPXCHG16B.
+    mov %rcx, %rdx              // Make RDX:RAX == RCX:RBX so that LOCK CMPXCHG16B makes no changes.
+    mov %rbx, %rax              // (The actual value does not matter.)
+    lock cmpxchg16b (%r10)      // Relaxed atomic load RDX:RAX from the dex cache slot.
     movq ART_METHOD_JNI_OFFSET_64(%rdi), %rdi  // Load ImtConflictTable
+    cmp %rdx, %r11              // Compare method index to see if we had a DexCache method hit.
+    jne .Limt_conflict_trampoline_dex_cache_miss
 .Limt_table_iterate:
-    cmpq %r10, 0(%rdi)
+    cmpq %rax, 0(%rdi)
     jne .Limt_table_next_entry
     // We successfully hit an entry in the table. Load the target method
     // and jump to it.
     movq __SIZEOF_POINTER__(%rdi), %rdi
+    CFI_REMEMBER_STATE
+    POP rdx
     jmp *ART_METHOD_QUICK_CODE_OFFSET_64(%rdi)
+    CFI_RESTORE_STATE
 .Limt_table_next_entry:
     // If the entry is null, the interface method is not in the ImtConflictTable.
     cmpq LITERAL(0), 0(%rdi)
@@ -1662,8 +1674,66 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
 .Lconflict_trampoline:
     // Call the runtime stub to populate the ImtConflictTable and jump to the
     // resolved method.
-    movq %r10, %rdi  // Load interface method
+    CFI_REMEMBER_STATE
+    POP rdx
+    movq %rax, %rdi  // Load interface method
     INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
+    CFI_RESTORE_STATE
+.Limt_conflict_trampoline_dex_cache_miss:
+    // We're not creating a proper runtime method frame here,
+    // artLookupResolvedMethod() is not allowed to walk the stack.
+
+    // Save GPR args and ImtConflictTable; RDX is already saved.
+    PUSH r9   // Quick arg 5.
+    PUSH r8   // Quick arg 4.
+    PUSH rsi  // Quick arg 1.
+    PUSH rcx  // Quick arg 3.
+    PUSH rdi  // ImtConflictTable
+    // Save FPR args and callee-saves, align stack to 16B.
+    subq MACRO_LITERAL(12 * 8 + 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(12 * 8 + 8)
+    movq %xmm0, 0(%rsp)
+    movq %xmm1, 8(%rsp)
+    movq %xmm2, 16(%rsp)
+    movq %xmm3, 24(%rsp)
+    movq %xmm4, 32(%rsp)
+    movq %xmm5, 40(%rsp)
+    movq %xmm6, 48(%rsp)
+    movq %xmm7, 56(%rsp)
+    movq %xmm12, 64(%rsp)  // XMM12-15 are callee-save in ART compiled code ABI
+    movq %xmm13, 72(%rsp)  // but caller-save in native ABI.
+    movq %xmm14, 80(%rsp)
+    movq %xmm15, 88(%rsp)
+
+    movq %r11, %rdi             // Pass method index.
+    movq 12 * 8 + 8 + 6 * 8 + 8(%rsp), %rsi   // Pass referrer.
+    call SYMBOL(artLookupResolvedMethod)  // (uint32_t method_index, ArtMethod* referrer)
+
+    // Restore FPRs.
+    movq 0(%rsp), %xmm0
+    movq 8(%rsp), %xmm1
+    movq 16(%rsp), %xmm2
+    movq 24(%rsp), %xmm3
+    movq 32(%rsp), %xmm4
+    movq 40(%rsp), %xmm5
+    movq 48(%rsp), %xmm6
+    movq 56(%rsp), %xmm7
+    movq 64(%rsp), %xmm12
+    movq 72(%rsp), %xmm13
+    movq 80(%rsp), %xmm14
+    movq 88(%rsp), %xmm15
+    addq MACRO_LITERAL(12 * 8 + 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-(12 * 8 + 8))
+    // Restore ImtConflictTable and GPR args.
+    POP rdi
+    POP rcx
+    POP rsi
+    POP r8
+    POP r9
+
+    cmp LITERAL(0), %rax        // If the method wasn't resolved,
+    je .Lconflict_trampoline    //   skip the lookup and go to artInvokeInterfaceTrampoline().
+    jmp .Limt_table_iterate
 #endif  // __APPLE__
 END_FUNCTION art_quick_imt_conflict_trampoline
 
