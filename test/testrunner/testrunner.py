@@ -50,7 +50,6 @@ import itertools
 import json
 import multiprocessing
 import os
-import operator
 import re
 import subprocess
 import sys
@@ -76,7 +75,9 @@ ADDRESS_SIZES = set()
 OPTIMIZING_COMPILER_TYPES = set()
 JVMTI_TYPES = set()
 ADDRESS_SIZES_TARGET = {'host': set(), 'target': set()}
-TIME_STATS = {}
+# timeout for individual tests.
+# TODO: make it adjustable per tests and for buildbots
+timeout = 3000 # 50 minutes
 
 # DISABLED_TEST_CONTAINER holds information about the disabled tests. It is a map
 # that has key as the test name (like 001-HelloWorld), and value as set of
@@ -126,11 +127,6 @@ build = False
 gdb = False
 gdb_arg = ''
 stop_testrunner = False
-
-# timeout for individual tests.
-# TODO: make it adjustable per tests and for buildbots
-test_timeout = 3000 # 50 minutes
-timeout = sys.maxsize
 
 def gather_test_info():
   """The method gathers test information about the test to be run which includes
@@ -510,13 +506,12 @@ def run_test(command, test, test_variant, test_name):
       test_skipped = True
     else:
       test_skipped = False
-      start_recording_time(test_name)
       if gdb:
         proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, universal_newlines=True)
       else:
         proc = subprocess.Popen(command.split(), stderr=subprocess.STDOUT, stdout = subprocess.PIPE,
                                 universal_newlines=True)
-      script_output = proc.communicate(timeout=test_timeout)[0]
+      script_output = proc.communicate(timeout=timeout)[0]
       test_passed = not proc.wait()
 
     if not test_skipped:
@@ -534,16 +529,15 @@ def run_test(command, test, test_variant, test_name):
     else:
       print_test_info(test_name, '')
   except subprocess.TimeoutExpired as e:
-    failed_tests.append((test_name, 'Timed out in %d seconds' % test_timeout))
+    failed_tests.append((test_name, 'Timed out in %d seconds' % timeout))
     print_test_info(test_name, 'TIMEOUT', 'Timed out in %d seconds\n%s' % (
-        test_timeout, command))
+        timeout, command))
   except Exception as e:
     failed_tests.append((test_name, str(e)))
     print_test_info(test_name, 'FAIL',
     ('%s\n%s\n\n') % (command, str(e)))
   finally:
     semaphore.release()
-    stop_recording_time(test_name)
 
 
 def print_test_info(test_name, result, failed_test_info=""):
@@ -735,7 +729,6 @@ def print_text(output):
   sys.stdout.flush()
 
 def print_analysis():
-  print_mutex.acquire()
   if not verbose:
     # Without --verbose, the testrunner erases passing test info. It
     # does that by overriding the printed text with white spaces all across
@@ -769,7 +762,6 @@ def print_analysis():
     print_text(COLOR_ERROR + '----------' + COLOR_NORMAL + '\n')
     for failed_test in sorted([test_info[0] for test_info in failed_tests]):
       print_text(('%s\n' % (failed_test)))
-  print_mutex.release()
 
 
 def parse_test_name(test_name):
@@ -867,16 +859,12 @@ def parse_option():
   global build
   global gdb
   global gdb_arg
-  global test_timeout
   global timeout
 
   parser = argparse.ArgumentParser(description="Runs all or a subset of the ART test suite.")
   parser.add_argument('-t', '--test', dest='test', help='name of the test')
   parser.add_argument('-j', type=int, dest='n_thread')
-  parser.add_argument('--timeout', default=timeout, type=int, dest='timeout',
-                      help='timeout the testrunner')
-  parser.add_argument('--test-timeout', default=test_timeout, type=int, dest='test_timeout',
-                      help='timeout for individual tests')
+  parser.add_argument('--timeout', default=timeout, type=int, dest='timeout')
   for variant in TOTAL_VARIANTS_SET:
     flag = '--' + variant
     flag_dest = variant.replace('-', '_')
@@ -998,58 +986,28 @@ def parse_option():
     gdb = True
     if options['gdb_arg']:
       gdb_arg = options['gdb_arg']
-
   timeout = options['timeout']
-  test_timeout = options['test_timeout']
 
   return test
 
-def start_recording_time(key):
-  """To begin recording time for the event associated with the key.
-  """
-  TIME_STATS[key] = -(time.time())
-
-def stop_recording_time(key):
-  """To stop timer for the event associated with the key.
-  """
-  TIME_STATS[key] = time.time() + TIME_STATS[key]
-
-def print_time_info():
-  """Print time information for different invocation.
-  """
-  print_mutex.acquire()
-  print_text('\nTIME INFO\n')
-  for key in TIME_STATS:
-    # Handle unfinised jobs.
-    if TIME_STATS[key] < 0:
-      TIME_STATS[key] = time.time() + TIME_STATS[key]
-
-  info_list = sorted(TIME_STATS.items(), key=operator.itemgetter(1), reverse=True)
-  for time_info_tuple in info_list:
-    print_text('%s : %.2f sec\n' % (time_info_tuple[0], time_info_tuple[1]))
-  print_mutex.release()
-
 def main():
-  start_time = time.time()
   gather_test_info()
   user_requested_test = parse_option()
   setup_test_env()
   if build:
     build_targets = ''
     if 'host' in TARGET_TYPES:
-      build_targets += ' test-art-host-run-test-dependencies'
+      build_targets += 'test-art-host-run-test-dependencies'
     if 'target' in TARGET_TYPES:
-      build_targets += ' test-art-target-run-test-dependencies'
+      build_targets += 'test-art-target-run-test-dependencies'
     build_command = 'make'
     build_command += ' -j'
     build_command += ' -C ' + env.ANDROID_BUILD_TOP
     build_command += ' ' + build_targets
     # Add 'dist' to avoid Jack issues b/36169180.
     build_command += ' dist'
-    start_recording_time(build_command)
     if subprocess.call(build_command.split()):
       sys.exit(1)
-    stop_recording_time(build_command)
   if user_requested_test:
     test_runner_thread = threading.Thread(target=run_tests, args=(user_requested_test,))
   else:
@@ -1058,15 +1016,8 @@ def main():
   try:
     test_runner_thread.start()
     while threading.active_count() > 1:
-      if (time.time() - start_time > timeout):
-        # to ensure that the run ends before the go/ab bots
-        # time out the invocation.
-        print_text("FAILED: timeout reached")
-        print_time_info()
-        print_analysis()
-        sys.exit(1)
-      time.sleep(1)
-
+      time.sleep(0.1)
+    print_analysis()
   except Exception as e:
     print_analysis()
     print_text(str(e))

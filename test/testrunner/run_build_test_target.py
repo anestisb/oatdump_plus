@@ -100,8 +100,6 @@ if target.has_key('run-test'):
   run_test_command += ['-b']
   run_test_command += ['--host']
   run_test_command += ['--verbose']
-  run_test_command += ['--timeout']
-  run_test_command += ['14100'] # 235 minutes (The go/ab timeout is 14500)
 
   sys.stdout.write(str(run_test_command) + '\n')
   sys.stdout.flush()
