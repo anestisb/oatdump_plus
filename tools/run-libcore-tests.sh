@@ -19,6 +19,11 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
+if [ -z "$ANDROID_JAVA_TOOLCHAIN" ] ; then
+  source build/envsetup.sh
+  setpaths # include platform prebuilt java, javac, etc in $PATH.
+fi
+
 if [ -z "$ANDROID_PRODUCT_OUT" ] ; then
   JAVA_LIBRARIES=out/target/common/obj/JAVA_LIBRARIES
 else

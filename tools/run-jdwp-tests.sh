@@ -19,6 +19,11 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
+if [ -z "$ANDROID_JAVA_TOOLCHAIN" ] ; then
+  source build/envsetup.sh
+  setpaths # include platform prebuilt java, javac, etc in $PATH.
+fi
+
 if [ -z "$ANDROID_HOST_OUT" ] ; then
   ANDROID_HOST_OUT=${OUT_DIR-$ANDROID_BUILD_TOP/out}/host/linux-x86
 fi

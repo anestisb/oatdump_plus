@@ -32,7 +32,8 @@ _DUMP_MANY_VARS_LIST = ['HOST_2ND_ARCH_PREFIX',
                         'TARGET_2ND_ARCH',
                         'TARGET_ARCH',
                         'HOST_PREFER_32_BIT',
-                        'HOST_OUT_EXECUTABLES']
+                        'HOST_OUT_EXECUTABLES',
+                        'ANDROID_JAVA_TOOLCHAIN']
 _DUMP_MANY_VARS = None  # To be set to a dictionary with above list being the keys,
                         # and the build variable being the value.
 def _dump_many_vars(var_name):
@@ -238,3 +239,9 @@ HOST_OUT_EXECUTABLES = os.path.join(ANDROID_BUILD_TOP,
 for tool in ['jack', 'dx', 'smali', 'jasmin', 'dxmerger']:
   binary = tool if tool != 'dxmerger' else 'dexmerger'
   os.environ.setdefault(tool.upper(), HOST_OUT_EXECUTABLES + '/' + binary)
+
+ANDROID_JAVA_TOOLCHAIN = os.path.join(ANDROID_BUILD_TOP,
+                                     _get_build_var('ANDROID_JAVA_TOOLCHAIN'))
+
+# include platform prebuilt java, javac, etc in $PATH.
+os.environ['PATH'] = ANDROID_JAVA_TOOLCHAIN + ':' + os.environ['PATH']
