@@ -2332,7 +2332,7 @@ class InitializeClassVisitor : public CompilationVisitor {
             // checks in Thread::AssertThreadSuspensionIsAllowable.
             Runtime* const runtime = Runtime::Current();
             // Run the class initializer in transaction mode.
-            runtime->EnterTransactionMode();
+            runtime->EnterTransactionMode(klass.Get());
             bool success = manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, true,
                                                                          true);
             // TODO we detach transaction from runtime to indicate we quit the transactional

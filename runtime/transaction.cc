@@ -38,6 +38,10 @@ Transaction::Transaction()
   CHECK(Runtime::Current()->IsAotCompiler());
 }
 
+Transaction::Transaction(mirror::Class* root) : Transaction() {
+  root_ = root;
+}
+
 Transaction::~Transaction() {
   if (kEnableTransactionStats) {
     MutexLock mu(Thread::Current(), log_lock_);
@@ -270,6 +274,7 @@ void Transaction::UndoResolveStringModifications() {
 
 void Transaction::VisitRoots(RootVisitor* visitor) {
   MutexLock mu(Thread::Current(), log_lock_);
+  visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&root_), RootInfo(kRootUnknown));
   VisitObjectLogs(visitor);
   VisitArrayLogs(visitor);
   VisitInternStringLogs(visitor);

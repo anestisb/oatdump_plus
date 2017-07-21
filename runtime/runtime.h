@@ -459,6 +459,7 @@ class Runtime {
     return preinitialization_transaction_ != nullptr;
   }
   void EnterTransactionMode();
+  void EnterTransactionMode(mirror::Class* root);
   void ExitTransactionMode();
   // Transaction rollback and exit transaction are always done together, it's convenience to
   // do them in one function.

@@ -32,6 +32,7 @@
 namespace art {
 namespace mirror {
 class Array;
+class Class;
 class DexCache;
 class Object;
 class String;
@@ -44,6 +45,7 @@ class Transaction FINAL {
   static constexpr const char* kAbortExceptionSignature = "Ldalvik/system/TransactionAbortError;";
 
   Transaction();
+  explicit Transaction(mirror::Class* root);
   ~Transaction();
 
   void Abort(const std::string& abort_message)
@@ -288,6 +290,7 @@ class Transaction FINAL {
   std::list<ResolveStringLog> resolve_string_logs_ GUARDED_BY(log_lock_);
   bool aborted_ GUARDED_BY(log_lock_);
   std::string abort_message_ GUARDED_BY(log_lock_);
+  mirror::Class* root_ GUARDED_BY(log_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(Transaction);
 };
