@@ -8980,51 +8980,6 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
   return ret;
 }
 
-std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForResolvedClasses(
-    const std::set<DexCacheResolvedClasses>& classes) {
-  ScopedTrace trace(__PRETTY_FUNCTION__);
-  std::unordered_set<std::string> ret;
-  Thread* const self = Thread::Current();
-  std::unordered_map<std::string, const DexFile*> location_to_dex_file;
-  ScopedObjectAccess soa(self);
-  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  ReaderMutexLock mu(self, *Locks::dex_lock_);
-  for (const ClassLinker::DexCacheData& data : GetDexCachesData()) {
-    if (!self->IsJWeakCleared(data.weak_root)) {
-      ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(data.weak_root);
-      if (dex_cache != nullptr) {
-        const DexFile* dex_file = dex_cache->GetDexFile();
-        // There could be duplicates if two dex files with the same location are mapped.
-        location_to_dex_file.emplace(dex_file->GetLocation(), dex_file);
-      }
-    }
-  }
-  for (const DexCacheResolvedClasses& info : classes) {
-    const std::string& location = info.GetDexLocation();
-    auto found = location_to_dex_file.find(location);
-    if (found != location_to_dex_file.end()) {
-      const DexFile* dex_file = found->second;
-      VLOG(profiler) << "Found opened dex file for " << dex_file->GetLocation() << " with "
-                     << info.GetClasses().size() << " classes";
-      DCHECK_EQ(dex_file->GetLocationChecksum(), info.GetLocationChecksum());
-      for (dex::TypeIndex type_idx : info.GetClasses()) {
-        if (!dex_file->IsTypeIndexValid(type_idx)) {
-          // Something went bad. The profile is probably corrupted. Abort and return an emtpy set.
-          LOG(WARNING) << "Corrupted profile: invalid type index "
-              << type_idx.index_ << " in dex " << location;
-          return std::unordered_set<std::string>();
-        }
-        const DexFile::TypeId& type_id = dex_file->GetTypeId(type_idx);
-        const char* descriptor = dex_file->GetTypeDescriptor(type_id);
-        ret.insert(descriptor);
-      }
-    } else {
-      VLOG(class_linker) << "Failed to find opened dex file for location " << location;
-    }
-  }
-  return ret;
-}
-
 class ClassLinker::FindVirtualMethodHolderVisitor : public ClassVisitor {
  public:
   FindVirtualMethodHolderVisitor(const ArtMethod* method, PointerSize pointer_size)

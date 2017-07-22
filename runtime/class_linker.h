@@ -614,11 +614,6 @@ class ClassLinker {
   std::set<DexCacheResolvedClasses> GetResolvedClasses(bool ignore_boot_classes)
       REQUIRES(!Locks::dex_lock_);
 
-  // Returns the class descriptors for loaded dex files.
-  std::unordered_set<std::string> GetClassDescriptorsForResolvedClasses(
-      const std::set<DexCacheResolvedClasses>& classes)
-      REQUIRES(!Locks::dex_lock_);
-
   static bool IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
                                 ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_);

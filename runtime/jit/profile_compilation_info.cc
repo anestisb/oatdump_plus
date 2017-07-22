@@ -1652,4 +1652,27 @@ ProfileCompilationInfo::FindOrAddDexPc(InlineCacheMap* inline_cache, uint32_t de
   return &(inline_cache->FindOrAdd(dex_pc, DexPcData(&arena_))->second);
 }
 
+std::unordered_set<std::string> ProfileCompilationInfo::GetClassDescriptors(
+    const std::vector<const DexFile*>& dex_files) {
+  std::unordered_set<std::string> ret;
+  for (const DexFile* dex_file : dex_files) {
+    const DexFileData* data = FindDexData(dex_file);
+    if (data != nullptr) {
+      for (dex::TypeIndex type_idx : data->class_set) {
+        if (!dex_file->IsTypeIndexValid(type_idx)) {
+          // Something went bad. The profile is probably corrupted. Abort and return an emtpy set.
+          LOG(WARNING) << "Corrupted profile: invalid type index "
+              << type_idx.index_ << " in dex " << dex_file->GetLocation();
+          return std::unordered_set<std::string>();
+        }
+        const DexFile::TypeId& type_id = dex_file->GetTypeId(type_idx);
+        ret.insert(dex_file->GetTypeDescriptor(type_id));
+      }
+    } else {
+      VLOG(compiler) << "Failed to find profile data for " << dex_file->GetLocation();
+    }
+  }
+  return ret;
+}
+
 }  // namespace art
