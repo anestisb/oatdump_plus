@@ -36,11 +36,8 @@ class MonitorTest : public CommonRuntimeTest {
  protected:
   void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
     // Use a smaller heap
-    for (std::pair<std::string, const void*>& pair : *options) {
-      if (pair.first.find("-Xmx") == 0) {
-        pair.first = "-Xmx4M";  // Smallest we can go.
-      }
-    }
+    SetUpRuntimeOptionsForFillHeap(options);
+
     options->push_back(std::make_pair("-Xint", nullptr));
   }
  public:
@@ -55,52 +52,6 @@ class MonitorTest : public CommonRuntimeTest {
   std::unique_ptr<Barrier> complete_barrier_;
   bool completed_;
 };
-
-// Fill the heap.
-static const size_t kMaxHandles = 1000000;  // Use arbitrary large amount for now.
-static void FillHeap(Thread* self, ClassLinker* class_linker,
-                     std::unique_ptr<StackHandleScope<kMaxHandles>>* hsp,
-                     std::vector<MutableHandle<mirror::Object>>* handles)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  Runtime::Current()->GetHeap()->SetIdealFootprint(1 * GB);
-
-  hsp->reset(new StackHandleScope<kMaxHandles>(self));
-  // Class java.lang.Object.
-  Handle<mirror::Class> c((*hsp)->NewHandle(class_linker->FindSystemClass(self,
-                                                                       "Ljava/lang/Object;")));
-  // Array helps to fill memory faster.
-  Handle<mirror::Class> ca((*hsp)->NewHandle(class_linker->FindSystemClass(self,
-                                                                        "[Ljava/lang/Object;")));
-
-  // Start allocating with 128K
-  size_t length = 128 * KB / 4;
-  while (length > 10) {
-    MutableHandle<mirror::Object> h((*hsp)->NewHandle<mirror::Object>(
-        mirror::ObjectArray<mirror::Object>::Alloc(self, ca.Get(), length / 4)));
-    if (self->IsExceptionPending() || h == nullptr) {
-      self->ClearException();
-
-      // Try a smaller length
-      length = length / 8;
-      // Use at most half the reported free space.
-      size_t mem = Runtime::Current()->GetHeap()->GetFreeMemory();
-      if (length * 8 > mem) {
-        length = mem / 8;
-      }
-    } else {
-      handles->push_back(h);
-    }
-  }
-
-  // Allocate simple objects till it fails.
-  while (!self->IsExceptionPending()) {
-    MutableHandle<mirror::Object> h = (*hsp)->NewHandle<mirror::Object>(c->AllocObject(self));
-    if (!self->IsExceptionPending() && h != nullptr) {
-      handles->push_back(h);
-    }
-  }
-  self->ClearException();
-}
 
 // Check that an exception can be thrown correctly.
 // This test is potentially racy, but the timeout is long enough that it should work.
@@ -304,16 +255,12 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
   test->complete_barrier_ = std::unique_ptr<Barrier>(new Barrier(3));
   test->completed_ = false;
 
-  // Fill the heap.
-  std::unique_ptr<StackHandleScope<kMaxHandles>> hsp;
-  std::vector<MutableHandle<mirror::Object>> handles;
-
   // Our job: Fill the heap, then try Wait.
-  FillHeap(soa.Self(), class_linker, &hsp, &handles);
+  {
+    VariableSizedHandleScope vhs(soa.Self());
+    test->FillHeap(soa.Self(), class_linker, &vhs);
 
-  // Now release everything.
-  for (MutableHandle<mirror::Object>& h : handles) {
-    h.Assign(nullptr);
+    // Now release everything.
   }
 
   // Need to drop the mutator lock to allow barriers.

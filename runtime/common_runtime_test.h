@@ -44,6 +44,8 @@ class DexFile;
 class JavaVMExt;
 class Runtime;
 typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
+class Thread;
+class VariableSizedHandleScope;
 
 uint8_t* DecodeBase64(const char* src, size_t* dst_size);
 
@@ -104,6 +106,14 @@ class CommonRuntimeTestImpl {
 
   // Retuerns the filename for a test dex (i.e. XandY or ManyMethods).
   std::string GetTestDexFileName(const char* name) const;
+
+  // A helper function to fill the heap.
+  static void FillHeap(Thread* self,
+                       ClassLinker* class_linker,
+                       VariableSizedHandleScope* handle_scope)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // A helper to set up a small heap (4M) to make FillHeap faster.
+  static void SetUpRuntimeOptionsForFillHeap(RuntimeOptions *options);
 
  protected:
   // Allow subclases such as CommonCompilerTest to add extra options.

@@ -711,6 +711,29 @@ const RegType& RegType::Merge(const RegType& incoming_type,
       DCHECK(c1 != nullptr && !c1->IsPrimitive());
       DCHECK(c2 != nullptr && !c2->IsPrimitive());
       mirror::Class* join_class = ClassJoin(c1, c2);
+      if (UNLIKELY(join_class == nullptr)) {
+        // Internal error joining the classes (e.g., OOME). Report an unresolved reference type.
+        // We cannot report an unresolved merge type, as that will attempt to merge the resolved
+        // components, leaving us in an infinite loop.
+        // We do not want to report the originating exception, as that would require a fast path
+        // out all the way to VerifyClass. Instead attempt to continue on without a detailed type.
+        Thread* self = Thread::Current();
+        self->AssertPendingException();
+        self->ClearException();
+
+        // When compiling on the host, we rather want to abort to ensure determinism for preopting.
+        // (In that case, it is likely a misconfiguration of dex2oat.)
+        if (!kIsTargetBuild && Runtime::Current()->IsAotCompiler()) {
+          LOG(FATAL) << "Could not create class join of "
+                     << c1->PrettyClass()
+                     << " & "
+                     << c2->PrettyClass();
+          UNREACHABLE();
+        }
+
+        return reg_types->MakeUnresolvedReference();
+      }
+
       // Record the dependency that both `c1` and `c2` are assignable to `join_class`.
       // The `verifier` is null during unit tests.
       if (verifier != nullptr) {
@@ -753,10 +776,18 @@ mirror::Class* RegType::ClassJoin(mirror::Class* s, mirror::Class* t) {
       DCHECK(result->IsObjectClass());
       return result;
     }
+    Thread* self = Thread::Current();
     ObjPtr<mirror::Class> common_elem = ClassJoin(s_ct, t_ct);
+    if (UNLIKELY(common_elem == nullptr)) {
+      self->AssertPendingException();
+      return nullptr;
+    }
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    mirror::Class* array_class = class_linker->FindArrayClass(Thread::Current(), &common_elem);
-    DCHECK(array_class != nullptr);
+    mirror::Class* array_class = class_linker->FindArrayClass(self, &common_elem);
+    if (UNLIKELY(array_class == nullptr)) {
+      self->AssertPendingException();
+      return nullptr;
+    }
     return array_class;
   } else {
     size_t s_depth = s->Depth();
