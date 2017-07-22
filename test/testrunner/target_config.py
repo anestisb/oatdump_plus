@@ -303,7 +303,8 @@ target_config = {
         }
     },
     'art-gtest-valgrind32': {
-        'make' : 'valgrind-test-art-host32',
+      # Disabled: x86 valgrind does not understand SSE4.x
+      # 'make' : 'valgrind-test-art-host32',
         'env': {
             'ART_USE_READ_BARRIER' : 'false'
         }
