@@ -689,6 +689,9 @@ class RegTypeOOMTest : public RegTypeTest {
 };
 
 TEST_F(RegTypeOOMTest, ClassJoinOOM) {
+  // TODO: Figure out why FillHeap isn't good enough under CMS.
+  TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();
+
   // Tests that we don't abort with OOMs.
 
   ArenaStack stack(Runtime::Current()->GetArenaPool());
