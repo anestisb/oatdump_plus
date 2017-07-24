@@ -446,6 +446,16 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
     return GetFrameSize() == (CallPushesPC() ? GetWordSize() : 0);
   }
 
+  static int8_t GetInt8ValueOf(HConstant* constant) {
+    DCHECK(constant->IsIntConstant());
+    return constant->AsIntConstant()->GetValue();
+  }
+
+  static int16_t GetInt16ValueOf(HConstant* constant) {
+    DCHECK(constant->IsIntConstant());
+    return constant->AsIntConstant()->GetValue();
+  }
+
   static int32_t GetInt32ValueOf(HConstant* constant) {
     if (constant->IsIntConstant()) {
       return constant->AsIntConstant()->GetValue();
