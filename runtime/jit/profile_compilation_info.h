@@ -380,6 +380,9 @@ class ProfileCompilationInfo {
 
   ArenaAllocator* GetArena() { return &arena_; }
 
+  // Return all of the class descriptors in the profile for a set of dex files.
+  std::unordered_set<std::string> GetClassDescriptors(const std::vector<const DexFile*>& dex_files);
+
  private:
   enum ProfileLoadSatus {
     kProfileLoadWouldOverwiteData,

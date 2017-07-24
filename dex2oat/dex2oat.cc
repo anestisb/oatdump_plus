@@ -1497,10 +1497,9 @@ class Dex2Oat FINAL {
       Runtime* runtime = Runtime::Current();
       CHECK(runtime != nullptr);
       // Filter out class path classes since we don't want to include these in the image.
-      std::set<DexCacheResolvedClasses> resolved_classes(
-          profile_compilation_info_->GetResolvedClasses(dex_files_));
-      image_classes_.reset(new std::unordered_set<std::string>(
-          runtime->GetClassLinker()->GetClassDescriptorsForResolvedClasses(resolved_classes)));
+      image_classes_.reset(
+          new std::unordered_set<std::string>(
+              profile_compilation_info_->GetClassDescriptors(dex_files_)));
       VLOG(compiler) << "Loaded " << image_classes_->size()
                      << " image class descriptors from profile";
       if (VLOG_IS_ON(compiler)) {
