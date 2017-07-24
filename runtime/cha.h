@@ -148,14 +148,6 @@ class ClassHierarchyAnalysis {
       std::unordered_set<ArtMethod*>& invalidated_single_impl_methods)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // For all methods in vtable slot at `verify_index` of `verify_class` and its
-  // superclasses, single-implementation status should be false, except if the
-  // method is `excluded_method`.
-  void VerifyNonSingleImplementation(mirror::Class* verify_class,
-                                     uint16_t verify_index,
-                                     ArtMethod* excluded_method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // A map that maps a method to a set of compiled code that assumes that method has a
   // single implementation, which is used to do CHA-based devirtualization.
   std::unordered_map<ArtMethod*, ListOfDependentPairs> cha_dependency_map_
