@@ -396,7 +396,7 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
     class_data_[klass].AddDirtyObject(entry, entry_remote);
   }
 
-  void DiffEntryContents(mirror::Object* entry, uint8_t* remote_bytes)
+  void DiffEntryContents(mirror::Object* entry, uint8_t* remote_bytes, const uint8_t* base_ptr)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* tabs = "    ";
     // Attempt to find fields for all dirty bytes.
@@ -414,10 +414,9 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
     // Examine the bytes comprising the Object, computing which fields are dirty
     // and recording them for later display.  If the Object is an array object,
     // compute the dirty entries.
-    const uint8_t* entry_bytes = reinterpret_cast<const uint8_t*>(entry);
     mirror::Object* remote_entry = reinterpret_cast<mirror::Object*>(remote_bytes);
     for (size_t i = 0, count = entry->SizeOf(); i < count; ++i) {
-      if (entry_bytes[i] != remote_bytes[i]) {
+      if (base_ptr[i] != remote_bytes[i]) {
         ArtField* field = ArtField::FindInstanceFieldWithOffset</*exact*/false>(klass, i);
         if (field != nullptr) {
           dirty_instance_fields.insert(field);
@@ -651,7 +650,8 @@ class RegionSpecializedBase<ArtMethod> : RegionCommon<ArtMethod> {
   }
 
   void DiffEntryContents(ArtMethod* method ATTRIBUTE_UNUSED,
-                         uint8_t* remote_bytes ATTRIBUTE_UNUSED)
+                         uint8_t* remote_bytes ATTRIBUTE_UNUSED,
+                         const uint8_t* base_ptr ATTRIBUTE_UNUSED)
       REQUIRES_SHARED(Locks::mutator_lock_) {
   }
 
@@ -753,29 +753,39 @@ class RegionData : public RegionSpecializedBase<T> {
         << RegionCommon<T>::GetFalseDirtyEntryCount() << " false dirty entries,\n  "
         << RegionCommon<T>::GetFalseDirtyEntryBytes() << " false dirty entry [bytes], \n  "
         << true_dirtied_percent << " different entries-vs-total in a dirty page;\n  "
-        << "";
+        << "\n";
 
-    if (RegionCommon<T>::GetZygoteDirtyEntryCount() != 0) {
-      // We only reach this point if both pids were specified.  Furthermore,
-      // entries are only displayed here if they differed in both the image
-      // and the zygote, so they are probably private dirty.
-      CHECK(remotes == RemoteProcesses::kImageAndZygote);
-      os_ << "\n" << "  Zygote dirty entries (probably shared dirty): ";
-      DiffDirtyEntries(ProcessType::kZygote, begin_image_ptr, RegionCommon<T>::zygote_contents_);
-    }
-    os_ << "\n";
+    const uint8_t* base_ptr = begin_image_ptr;
     switch (remotes) {
       case RemoteProcesses::kZygoteOnly:
         os_ << "  Zygote shared dirty entries: ";
         break;
       case RemoteProcesses::kImageAndZygote:
         os_ << "  Application dirty entries (private dirty): ";
+        // If we are dumping private dirty, diff against the zygote map to make it clearer what
+        // fields caused the page to be private dirty.
+        base_ptr = &RegionCommon<T>::zygote_contents_->operator[](0);
         break;
       case RemoteProcesses::kImageOnly:
         os_ << "  Application dirty entries (unknown whether private or shared dirty): ";
         break;
     }
-    DiffDirtyEntries(ProcessType::kRemote, begin_image_ptr, RegionCommon<T>::remote_contents_);
+    DiffDirtyEntries(ProcessType::kRemote,
+                     begin_image_ptr,
+                     RegionCommon<T>::remote_contents_,
+                     base_ptr);
+    // Print shared dirty after since it's less important.
+    if (RegionCommon<T>::GetZygoteDirtyEntryCount() != 0) {
+      // We only reach this point if both pids were specified.  Furthermore,
+      // entries are only displayed here if they differed in both the image
+      // and the zygote, so they are probably private dirty.
+      CHECK(remotes == RemoteProcesses::kImageAndZygote);
+      os_ << "\n" << "  Zygote dirty entries (probably shared dirty): ";
+      DiffDirtyEntries(ProcessType::kZygote,
+                       begin_image_ptr,
+                       RegionCommon<T>::zygote_contents_,
+                       begin_image_ptr);
+    }
     RegionSpecializedBase<T>::DumpDirtyEntries();
     RegionSpecializedBase<T>::DumpFalseDirtyEntries();
     RegionSpecializedBase<T>::DumpCleanEntries();
@@ -786,7 +796,8 @@ class RegionData : public RegionSpecializedBase<T> {
 
   void DiffDirtyEntries(ProcessType process_type,
                         const uint8_t* begin_image_ptr,
-                        std::vector<uint8_t>* contents)
+                        std::vector<uint8_t>* contents,
+                        const uint8_t* base_ptr)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     os_ << RegionCommon<T>::dirty_entries_.size() << "\n";
     const std::set<T*>& entries =
@@ -797,7 +808,7 @@ class RegionData : public RegionSpecializedBase<T> {
       uint8_t* entry_bytes = reinterpret_cast<uint8_t*>(entry);
       ptrdiff_t offset = entry_bytes - begin_image_ptr;
       uint8_t* remote_bytes = &(*contents)[offset];
-      RegionSpecializedBase<T>::DiffEntryContents(entry, remote_bytes);
+      RegionSpecializedBase<T>::DiffEntryContents(entry, remote_bytes, &base_ptr[offset]);
     }
   }
 
@@ -810,34 +821,42 @@ class RegionData : public RegionSpecializedBase<T> {
     ptrdiff_t offset = current - begin_image_ptr;
     T* entry_remote =
         reinterpret_cast<T*>(const_cast<uint8_t*>(&(*RegionCommon<T>::remote_contents_)[offset]));
+    const bool have_zygote = !RegionCommon<T>::zygote_contents_->empty();
     const uint8_t* current_zygote =
-        RegionCommon<T>::zygote_contents_->empty() ? nullptr :
-                                                     &(*RegionCommon<T>::zygote_contents_)[offset];
+        have_zygote ? &(*RegionCommon<T>::zygote_contents_)[offset] : nullptr;
     T* entry_zygote = reinterpret_cast<T*>(const_cast<uint8_t*>(current_zygote));
     // Visit and classify entries at the current location.
     RegionSpecializedBase<T>::VisitEntry(entry);
-    bool different_image_entry = EntriesDiffer(entry, entry_remote);
-    if (different_image_entry) {
-      bool different_zygote_entry = false;
-      if (entry_zygote != nullptr) {
-        different_zygote_entry = EntriesDiffer(entry, entry_zygote);
-      }
-      if (different_zygote_entry) {
-        // Different from zygote.
-        RegionCommon<T>::AddZygoteDirtyEntry(entry);
-        RegionSpecializedBase<T>::AddDirtyEntry(entry, entry_remote);
-      } else {
-        // Just different from image.
+
+    // Test private dirty first.
+    bool is_dirty = false;
+    if (have_zygote) {
+      bool private_dirty = EntriesDiffer(entry_zygote, entry_remote);
+      if (private_dirty) {
+        // Private dirty, app vs zygote.
+        is_dirty = true;
         RegionCommon<T>::AddImageDirtyEntry(entry);
-        RegionSpecializedBase<T>::AddDirtyEntry(entry, entry_remote);
       }
+      if (EntriesDiffer(entry_zygote, entry)) {
+        // Shared dirty, zygote vs image.
+        is_dirty = true;
+        RegionCommon<T>::AddZygoteDirtyEntry(entry);
+      }
+    } else if (EntriesDiffer(entry_remote, entry)) {
+      // Shared or private dirty, app vs image.
+      is_dirty = true;
+      RegionCommon<T>::AddImageDirtyEntry(entry);
+    }
+    if (is_dirty) {
+      // TODO: Add support dirty entries in zygote and image.
+      RegionSpecializedBase<T>::AddDirtyEntry(entry, entry_remote);
     } else {
       RegionSpecializedBase<T>::AddCleanEntry(entry);
-    }
-    if (!different_image_entry && RegionCommon<T>::IsEntryOnDirtyPage(entry, dirty_pages)) {
-      // This entry was either never mutated or got mutated back to the same value.
-      // TODO: Do I want to distinguish a "different" vs a "dirty" page here?
-      RegionSpecializedBase<T>::AddFalseDirtyEntry(entry);
+      if (RegionCommon<T>::IsEntryOnDirtyPage(entry, dirty_pages)) {
+        // This entry was either never mutated or got mutated back to the same value.
+        // TODO: Do I want to distinguish a "different" vs a "dirty" page here?
+        RegionSpecializedBase<T>::AddFalseDirtyEntry(entry);
+      }
     }
   }
 
@@ -945,7 +964,7 @@ class ImgDiagDumper {
         return false;
       }
       // The boot map should be at the same address.
-      tmp_zygote_contents.reserve(boot_map_size_);
+      tmp_zygote_contents.resize(boot_map_size_);
       if (!zygote_map_file->PreadFully(&tmp_zygote_contents[0], boot_map_size_, boot_map_.start)) {
         LOG(WARNING) << "Could not fully read zygote file " << zygote_file_name;
         return false;
