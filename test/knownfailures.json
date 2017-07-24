@@ -600,15 +600,6 @@
     },
     {
         "tests": [
-            "567-checker-compare",
-            "988-method-trace"
-        ],
-        "description": "Checker tests fail because desugar lowers Long.compare to lcmp",
-        "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"},
-        "bug": "b/63078894"
-    },
-    {
-        "tests": [
             "536-checker-needs-access-check",
             "537-checker-inline-and-unverified",
             "569-checker-pattern-replacement",
