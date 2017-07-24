@@ -613,6 +613,46 @@ TEST_F(AssemblerX86Test, PAvgW) {
   DriverStr(RepeatFF(&x86::X86Assembler::pavgw, "pavgw %{reg2}, %{reg1}"), "pavgw");
 }
 
+TEST_F(AssemblerX86Test, PSadBW) {
+  DriverStr(RepeatFF(&x86::X86Assembler::psadbw, "psadbw %{reg2}, %{reg1}"), "psadbw");
+}
+
+TEST_F(AssemblerX86Test, PMAddWD) {
+  DriverStr(RepeatFF(&x86::X86Assembler::pmaddwd, "pmaddwd %{reg2}, %{reg1}"), "pmaddwd");
+}
+
+TEST_F(AssemblerX86Test, PHAddW) {
+  DriverStr(RepeatFF(&x86::X86Assembler::phaddw, "phaddw %{reg2}, %{reg1}"), "phaddw");
+}
+
+TEST_F(AssemblerX86Test, PHAddD) {
+  DriverStr(RepeatFF(&x86::X86Assembler::phaddd, "phaddd %{reg2}, %{reg1}"), "phaddd");
+}
+
+TEST_F(AssemblerX86Test, HAddPS) {
+  DriverStr(RepeatFF(&x86::X86Assembler::haddps, "haddps %{reg2}, %{reg1}"), "haddps");
+}
+
+TEST_F(AssemblerX86Test, HAddPD) {
+  DriverStr(RepeatFF(&x86::X86Assembler::haddpd, "haddpd %{reg2}, %{reg1}"), "haddpd");
+}
+
+TEST_F(AssemblerX86Test, PHSubW) {
+  DriverStr(RepeatFF(&x86::X86Assembler::phsubw, "phsubw %{reg2}, %{reg1}"), "phsubw");
+}
+
+TEST_F(AssemblerX86Test, PHSubD) {
+  DriverStr(RepeatFF(&x86::X86Assembler::phsubd, "phsubd %{reg2}, %{reg1}"), "phsubd");
+}
+
+TEST_F(AssemblerX86Test, HSubPS) {
+  DriverStr(RepeatFF(&x86::X86Assembler::hsubps, "hsubps %{reg2}, %{reg1}"), "hsubps");
+}
+
+TEST_F(AssemblerX86Test, HSubPD) {
+  DriverStr(RepeatFF(&x86::X86Assembler::hsubpd, "hsubpd %{reg2}, %{reg1}"), "hsubpd");
+}
+
 TEST_F(AssemblerX86Test, PMinSB) {
   DriverStr(RepeatFF(&x86::X86Assembler::pminsb, "pminsb %{reg2}, %{reg1}"), "pminsb");
 }
