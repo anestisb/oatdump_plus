@@ -188,7 +188,23 @@
 // This assumes the top part of these stack frame types are identical.
 #define REFS_AND_ARGS_MINUS_REFS_SIZE (FRAME_SIZE_SAVE_REFS_AND_ARGS - FRAME_SIZE_SAVE_REFS_ONLY)
 
-.macro SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL
+    /*
+     * Individually usable part of macro SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL.
+     */
+.macro SETUP_SAVE_REFS_AND_ARGS_FRAME_S4_THRU_S8
+    sd      $s8, 192($sp)
+    .cfi_rel_offset 30, 192
+    sd      $s7, 176($sp)
+    .cfi_rel_offset 23, 176
+    sd      $s6, 168($sp)
+    .cfi_rel_offset 22, 168
+    sd      $s5, 160($sp)
+    .cfi_rel_offset 21, 160
+    sd      $s4, 152($sp)
+    .cfi_rel_offset 20, 152
+.endm
+
+.macro SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL save_s4_thru_s8=1
     daddiu  $sp, $sp, -208
     .cfi_adjust_cfa_offset 208
 
@@ -197,48 +213,40 @@
 #error "FRAME_SIZE_SAVE_REFS_AND_ARGS(MIPS64) size not as expected."
 #endif
 
-    sd     $ra, 200($sp)           # = kQuickCalleeSaveFrame_RefAndArgs_LrOffset
+    sd      $ra, 200($sp)           # = kQuickCalleeSaveFrame_RefAndArgs_LrOffset
     .cfi_rel_offset 31, 200
-    sd     $s8, 192($sp)
-    .cfi_rel_offset 30, 192
-    sd     $t8, 184($sp)           # t8 holds caller's gp, now save it to the stack.
-    .cfi_rel_offset 28, 184        # Value from gp is pushed, so set the cfi offset accordingly.
-    sd     $s7, 176($sp)
-    .cfi_rel_offset 23, 176
-    sd     $s6, 168($sp)
-    .cfi_rel_offset 22, 168
-    sd     $s5, 160($sp)
-    .cfi_rel_offset 21, 160
-    sd     $s4, 152($sp)
-    .cfi_rel_offset 20, 152
-    sd     $s3, 144($sp)
+    sd      $t8, 184($sp)           # t8 holds caller's gp, now save it to the stack.
+    .cfi_rel_offset 28, 184         # Value from gp is pushed, so set the cfi offset accordingly.
+    .if \save_s4_thru_s8
+      SETUP_SAVE_REFS_AND_ARGS_FRAME_S4_THRU_S8
+    .endif
+    sd      $s3, 144($sp)
     .cfi_rel_offset 19, 144
-    sd     $s2, 136($sp)
+    sd      $s2, 136($sp)
     .cfi_rel_offset 18, 136
-
-    sd     $a7, 128($sp)
+    sd      $a7, 128($sp)
     .cfi_rel_offset 11, 128
-    sd     $a6, 120($sp)
+    sd      $a6, 120($sp)
     .cfi_rel_offset 10, 120
-    sd     $a5, 112($sp)
+    sd      $a5, 112($sp)
     .cfi_rel_offset 9, 112
-    sd     $a4, 104($sp)
+    sd      $a4, 104($sp)
     .cfi_rel_offset 8, 104
-    sd     $a3,  96($sp)
+    sd      $a3,  96($sp)
     .cfi_rel_offset 7, 96
-    sd     $a2,  88($sp)
+    sd      $a2,  88($sp)
     .cfi_rel_offset 6, 88
-    sd     $a1,  80($sp)           # = kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset
+    sd      $a1,  80($sp)           # = kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset
     .cfi_rel_offset 5, 80
 
-    s.d    $f19, 72($sp)
-    s.d    $f18, 64($sp)
-    s.d    $f17, 56($sp)
-    s.d    $f16, 48($sp)
-    s.d    $f15, 40($sp)
-    s.d    $f14, 32($sp)
-    s.d    $f13, 24($sp)           # = kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset
-    s.d    $f12, 16($sp)           # This isn't necessary to store.
+    s.d     $f19, 72($sp)
+    s.d     $f18, 64($sp)
+    s.d     $f17, 56($sp)
+    s.d     $f16, 48($sp)
+    s.d     $f15, 40($sp)
+    s.d     $f14, 32($sp)
+    s.d     $f13, 24($sp)           # = kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset
+    s.d     $f12, 16($sp)           # This isn't necessary to store.
     # 1x8 bytes padding + Method*
 .endm
 
@@ -248,8 +256,14 @@
      * non-moving GC.
      * callee-save: padding + $f12-$f19 + $a1-$a7 + $s2-$s7 + $gp + $ra + $s8 = 24 total + 1 words padding + Method*
      */
-.macro SETUP_SAVE_REFS_AND_ARGS_FRAME
-    SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL
+.macro SETUP_SAVE_REFS_AND_ARGS_FRAME save_s4_thru_s8_only=0
+    .if \save_s4_thru_s8_only
+      // It is expected that `SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL /* save_s4_thru_s8 */ 0`
+      // has been done prior to `SETUP_SAVE_REFS_AND_ARGS_FRAME /* save_s4_thru_s8_only */ 1`.
+      SETUP_SAVE_REFS_AND_ARGS_FRAME_S4_THRU_S8
+    .else
+      SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL
+    .endif
     # load appropriate callee-save-method
     ld      $t1, %got(_ZN3art7Runtime9instance_E)($gp)
     ld      $t1, 0($t1)
@@ -264,52 +278,62 @@
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
 
-.macro RESTORE_SAVE_REFS_AND_ARGS_FRAME
-    ld     $ra, 200($sp)
-    .cfi_restore 31
-    ld     $s8, 192($sp)
-    .cfi_restore 30
-    ld     $t8, 184($sp)           # Restore gp back to it's temp storage.
-    .cfi_restore 28
-    ld     $s7, 176($sp)
-    .cfi_restore 23
-    ld     $s6, 168($sp)
-    .cfi_restore 22
-    ld     $s5, 160($sp)
-    .cfi_restore 21
-    ld     $s4, 152($sp)
-    .cfi_restore 20
-    ld     $s3, 144($sp)
-    .cfi_restore 19
-    ld     $s2, 136($sp)
-    .cfi_restore 18
-
-    ld     $a7, 128($sp)
-    .cfi_restore 11
-    ld     $a6, 120($sp)
-    .cfi_restore 10
-    ld     $a5, 112($sp)
-    .cfi_restore 9
-    ld     $a4, 104($sp)
-    .cfi_restore 8
-    ld     $a3,  96($sp)
-    .cfi_restore 7
-    ld     $a2,  88($sp)
-    .cfi_restore 6
-    ld     $a1,  80($sp)
+    /*
+     * Individually usable part of macro RESTORE_SAVE_REFS_AND_ARGS_FRAME.
+     */
+.macro RESTORE_SAVE_REFS_AND_ARGS_FRAME_A1
+    ld      $a1,  80($sp)
     .cfi_restore 5
+.endm
 
-    l.d    $f19, 72($sp)
-    l.d    $f18, 64($sp)
-    l.d    $f17, 56($sp)
-    l.d    $f16, 48($sp)
-    l.d    $f15, 40($sp)
-    l.d    $f14, 32($sp)
-    l.d    $f13, 24($sp)
-    l.d    $f12, 16($sp)
+.macro RESTORE_SAVE_REFS_AND_ARGS_FRAME restore_s4_thru_s8=1
+    ld      $ra, 200($sp)
+    .cfi_restore 31
+    .if \restore_s4_thru_s8
+      ld    $s8, 192($sp)
+      .cfi_restore 30
+    .endif
+    ld      $t8, 184($sp)           # Restore gp back to it's temp storage.
+    .cfi_restore 28
+    .if \restore_s4_thru_s8
+      ld    $s7, 176($sp)
+      .cfi_restore 23
+      ld    $s6, 168($sp)
+      .cfi_restore 22
+      ld    $s5, 160($sp)
+      .cfi_restore 21
+      ld    $s4, 152($sp)
+      .cfi_restore 20
+    .endif
+    ld      $s3, 144($sp)
+    .cfi_restore 19
+    ld      $s2, 136($sp)
+    .cfi_restore 18
+    ld      $a7, 128($sp)
+    .cfi_restore 11
+    ld      $a6, 120($sp)
+    .cfi_restore 10
+    ld      $a5, 112($sp)
+    .cfi_restore 9
+    ld      $a4, 104($sp)
+    .cfi_restore 8
+    ld      $a3,  96($sp)
+    .cfi_restore 7
+    ld      $a2,  88($sp)
+    .cfi_restore 6
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME_A1
+
+    l.d     $f19, 72($sp)
+    l.d     $f18, 64($sp)
+    l.d     $f17, 56($sp)
+    l.d     $f16, 48($sp)
+    l.d     $f15, 40($sp)
+    l.d     $f14, 32($sp)
+    l.d     $f13, 24($sp)
+    l.d     $f12, 16($sp)
 
     .cpreturn
-    daddiu $sp, $sp, 208
+    daddiu  $sp, $sp, 208
     .cfi_adjust_cfa_offset -208
 .endm
 
@@ -913,9 +937,10 @@ END art_quick_throw_stack_overflow
      * On success this wrapper will restore arguments and *jump* to the target, leaving the ra
      * pointing back to the original caller.
      */
-.macro INVOKE_TRAMPOLINE_BODY cxx_name
+.macro INVOKE_TRAMPOLINE_BODY cxx_name, save_s4_thru_s8_only=0
     .extern \cxx_name
-    SETUP_SAVE_REFS_AND_ARGS_FRAME         # save callee saves in case allocation triggers GC
+    SETUP_SAVE_REFS_AND_ARGS_FRAME \save_s4_thru_s8_only  # save callee saves in case
+                                                          # allocation triggers GC
     move  $a2, rSELF                       # pass Thread::Current
     jal   \cxx_name                        # (method_idx, this, Thread*, $sp)
     move  $a3, $sp                         # pass $sp
@@ -1986,45 +2011,69 @@ END art_quick_proxy_invoke_handler
      * a0 is the conflict ArtMethod.
      * t0 is a hidden argument that holds the target interface method's dex method index.
      *
-     * Mote that this stub writes to a0, t0 and t1.
+     * Mote that this stub writes to v0-v1, a0, t0-t3, t8-t9, f0-f11, f20-f23.
      */
+    .extern artLookupResolvedMethod
+    .extern __atomic_load_16        # For __int128_t std::atomic::load(std::memory_order).
 ENTRY art_quick_imt_conflict_trampoline
-// FIXME: The DexCache method array has been changed to hash-based cache with eviction.
-// We need a relaxed atomic load of a 128-bit location to try and load the method
-// and call artQuickResolutionTrampoline() if the index does not match.
-#if 0
-    ld      $t1, 0($sp)                                      # Load referrer.
-    ld      $t1, ART_METHOD_DEX_CACHE_METHODS_OFFSET_64($t1) # Load dex cache methods array.
-    dsll    $t0, $t0, POINTER_SIZE_SHIFT                     # Calculate offset.
-    daddu   $t0, $t1, $t0                                    # Add offset to base.
-    ld      $t0, 0($t0)                                      # Load interface method.
-    ld      $a0, ART_METHOD_JNI_OFFSET_64($a0)               # Load ImtConflictTable.
+    SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL /* save_s4_thru_s8 */ 0
+
+    ld      $t1, FRAME_SIZE_SAVE_REFS_AND_ARGS($sp)  # $t1 = referrer.
+    dla     $t9, __atomic_load_16
+    ld      $t1, ART_METHOD_DEX_CACHE_METHODS_OFFSET_64($t1)  # $t1 = dex cache methods array.
+
+    dext    $s2, $t0, 0, 32                         # $s2 = zero-extended method index
+                                                    # (callee-saved).
+    ld      $s3, ART_METHOD_JNI_OFFSET_64($a0)      # $s3 = ImtConflictTable (callee-saved).
+
+    dext    $t0, $t0, 0, METHOD_DEX_CACHE_HASH_BITS  # $t0 = slot index.
+
+    li      $a1, STD_MEMORY_ORDER_RELAXED           # $a1 = std::memory_order_relaxed.
+    jalr    $t9                                     # [$v0, $v1] = __atomic_load_16($a0, $a1).
+    dlsa    $a0, $t0, $t1, POINTER_SIZE_SHIFT + 1   # $a0 = DexCache method slot address.
+
+    bnec    $v1, $s2, .Limt_conflict_trampoline_dex_cache_miss  # Branch if method index miss.
 
 .Limt_table_iterate:
-    ld      $t1, 0($a0)                                      # Load next entry in ImtConflictTable.
+    ld      $t1, 0($s3)                             # Load next entry in ImtConflictTable.
     # Branch if found.
-    beq     $t1, $t0, .Limt_table_found
+    beq     $t1, $v0, .Limt_table_found
     nop
     # If the entry is null, the interface method is not in the ImtConflictTable.
     beqzc   $t1, .Lconflict_trampoline
     # Iterate over the entries of the ImtConflictTable.
-    daddiu  $a0, $a0, 2 * __SIZEOF_POINTER__                 # Iterate to the next entry.
-    bc       .Limt_table_iterate
+    daddiu  $s3, $s3, 2 * __SIZEOF_POINTER__        # Iterate to the next entry.
+    bc      .Limt_table_iterate
 
 .Limt_table_found:
     # We successfully hit an entry in the table. Load the target method and jump to it.
-    ld      $a0, __SIZEOF_POINTER__($a0)
+    .cfi_remember_state
+    ld      $a0, __SIZEOF_POINTER__($s3)
     ld      $t9, ART_METHOD_QUICK_CODE_OFFSET_64($a0)
-    jr      $t9
-    .cpreturn                      # Restore gp from t8 in branch delay slot.
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME /* restore_s4_thru_s8 */ 0
+    jic     $t9, 0
+    .cfi_restore_state
 
 .Lconflict_trampoline:
     # Call the runtime stub to populate the ImtConflictTable and jump to the resolved method.
-    move   $a0, $t0                                          # Load interface method.
-#else
-    move   $a0, $zero
-#endif
-    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
+    .cfi_remember_state
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME_A1             # Restore this.
+    move    $a0, $v0                                # Load interface method.
+    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline, /* save_s4_thru_s8_only */ 1
+    .cfi_restore_state
+
+.Limt_conflict_trampoline_dex_cache_miss:
+    # We're not creating a proper runtime method frame here,
+    # artLookupResolvedMethod() is not allowed to walk the stack.
+    dla     $t9, artLookupResolvedMethod
+    ld      $a1, FRAME_SIZE_SAVE_REFS_AND_ARGS($sp)  # $a1 = referrer.
+    jalr    $t9                                     # (uint32_t method_index, ArtMethod* referrer).
+    sll     $a0, $s2, 0                             # $a0 = sign-extended method index.
+
+    # If the method wasn't resolved, skip the lookup and go to artInvokeInterfaceTrampoline().
+    beqzc   $v0, .Lconflict_trampoline
+    nop
+    bc      .Limt_table_iterate
 END art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline

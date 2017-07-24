@@ -17,8 +17,11 @@
 // Export global values.
 
 #if defined(DEFINE_INCLUDE_DEPENDENCIES)
+#include <atomic>            // std::memory_order_relaxed
 #include "globals.h"         // art::kObjectAlignment
 #endif
+
+DEFINE_EXPR(STD_MEMORY_ORDER_RELAXED, int32_t, std::memory_order_relaxed)
 
 #define DEFINE_OBJECT_EXPR(macro_name, type, constant_field_name) \
   DEFINE_EXPR(OBJECT_ ## macro_name, type, constant_field_name)

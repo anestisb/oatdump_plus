@@ -165,13 +165,29 @@
 .endm
 
     /*
+     * Individually usable part of macro SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY.
+     */
+.macro SETUP_SAVE_REFS_AND_ARGS_FRAME_S4_THRU_S8
+    sw      $s8, 104($sp)
+    .cfi_rel_offset 30, 104
+    sw      $s7, 96($sp)
+    .cfi_rel_offset 23, 96
+    sw      $s6, 92($sp)
+    .cfi_rel_offset 22, 92
+    sw      $s5, 88($sp)
+    .cfi_rel_offset 21, 88
+    sw      $s4, 84($sp)
+    .cfi_rel_offset 20, 84
+.endm
+
+    /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveRefsAndArgs).
      * callee-save: $a1-$a3, $t0-$t1, $s2-$s8, $gp, $ra, $f8-$f19
      *              (26 total + 1 word padding + method*)
      */
-.macro SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY
-    addiu  $sp, $sp, -112
+.macro SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY save_s4_thru_s8=1
+    addiu   $sp, $sp, -112
     .cfi_adjust_cfa_offset 112
 
     // Ugly compile-time check, but we only have the preprocessor.
@@ -179,40 +195,33 @@
 #error "FRAME_SIZE_SAVE_REFS_AND_ARGS(MIPS) size not as expected."
 #endif
 
-    sw     $ra, 108($sp)
+    sw      $ra, 108($sp)
     .cfi_rel_offset 31, 108
-    sw     $s8, 104($sp)
-    .cfi_rel_offset 30, 104
-    sw     $gp, 100($sp)
+    sw      $gp, 100($sp)
     .cfi_rel_offset 28, 100
-    sw     $s7, 96($sp)
-    .cfi_rel_offset 23, 96
-    sw     $s6, 92($sp)
-    .cfi_rel_offset 22, 92
-    sw     $s5, 88($sp)
-    .cfi_rel_offset 21, 88
-    sw     $s4, 84($sp)
-    .cfi_rel_offset 20, 84
-    sw     $s3, 80($sp)
+    .if \save_s4_thru_s8
+      SETUP_SAVE_REFS_AND_ARGS_FRAME_S4_THRU_S8
+    .endif
+    sw      $s3, 80($sp)
     .cfi_rel_offset 19, 80
-    sw     $s2, 76($sp)
+    sw      $s2, 76($sp)
     .cfi_rel_offset 18, 76
-    sw     $t1, 72($sp)
+    sw      $t1, 72($sp)
     .cfi_rel_offset 9, 72
-    sw     $t0, 68($sp)
+    sw      $t0, 68($sp)
     .cfi_rel_offset 8, 68
-    sw     $a3, 64($sp)
+    sw      $a3, 64($sp)
     .cfi_rel_offset 7, 64
-    sw     $a2, 60($sp)
+    sw      $a2, 60($sp)
     .cfi_rel_offset 6, 60
-    sw     $a1, 56($sp)
+    sw      $a1, 56($sp)
     .cfi_rel_offset 5, 56
-    SDu $f18, $f19, 48, $sp, $t8
-    SDu $f16, $f17, 40, $sp, $t8
-    SDu $f14, $f15, 32, $sp, $t8
-    SDu $f12, $f13, 24, $sp, $t8
-    SDu $f10, $f11, 16, $sp, $t8
-    SDu $f8, $f9, 8, $sp, $t8
+    SDu     $f18, $f19, 48, $sp, $t8
+    SDu     $f16, $f17, 40, $sp, $t8
+    SDu     $f14, $f15, 32, $sp, $t8
+    SDu     $f12, $f13, 24, $sp, $t8
+    SDu     $f10, $f11, 16, $sp, $t8
+    SDu     $f8, $f9, 8, $sp, $t8
     # bottom will hold Method*
 .endm
 
@@ -225,8 +234,14 @@
      * Allocates ARG_SLOT_SIZE bytes at the bottom of the stack for arg slots.
      * Reserves FRAME_SIZE_SAVE_REFS_AND_ARGS + ARG_SLOT_SIZE bytes on the stack
      */
-.macro SETUP_SAVE_REFS_AND_ARGS_FRAME
-    SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY
+.macro SETUP_SAVE_REFS_AND_ARGS_FRAME save_s4_thru_s8_only=0
+    .if \save_s4_thru_s8_only
+      // It is expected that `SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY /* save_s4_thru_s8 */ 0`
+      // has been done prior to `SETUP_SAVE_REFS_AND_ARGS_FRAME /* save_s4_thru_s8_only */ 1`.
+      SETUP_SAVE_REFS_AND_ARGS_FRAME_S4_THRU_S8
+    .else
+      SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY
+    .endif
     lw $t0, %got(_ZN3art7Runtime9instance_E)($gp)
     lw $t0, 0($t0)
     lw $t0, RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET($t0)
@@ -254,44 +269,64 @@
     .cfi_adjust_cfa_offset ARG_SLOT_SIZE
 .endm
 
-.macro RESTORE_SAVE_REFS_AND_ARGS_FRAME
-    addiu  $sp, $sp, ARG_SLOT_SIZE                # remove argument slots on the stack
-    .cfi_adjust_cfa_offset -ARG_SLOT_SIZE
-    lw     $ra, 108($sp)
-    .cfi_restore 31
-    lw     $s8, 104($sp)
-    .cfi_restore 30
-    lw     $gp, 100($sp)
+    /*
+     * Individually usable part of macro RESTORE_SAVE_REFS_AND_ARGS_FRAME.
+     */
+.macro RESTORE_SAVE_REFS_AND_ARGS_FRAME_GP
+    lw      $gp, 100($sp)
     .cfi_restore 28
-    lw     $s7, 96($sp)
-    .cfi_restore 23
-    lw     $s6, 92($sp)
-    .cfi_restore 22
-    lw     $s5, 88($sp)
-    .cfi_restore 21
-    lw     $s4, 84($sp)
-    .cfi_restore 20
-    lw     $s3, 80($sp)
-    .cfi_restore 19
-    lw     $s2, 76($sp)
-    .cfi_restore 18
-    lw     $t1, 72($sp)
-    .cfi_restore 9
-    lw     $t0, 68($sp)
-    .cfi_restore 8
-    lw     $a3, 64($sp)
-    .cfi_restore 7
-    lw     $a2, 60($sp)
-    .cfi_restore 6
-    lw     $a1, 56($sp)
+.endm
+
+    /*
+     * Individually usable part of macro RESTORE_SAVE_REFS_AND_ARGS_FRAME.
+     */
+.macro RESTORE_SAVE_REFS_AND_ARGS_FRAME_A1
+    lw      $a1, 56($sp)
     .cfi_restore 5
-    LDu $f18, $f19, 48, $sp, $t8
-    LDu $f16, $f17, 40, $sp, $t8
-    LDu $f14, $f15, 32, $sp, $t8
-    LDu $f12, $f13, 24, $sp, $t8
-    LDu $f10, $f11, 16, $sp, $t8
-    LDu $f8, $f9, 8, $sp, $t8
-    addiu  $sp, $sp, 112          # pop frame
+.endm
+
+.macro RESTORE_SAVE_REFS_AND_ARGS_FRAME restore_s4_thru_s8=1, remove_arg_slots=1
+    .if \remove_arg_slots
+      addiu $sp, $sp, ARG_SLOT_SIZE                 # Remove argument slots from the stack.
+      .cfi_adjust_cfa_offset -ARG_SLOT_SIZE
+    .endif
+    lw      $ra, 108($sp)
+    .cfi_restore 31
+    .if \restore_s4_thru_s8
+      lw    $s8, 104($sp)
+      .cfi_restore 30
+    .endif
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME_GP
+    .if \restore_s4_thru_s8
+      lw    $s7, 96($sp)
+      .cfi_restore 23
+      lw    $s6, 92($sp)
+      .cfi_restore 22
+      lw    $s5, 88($sp)
+      .cfi_restore 21
+      lw    $s4, 84($sp)
+      .cfi_restore 20
+    .endif
+    lw      $s3, 80($sp)
+    .cfi_restore 19
+    lw      $s2, 76($sp)
+    .cfi_restore 18
+    lw      $t1, 72($sp)
+    .cfi_restore 9
+    lw      $t0, 68($sp)
+    .cfi_restore 8
+    lw      $a3, 64($sp)
+    .cfi_restore 7
+    lw      $a2, 60($sp)
+    .cfi_restore 6
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME_A1
+    LDu     $f18, $f19, 48, $sp, $t8
+    LDu     $f16, $f17, 40, $sp, $t8
+    LDu     $f14, $f15, 32, $sp, $t8
+    LDu     $f12, $f13, 24, $sp, $t8
+    LDu     $f10, $f11, 16, $sp, $t8
+    LDu     $f8, $f9, 8, $sp, $t8
+    addiu   $sp, $sp, 112                           # Pop frame.
     .cfi_adjust_cfa_offset -112
 .endm
 
@@ -826,9 +861,10 @@ END art_quick_throw_stack_overflow
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
      * pointing back to the original caller.
      */
-.macro INVOKE_TRAMPOLINE_BODY cxx_name
+.macro INVOKE_TRAMPOLINE_BODY cxx_name, save_s4_thru_s8_only=0
     .extern \cxx_name
-    SETUP_SAVE_REFS_AND_ARGS_FRAME         # save callee saves in case allocation triggers GC
+    SETUP_SAVE_REFS_AND_ARGS_FRAME \save_s4_thru_s8_only  # save callee saves in case
+                                                          # allocation triggers GC
     move  $a2, rSELF                       # pass Thread::Current
     la    $t9, \cxx_name
     jalr  $t9                              # (method_idx, this, Thread*, $sp)
@@ -2063,46 +2099,83 @@ END art_quick_proxy_invoke_handler
      * a0 is the conflict ArtMethod.
      * t7 is a hidden argument that holds the target interface method's dex method index.
      *
-     * Note that this stub writes to a0, t7 and t8.
+     * Note that this stub writes to v0-v1, a0, t2-t9, f0-f7.
      */
+    .extern artLookupResolvedMethod
+    .extern __atomic_load_8         # For int64_t std::atomic::load(std::memory_order).
 ENTRY art_quick_imt_conflict_trampoline
-// FIXME: The DexCache method array has been changed to hash-based cache with eviction.
-// We need a relaxed atomic load of a 64-bit location to try and load the method
-// and call artQuickResolutionTrampoline() if the index does not match.
-#if 0
-    lw      $t8, 0($sp)                                      # Load referrer.
-    lw      $t8, ART_METHOD_DEX_CACHE_METHODS_OFFSET_32($t8) # Load dex cache methods array.
-    sll     $t7, $t7, POINTER_SIZE_SHIFT                     # Calculate offset.
-    addu    $t7, $t8, $t7                                    # Add offset to base.
-    lw      $t7, 0($t7)                                      # Load interface method.
-    lw      $a0, ART_METHOD_JNI_OFFSET_32($a0)               # Load ImtConflictTable.
+    SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY /* save_s4_thru_s8 */ 0
+
+    lw      $t8, FRAME_SIZE_SAVE_REFS_AND_ARGS($sp)  # $t8 = referrer.
+    la      $t9, __atomic_load_8
+    addiu   $sp, $sp, -ARG_SLOT_SIZE                # Reserve argument slots on the stack.
+    .cfi_adjust_cfa_offset ARG_SLOT_SIZE
+    lw      $t8, ART_METHOD_DEX_CACHE_METHODS_OFFSET_32($t8)  # $t8 = dex cache methods array.
+
+    move    $s2, $t7                                # $s2 = method index (callee-saved).
+    lw      $s3, ART_METHOD_JNI_OFFSET_32($a0)      # $s3 = ImtConflictTable (callee-saved).
+
+    sll     $t7, $t7, 32 - METHOD_DEX_CACHE_HASH_BITS  # $t7 = slot index in top bits, zeroes below.
+    srl     $t7, $t7, 32 - METHOD_DEX_CACHE_HASH_BITS - (POINTER_SIZE_SHIFT + 1)
+                                                    # $t7 = slot offset.
+
+    li      $a1, STD_MEMORY_ORDER_RELAXED           # $a1 = std::memory_order_relaxed.
+    jalr    $t9                                     # [$v0, $v1] = __atomic_load_8($a0, $a1).
+    addu    $a0, $t8, $t7                           # $a0 = DexCache method slot address.
+
+    bne     $v1, $s2, .Limt_conflict_trampoline_dex_cache_miss  # Branch if method index miss.
+    addiu   $sp, $sp, ARG_SLOT_SIZE                 # Remove argument slots from the stack.
+    .cfi_adjust_cfa_offset -ARG_SLOT_SIZE
 
 .Limt_table_iterate:
-    lw      $t8, 0($a0)                                      # Load next entry in ImtConflictTable.
+    lw      $t8, 0($s3)                             # Load next entry in ImtConflictTable.
     # Branch if found.
-    beq     $t8, $t7, .Limt_table_found
+    beq     $t8, $v0, .Limt_table_found
     nop
     # If the entry is null, the interface method is not in the ImtConflictTable.
     beqz    $t8, .Lconflict_trampoline
     nop
     # Iterate over the entries of the ImtConflictTable.
     b       .Limt_table_iterate
-    addiu   $a0, $a0, 2 * __SIZEOF_POINTER__                 # Iterate to the next entry.
+    addiu   $s3, $s3, 2 * __SIZEOF_POINTER__        # Iterate to the next entry.
 
 .Limt_table_found:
     # We successfully hit an entry in the table. Load the target method and jump to it.
-    lw      $a0, __SIZEOF_POINTER__($a0)
+    .cfi_remember_state
+    lw      $a0, __SIZEOF_POINTER__($s3)
     lw      $t9, ART_METHOD_QUICK_CODE_OFFSET_32($a0)
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME /* restore_s4_thru_s8 */ 0, /* remove_arg_slots */ 0
     jalr    $zero, $t9
     nop
+    .cfi_restore_state
 
 .Lconflict_trampoline:
     # Call the runtime stub to populate the ImtConflictTable and jump to the resolved method.
-    move    $a0, $t7                                         # Load interface method.
-#else
-    move   $a0, $zero
-#endif
-    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
+    .cfi_remember_state
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME_GP             # Restore clobbered $gp.
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME_A1             # Restore this.
+    move    $a0, $v0                                # Load interface method.
+    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline, /* save_s4_thru_s8_only */ 1
+    .cfi_restore_state
+
+.Limt_conflict_trampoline_dex_cache_miss:
+    # We're not creating a proper runtime method frame here,
+    # artLookupResolvedMethod() is not allowed to walk the stack.
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME_GP             # Restore clobbered $gp.
+    lw      $a1, FRAME_SIZE_SAVE_REFS_AND_ARGS($sp)  # $a1 = referrer.
+    la      $t9, artLookupResolvedMethod
+    addiu   $sp, $sp, -ARG_SLOT_SIZE                # Reserve argument slots on the stack.
+    .cfi_adjust_cfa_offset ARG_SLOT_SIZE
+    jalr    $t9                                     # (uint32_t method_index, ArtMethod* referrer).
+    move    $a0, $s2                                # $a0 = method index.
+
+    # If the method wasn't resolved, skip the lookup and go to artInvokeInterfaceTrampoline().
+    beqz    $v0, .Lconflict_trampoline
+    addiu   $sp, $sp, ARG_SLOT_SIZE                 # Remove argument slots from the stack.
+    .cfi_adjust_cfa_offset -ARG_SLOT_SIZE
+
+    b       .Limt_table_iterate
+    nop
 END art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline

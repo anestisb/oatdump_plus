@@ -114,6 +114,8 @@ DEFINE_CHECK_EQ(static_cast<int32_t>(LOCK_WORD_GC_STATE_SHIFT), (static_cast<int
 DEFINE_CHECK_EQ(static_cast<int32_t>(LOCK_WORD_MARK_BIT_SHIFT), (static_cast<int32_t>(art::LockWord::kMarkBitStateShift)))
 #define LOCK_WORD_MARK_BIT_MASK_SHIFTED 0x20000000
 DEFINE_CHECK_EQ(static_cast<uint32_t>(LOCK_WORD_MARK_BIT_MASK_SHIFTED), (static_cast<uint32_t>(art::LockWord::kMarkBitStateMaskShifted)))
+#define STD_MEMORY_ORDER_RELAXED 0
+DEFINE_CHECK_EQ(static_cast<int32_t>(STD_MEMORY_ORDER_RELAXED), (static_cast<int32_t>(std::memory_order_relaxed)))
 #define OBJECT_ALIGNMENT_MASK 0x7
 DEFINE_CHECK_EQ(static_cast<size_t>(OBJECT_ALIGNMENT_MASK), (static_cast<size_t>(art::kObjectAlignment - 1)))
 #define OBJECT_ALIGNMENT_MASK_TOGGLED 0xfffffff8
