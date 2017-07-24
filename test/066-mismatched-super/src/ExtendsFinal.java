@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,5 @@
  * limitations under the License.
  */
 
-/**
- * Error indirection class.
- *
- * Some VMs will load this class and fail on the "new" call, others will
- * refuse to load this class at all.
- */
-public class Indirect {
-    public static void main() {
-        Base base = new Base();
-    }
+public class ExtendsFinal extends Final {
 }
