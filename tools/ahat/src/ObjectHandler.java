@@ -110,7 +110,7 @@ class ObjectHandler implements AhatHandler {
   private static void printClassInstanceFields(Doc doc, Query query, AhatClassInstance inst) {
     doc.section("Fields");
     AhatInstance base = inst.getBaseline();
-    printFields(doc, query, INSTANCE_FIELDS_ID, !base.isPlaceHolder(),
+    printFields(doc, query, INSTANCE_FIELDS_ID, inst != base && !base.isPlaceHolder(),
         inst.asClassInstance().getInstanceFields(),
         base.isPlaceHolder() ? null : base.asClassInstance().getInstanceFields());
   }
@@ -211,7 +211,7 @@ class ObjectHandler implements AhatHandler {
 
     doc.section("Static Fields");
     AhatInstance base = clsobj.getBaseline();
-    printFields(doc, query, STATIC_FIELDS_ID, !base.isPlaceHolder(),
+    printFields(doc, query, STATIC_FIELDS_ID, clsobj != base && !base.isPlaceHolder(),
         clsobj.getStaticFieldValues(),
         base.isPlaceHolder() ? null : base.asClassObj().getStaticFieldValues());
   }
