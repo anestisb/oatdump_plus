@@ -24,6 +24,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <memory>
 #include <vector>
 
 #include "arch/instruction_set.h"
@@ -457,8 +458,12 @@ class Runtime {
   bool IsActiveTransaction() const {
     return preinitialization_transaction_ != nullptr;
   }
-  void EnterTransactionMode(Transaction* transaction);
+  void EnterTransactionMode();
+  void EnterTransactionMode(mirror::Class* root);
   void ExitTransactionMode();
+  // Transaction rollback and exit transaction are always done together, it's convenience to
+  // do them in one function.
+  void RollbackAndExitTransactionMode() REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsTransactionAborted() const;
 
   void AbortTransactionAndThrowAbortError(Thread* self, const std::string& abort_message)
@@ -842,7 +847,7 @@ class Runtime {
   bool dump_gc_performance_on_shutdown_;
 
   // Transaction used for pre-initializing classes at compilation time.
-  Transaction* preinitialization_transaction_;
+  std::unique_ptr<Transaction> preinitialization_transaction_;
 
   // If kNone, verification is disabled. kEnable by default.
   verifier::VerifyMode verify_;

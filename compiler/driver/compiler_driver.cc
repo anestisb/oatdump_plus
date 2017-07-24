@@ -2331,10 +2331,8 @@ class InitializeClassVisitor : public CompilationVisitor {
             // a ReaderWriterMutex but we're holding the mutator lock so we fail mutex sanity
             // checks in Thread::AssertThreadSuspensionIsAllowable.
             Runtime* const runtime = Runtime::Current();
-            Transaction transaction;
-
             // Run the class initializer in transaction mode.
-            runtime->EnterTransactionMode(&transaction);
+            runtime->EnterTransactionMode(klass.Get());
             bool success = manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, true,
                                                                          true);
             // TODO we detach transaction from runtime to indicate we quit the transactional
@@ -2343,7 +2341,11 @@ class InitializeClassVisitor : public CompilationVisitor {
 
             {
               ScopedAssertNoThreadSuspension ants("Transaction end");
-              runtime->ExitTransactionMode();
+
+              if (success) {
+                runtime->ExitTransactionMode();
+                DCHECK(!runtime->IsActiveTransaction());
+              }
 
               if (!success) {
                 CHECK(soa.Self()->IsExceptionPending());
@@ -2357,7 +2359,7 @@ class InitializeClassVisitor : public CompilationVisitor {
                   *file_log << exception->Dump() << "\n";
                 }
                 soa.Self()->ClearException();
-                transaction.Rollback();
+                runtime->RollbackAndExitTransactionMode();
                 CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
               } else if (is_boot_image) {
                 // For boot image, we want to put the updated status in the oat class since we can't
