@@ -174,23 +174,43 @@ class CHACheckpoint FINAL : public Closure {
   DISALLOW_COPY_AND_ASSIGN(CHACheckpoint);
 };
 
-void ClassHierarchyAnalysis::VerifyNonSingleImplementation(mirror::Class* verify_class,
-                                                           uint16_t verify_index,
-                                                           ArtMethod* excluded_method) {
+
+static void VerifyNonSingleImplementation(mirror::Class* verify_class,
+                                          uint16_t verify_index,
+                                          ArtMethod* excluded_method)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (!kIsDebugBuild) {
+    return;
+  }
+
   // Grab cha_lock_ to make sure all single-implementation updates are seen.
+  MutexLock cha_mu(Thread::Current(), *Locks::cha_lock_);
+
   PointerSize image_pointer_size =
       Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-  MutexLock cha_mu(Thread::Current(), *Locks::cha_lock_);
+
+  mirror::Class* input_verify_class = verify_class;
+
   while (verify_class != nullptr) {
     if (verify_index >= verify_class->GetVTableLength()) {
       return;
     }
     ArtMethod* verify_method = verify_class->GetVTableEntry(verify_index, image_pointer_size);
     if (verify_method != excluded_method) {
+      auto construct_parent_chain = [](mirror::Class* failed, mirror::Class* in)
+          REQUIRES_SHARED(Locks::mutator_lock_) {
+        std::string tmp = in->PrettyClass();
+        while (in != failed) {
+          in = in->GetSuperClass();
+          tmp = tmp + "->" + in->PrettyClass();
+        }
+        return tmp;
+      };
       DCHECK(!verify_method->HasSingleImplementation())
           << "class: " << verify_class->PrettyClass()
           << " verify_method: " << verify_method->PrettyMethod(true)
-          << " excluded_method: " << excluded_method->PrettyMethod(true);
+          << " (" << construct_parent_chain(verify_class, input_verify_class) << ")"
+          << " excluded_method: " << ArtMethod::PrettyMethod(excluded_method);
       if (verify_method->IsAbstract()) {
         DCHECK(verify_method->GetSingleImplementation(image_pointer_size) == nullptr);
       }
@@ -239,24 +259,19 @@ void ClassHierarchyAnalysis::CheckVirtualMethodSingleImplementationInfo(
     // method_in_super already has multiple implementations. All methods in the
     // same vtable slots in its super classes should have
     // non-single-implementation already.
-    if (kIsDebugBuild) {
-      VerifyNonSingleImplementation(klass->GetSuperClass()->GetSuperClass(),
-                                    method_in_super->GetMethodIndex(),
-                                    nullptr /* excluded_method */);
-    }
+    VerifyNonSingleImplementation(klass->GetSuperClass()->GetSuperClass(),
+                                  method_in_super->GetMethodIndex(),
+                                  nullptr /* excluded_method */);
     return;
   }
 
   uint16_t method_index = method_in_super->GetMethodIndex();
   if (method_in_super->IsAbstract()) {
-    if (kIsDebugBuild) {
-      // An abstract method should have made all methods in the same vtable
-      // slot above it in the class hierarchy having non-single-implementation.
-      mirror::Class* super_super = klass->GetSuperClass()->GetSuperClass();
-      VerifyNonSingleImplementation(super_super,
-                                    method_index,
-                                    method_in_super);
-    }
+    // An abstract method should have made all methods in the same vtable
+    // slot above it in the class hierarchy having non-single-implementation.
+    VerifyNonSingleImplementation(klass->GetSuperClass()->GetSuperClass(),
+                                  method_index,
+                                  method_in_super);
 
     if (virtual_method->IsAbstract()) {
       // SUPER: abstract, VIRTUAL: abstract.
@@ -338,11 +353,9 @@ void ClassHierarchyAnalysis::CheckVirtualMethodSingleImplementationInfo(
           // other methods (abstract or not) in the vtable slot to be non-single-implementation.
         }
 
-        if (kIsDebugBuild) {
-          VerifyNonSingleImplementation(super_super->GetSuperClass(),
-                                        method_index,
-                                        method_in_super_super);
-        }
+        VerifyNonSingleImplementation(super_super->GetSuperClass(),
+                                      method_index,
+                                      method_in_super_super);
         // No need to go any further.
         return;
       } else {
