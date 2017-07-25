@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "gtest/gtest.h"
 #include "indenter.h"
+
+#include "gtest/gtest.h"
 
 namespace art {
 

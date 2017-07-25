@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
 #include <jni.h>
+#include <stdio.h>
 
 #ifndef NATIVE_METHOD
 #define NATIVE_METHOD(className, functionName, signature) \

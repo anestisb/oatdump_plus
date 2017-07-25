@@ -16,8 +16,8 @@
 
 #include "immune_spaces.h"
 
-#include <vector>
 #include <tuple>
+#include <vector>
 
 #include "gc/space/space-inl.h"
 #include "mirror/object.h"

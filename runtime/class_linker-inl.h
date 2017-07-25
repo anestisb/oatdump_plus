@@ -19,14 +19,14 @@
 
 #include "art_field.h"
 #include "class_linker.h"
-#include "gc_root-inl.h"
 #include "gc/heap-inl.h"
-#include "obj_ptr-inl.h"
+#include "gc_root-inl.h"
+#include "handle_scope-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/iftable.h"
 #include "mirror/object_array-inl.h"
-#include "handle_scope-inl.h"
+#include "obj_ptr-inl.h"
 #include "scoped_thread_state_change-inl.h"
 
 #include <atomic>

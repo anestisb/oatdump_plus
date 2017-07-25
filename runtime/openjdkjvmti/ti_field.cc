@@ -31,8 +31,8 @@
 
 #include "ti_field.h"
 
-#include "art_jvmti.h"
 #include "art_field-inl.h"
+#include "art_jvmti.h"
 #include "base/enums.h"
 #include "dex_file_annotations.h"
 #include "jni_internal.h"

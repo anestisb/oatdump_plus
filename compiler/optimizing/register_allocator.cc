@@ -25,7 +25,6 @@
 #include "register_allocator_linear_scan.h"
 #include "ssa_liveness_analysis.h"
 
-
 namespace art {
 
 RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,

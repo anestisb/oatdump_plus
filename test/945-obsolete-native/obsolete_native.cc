@@ -15,8 +15,9 @@
  */
 
 #include <inttypes.h>
+
+#include <cstdio>
 #include <memory>
-#include <stdio.h>
 
 #include "android-base/stringprintf.h"
 #include "jni.h"
@@ -24,8 +25,8 @@
 
 // Test infrastructure
 #include "jni_binder.h"
-#include "test_env.h"
 #include "scoped_local_ref.h"
+#include "test_env.h"
 
 namespace art {
 namespace Test945ObsoleteNative {

@@ -17,8 +17,8 @@
 #ifndef ART_COMPILER_UTILS_DEDUPE_SET_H_
 #define ART_COMPILER_UTILS_DEDUPE_SET_H_
 
-#include <memory>
 #include <stdint.h>
+#include <memory>
 #include <string>
 
 #include "base/macros.h"

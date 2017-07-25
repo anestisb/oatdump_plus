@@ -21,6 +21,7 @@
 #include "gc/accounting/card_table.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
+#include "memory_tool_malloc_space-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "runtime.h"
@@ -28,7 +29,6 @@
 #include "thread.h"
 #include "thread_list.h"
 #include "utils.h"
-#include "memory_tool_malloc_space-inl.h"
 
 namespace art {
 namespace gc {

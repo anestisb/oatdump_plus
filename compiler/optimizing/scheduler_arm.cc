@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
+#include "scheduler_arm.h"
+
 #include "arch/arm/instruction_set_features_arm.h"
 #include "code_generator_utils.h"
 #include "common_arm.h"
 #include "mirror/array-inl.h"
-#include "scheduler_arm.h"
 
 namespace art {
 namespace arm {

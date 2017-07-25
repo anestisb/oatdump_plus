@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "bump_pointer_space.h"
 #include "bump_pointer_space-inl.h"
+#include "bump_pointer_space.h"
 #include "gc/accounting/read_barrier_table.h"
-#include "mirror/object-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
 #include "thread_list.h"
 
 namespace art {

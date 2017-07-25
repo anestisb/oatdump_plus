@@ -17,9 +17,9 @@
 #ifndef ART_CMDLINE_MEMORY_REPRESENTATION_H_
 #define ART_CMDLINE_MEMORY_REPRESENTATION_H_
 
-#include <string>
 #include <assert.h>
 #include <ostream>
+#include <string>
 
 #include "base/bit_utils.h"
 

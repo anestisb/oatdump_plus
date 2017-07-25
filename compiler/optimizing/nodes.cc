@@ -18,16 +18,16 @@
 #include <cfloat>
 
 #include "art_method-inl.h"
+#include "base/bit_utils.h"
+#include "base/bit_vector-inl.h"
+#include "base/stl_util.h"
 #include "class_linker-inl.h"
 #include "code_generator.h"
 #include "common_dominator.h"
-#include "ssa_builder.h"
-#include "base/bit_vector-inl.h"
-#include "base/bit_utils.h"
-#include "base/stl_util.h"
 #include "intrinsics.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change-inl.h"
+#include "ssa_builder.h"
 
 namespace art {
 

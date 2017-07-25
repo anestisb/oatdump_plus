@@ -16,16 +16,16 @@
 
 #include "thread_list.h"
 
-#include <backtrace/BacktraceMap.h>
 #include <dirent.h>
-#include "nativehelper/ScopedLocalRef.h"
-#include "nativehelper/ScopedUtfChars.h"
 #include <sys/types.h>
 #include <unistd.h>
 
 #include <sstream>
 
 #include "android-base/stringprintf.h"
+#include "backtrace/BacktraceMap.h"
+#include "nativehelper/ScopedLocalRef.h"
+#include "nativehelper/ScopedUtfChars.h"
 
 #include "base/histogram-inl.h"
 #include "base/mutex-inl.h"

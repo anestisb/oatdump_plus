@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include "instruction_simplifier_arm.h"
+
 #include "code_generator.h"
 #include "common_arm.h"
-#include "instruction_simplifier_arm.h"
 #include "instruction_simplifier_shared.h"
 #include "mirror/array-inl.h"
 #include "mirror/string.h"

@@ -21,8 +21,8 @@
 #include <memory>
 
 #include "base/mutex.h"
-#include "obj_ptr.h"
 #include "gc_root.h"
+#include "obj_ptr.h"
 
 namespace art {
 

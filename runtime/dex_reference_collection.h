@@ -17,10 +17,10 @@
 #ifndef ART_RUNTIME_DEX_REFERENCE_COLLECTION_H_
 #define ART_RUNTIME_DEX_REFERENCE_COLLECTION_H_
 
-#include "base/macros.h"
-
-#include <vector>
 #include <map>
+#include <vector>
+
+#include "base/macros.h"
 
 namespace art {
 

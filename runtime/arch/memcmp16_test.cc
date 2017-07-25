@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "gtest/gtest.h"
 #include "memcmp16.h"
+
+#include "gtest/gtest.h"
 
 class RandGen {
  public:

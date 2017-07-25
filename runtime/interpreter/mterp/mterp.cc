@@ -17,11 +17,11 @@
 /*
  * Mterp entry point and support functions.
  */
-#include "interpreter/interpreter_common.h"
-#include "interpreter/interpreter_intrinsics.h"
-#include "entrypoints/entrypoint_utils-inl.h"
 #include "mterp.h"
 #include "debugger.h"
+#include "entrypoints/entrypoint_utils-inl.h"
+#include "interpreter/interpreter_common.h"
+#include "interpreter/interpreter_intrinsics.h"
 
 namespace art {
 namespace interpreter {

@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
 #include <memory>
 
 #include "android-base/stringprintf.h"
@@ -38,9 +39,9 @@
 #include "utf-inl.h"
 
 #if defined(__APPLE__)
-#include "AvailabilityMacros.h"  // For MAC_OS_X_VERSION_MAX_ALLOWED
-#include <sys/syscall.h>
 #include <crt_externs.h>
+#include <sys/syscall.h>
+#include "AvailabilityMacros.h"  // For MAC_OS_X_VERSION_MAX_ALLOWED
 #endif
 
 #if defined(__linux__)

@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include "large_object_space.h"
+
 #include "base/time_utils.h"
 #include "space_test.h"
-#include "large_object_space.h"
 
 namespace art {
 namespace gc {

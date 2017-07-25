@@ -15,13 +15,14 @@
  */
 
 #include "jni.h"
-#include "mirror/class-inl.h"
-#include "runtime.h"
-#include "thread_list.h"
-#include "thread_state.h"
+
 #include "gc/gc_cause.h"
 #include "gc/scoped_gc_critical_section.h"
+#include "mirror/class-inl.h"
+#include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
+#include "thread_list.h"
+#include "thread_state.h"
 
 namespace art {
 

@@ -19,9 +19,9 @@
 
 #include "base/mutex.h"
 #include "compiled_method.h"
-#include "jit_logger.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
+#include "jit_logger.h"
 
 namespace art {
 

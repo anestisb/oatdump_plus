@@ -28,10 +28,10 @@
 #include "mirror/class.h"
 #include "mirror/dex_cache.h"
 #include "mirror/string.h"
-#include "utils/dex_cache_arrays_layout.h"
 #include "runtime.h"
 #include "stack.h"
 #include "thread.h"
+#include "utils/dex_cache_arrays_layout.h"
 
 #ifndef ADD_TEST_EQ
 #define ADD_TEST_EQ(x, y) CHECK_EQ(x, y);

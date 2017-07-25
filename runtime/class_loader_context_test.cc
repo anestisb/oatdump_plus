@@ -16,7 +16,6 @@
 
 #include <gtest/gtest.h>
 
-
 #include "class_loader_context.h"
 #include "common_runtime_test.h"
 

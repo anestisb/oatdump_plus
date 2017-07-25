@@ -26,13 +26,13 @@
 #include "base/logging.h"
 #include "class_linker.h"
 #include "dex_file.h"
-#include "gc_root.h"
 #include "gc/heap-inl.h"
-#include "mirror/class.h"
+#include "gc_root.h"
 #include "mirror/call_site.h"
+#include "mirror/class.h"
 #include "mirror/method_type.h"
-#include "runtime.h"
 #include "obj_ptr.h"
+#include "runtime.h"
 
 #include <atomic>
 

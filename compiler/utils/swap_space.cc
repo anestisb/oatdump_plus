@@ -16,9 +16,10 @@
 
 #include "swap_space.h"
 
+#include <sys/mman.h>
+
 #include <algorithm>
 #include <numeric>
-#include <sys/mman.h>
 
 #include "base/bit_utils.h"
 #include "base/logging.h"

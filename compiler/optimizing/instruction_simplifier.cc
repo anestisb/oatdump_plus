@@ -21,8 +21,8 @@
 #include "escape.h"
 #include "intrinsics.h"
 #include "mirror/class-inl.h"
-#include "sharpening.h"
 #include "scoped_thread_state_change-inl.h"
+#include "sharpening.h"
 
 namespace art {
 

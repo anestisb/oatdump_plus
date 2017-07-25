@@ -16,8 +16,8 @@
 
 #include "ssa_phi_elimination.h"
 
-#include "base/arena_containers.h"
 #include "base/arena_bit_vector.h"
+#include "base/arena_containers.h"
 #include "base/bit_vector-inl.h"
 
 namespace art {

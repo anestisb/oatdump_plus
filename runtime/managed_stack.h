@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_MANAGED_STACK_H_
 #define ART_RUNTIME_MANAGED_STACK_H_
 
+#include <cstdint>
 #include <cstring>
-#include <stdint.h>
 #include <string>
 
 #include "base/logging.h"

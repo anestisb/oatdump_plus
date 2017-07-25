@@ -22,10 +22,10 @@
 
 #include <cstddef>
 #include <memory>
+#include <ostream>
 #include <set>
 #include <stack>
 #include <string>
-#include <ostream>
 
 #include "art_method.h"
 #include "base/bit_utils.h"
@@ -40,8 +40,8 @@
 #include "lock_word.h"
 #include "mem_map.h"
 #include "mirror/dex_cache.h"
-#include "obj_ptr.h"
 #include "oat_file.h"
+#include "obj_ptr.h"
 #include "os.h"
 #include "safe_map.h"
 #include "utils.h"

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+#include "induction_var_range.h"
+
 #include "base/arena_allocator.h"
 #include "builder.h"
 #include "induction_var_analysis.h"
-#include "induction_var_range.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 

@@ -16,10 +16,10 @@
 
 #include "thread.h"
 
-#include <sys/time.h>
-#include <sys/resource.h>
-#include <limits.h>
 #include <errno.h>
+#include <limits.h>
+#include <sys/resource.h>
+#include <sys/time.h>
 
 #include <cutils/sched_policy.h>
 #include <utils/threads.h>

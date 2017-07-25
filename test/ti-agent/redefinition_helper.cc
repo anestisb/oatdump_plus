@@ -16,9 +16,9 @@
 
 #include "common_helper.h"
 
+#include <cstdio>
 #include <deque>
 #include <map>
-#include <stdio.h>
 #include <sstream>
 #include <string>
 #include <vector>

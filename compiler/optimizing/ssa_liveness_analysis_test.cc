@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
+#include "ssa_liveness_analysis.h"
+
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
 #include "base/arena_allocator.h"
 #include "base/arena_containers.h"
-#include "driver/compiler_options.h"
 #include "code_generator.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
-#include "ssa_liveness_analysis.h"
 
 namespace art {
 

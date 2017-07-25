@@ -17,10 +17,11 @@
 #ifndef ART_RUNTIME_INDENTER_H_
 #define ART_RUNTIME_INDENTER_H_
 
-#include "base/logging.h"
-#include "base/macros.h"
 #include <ostream>
 #include <streambuf>
+
+#include "base/logging.h"
+#include "base/macros.h"
 
 namespace art {
 

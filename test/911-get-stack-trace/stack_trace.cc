@@ -15,8 +15,9 @@
  */
 
 #include <inttypes.h>
+
+#include <cstdio>
 #include <memory>
-#include <stdio.h>
 
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"

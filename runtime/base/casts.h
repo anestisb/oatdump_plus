@@ -18,9 +18,10 @@
 #define ART_RUNTIME_BASE_CASTS_H_
 
 #include <assert.h>
-#include <limits>
 #include <stdint.h>
 #include <string.h>
+
+#include <limits>
 #include <type_traits>
 
 #include "base/logging.h"

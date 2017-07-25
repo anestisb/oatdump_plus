@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+#include <pthread.h>
+
+#include <cstdio>
 #include <iostream>
 #include <mutex>
-#include <pthread.h>
-#include <stdio.h>
 #include <vector>
 
 #include "android-base/logging.h"

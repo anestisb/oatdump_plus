@@ -17,9 +17,9 @@
 #include "mark_sweep.h"
 
 #include <atomic>
+#include <climits>
 #include <functional>
 #include <numeric>
-#include <climits>
 #include <vector>
 
 #include "base/bounded_fifo.h"

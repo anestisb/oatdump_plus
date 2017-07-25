@@ -19,8 +19,9 @@
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
 #include <cutils/trace.h>
-#include <string>
 #include <utils/Trace.h>
+
+#include <string>
 
 namespace art {
 

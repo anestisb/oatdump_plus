@@ -21,7 +21,6 @@
 #include "common_runtime_test.h"
 #include "quick/quick_method_frame_info.h"
 
-
 // asm_support.h declares tests next to the #defines. We use asm_support_check.h to (safely)
 // generate CheckAsmSupportOffsetsAndSizes using gtest's EXPECT for the tests. We also use the
 // RETURN_TYPE, HEADER and FOOTER defines from asm_support_check.h to try to ensure that any

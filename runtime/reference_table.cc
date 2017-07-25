@@ -20,10 +20,10 @@
 
 #include "base/mutex.h"
 #include "indirect_reference_table.h"
-#include "mirror/array.h"
 #include "mirror/array-inl.h"
-#include "mirror/class.h"
+#include "mirror/array.h"
 #include "mirror/class-inl.h"
+#include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "mirror/string-inl.h"
 #include "runtime-inl.h"

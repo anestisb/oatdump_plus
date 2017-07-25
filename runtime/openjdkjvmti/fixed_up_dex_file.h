@@ -37,6 +37,7 @@
 
 #include "jni.h"
 #include "jvmti.h"
+
 #include "base/mutex.h"
 #include "dex_file.h"
 

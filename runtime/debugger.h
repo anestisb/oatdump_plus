@@ -27,8 +27,8 @@
 #include <string>
 #include <vector>
 
-#include "gc_root.h"
 #include "class_linker.h"
+#include "gc_root.h"
 #include "handle.h"
 #include "jdwp/jdwp.h"
 #include "jni.h"

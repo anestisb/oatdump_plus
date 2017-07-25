@@ -16,8 +16,8 @@
 #ifndef ART_RUNTIME_BASE_HISTOGRAM_H_
 #define ART_RUNTIME_BASE_HISTOGRAM_H_
 
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "base/logging.h"
 

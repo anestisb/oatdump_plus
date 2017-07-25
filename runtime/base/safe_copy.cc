@@ -16,9 +16,9 @@
 
 #include "safe_copy.h"
 
-#include <unistd.h>
 #include <sys/uio.h>
 #include <sys/user.h>
+#include <unistd.h>
 
 #include <algorithm>
 

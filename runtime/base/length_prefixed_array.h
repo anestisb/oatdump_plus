@@ -20,10 +20,10 @@
 #include <stddef.h>  // for offsetof()
 #include <string.h>  // for memset()
 
-#include "stride_iterator.h"
 #include "base/bit_utils.h"
 #include "base/casts.h"
 #include "base/iteration_range.h"
+#include "stride_iterator.h"
 
 namespace art {
 

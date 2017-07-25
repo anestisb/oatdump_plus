@@ -16,9 +16,9 @@
 
 #include "loop_optimization.h"
 
-#include "arch/instruction_set.h"
 #include "arch/arm/instruction_set_features_arm.h"
 #include "arch/arm64/instruction_set_features_arm64.h"
+#include "arch/instruction_set.h"
 #include "arch/mips/instruction_set_features_mips.h"
 #include "arch/mips64/instruction_set_features_mips64.h"
 #include "arch/x86/instruction_set_features_x86.h"

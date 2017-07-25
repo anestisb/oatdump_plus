@@ -22,11 +22,12 @@
 #include "assembler_test_base.h"
 #include "common_runtime_test.h"  // For ScratchFile
 
+#include <sys/stat.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
-#include <sys/stat.h>
 
 namespace art {
 

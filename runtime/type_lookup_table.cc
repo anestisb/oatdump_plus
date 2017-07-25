@@ -16,13 +16,13 @@
 
 #include "type_lookup_table.h"
 
+#include <cstring>
+#include <memory>
+
 #include "base/bit_utils.h"
 #include "dex_file-inl.h"
 #include "utf-inl.h"
 #include "utils.h"
-
-#include <memory>
-#include <cstring>
 
 namespace art {
 

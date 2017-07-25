@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include "task_processor.h"
 #include "base/time_utils.h"
 #include "common_runtime_test.h"
-#include "task_processor.h"
-#include "thread_pool.h"
 #include "thread-current-inl.h"
+#include "thread_pool.h"
 
 namespace art {
 namespace gc {

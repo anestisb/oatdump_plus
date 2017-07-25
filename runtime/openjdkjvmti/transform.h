@@ -35,10 +35,10 @@
 #include <string>
 
 #include <jni.h>
+#include "jvmti.h"
 
 #include "art_jvmti.h"
 #include "ti_class_definition.h"
-#include "jvmti.h"
 
 namespace openjdkjvmti {
 

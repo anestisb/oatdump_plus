@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_LOCK_WORD_H_
 #define ART_RUNTIME_LOCK_WORD_H_
 
+#include <cstdint>
 #include <iosfwd>
-#include <stdint.h>
 
 #include "base/bit_utils.h"
 #include "base/logging.h"

@@ -26,8 +26,8 @@
 
 #include "arena_containers.h"  // For ArenaAllocatorAdapterKind.
 #include "base/dchecked_vector.h"
-#include "scoped_arena_allocator.h"
 #include "safe_map.h"
+#include "scoped_arena_allocator.h"
 
 namespace art {
 

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "barrier.h"
 #include "monitor.h"
 
 #include <string>
 
 #include "atomic.h"
+#include "barrier.h"
 #include "base/time_utils.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "register_allocator.h"
+
 #include "arch/x86/instruction_set_features_x86.h"
 #include "base/arena_allocator.h"
 #include "builder.h"
@@ -25,7 +27,6 @@
 #include "driver/compiler_options.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
-#include "register_allocator.h"
 #include "register_allocator_linear_scan.h"
 #include "ssa_liveness_analysis.h"
 #include "ssa_phi_elimination.h"

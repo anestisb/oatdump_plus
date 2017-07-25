@@ -17,13 +17,14 @@
 #ifndef ART_RUNTIME_CHA_H_
 #define ART_RUNTIME_CHA_H_
 
+#include <unordered_map>
+#include <unordered_set>
+
 #include "base/enums.h"
 #include "base/mutex.h"
 #include "handle.h"
 #include "mirror/class.h"
 #include "oat_quick_method_header.h"
-#include <unordered_map>
-#include <unordered_set>
 
 namespace art {
 

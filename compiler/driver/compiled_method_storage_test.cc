@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include "compiled_method_storage.h"
+
 #include <gtest/gtest.h>
 
-#include "compiled_method_storage.h"
 #include "compiled_method.h"
 #include "compiler_driver.h"
 #include "compiler_options.h"

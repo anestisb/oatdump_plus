@@ -17,13 +17,13 @@
 #ifndef ART_CMDLINE_DETAIL_CMDLINE_PARSE_ARGUMENT_DETAIL_H_
 #define ART_CMDLINE_DETAIL_CMDLINE_PARSE_ARGUMENT_DETAIL_H_
 
-#include <type_traits>
 #include <assert.h>
-#include <functional>
-#include <vector>
 #include <algorithm>
-#include <numeric>
+#include <functional>
 #include <memory>
+#include <numeric>
+#include <type_traits>
+#include <vector>
 
 #include "android-base/strings.h"
 

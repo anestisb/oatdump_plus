@@ -26,13 +26,13 @@
 #include "dex_file.h"
 #include "dex_file_types.h"
 #include "gc/heap.h"
+#include "handle_scope-inl.h"
+#include "jit/profile_compilation_info.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
-#include "handle_scope-inl.h"
-#include "jit/profile_compilation_info.h"
+#include "mirror/object_array-inl.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace art {

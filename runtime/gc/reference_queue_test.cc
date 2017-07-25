@@ -17,9 +17,9 @@
 #include <sstream>
 
 #include "common_runtime_test.h"
-#include "reference_queue.h"
 #include "handle_scope-inl.h"
 #include "mirror/class-inl.h"
+#include "reference_queue.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace art {

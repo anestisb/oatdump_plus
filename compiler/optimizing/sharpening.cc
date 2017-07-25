@@ -21,10 +21,9 @@
 #include "base/enums.h"
 #include "class_linker.h"
 #include "code_generator.h"
+#include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
-#include "utils/dex_cache_arrays_layout-inl.h"
-#include "driver/compiler_driver.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "handle_scope-inl.h"
@@ -33,6 +32,7 @@
 #include "nodes.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
+#include "utils/dex_cache_arrays_layout-inl.h"
 
 namespace art {
 

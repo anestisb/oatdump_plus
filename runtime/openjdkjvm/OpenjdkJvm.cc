@@ -32,12 +32,12 @@
 /*
  * Services that OpenJDK expects the VM to provide.
  */
-#include<stdio.h>
 #include <dlfcn.h>
 #include <limits.h>
-#include <sys/time.h>
-#include <sys/socket.h>
+#include <stdio.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "../../libcore/ojluni/src/main/native/jvm.h"  // TODO(narayan): fix it

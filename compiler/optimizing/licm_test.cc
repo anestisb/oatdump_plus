@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include "licm.h"
+
 #include "base/arena_allocator.h"
 #include "builder.h"
-#include "licm.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "side_effects_analysis.h"

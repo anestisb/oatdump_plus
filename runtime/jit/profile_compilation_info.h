@@ -21,8 +21,8 @@
 #include <vector>
 
 #include "atomic.h"
-#include "base/arena_object.h"
 #include "base/arena_containers.h"
+#include "base/arena_object.h"
 #include "bit_memory_region.h"
 #include "dex_cache_resolved_classes.h"
 #include "dex_file.h"

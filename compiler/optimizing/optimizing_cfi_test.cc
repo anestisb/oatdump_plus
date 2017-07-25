@@ -23,8 +23,8 @@
 #include "gtest/gtest.h"
 #include "optimizing/code_generator.h"
 #include "optimizing/optimizing_unit_test.h"
-#include "utils/assembler.h"
 #include "utils/arm/assembler_arm_vixl.h"
+#include "utils/assembler.h"
 #include "utils/mips/assembler_mips.h"
 #include "utils/mips64/assembler_mips64.h"
 

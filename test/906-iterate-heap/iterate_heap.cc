@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include "inttypes.h"
+#include <inttypes.h>
+#include <pthread.h>
 
+#include <cstdio>
 #include <iomanip>
 #include <iostream>
-#include <pthread.h>
 #include <sstream>
-#include <stdio.h>
 #include <vector>
 
 #include "android-base/logging.h"

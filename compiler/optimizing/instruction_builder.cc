@@ -23,8 +23,8 @@
 #include "driver/compiler_options.h"
 #include "imtable-inl.h"
 #include "quicken_info.h"
-#include "sharpening.h"
 #include "scoped_thread_state_change-inl.h"
+#include "sharpening.h"
 
 namespace art {
 

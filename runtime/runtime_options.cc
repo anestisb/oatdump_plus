@@ -18,13 +18,13 @@
 
 #include <memory>
 
+#include "debugger.h"
 #include "gc/heap.h"
 #include "monitor.h"
 #include "runtime.h"
 #include "thread_list.h"
 #include "trace.h"
 #include "utils.h"
-#include "debugger.h"
 
 namespace art {
 

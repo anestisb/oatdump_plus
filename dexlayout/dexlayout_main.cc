@@ -22,17 +22,17 @@
 
 #include "dexlayout.h"
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "base/logging.h"
 #include "jit/profile_compilation_info.h"
-#include "runtime.h"
 #include "mem_map.h"
+#include "runtime.h"
 
 namespace art {
 

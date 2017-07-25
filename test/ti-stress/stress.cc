@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-#include <jni.h>
-#include <stdio.h>
-#include <iostream>
-#include <iomanip>
+#include <cstdio>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <memory>
-#include <stdio.h>
 #include <sstream>
 #include <strstream>
 
-#include "jvmti.h"
+#include <jni.h>
+
 #include "exec_utils.h"
+#include "jvmti.h"
 #include "utils.h"
 
 namespace art {

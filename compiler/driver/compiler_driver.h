@@ -32,8 +32,8 @@
 #include "dex_file.h"
 #include "dex_file_types.h"
 #include "driver/compiled_method_storage.h"
-#include "jit/profile_compilation_info.h"
 #include "invoke_type.h"
+#include "jit/profile_compilation_info.h"
 #include "method_reference.h"
 #include "mirror/class.h"  // For mirror::Class::Status.
 #include "os.h"

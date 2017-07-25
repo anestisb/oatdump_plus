@@ -17,10 +17,11 @@
 #ifndef ART_RUNTIME_BASE_HASH_SET_H_
 #define ART_RUNTIME_BASE_HASH_SET_H_
 
+#include <stdint.h>
+
 #include <functional>
 #include <iterator>
 #include <memory>
-#include <stdint.h>
 #include <utility>
 
 #include "bit_utils.h"

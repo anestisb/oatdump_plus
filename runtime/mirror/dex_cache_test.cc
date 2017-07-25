@@ -21,10 +21,10 @@
 #include "art_method-inl.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
+#include "handle_scope-inl.h"
 #include "linear_alloc.h"
 #include "mirror/class_loader-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "handle_scope-inl.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace art {

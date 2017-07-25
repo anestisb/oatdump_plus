@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include "multi_oat_relative_patcher.h"
+
 #include "compiled_method.h"
 #include "gtest/gtest.h"
-#include "multi_oat_relative_patcher.h"
 #include "vector_output_stream.h"
 
 namespace art {

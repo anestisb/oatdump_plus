@@ -22,13 +22,13 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "exec_utils.h"
-#include "mirror/array.h"
+#include "handle_scope-inl.h"
 #include "mirror/array-inl.h"
+#include "mirror/array.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
 #include "scoped_thread_state_change-inl.h"
-#include "handle_scope-inl.h"
 
 #include "base/memory_tool.h"
 

@@ -23,8 +23,8 @@
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
 #include "dex/inline_method_analyser.h"
-#include "dex/verified_method.h"
 #include "dex/verification_results.h"
+#include "dex/verified_method.h"
 #include "driver/compiler_driver-inl.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
@@ -38,10 +38,10 @@
 #include "optimizing_compiler.h"
 #include "reference_type_propagation.h"
 #include "register_allocator_linear_scan.h"
+#include "scoped_thread_state_change-inl.h"
 #include "sharpening.h"
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
-#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
 namespace art {

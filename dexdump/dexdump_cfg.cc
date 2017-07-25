@@ -19,8 +19,9 @@
 #include "dexdump_cfg.h"
 
 #include <inttypes.h>
-#include <ostream>
+
 #include <map>
+#include <ostream>
 #include <set>
 
 #include "dex_file-inl.h"

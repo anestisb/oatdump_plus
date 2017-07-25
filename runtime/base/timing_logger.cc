@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-
 #include <stdio.h>
 
 #include "timing_logger.h"
 
+#include "base/histogram-inl.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
-#include "base/histogram-inl.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
 #include "gc/heap.h"

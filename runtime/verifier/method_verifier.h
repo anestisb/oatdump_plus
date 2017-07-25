@@ -30,8 +30,8 @@
 #include "handle.h"
 #include "instruction_flags.h"
 #include "method_reference.h"
-#include "register_line.h"
 #include "reg_type_cache.h"
+#include "register_line.h"
 #include "verifier_enums.h"
 
 namespace art {

@@ -19,20 +19,20 @@
 
 #define CMDLINE_NDEBUG 1  // Do not output any debugging information for parsing.
 
-#include "cmdline/detail/cmdline_parser_detail.h"
-#include "cmdline/detail/cmdline_parse_argument_detail.h"
 #include "cmdline/detail/cmdline_debug_detail.h"
+#include "cmdline/detail/cmdline_parse_argument_detail.h"
+#include "cmdline/detail/cmdline_parser_detail.h"
 
-#include "cmdline_type_parser.h"
-#include "token_range.h"
-#include "cmdline_types.h"
-#include "cmdline_result.h"
 #include "cmdline_parse_result.h"
+#include "cmdline_result.h"
+#include "cmdline_type_parser.h"
+#include "cmdline_types.h"
+#include "token_range.h"
 
 #include "runtime/base/variant_map.h"
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 namespace art {
 // Build a parser for command line arguments with a small domain specific language.

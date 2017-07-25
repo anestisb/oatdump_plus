@@ -24,10 +24,10 @@
 #include "base/mutex.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
+#include "handle_scope-inl.h"
 #include "mirror/accessible_object.h"
 #include "mirror/class.h"
 #include "mirror/class_loader.h"
-#include "handle_scope-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-current-inl.h"
 

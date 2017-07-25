@@ -21,8 +21,8 @@
 #include "garbage_collector.h"
 #include "immune_spaces.h"
 #include "jni.h"
-#include "offsets.h"
 #include "mirror/object_reference.h"
+#include "offsets.h"
 #include "safe_map.h"
 
 #include <unordered_map>

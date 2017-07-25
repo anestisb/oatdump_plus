@@ -20,8 +20,8 @@
 #include "dex_instruction.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
-#include "ssa_liveness_analysis.h"
 #include "pretty_printer.h"
+#include "ssa_liveness_analysis.h"
 
 #include "gtest/gtest.h"
 

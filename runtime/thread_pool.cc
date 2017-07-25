@@ -16,11 +16,11 @@
 
 #include "thread_pool.h"
 
-#include <pthread.h>
-
 #include <sys/mman.h>
-#include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/time.h>
+
+#include <pthread.h>
 
 #include "android-base/stringprintf.h"
 

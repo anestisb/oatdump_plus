@@ -17,10 +17,11 @@
 #ifndef ART_TEST_TI_AGENT_JVMTI_HELPER_H_
 #define ART_TEST_TI_AGENT_JVMTI_HELPER_H_
 
-#include "jni.h"
-#include "jvmti.h"
 #include <memory>
 #include <ostream>
+
+#include "jni.h"
+#include "jvmti.h"
 
 #include "android-base/logging.h"
 

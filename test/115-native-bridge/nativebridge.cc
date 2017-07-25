@@ -16,20 +16,21 @@
 
 // A simple implementation of the native-bridge interface.
 
-#include <algorithm>
 #include <dlfcn.h>
-#include <jni.h>
-#include <stdlib.h>
+#include <setjmp.h>
 #include <signal.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <vector>
 
-#include "stdio.h"
-#include "unistd.h"
-#include "sys/stat.h"
-#include "setjmp.h"
+#include <jni.h>
+#include <nativebridge/native_bridge.h>
 
 #include "base/macros.h"
-#include "nativebridge/native_bridge.h"
 
 struct NativeBridgeMethod {
   const char* name;

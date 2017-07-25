@@ -24,8 +24,7 @@
 namespace art {
 
 // Define an enum for the entrypoints. Names are prepended a 'kQuick'.
-enum QuickEntrypointEnum
-{  // NOLINT(whitespace/braces)
+enum QuickEntrypointEnum {  // NOLINT(whitespace/braces)
 #define ENTRYPOINT_ENUM(name, rettype, ...) kQuick ## name,
 #include "quick_entrypoints_list.h"
   QUICK_ENTRYPOINT_LIST(ENTRYPOINT_ENUM)
@@ -58,7 +57,7 @@ void CheckEntrypointTypes();
 #define ENTRYPOINT_ENUM(name, ...) \
 template <> inline void CheckEntrypointTypes<kQuick ## name, __VA_ARGS__>() {};  // NOLINT [readability/braces] [4]
 #include "quick_entrypoints_list.h"
-  QUICK_ENTRYPOINT_LIST(ENTRYPOINT_ENUM)
+QUICK_ENTRYPOINT_LIST(ENTRYPOINT_ENUM)
 #undef QUICK_ENTRYPOINT_LIST
 #undef ENTRYPOINT_ENUM
 

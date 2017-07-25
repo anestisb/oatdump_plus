@@ -17,8 +17,8 @@
 #ifndef ART_CMDLINE_DETAIL_CMDLINE_PARSER_DETAIL_H_
 #define ART_CMDLINE_DETAIL_CMDLINE_PARSER_DETAIL_H_
 
-#include <string>
 #include <sstream>
+#include <string>
 #include <vector>
 
 namespace art {

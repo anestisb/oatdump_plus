@@ -16,6 +16,8 @@
 
 #include "class_linker.h"
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <deque>
 #include <iostream>
@@ -24,7 +26,6 @@
 #include <queue>
 #include <string>
 #include <tuple>
-#include <unistd.h>
 #include <unordered_map>
 #include <utility>
 #include <vector>

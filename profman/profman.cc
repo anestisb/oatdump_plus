@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "errno.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/file.h>
@@ -44,7 +44,6 @@
 #include "runtime.h"
 #include "type_reference.h"
 #include "utils.h"
-#include "type_reference.h"
 #include "zip_archive.h"
 
 namespace art {

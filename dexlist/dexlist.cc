@@ -23,8 +23,8 @@
  * List all methods in all concrete classes in one or more DEX files.
  */
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "dex_file-inl.h"
 #include "mem_map.h"

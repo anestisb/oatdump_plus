@@ -19,8 +19,8 @@
 #include "class-inl.h"
 #include "gc_root-inl.h"
 #include "jvalue-inl.h"
-#include "method_handles.h"
 #include "method_handles-inl.h"
+#include "method_handles.h"
 #include "reflection-inl.h"
 
 namespace art {

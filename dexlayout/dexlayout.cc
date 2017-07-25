@@ -33,10 +33,10 @@
 
 #include "android-base/stringprintf.h"
 
-#include "dex_ir_builder.h"
 #include "dex_file-inl.h"
 #include "dex_file_verifier.h"
 #include "dex_instruction-inl.h"
+#include "dex_ir_builder.h"
 #include "dex_verify.h"
 #include "dex_visualize.h"
 #include "dex_writer.h"

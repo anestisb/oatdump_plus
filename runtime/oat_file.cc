@@ -17,15 +17,15 @@
 #include "oat_file.h"
 
 #include <dlfcn.h>
-#include <string.h>
-#include <type_traits>
-#include <unistd.h>
-
-#include <cstdlib>
 #ifndef __APPLE__
 #include <link.h>  // for dl_iterate_phdr.
 #endif
+#include <unistd.h>
+
+#include <cstdlib>
+#include <cstring>
 #include <sstream>
+#include <type_traits>
 
 // dlopen_ext support from bionic.
 #ifdef ART_TARGET_ANDROID
@@ -44,10 +44,10 @@
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "gc_root.h"
-#include "oat.h"
 #include "mem_map.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
+#include "oat.h"
 #include "oat_file-inl.h"
 #include "oat_file_manager.h"
 #include "os.h"

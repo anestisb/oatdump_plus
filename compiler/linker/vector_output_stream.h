@@ -19,8 +19,8 @@
 
 #include "output_stream.h"
 
-#include <string>
 #include <string.h>
+#include <string>
 #include <vector>
 
 namespace art {

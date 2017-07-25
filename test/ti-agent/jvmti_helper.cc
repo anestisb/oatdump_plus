@@ -16,11 +16,12 @@
 
 #include "jvmti_helper.h"
 
-#include <algorithm>
 #include <dlfcn.h>
-#include <stdio.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
 #include <sstream>
-#include <string.h>
 
 #include "android-base/logging.h"
 #include "scoped_local_ref.h"

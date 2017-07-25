@@ -15,13 +15,15 @@
  */
 
 #include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
 
+#include <cstdio>
+#include <cstring>
 #include <iostream>
 #include <vector>
 
 #include "android-base/stringprintf.h"
+#include "jni.h"
+#include "jvmti.h"
 
 #include "base/logging.h"
 #include "base/macros.h"
@@ -29,9 +31,7 @@
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "jit/jit.h"
-#include "jni.h"
 #include "native_stack_dump.h"
-#include "jvmti.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-current-inl.h"

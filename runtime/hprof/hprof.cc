@@ -32,8 +32,8 @@
 #include <sys/time.h>
 #include <sys/uio.h>
 #include <time.h>
-#include <time.h>
 #include <unistd.h>
+
 #include <set>
 
 #include "android-base/stringprintf.h"
@@ -47,18 +47,18 @@
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
-#include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/allocation_record.h"
-#include "gc/scoped_gc_critical_section.h"
-#include "gc/heap.h"
 #include "gc/heap-visit-objects-inl.h"
+#include "gc/heap.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "gc/space/space.h"
+#include "gc_root.h"
 #include "globals.h"
 #include "jdwp/jdwp.h"
 #include "jdwp/jdwp_priv.h"
-#include "mirror/class.h"
 #include "mirror/class-inl.h"
+#include "mirror/class.h"
 #include "mirror/object-refvisitor-inl.h"
 #include "os.h"
 #include "safe_map.h"
