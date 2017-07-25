@@ -1752,6 +1752,66 @@ TEST_F(AssemblerMIPS32r6Test, IlvrD) {
   DriverStr(RepeatVVV(&mips::MipsAssembler::IlvrD, "ilvr.d ${reg1}, ${reg2}, ${reg3}"), "ilvr.d");
 }
 
+TEST_F(AssemblerMIPS32r6Test, MaddvB) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::MaddvB, "maddv.b ${reg1}, ${reg2}, ${reg3}"),
+            "maddv.b");
+}
+
+TEST_F(AssemblerMIPS32r6Test, MaddvH) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::MaddvH, "maddv.h ${reg1}, ${reg2}, ${reg3}"),
+            "maddv.h");
+}
+
+TEST_F(AssemblerMIPS32r6Test, MaddvW) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::MaddvW, "maddv.w ${reg1}, ${reg2}, ${reg3}"),
+            "maddv.w");
+}
+
+TEST_F(AssemblerMIPS32r6Test, MaddvD) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::MaddvD, "maddv.d ${reg1}, ${reg2}, ${reg3}"),
+            "maddv.d");
+}
+
+TEST_F(AssemblerMIPS32r6Test, MsubvB) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::MsubvB, "msubv.b ${reg1}, ${reg2}, ${reg3}"),
+            "msubv.b");
+}
+
+TEST_F(AssemblerMIPS32r6Test, MsubvH) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::MsubvH, "msubv.h ${reg1}, ${reg2}, ${reg3}"),
+            "msubv.h");
+}
+
+TEST_F(AssemblerMIPS32r6Test, MsubvW) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::MsubvW, "msubv.w ${reg1}, ${reg2}, ${reg3}"),
+            "msubv.w");
+}
+
+TEST_F(AssemblerMIPS32r6Test, MsubvD) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::MsubvD, "msubv.d ${reg1}, ${reg2}, ${reg3}"),
+            "msubv.d");
+}
+
+TEST_F(AssemblerMIPS32r6Test, FmaddW) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::FmaddW, "fmadd.w ${reg1}, ${reg2}, ${reg3}"),
+            "fmadd.w");
+}
+
+TEST_F(AssemblerMIPS32r6Test, FmaddD) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::FmaddD, "fmadd.d ${reg1}, ${reg2}, ${reg3}"),
+            "fmadd.d");
+}
+
+TEST_F(AssemblerMIPS32r6Test, FmsubW) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::FmsubW, "fmsub.w ${reg1}, ${reg2}, ${reg3}"),
+            "fmsub.w");
+}
+
+TEST_F(AssemblerMIPS32r6Test, FmsubD) {
+  DriverStr(RepeatVVV(&mips::MipsAssembler::FmsubD, "fmsub.d ${reg1}, ${reg2}, ${reg3}"),
+            "fmsub.d");
+}
+
 #undef __
 
 }  // namespace art

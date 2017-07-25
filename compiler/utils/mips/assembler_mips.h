@@ -613,6 +613,19 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   void IlvrW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
   void IlvrD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
 
+  void MaddvB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void MaddvH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void MaddvW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void MaddvD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void MsubvB(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void MsubvH(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void MsubvW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void MsubvD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void FmaddW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void FmaddD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void FmsubW(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+  void FmsubD(VectorRegister wd, VectorRegister ws, VectorRegister wt);
+
   // Helper for replicating floating point value in all destination elements.
   void ReplicateFPToVectorRegister(VectorRegister dst, FRegister src, bool is_double);
 

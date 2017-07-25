@@ -3340,6 +3340,66 @@ TEST_F(AssemblerMIPS64Test, IlvrD) {
             "ilvr.d");
 }
 
+TEST_F(AssemblerMIPS64Test, MaddvB) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::MaddvB, "maddv.b ${reg1}, ${reg2}, ${reg3}"),
+            "maddv.b");
+}
+
+TEST_F(AssemblerMIPS64Test, MaddvH) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::MaddvH, "maddv.h ${reg1}, ${reg2}, ${reg3}"),
+            "maddv.h");
+}
+
+TEST_F(AssemblerMIPS64Test, MaddvW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::MaddvW, "maddv.w ${reg1}, ${reg2}, ${reg3}"),
+            "maddv.w");
+}
+
+TEST_F(AssemblerMIPS64Test, MaddvD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::MaddvD, "maddv.d ${reg1}, ${reg2}, ${reg3}"),
+            "maddv.d");
+}
+
+TEST_F(AssemblerMIPS64Test, MsubvB) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::MsubvB, "msubv.b ${reg1}, ${reg2}, ${reg3}"),
+            "msubv.b");
+}
+
+TEST_F(AssemblerMIPS64Test, MsubvH) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::MsubvH, "msubv.h ${reg1}, ${reg2}, ${reg3}"),
+            "msubv.h");
+}
+
+TEST_F(AssemblerMIPS64Test, MsubvW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::MsubvW, "msubv.w ${reg1}, ${reg2}, ${reg3}"),
+            "msubv.w");
+}
+
+TEST_F(AssemblerMIPS64Test, MsubvD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::MsubvD, "msubv.d ${reg1}, ${reg2}, ${reg3}"),
+            "msubv.d");
+}
+
+TEST_F(AssemblerMIPS64Test, FmaddW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::FmaddW, "fmadd.w ${reg1}, ${reg2}, ${reg3}"),
+            "fmadd.w");
+}
+
+TEST_F(AssemblerMIPS64Test, FmaddD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::FmaddD, "fmadd.d ${reg1}, ${reg2}, ${reg3}"),
+            "fmadd.d");
+}
+
+TEST_F(AssemblerMIPS64Test, FmsubW) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::FmsubW, "fmsub.w ${reg1}, ${reg2}, ${reg3}"),
+            "fmsub.w");
+}
+
+TEST_F(AssemblerMIPS64Test, FmsubD) {
+  DriverStr(RepeatVVV(&mips64::Mips64Assembler::FmsubD, "fmsub.d ${reg1}, ${reg2}, ${reg3}"),
+            "fmsub.d");
+}
+
 #undef __
 
 }  // namespace art

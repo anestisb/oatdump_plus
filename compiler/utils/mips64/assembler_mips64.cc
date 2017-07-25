@@ -1899,6 +1899,66 @@ void Mips64Assembler::IlvrD(VectorRegister wd, VectorRegister ws, VectorRegister
   EmitMsa3R(0x5, 0x3, wt, ws, wd, 0x14);
 }
 
+void Mips64Assembler::MaddvB(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x1, 0x0, wt, ws, wd, 0x12);
+}
+
+void Mips64Assembler::MaddvH(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x1, 0x1, wt, ws, wd, 0x12);
+}
+
+void Mips64Assembler::MaddvW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x1, 0x2, wt, ws, wd, 0x12);
+}
+
+void Mips64Assembler::MaddvD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x1, 0x3, wt, ws, wd, 0x12);
+}
+
+void Mips64Assembler::MsubvB(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x2, 0x0, wt, ws, wd, 0x12);
+}
+
+void Mips64Assembler::MsubvH(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x2, 0x1, wt, ws, wd, 0x12);
+}
+
+void Mips64Assembler::MsubvW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x2, 0x2, wt, ws, wd, 0x12);
+}
+
+void Mips64Assembler::MsubvD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x2, 0x3, wt, ws, wd, 0x12);
+}
+
+void Mips64Assembler::FmaddW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x2, 0x0, wt, ws, wd, 0x1b);
+}
+
+void Mips64Assembler::FmaddD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x2, 0x1, wt, ws, wd, 0x1b);
+}
+
+void Mips64Assembler::FmsubW(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x2, 0x2, wt, ws, wd, 0x1b);
+}
+
+void Mips64Assembler::FmsubD(VectorRegister wd, VectorRegister ws, VectorRegister wt) {
+  CHECK(HasMsa());
+  EmitMsa3R(0x2, 0x3, wt, ws, wd, 0x1b);
+}
+
 void Mips64Assembler::ReplicateFPToVectorRegister(VectorRegister dst,
                                                   FpuRegister src,
                                                   bool is_double) {
