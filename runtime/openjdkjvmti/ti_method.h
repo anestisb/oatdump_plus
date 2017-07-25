@@ -34,6 +34,7 @@
 
 #include "jni.h"
 #include "jvmti.h"
+#include "primitive.h"
 
 namespace openjdkjvmti {
 
@@ -84,6 +85,28 @@ class MethodUtil {
                                           jmethodID method,
                                           jint* entry_count_ptr,
                                           jvmtiLocalVariableEntry** table_ptr);
+
+  template<typename T>
+  static jvmtiError SetLocalVariable(jvmtiEnv* env, jthread thread, jint depth, jint slot, T data);
+
+  template<typename T>
+  static jvmtiError GetLocalVariable(jvmtiEnv* env, jthread thread, jint depth, jint slot, T* data);
+
+  static jvmtiError GetLocalInstance(jvmtiEnv* env, jthread thread, jint depth, jobject* data);
+
+ private:
+  static jvmtiError SetLocalVariableGeneric(jvmtiEnv* env,
+                                            jthread thread,
+                                            jint depth,
+                                            jint slot,
+                                            art::Primitive::Type type,
+                                            jvalue value);
+  static jvmtiError GetLocalVariableGeneric(jvmtiEnv* env,
+                                            jthread thread,
+                                            jint depth,
+                                            jint slot,
+                                            art::Primitive::Type type,
+                                            jvalue* value);
 };
 
 }  // namespace openjdkjvmti

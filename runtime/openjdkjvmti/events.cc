@@ -610,6 +610,21 @@ static void SetupTraceListener(JvmtiMethodTraceListener* listener,
   }
 }
 
+void EventHandler::HandleLocalAccessCapabilityAdded() {
+  art::ScopedThreadStateChange stsc(art::Thread::Current(), art::ThreadState::kNative);
+  art::instrumentation::Instrumentation* instr = art::Runtime::Current()->GetInstrumentation();
+  art::gc::ScopedGCCriticalSection gcs(art::Thread::Current(),
+                                       art::gc::kGcCauseInstrumentation,
+                                       art::gc::kCollectorTypeInstrumentation);
+  art::ScopedSuspendAll ssa("Deoptimize everything for local variable access", true);
+  // TODO This should be disabled when there are no environments using it.
+  if (!instr->CanDeoptimize()) {
+    instr->EnableDeoptimization();
+  }
+  // TODO We should be able to support can_access_local_variables without this.
+  instr->DeoptimizeEverything("jvmti-local-variable-access");
+}
+
 // Handle special work for the given event type, if necessary.
 void EventHandler::HandleEventType(ArtJvmtiEvent event, bool enable) {
   switch (event) {

@@ -35,10 +35,12 @@
 #include "jni.h"
 #include "jvmti.h"
 
+#include "base/macros.h"
 #include "base/mutex.h"
 
 namespace art {
 class ArtField;
+class ScopedObjectAccessAlreadyRunnable;
 class Thread;
 }  // namespace art
 
@@ -85,6 +87,10 @@ class ThreadUtil {
                                      jint request_count,
                                      const jthread* threads,
                                      jvmtiError* results);
+
+  static art::Thread* GetNativeThread(jthread thread,
+                                      const art::ScopedObjectAccessAlreadyRunnable& soa)
+      REQUIRES_SHARED(art::Locks::mutator_lock_);
 
  private:
   // We need to make sure only one thread tries to suspend threads at a time so we can get the

@@ -503,112 +503,112 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetLocalObject(jvmtiEnv* env,
-                                   jthread thread ATTRIBUTE_UNUSED,
-                                   jint depth ATTRIBUTE_UNUSED,
-                                   jint slot ATTRIBUTE_UNUSED,
-                                   jobject* value_ptr ATTRIBUTE_UNUSED) {
+                                   jthread thread,
+                                   jint depth,
+                                   jint slot,
+                                   jobject* value_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetLocalVariable(env, thread, depth, slot, value_ptr);
   }
 
   static jvmtiError GetLocalInstance(jvmtiEnv* env,
-                                     jthread thread ATTRIBUTE_UNUSED,
-                                     jint depth ATTRIBUTE_UNUSED,
-                                     jobject* value_ptr ATTRIBUTE_UNUSED) {
+                                     jthread thread,
+                                     jint depth,
+                                     jobject* value_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetLocalInstance(env, thread, depth, value_ptr);
   }
 
   static jvmtiError GetLocalInt(jvmtiEnv* env,
-                                jthread thread ATTRIBUTE_UNUSED,
-                                jint depth ATTRIBUTE_UNUSED,
-                                jint slot ATTRIBUTE_UNUSED,
-                                jint* value_ptr ATTRIBUTE_UNUSED) {
+                                jthread thread,
+                                jint depth,
+                                jint slot,
+                                jint* value_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetLocalVariable(env, thread, depth, slot, value_ptr);
   }
 
   static jvmtiError GetLocalLong(jvmtiEnv* env,
-                                 jthread thread ATTRIBUTE_UNUSED,
-                                 jint depth ATTRIBUTE_UNUSED,
-                                 jint slot ATTRIBUTE_UNUSED,
-                                 jlong* value_ptr ATTRIBUTE_UNUSED) {
+                                 jthread thread,
+                                 jint depth,
+                                 jint slot,
+                                 jlong* value_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetLocalVariable(env, thread, depth, slot, value_ptr);
   }
 
   static jvmtiError GetLocalFloat(jvmtiEnv* env,
-                                  jthread thread ATTRIBUTE_UNUSED,
-                                  jint depth ATTRIBUTE_UNUSED,
-                                  jint slot ATTRIBUTE_UNUSED,
-                                  jfloat* value_ptr ATTRIBUTE_UNUSED) {
+                                  jthread thread,
+                                  jint depth,
+                                  jint slot,
+                                  jfloat* value_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetLocalVariable(env, thread, depth, slot, value_ptr);
   }
 
   static jvmtiError GetLocalDouble(jvmtiEnv* env,
-                                   jthread thread ATTRIBUTE_UNUSED,
-                                   jint depth ATTRIBUTE_UNUSED,
-                                   jint slot ATTRIBUTE_UNUSED,
-                                   jdouble* value_ptr ATTRIBUTE_UNUSED) {
+                                   jthread thread,
+                                   jint depth,
+                                   jint slot,
+                                   jdouble* value_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetLocalVariable(env, thread, depth, slot, value_ptr);
   }
 
   static jvmtiError SetLocalObject(jvmtiEnv* env,
-                                   jthread thread ATTRIBUTE_UNUSED,
-                                   jint depth ATTRIBUTE_UNUSED,
-                                   jint slot ATTRIBUTE_UNUSED,
-                                   jobject value ATTRIBUTE_UNUSED) {
+                                   jthread thread,
+                                   jint depth,
+                                   jint slot,
+                                   jobject value) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::SetLocalVariable(env, thread, depth, slot, value);
   }
 
   static jvmtiError SetLocalInt(jvmtiEnv* env,
-                                jthread thread ATTRIBUTE_UNUSED,
-                                jint depth ATTRIBUTE_UNUSED,
-                                jint slot ATTRIBUTE_UNUSED,
-                                jint value ATTRIBUTE_UNUSED) {
+                                jthread thread,
+                                jint depth,
+                                jint slot,
+                                jint value) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::SetLocalVariable(env, thread, depth, slot, value);
   }
 
   static jvmtiError SetLocalLong(jvmtiEnv* env,
-                                 jthread thread ATTRIBUTE_UNUSED,
-                                 jint depth ATTRIBUTE_UNUSED,
-                                 jint slot ATTRIBUTE_UNUSED,
-                                 jlong value ATTRIBUTE_UNUSED) {
+                                 jthread thread,
+                                 jint depth,
+                                 jint slot,
+                                 jlong value) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::SetLocalVariable(env, thread, depth, slot, value);
   }
 
   static jvmtiError SetLocalFloat(jvmtiEnv* env,
-                                  jthread thread ATTRIBUTE_UNUSED,
-                                  jint depth ATTRIBUTE_UNUSED,
-                                  jint slot ATTRIBUTE_UNUSED,
-                                  jfloat value ATTRIBUTE_UNUSED) {
+                                  jthread thread,
+                                  jint depth,
+                                  jint slot,
+                                  jfloat value) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::SetLocalVariable(env, thread, depth, slot, value);
   }
 
   static jvmtiError SetLocalDouble(jvmtiEnv* env,
-                                   jthread thread ATTRIBUTE_UNUSED,
-                                   jint depth ATTRIBUTE_UNUSED,
-                                   jint slot ATTRIBUTE_UNUSED,
-                                   jdouble value ATTRIBUTE_UNUSED) {
+                                   jthread thread,
+                                   jint depth,
+                                   jint slot,
+                                   jdouble value) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::SetLocalVariable(env, thread, depth, slot, value);
   }
 
 

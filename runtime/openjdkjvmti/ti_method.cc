@@ -34,16 +34,22 @@
 #include "art_jvmti.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
+#include "base/mutex-inl.h"
 #include "dex_file_annotations.h"
 #include "events-inl.h"
 #include "jni_internal.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "modifiers.h"
 #include "nativehelper/ScopedLocalRef.h"
 #include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
+#include "stack.h"
 #include "thread-current-inl.h"
 #include "thread_list.h"
+#include "ti_thread.h"
 #include "ti_phase.h"
 
 namespace openjdkjvmti {
@@ -524,5 +530,542 @@ jvmtiError MethodUtil::IsMethodSynthetic(jvmtiEnv* env, jmethodID m, jboolean* i
   };
   return IsMethodT(env, m, test, is_synthetic_ptr);
 }
+
+struct FindFrameAtDepthVisitor : art::StackVisitor {
+ public:
+  FindFrameAtDepthVisitor(art::Thread* target, art::Context* ctx, jint depth)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      : art::StackVisitor(target, ctx, art::StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        found_frame_(false),
+        cnt_(0),
+        depth_(static_cast<size_t>(depth)) { }
+
+  bool FoundFrame() {
+    return found_frame_;
+  }
+
+  bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
+    if (GetMethod()->IsRuntimeMethod()) {
+      return true;
+    }
+    if (cnt_ == depth_) {
+      // We found our frame, exit.
+      found_frame_ = true;
+      return false;
+    } else {
+      cnt_++;
+      return true;
+    }
+  }
+
+ private:
+  bool found_frame_;
+  size_t cnt_;
+  size_t depth_;
+};
+
+class CommonLocalVariableClosure : public art::Closure {
+ public:
+  CommonLocalVariableClosure(art::Thread* caller,
+                             jint depth,
+                             jint slot)
+      : result_(ERR(INTERNAL)), caller_(caller), depth_(depth), slot_(slot) {}
+
+  void Run(art::Thread* self) OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
+    art::Locks::mutator_lock_->AssertSharedHeld(art::Thread::Current());
+    std::unique_ptr<art::Context> context(art::Context::Create());
+    FindFrameAtDepthVisitor visitor(self, context.get(), depth_);
+    visitor.WalkStack();
+    if (!visitor.FoundFrame()) {
+      // Must have been a bad depth.
+      result_ = ERR(NO_MORE_FRAMES);
+      return;
+    }
+    art::ArtMethod* method = visitor.GetMethod();
+    if (method->IsNative() || !visitor.IsShadowFrame()) {
+      // TODO We really should support get/set for non-shadow frames.
+      result_ = ERR(OPAQUE_FRAME);
+      return;
+    } else if (method->GetCodeItem()->registers_size_ <= slot_) {
+      result_ = ERR(INVALID_SLOT);
+      return;
+    }
+    uint32_t pc = visitor.GetDexPc(/*abort_on_failure*/ false);
+    if (pc == art::DexFile::kDexNoIndex) {
+      // Cannot figure out current PC.
+      result_ = ERR(OPAQUE_FRAME);
+      return;
+    }
+    std::string descriptor;
+    art::Primitive::Type slot_type = art::Primitive::kPrimVoid;
+    jvmtiError err = GetSlotType(method, pc, &descriptor, &slot_type);
+    if (err != OK) {
+      result_ = err;
+      return;
+    }
+
+    err = GetTypeError(method, slot_type, descriptor);
+    if (err != OK) {
+      result_ = err;
+      return;
+    }
+    result_ = Execute(method, visitor);
+  }
+
+  jvmtiError GetResult() const {
+    return result_;
+  }
+
+ protected:
+  virtual jvmtiError Execute(art::ArtMethod* method, art::StackVisitor& visitor)
+      REQUIRES(art::Locks::mutator_lock_) = 0;
+  virtual jvmtiError GetTypeError(art::ArtMethod* method,
+                                  art::Primitive::Type type,
+                                  const std::string& descriptor)
+      REQUIRES(art::Locks::mutator_lock_)  = 0;
+
+  jvmtiError GetSlotType(art::ArtMethod* method,
+                         uint32_t dex_pc,
+                         /*out*/std::string* descriptor,
+                         /*out*/art::Primitive::Type* type)
+      REQUIRES(art::Locks::mutator_lock_) {
+    const art::DexFile* dex_file = method->GetDexFile();
+    const art::DexFile::CodeItem* code_item = method->GetCodeItem();
+    if (dex_file == nullptr || code_item == nullptr) {
+      return ERR(OPAQUE_FRAME);
+    }
+
+    struct GetLocalVariableInfoContext {
+      explicit GetLocalVariableInfoContext(jint slot,
+                                          uint32_t pc,
+                                          std::string* out_descriptor,
+                                          art::Primitive::Type* out_type)
+          : found_(false), jslot_(slot), pc_(pc), descriptor_(out_descriptor), type_(out_type) {
+        *descriptor_ = "";
+        *type_ = art::Primitive::kPrimVoid;
+      }
+
+      static void Callback(void* raw_ctx, const art::DexFile::LocalInfo& entry) {
+        reinterpret_cast<GetLocalVariableInfoContext*>(raw_ctx)->Handle(entry);
+      }
+
+      void Handle(const art::DexFile::LocalInfo& entry) {
+        if (found_) {
+          return;
+        } else if (entry.start_address_ <= pc_ &&
+                   entry.end_address_ > pc_ &&
+                   entry.reg_ == jslot_) {
+          found_ = true;
+          *type_ = art::Primitive::GetType(entry.descriptor_[0]);
+          *descriptor_ = entry.descriptor_;
+        }
+        return;
+      }
+
+      bool found_;
+      jint jslot_;
+      uint32_t pc_;
+      std::string* descriptor_;
+      art::Primitive::Type* type_;
+    };
+
+    GetLocalVariableInfoContext context(slot_, dex_pc, descriptor, type);
+    if (!dex_file->DecodeDebugLocalInfo(code_item,
+                                        method->IsStatic(),
+                                        method->GetDexMethodIndex(),
+                                        GetLocalVariableInfoContext::Callback,
+                                        &context) || !context.found_) {
+      // Something went wrong with decoding the debug information. It might as well not be there.
+      return ERR(INVALID_SLOT);
+    } else {
+      return OK;
+    }
+  }
+
+  jvmtiError result_;
+  art::Thread* caller_;
+  jint depth_;
+  jint slot_;
+};
+
+class GetLocalVariableClosure : public CommonLocalVariableClosure {
+ public:
+  GetLocalVariableClosure(art::Thread* caller,
+                          jint depth,
+                          jint slot,
+                          art::Primitive::Type type,
+                          jvalue* val)
+      : CommonLocalVariableClosure(caller, depth, slot), type_(type), val_(val) {}
+
+ protected:
+  jvmtiError GetTypeError(art::ArtMethod* method ATTRIBUTE_UNUSED,
+                          art::Primitive::Type slot_type,
+                          const std::string& descriptor ATTRIBUTE_UNUSED)
+      OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
+    switch (slot_type) {
+      case art::Primitive::kPrimByte:
+      case art::Primitive::kPrimChar:
+      case art::Primitive::kPrimInt:
+      case art::Primitive::kPrimShort:
+      case art::Primitive::kPrimBoolean:
+        return type_ == art::Primitive::kPrimInt ? OK : ERR(TYPE_MISMATCH);
+      case art::Primitive::kPrimLong:
+      case art::Primitive::kPrimFloat:
+      case art::Primitive::kPrimDouble:
+      case art::Primitive::kPrimNot:
+        return type_ == slot_type ? OK : ERR(TYPE_MISMATCH);
+      case art::Primitive::kPrimVoid:
+        LOG(FATAL) << "Unexpected primitive type " << slot_type;
+        UNREACHABLE();
+    }
+  }
+
+  jvmtiError Execute(art::ArtMethod* method, art::StackVisitor& visitor)
+      OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
+    switch (type_) {
+      case art::Primitive::kPrimNot: {
+        uint32_t ptr_val;
+        if (!visitor.GetVReg(method,
+                             static_cast<uint16_t>(slot_),
+                             art::kReferenceVReg,
+                             &ptr_val)) {
+          return ERR(OPAQUE_FRAME);
+        }
+        art::ObjPtr<art::mirror::Object> obj(reinterpret_cast<art::mirror::Object*>(ptr_val));
+        val_->l = obj.IsNull() ? nullptr : caller_->GetJniEnv()->AddLocalReference<jobject>(obj);
+        break;
+      }
+      case art::Primitive::kPrimInt:
+      case art::Primitive::kPrimFloat: {
+        if (!visitor.GetVReg(method,
+                             static_cast<uint16_t>(slot_),
+                             type_ == art::Primitive::kPrimFloat ? art::kFloatVReg : art::kIntVReg,
+                             reinterpret_cast<uint32_t*>(&val_->i))) {
+          return ERR(OPAQUE_FRAME);
+        }
+        break;
+      }
+      case art::Primitive::kPrimDouble:
+      case art::Primitive::kPrimLong: {
+        auto lo_type = type_ == art::Primitive::kPrimLong ? art::kLongLoVReg : art::kDoubleLoVReg;
+        auto high_type = type_ == art::Primitive::kPrimLong ? art::kLongHiVReg : art::kDoubleHiVReg;
+        if (!visitor.GetVRegPair(method,
+                                 static_cast<uint16_t>(slot_),
+                                 lo_type,
+                                 high_type,
+                                 reinterpret_cast<uint64_t*>(&val_->j))) {
+          return ERR(OPAQUE_FRAME);
+        }
+        break;
+      }
+      default: {
+        LOG(FATAL) << "unexpected register type " << type_;
+        UNREACHABLE();
+      }
+    }
+    return OK;
+  }
+
+ private:
+  art::Primitive::Type type_;
+  jvalue* val_;
+};
+
+jvmtiError MethodUtil::GetLocalVariableGeneric(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                               jthread thread,
+                                               jint depth,
+                                               jint slot,
+                                               art::Primitive::Type type,
+                                               jvalue* val) {
+  if (depth < 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  }
+  art::Thread* self = art::Thread::Current();
+  art::ScopedObjectAccess soa(self);
+  art::Thread* target = ThreadUtil::GetNativeThread(thread, soa);
+  if (target == nullptr && thread == nullptr) {
+    return ERR(INVALID_THREAD);
+  }
+  if (target == nullptr) {
+    return ERR(THREAD_NOT_ALIVE);
+  }
+  GetLocalVariableClosure c(self, depth, slot, type, val);
+  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
+  if (!target->RequestSynchronousCheckpoint(&c)) {
+    return ERR(THREAD_NOT_ALIVE);
+  } else {
+    return c.GetResult();
+  }
+}
+
+class SetLocalVariableClosure : public CommonLocalVariableClosure {
+ public:
+  SetLocalVariableClosure(art::Thread* caller,
+                          jint depth,
+                          jint slot,
+                          art::Primitive::Type type,
+                          jvalue val)
+      : CommonLocalVariableClosure(caller, depth, slot), type_(type), val_(val) {}
+
+ protected:
+  jvmtiError GetTypeError(art::ArtMethod* method,
+                          art::Primitive::Type slot_type,
+                          const std::string& descriptor)
+      OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
+    switch (slot_type) {
+      case art::Primitive::kPrimNot: {
+        if (type_ != art::Primitive::kPrimNot) {
+          return ERR(TYPE_MISMATCH);
+        } else if (val_.l == nullptr) {
+          return OK;
+        } else {
+          art::ClassLinker* cl = art::Runtime::Current()->GetClassLinker();
+          art::ObjPtr<art::mirror::Class> set_class =
+              caller_->DecodeJObject(val_.l)->GetClass();
+          art::ObjPtr<art::mirror::ClassLoader> loader =
+              method->GetDeclaringClass()->GetClassLoader();
+          art::ObjPtr<art::mirror::Class> slot_class =
+              cl->LookupClass(caller_, descriptor.c_str(), loader);
+          DCHECK(!slot_class.IsNull());
+          return slot_class->IsAssignableFrom(set_class) ? OK : ERR(TYPE_MISMATCH);
+        }
+      }
+      case art::Primitive::kPrimByte:
+      case art::Primitive::kPrimChar:
+      case art::Primitive::kPrimInt:
+      case art::Primitive::kPrimShort:
+      case art::Primitive::kPrimBoolean:
+        return type_ == art::Primitive::kPrimInt ? OK : ERR(TYPE_MISMATCH);
+      case art::Primitive::kPrimLong:
+      case art::Primitive::kPrimFloat:
+      case art::Primitive::kPrimDouble:
+        return type_ == slot_type ? OK : ERR(TYPE_MISMATCH);
+      case art::Primitive::kPrimVoid:
+        LOG(FATAL) << "Unexpected primitive type " << slot_type;
+        UNREACHABLE();
+    }
+  }
+
+  jvmtiError Execute(art::ArtMethod* method, art::StackVisitor& visitor)
+      OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
+    switch (type_) {
+      case art::Primitive::kPrimNot: {
+        uint32_t ptr_val;
+        art::ObjPtr<art::mirror::Object> obj(caller_->DecodeJObject(val_.l));
+        ptr_val = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(obj.Ptr()));
+        if (!visitor.SetVReg(method,
+                             static_cast<uint16_t>(slot_),
+                             ptr_val,
+                             art::kReferenceVReg)) {
+          return ERR(OPAQUE_FRAME);
+        }
+        break;
+      }
+      case art::Primitive::kPrimInt:
+      case art::Primitive::kPrimFloat: {
+        if (!visitor.SetVReg(method,
+                             static_cast<uint16_t>(slot_),
+                             static_cast<uint32_t>(val_.i),
+                             type_ == art::Primitive::kPrimFloat ? art::kFloatVReg
+                                                                 : art::kIntVReg)) {
+          return ERR(OPAQUE_FRAME);
+        }
+        break;
+      }
+      case art::Primitive::kPrimDouble:
+      case art::Primitive::kPrimLong: {
+        auto lo_type = type_ == art::Primitive::kPrimLong ? art::kLongLoVReg : art::kDoubleLoVReg;
+        auto high_type = type_ == art::Primitive::kPrimLong ? art::kLongHiVReg : art::kDoubleHiVReg;
+        if (!visitor.SetVRegPair(method,
+                                 static_cast<uint16_t>(slot_),
+                                 static_cast<uint64_t>(val_.j),
+                                 lo_type,
+                                 high_type)) {
+          return ERR(OPAQUE_FRAME);
+        }
+        break;
+      }
+      default: {
+        LOG(FATAL) << "unexpected register type " << type_;
+        UNREACHABLE();
+      }
+    }
+    return OK;
+  }
+
+ private:
+  art::Primitive::Type type_;
+  jvalue val_;
+};
+
+jvmtiError MethodUtil::SetLocalVariableGeneric(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                               jthread thread,
+                                               jint depth,
+                                               jint slot,
+                                               art::Primitive::Type type,
+                                               jvalue val) {
+  if (depth < 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  }
+  art::Thread* self = art::Thread::Current();
+  art::ScopedObjectAccess soa(self);
+  art::Thread* target = ThreadUtil::GetNativeThread(thread, soa);
+  if (target == nullptr && thread == nullptr) {
+    return ERR(INVALID_THREAD);
+  }
+  if (target == nullptr) {
+    return ERR(THREAD_NOT_ALIVE);
+  }
+  SetLocalVariableClosure c(self, depth, slot, type, val);
+  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
+  if (!target->RequestSynchronousCheckpoint(&c)) {
+    return ERR(THREAD_NOT_ALIVE);
+  } else {
+    return c.GetResult();
+  }
+}
+
+class GetLocalInstanceClosure : public art::Closure {
+ public:
+  GetLocalInstanceClosure(art::Thread* caller, jint depth, jobject* val)
+      : result_(ERR(INTERNAL)),
+        caller_(caller),
+        depth_(depth),
+        val_(val) {}
+
+  void Run(art::Thread* self) OVERRIDE REQUIRES(art::Locks::mutator_lock_) {
+    art::Locks::mutator_lock_->AssertSharedHeld(art::Thread::Current());
+    std::unique_ptr<art::Context> context(art::Context::Create());
+    FindFrameAtDepthVisitor visitor(self, context.get(), depth_);
+    visitor.WalkStack();
+    if (!visitor.FoundFrame()) {
+      // Must have been a bad depth.
+      result_ = ERR(NO_MORE_FRAMES);
+      return;
+    }
+    art::ArtMethod* method = visitor.GetMethod();
+    if (!visitor.IsShadowFrame() && !method->IsNative() && !method->IsProxyMethod()) {
+      // TODO We really should support get/set for non-shadow frames.
+      result_ = ERR(OPAQUE_FRAME);
+      return;
+    }
+    result_ = OK;
+    art::ObjPtr<art::mirror::Object> obj = visitor.GetThisObject();
+    *val_ = obj.IsNull() ? nullptr : caller_->GetJniEnv()->AddLocalReference<jobject>(obj);
+  }
+
+  jvmtiError GetResult() const {
+    return result_;
+  }
+
+ private:
+  jvmtiError result_;
+  art::Thread* caller_;
+  jint depth_;
+  jobject* val_;
+};
+
+jvmtiError MethodUtil::GetLocalInstance(jvmtiEnv* env ATTRIBUTE_UNUSED,
+                                        jthread thread,
+                                        jint depth,
+                                        jobject* data) {
+  if (depth < 0) {
+    return ERR(ILLEGAL_ARGUMENT);
+  }
+  art::Thread* self = art::Thread::Current();
+  art::ScopedObjectAccess soa(self);
+  art::Thread* target = ThreadUtil::GetNativeThread(thread, soa);
+  if (target == nullptr && thread == nullptr) {
+    return ERR(INVALID_THREAD);
+  }
+  if (target == nullptr) {
+    return ERR(THREAD_NOT_ALIVE);
+  }
+  GetLocalInstanceClosure c(self, depth, data);
+  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
+  if (!target->RequestSynchronousCheckpoint(&c)) {
+    return ERR(THREAD_NOT_ALIVE);
+  } else {
+    return c.GetResult();
+  }
+}
+
+#define FOR_JVMTI_JVALUE_TYPES(fn) \
+    fn(jint, art::Primitive::kPrimInt, i) \
+    fn(jlong, art::Primitive::kPrimLong, j) \
+    fn(jfloat, art::Primitive::kPrimFloat, f) \
+    fn(jdouble, art::Primitive::kPrimDouble, d) \
+    fn(jobject, art::Primitive::kPrimNot, l)
+
+namespace impl {
+
+template<typename T> void WriteJvalue(T, jvalue*);
+template<typename T> void ReadJvalue(jvalue, T*);
+template<typename T> art::Primitive::Type GetJNIType();
+
+#define JNI_TYPE_CHAR(type, prim, id) \
+template<> art::Primitive::Type GetJNIType<type>() { \
+  return prim; \
+}
+
+FOR_JVMTI_JVALUE_TYPES(JNI_TYPE_CHAR);
+
+#undef JNI_TYPE_CHAR
+
+#define RW_JVALUE(type, prim, id) \
+    template<> void ReadJvalue<type>(jvalue in, type* out) { \
+      *out = in.id; \
+    } \
+    template<> void WriteJvalue<type>(type in, jvalue* out) { \
+      out->id = in; \
+    }
+
+FOR_JVMTI_JVALUE_TYPES(RW_JVALUE);
+
+#undef RW_JVALUE
+
+}  // namespace impl
+
+template<typename T>
+jvmtiError MethodUtil::SetLocalVariable(jvmtiEnv* env,
+                                        jthread thread,
+                                        jint depth,
+                                        jint slot,
+                                        T data) {
+  jvalue v = {.j = 0};
+  art::Primitive::Type type = impl::GetJNIType<T>();
+  impl::WriteJvalue(data, &v);
+  return SetLocalVariableGeneric(env, thread, depth, slot, type, v);
+}
+
+template<typename T>
+jvmtiError MethodUtil::GetLocalVariable(jvmtiEnv* env,
+                                        jthread thread,
+                                        jint depth,
+                                        jint slot,
+                                        T* data) {
+  if (data == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+  jvalue v = {.j = 0};
+  art::Primitive::Type type = impl::GetJNIType<T>();
+  jvmtiError err = GetLocalVariableGeneric(env, thread, depth, slot, type, &v);
+  if (err != OK) {
+    return err;
+  } else {
+    impl::ReadJvalue(v, data);
+    return OK;
+  }
+}
+
+#define GET_SET_LV(type, prim, id) \
+    template jvmtiError MethodUtil::GetLocalVariable<type>(jvmtiEnv*, jthread, jint, jint, type*); \
+    template jvmtiError MethodUtil::SetLocalVariable<type>(jvmtiEnv*, jthread, jint, jint, type);
+
+FOR_JVMTI_JVALUE_TYPES(GET_SET_LV);
+
+#undef GET_SET_LV
+
+#undef FOR_JVMTI_JVALUE_TYPES
 
 }  // namespace openjdkjvmti
