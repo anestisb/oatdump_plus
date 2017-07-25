@@ -1139,49 +1139,6 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
   const ImageHeader& header_;
 };
 
-class VerifyClassInTableArtMethodVisitor : public ArtMethodVisitor {
- public:
-  explicit VerifyClassInTableArtMethodVisitor(ClassTable* table) : table_(table) {}
-
-  virtual void Visit(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_, Locks::classlinker_classes_lock_) {
-    ObjPtr<mirror::Class> klass = method->GetDeclaringClass();
-    if (klass != nullptr && !Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
-      CHECK_EQ(table_->LookupByDescriptor(klass), klass) << mirror::Class::PrettyClass(klass);
-    }
-  }
-
- private:
-  ClassTable* const table_;
-};
-
-class VerifyDirectInterfacesInTableClassVisitor {
- public:
-  explicit VerifyDirectInterfacesInTableClassVisitor(ObjPtr<mirror::ClassLoader> class_loader)
-      : class_loader_(class_loader), self_(Thread::Current()) { }
-
-  bool operator()(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!klass->IsPrimitive() && klass->GetClassLoader() == class_loader_) {
-      classes_.push_back(klass);
-    }
-    return true;
-  }
-
-  void Check() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    for (ObjPtr<mirror::Class> klass : classes_) {
-      for (uint32_t i = 0, num = klass->NumDirectInterfaces(); i != num; ++i) {
-        CHECK(klass->GetDirectInterface(self_, klass, i) != nullptr)
-            << klass->PrettyDescriptor() << " iface #" << i;
-      }
-    }
-  }
-
- private:
-  ObjPtr<mirror::ClassLoader> class_loader_;
-  Thread* self_;
-  std::vector<ObjPtr<mirror::Class>> classes_;
-};
-
 class VerifyDeclaringClassVisitor : public ArtMethodVisitor {
  public:
   VerifyDeclaringClassVisitor() REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
@@ -1764,6 +1721,63 @@ class ImageSanityChecks FINAL {
   std::vector<const ImageSection*> runtime_method_sections_;
 };
 
+static void VerifyAppImage(const ImageHeader& header,
+                           const Handle<mirror::ClassLoader>& class_loader,
+                           const Handle<mirror::ObjectArray<mirror::DexCache> >& dex_caches,
+                           ClassTable* class_table, gc::space::ImageSpace* space)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  {
+    class VerifyClassInTableArtMethodVisitor : public ArtMethodVisitor {
+     public:
+      explicit VerifyClassInTableArtMethodVisitor(ClassTable* table) : table_(table) {}
+
+      virtual void Visit(ArtMethod* method)
+          REQUIRES_SHARED(Locks::mutator_lock_, Locks::classlinker_classes_lock_) {
+        ObjPtr<mirror::Class> klass = method->GetDeclaringClass();
+        if (klass != nullptr && !Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
+          CHECK_EQ(table_->LookupByDescriptor(klass), klass) << mirror::Class::PrettyClass(klass);
+        }
+      }
+
+     private:
+      ClassTable* const table_;
+    };
+    VerifyClassInTableArtMethodVisitor visitor(class_table);
+    header.VisitPackedArtMethods(&visitor, space->Begin(), kRuntimePointerSize);
+  }
+  {
+    // Verify that all direct interfaces of classes in the class table are also resolved.
+    std::vector<ObjPtr<mirror::Class>> classes;
+    auto verify_direct_interfaces_in_table = [&](ObjPtr<mirror::Class> klass)
+        REQUIRES_SHARED(Locks::mutator_lock_) {
+      if (!klass->IsPrimitive() && klass->GetClassLoader() == class_loader.Get()) {
+        classes.push_back(klass);
+      }
+      return true;
+    };
+    class_table->Visit(verify_direct_interfaces_in_table);
+    Thread* self = Thread::Current();
+    for (ObjPtr<mirror::Class> klass : classes) {
+      for (uint32_t i = 0, num = klass->NumDirectInterfaces(); i != num; ++i) {
+        CHECK(klass->GetDirectInterface(self, klass, i) != nullptr)
+            << klass->PrettyDescriptor() << " iface #" << i;
+      }
+    }
+  }
+  // Check that all non-primitive classes in dex caches are also in the class table.
+  for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
+    ObjPtr<mirror::DexCache> dex_cache = dex_caches->Get(i);
+    mirror::TypeDexCacheType* const types = dex_cache->GetResolvedTypes();
+    for (int32_t j = 0, num_types = dex_cache->NumResolvedTypes(); j < num_types; j++) {
+      ObjPtr<mirror::Class> klass = types[j].load(std::memory_order_relaxed).object.Read();
+      if (klass != nullptr && !klass->IsPrimitive()) {
+        CHECK(class_table->Contains(klass))
+            << klass->PrettyDescriptor() << " " << dex_cache->GetDexFile()->GetLocation();
+      }
+    }
+  }
+}
+
 bool ClassLinker::AddImageSpace(
     gc::space::ImageSpace* space,
     Handle<mirror::ClassLoader> class_loader,
@@ -2017,28 +2031,13 @@ bool ClassLinker::AddImageSpace(
     WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
     class_table->AddClassSet(std::move(temp_set));
   }
+
   if (kIsDebugBuild && app_image) {
     // This verification needs to happen after the classes have been added to the class loader.
     // Since it ensures classes are in the class table.
-    VerifyClassInTableArtMethodVisitor visitor2(class_table);
-    header.VisitPackedArtMethods(&visitor2, space->Begin(), kRuntimePointerSize);
-    // Verify that all direct interfaces of classes in the class table are also resolved.
-    VerifyDirectInterfacesInTableClassVisitor visitor(class_loader.Get());
-    class_table->Visit(visitor);
-    visitor.Check();
-    // Check that all non-primitive classes in dex caches are also in the class table.
-    for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
-      ObjPtr<mirror::DexCache> dex_cache = dex_caches->Get(i);
-      mirror::TypeDexCacheType* const types = dex_cache->GetResolvedTypes();
-      for (int32_t j = 0, num_types = dex_cache->NumResolvedTypes(); j < num_types; j++) {
-        ObjPtr<mirror::Class> klass = types[j].load(std::memory_order_relaxed).object.Read();
-        if (klass != nullptr && !klass->IsPrimitive()) {
-          CHECK(class_table->Contains(klass)) << klass->PrettyDescriptor()
-              << " " << dex_cache->GetDexFile()->GetLocation();
-        }
-      }
-    }
+    VerifyAppImage(header, class_loader, dex_caches, class_table, space);
   }
+
   VLOG(class_linker) << "Adding image space took " << PrettyDuration(NanoTime() - start_time);
   return true;
 }
@@ -3494,7 +3493,8 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file,
                                         ObjPtr<mirror::DexCache> dex_cache) {
   CHECK(dex_cache != nullptr) << dex_file.GetLocation();
   boot_class_path_.push_back(&dex_file);
-  RegisterBootClassPathDexFile(dex_file, dex_cache);
+  WriterMutexLock mu(Thread::Current(), *Locks::dex_lock_);
+  RegisterDexFileLocked(dex_file, dex_cache, /* class_loader */ nullptr);
 }
 
 void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
@@ -3675,12 +3675,6 @@ ObjPtr<mirror::DexCache> ClassLinker::RegisterDexFile(const DexFile& dex_file,
     Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(h_class_loader.Get());
   }
   return h_dex_cache.Get();
-}
-
-void ClassLinker::RegisterBootClassPathDexFile(const DexFile& dex_file,
-                                               ObjPtr<mirror::DexCache> dex_cache) {
-  WriterMutexLock mu(Thread::Current(), *Locks::dex_lock_);
-  RegisterDexFileLocked(dex_file, dex_cache, /* class_loader */ nullptr);
 }
 
 bool ClassLinker::IsDexFileRegistered(Thread* self, const DexFile& dex_file) {
