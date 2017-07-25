@@ -642,7 +642,7 @@ void JitCodeCache::FreeAllMethodHeaders(
   // method_headers are expected to be in the executable region.
   {
     MutexLock mu(Thread::Current(), *Locks::cha_lock_);
-    Runtime::Current()->GetClassHierarchyAnalysis()
+    Runtime::Current()->GetClassLinker()->GetClassHierarchyAnalysis()
         ->RemoveDependentsWithMethodHeaders(method_headers);
   }
 
@@ -977,7 +977,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
         << "Should not be using cha on debuggable apps/runs!";
 
     for (ArtMethod* single_impl : cha_single_implementation_list) {
-      Runtime::Current()->GetClassHierarchyAnalysis()->AddDependency(
+      Runtime::Current()->GetClassLinker()->GetClassHierarchyAnalysis()->AddDependency(
           single_impl, method, method_header);
     }
 
