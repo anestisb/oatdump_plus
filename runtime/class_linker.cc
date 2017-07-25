@@ -370,7 +370,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       quick_imt_conflict_trampoline_(nullptr),
       quick_generic_jni_trampoline_(nullptr),
       quick_to_interpreter_bridge_trampoline_(nullptr),
-      image_pointer_size_(kRuntimePointerSize) {
+      image_pointer_size_(kRuntimePointerSize),
+      cha_(new ClassHierarchyAnalysis()) {
   CHECK(intern_table_ != nullptr);
   static_assert(kFindArrayCacheSize == arraysize(find_array_class_cache_),
                 "Array cache size wrong.");
@@ -2315,16 +2316,15 @@ void ClassLinker::DeleteClassLoader(Thread* self, const ClassLoaderData& data) {
   JavaVMExt* const vm = runtime->GetJavaVM();
   vm->DeleteWeakGlobalRef(self, data.weak_root);
   // Notify the JIT that we need to remove the methods and/or profiling info.
-  ClassHierarchyAnalysis* const cha = runtime->GetClassHierarchyAnalysis();
   if (runtime->GetJit() != nullptr) {
     jit::JitCodeCache* code_cache = runtime->GetJit()->GetCodeCache();
     if (code_cache != nullptr) {
       // For the JIT case, RemoveMethodsIn removes the CHA dependencies.
       code_cache->RemoveMethodsIn(self, *data.allocator);
     }
-  } else {
+  } else if (cha_ != nullptr) {
     // If we don't have a JIT, we need to manually remove the CHA dependencies manually.
-    cha->RemoveDependenciesForLinearAlloc(data.allocator);
+    cha_->RemoveDependenciesForLinearAlloc(data.allocator);
   }
   delete data.allocator;
   delete data.class_table;
@@ -5487,7 +5487,9 @@ bool ClassLinker::LinkClass(Thread* self,
     // Update CHA info based on whether we override methods.
     // Have to do this before setting the class as resolved which allows
     // instantiation of klass.
-    Runtime::Current()->GetClassHierarchyAnalysis()->UpdateAfterLoadingOf(klass);
+    if (cha_ != nullptr) {
+      cha_->UpdateAfterLoadingOf(klass);
+    }
 
     // This will notify waiters on klass that saw the not yet resolved
     // class in the class_table_ during EnsureResolved.
@@ -5535,7 +5537,9 @@ bool ClassLinker::LinkClass(Thread* self,
     // Update CHA info based on whether we override methods.
     // Have to do this before setting the class as resolved which allows
     // instantiation of klass.
-    Runtime::Current()->GetClassHierarchyAnalysis()->UpdateAfterLoadingOf(h_new_class);
+    if (cha_ != nullptr) {
+      cha_->UpdateAfterLoadingOf(h_new_class);
+    }
 
     // This will notify waiters on temp class that saw the not yet resolved class in the
     // class_table_ during EnsureResolved.
