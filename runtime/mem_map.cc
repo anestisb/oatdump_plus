@@ -496,7 +496,7 @@ MemMap::~MemMap() {
     MEMORY_TOOL_MAKE_UNDEFINED(base_begin_, base_size_);
     int result = munmap(base_begin_, base_size_);
     if (result == -1) {
-      PLOG(FATAL) << "munmap failed";
+      PLOG(FATAL) << "munmap failed: " << BaseBegin() << "..." << BaseEnd();
     }
   }
 
@@ -560,6 +560,12 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end,
   size_ = new_end - reinterpret_cast<uint8_t*>(begin_);
   base_size_ = new_base_end - reinterpret_cast<uint8_t*>(base_begin_);
   DCHECK_LE(begin_ + size_, reinterpret_cast<uint8_t*>(base_begin_) + base_size_);
+  if (base_size_ == 0u) {
+    // All pages in this MemMap have been handed out. Invalidate base
+    // pointer to prevent the destructor calling munmap() on
+    // zero-length region (which can't succeed).
+    base_begin_ = nullptr;
+  }
   size_t tail_size = old_end - new_end;
   uint8_t* tail_base_begin = new_base_end;
   size_t tail_base_size = old_base_end - new_base_end;
