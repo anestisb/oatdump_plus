@@ -715,7 +715,8 @@
     },
     {
         "tests": "660-clinit",
-        "variant": "no-image | no-dex2oat",
-        "description": "Tests <clinit> for app images, which --no-image and --no-dex2oat do not create"
+        "variant": "no-image | no-dex2oat | no-prebuild",
+        "description": ["Tests <clinit> for app images, which --no-image, --no-prebuild and",
+                        "--no-dex2oat do not create"]
     }
 ]
