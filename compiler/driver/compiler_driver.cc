@@ -2905,7 +2905,17 @@ void CompilerDriver::RecordClassStatus(ClassReference ref, mirror::Class::Status
   do {
     DexFileReference dex_ref(ref.first, ref.second);
     mirror::Class::Status existing = mirror::Class::kStatusNotReady;
-    CHECK(compiled_classes_.Get(dex_ref, &existing)) << dex_ref.dex_file->GetLocation();
+    if (!compiled_classes_.Get(dex_ref, &existing)) {
+      // Probably a uses library class, bail.
+      if (kIsDebugBuild) {
+        // Check to make sure it's not a dex file for an oat file we are compiling since these
+        // should always succeed. These do not include classes in for used libraries.
+        for (const DexFile* dex_file : *dex_files_for_oat_file_) {
+          CHECK_NE(dex_ref.dex_file, dex_file) << dex_ref.dex_file->GetLocation();
+        }
+      }
+      return;
+    }
     if (existing >= status) {
       // Existing status is already better than we expect, break.
       break;
