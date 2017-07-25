@@ -2483,43 +2483,16 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(ArtMethod* interface_metho
                                                       Thread* self,
                                                       ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::Object> this_object(raw_this_object);
   ScopedQuickEntrypointChecks sqec(self);
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Class> cls(hs.NewHandle(this_object->GetClass()));
+  StackHandleScope<2> hs(self);
+  Handle<mirror::Object> this_object = hs.NewHandle(raw_this_object);
+  Handle<mirror::Class> cls = hs.NewHandle(this_object->GetClass());
 
   ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
   ArtMethod* method = nullptr;
   ImTable* imt = cls->GetImt(kRuntimePointerSize);
 
-  if (LIKELY(interface_method != nullptr)) {
-    DCHECK_NE(interface_method->GetDexMethodIndex(), DexFile::kDexNoIndex);
-    // If the interface method is already resolved, look whether we have a match in the
-    // ImtConflictTable.
-    ArtMethod* conflict_method = imt->Get(ImTable::GetImtIndex(interface_method),
-                                          kRuntimePointerSize);
-    if (LIKELY(conflict_method->IsRuntimeMethod())) {
-      ImtConflictTable* current_table = conflict_method->GetImtConflictTable(kRuntimePointerSize);
-      DCHECK(current_table != nullptr);
-      method = current_table->Lookup(interface_method, kRuntimePointerSize);
-    } else {
-      // It seems we aren't really a conflict method!
-      method = cls->FindVirtualMethodForInterface(interface_method, kRuntimePointerSize);
-    }
-    if (method != nullptr) {
-      return GetTwoWordSuccessValue(
-          reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode()),
-          reinterpret_cast<uintptr_t>(method));
-    }
-
-    // No match, use the IfTable.
-    method = cls->FindVirtualMethodForInterface(interface_method, kRuntimePointerSize);
-    if (UNLIKELY(method == nullptr)) {
-      ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(
-          interface_method, this_object, caller_method);
-      return GetTwoWordFailureValue();  // Failure.
-    }
-  } else {
+  if (UNLIKELY(interface_method == nullptr)) {
     // The interface method is unresolved, so resolve it in the dex file of the caller.
     // Fetch the dex_method_idx of the target interface method from the caller.
     uint32_t dex_method_idx;
@@ -2538,50 +2511,74 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(ArtMethod* interface_metho
       dex_method_idx = instr->VRegB_3rc();
     }
 
-    const DexFile* dex_file = caller_method->GetDeclaringClass()->GetDexCache()
-        ->GetDexFile();
+    const DexFile& dex_file = caller_method->GetDeclaringClass()->GetDexFile();
     uint32_t shorty_len;
-    const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(dex_method_idx),
-                                                   &shorty_len);
+    const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(dex_method_idx),
+                                                  &shorty_len);
     {
-      // Remember the args in case a GC happens in FindMethodFromCode.
+      // Remember the args in case a GC happens in ClassLinker::ResolveMethod().
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, false, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<kInterface, false>(dex_method_idx,
-                                                     &this_object,
-                                                     caller_method,
-                                                     self);
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      interface_method = class_linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
+          self, dex_method_idx, caller_method, kInterface);
       visitor.FixupReferences();
     }
 
-    if (UNLIKELY(method == nullptr)) {
+    if (UNLIKELY(interface_method == nullptr)) {
       CHECK(self->IsExceptionPending());
       return GetTwoWordFailureValue();  // Failure.
     }
-    interface_method =
-        caller_method->GetDexCacheResolvedMethod(dex_method_idx, kRuntimePointerSize);
-    DCHECK(!interface_method->IsRuntimeMethod());
+  }
+
+  DCHECK(!interface_method->IsRuntimeMethod());
+  // Look whether we have a match in the ImtConflictTable.
+  uint32_t imt_index = ImTable::GetImtIndex(interface_method);
+  ArtMethod* conflict_method = imt->Get(imt_index, kRuntimePointerSize);
+  if (LIKELY(conflict_method->IsRuntimeMethod())) {
+    ImtConflictTable* current_table = conflict_method->GetImtConflictTable(kRuntimePointerSize);
+    DCHECK(current_table != nullptr);
+    method = current_table->Lookup(interface_method, kRuntimePointerSize);
+  } else {
+    // It seems we aren't really a conflict method!
+    if (kIsDebugBuild) {
+      ArtMethod* m = cls->FindVirtualMethodForInterface(interface_method, kRuntimePointerSize);
+      CHECK_EQ(conflict_method, m)
+          << interface_method->PrettyMethod() << " / " << conflict_method->PrettyMethod() << " / "
+          << " / " << ArtMethod::PrettyMethod(m) << " / " << cls->PrettyClass();
+    }
+    method = conflict_method;
+  }
+  if (method != nullptr) {
+    return GetTwoWordSuccessValue(
+        reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode()),
+        reinterpret_cast<uintptr_t>(method));
+  }
+
+  // No match, use the IfTable.
+  method = cls->FindVirtualMethodForInterface(interface_method, kRuntimePointerSize);
+  if (UNLIKELY(method == nullptr)) {
+    ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(
+        interface_method, this_object.Get(), caller_method);
+    return GetTwoWordFailureValue();  // Failure.
   }
 
   // We arrive here if we have found an implementation, and it is not in the ImtConflictTable.
   // We create a new table with the new pair { interface_method, method }.
-  uint32_t imt_index = ImTable::GetImtIndex(interface_method);
-  ArtMethod* conflict_method = imt->Get(imt_index, kRuntimePointerSize);
-  if (conflict_method->IsRuntimeMethod()) {
-    ArtMethod* new_conflict_method = Runtime::Current()->GetClassLinker()->AddMethodToConflictTable(
-        cls.Get(),
-        conflict_method,
-        interface_method,
-        method,
-        /*force_new_conflict_method*/false);
-    if (new_conflict_method != conflict_method) {
-      // Update the IMT if we create a new conflict method. No fence needed here, as the
-      // data is consistent.
-      imt->Set(imt_index,
-               new_conflict_method,
-               kRuntimePointerSize);
-    }
+  DCHECK(conflict_method->IsRuntimeMethod());
+  ArtMethod* new_conflict_method = Runtime::Current()->GetClassLinker()->AddMethodToConflictTable(
+      cls.Get(),
+      conflict_method,
+      interface_method,
+      method,
+      /*force_new_conflict_method*/false);
+  if (new_conflict_method != conflict_method) {
+    // Update the IMT if we create a new conflict method. No fence needed here, as the
+    // data is consistent.
+    imt->Set(imt_index,
+             new_conflict_method,
+             kRuntimePointerSize);
   }
 
   const void* code = method->GetEntryPointFromQuickCompiledCode();

@@ -476,7 +476,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
     case kDirect:
       return resolved_method;
     case kVirtual: {
-      mirror::Class* klass = (*this_object)->GetClass();
+      ObjPtr<mirror::Class> klass = (*this_object)->GetClass();
       uint16_t vtable_index = resolved_method->GetMethodIndex();
       if (access_check &&
           (!klass->HasVTable() ||
@@ -509,7 +509,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
         // It is not an interface. If the referring class is in the class hierarchy of the
         // referenced class in the bytecode, we use its super class. Otherwise, we throw
         // a NoSuchMethodError.
-        mirror::Class* super_class = nullptr;
+        ObjPtr<mirror::Class> super_class = nullptr;
         if (method_reference_class->IsAssignableFrom(h_referring_class.Get())) {
           super_class = h_referring_class->GetSuperClass();
         }
@@ -554,11 +554,10 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
     case kInterface: {
       uint32_t imt_index = ImTable::GetImtIndex(resolved_method);
       PointerSize pointer_size = class_linker->GetImagePointerSize();
-      ArtMethod* imt_method = (*this_object)->GetClass()->GetImt(pointer_size)->
-          Get(imt_index, pointer_size);
+      ObjPtr<mirror::Class> klass = (*this_object)->GetClass();
+      ArtMethod* imt_method = klass->GetImt(pointer_size)->Get(imt_index, pointer_size);
       if (!imt_method->IsRuntimeMethod()) {
         if (kIsDebugBuild) {
-          mirror::Class* klass = (*this_object)->GetClass();
           ArtMethod* method = klass->FindVirtualMethodForInterface(
               resolved_method, class_linker->GetImagePointerSize());
           CHECK_EQ(imt_method, method) << ArtMethod::PrettyMethod(resolved_method) << " / "
@@ -568,7 +567,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
         }
         return imt_method;
       } else {
-        ArtMethod* interface_method = (*this_object)->GetClass()->FindVirtualMethodForInterface(
+        ArtMethod* interface_method = klass->FindVirtualMethodForInterface(
             resolved_method, class_linker->GetImagePointerSize());
         if (UNLIKELY(interface_method == nullptr)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method,
