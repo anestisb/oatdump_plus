@@ -497,6 +497,16 @@ class X86Assembler FINAL : public Assembler {
 
   void pavgb(XmmRegister dst, XmmRegister src);  // no addr variant (for now)
   void pavgw(XmmRegister dst, XmmRegister src);
+  void psadbw(XmmRegister dst, XmmRegister src);
+  void pmaddwd(XmmRegister dst, XmmRegister src);
+  void phaddw(XmmRegister dst, XmmRegister src);
+  void phaddd(XmmRegister dst, XmmRegister src);
+  void haddps(XmmRegister dst, XmmRegister src);
+  void haddpd(XmmRegister dst, XmmRegister src);
+  void phsubw(XmmRegister dst, XmmRegister src);
+  void phsubd(XmmRegister dst, XmmRegister src);
+  void hsubps(XmmRegister dst, XmmRegister src);
+  void hsubpd(XmmRegister dst, XmmRegister src);
 
   void pminsb(XmmRegister dst, XmmRegister src);  // no addr variant (for now)
   void pmaxsb(XmmRegister dst, XmmRegister src);

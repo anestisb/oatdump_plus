@@ -1238,6 +1238,101 @@ void X86Assembler::pavgw(XmmRegister dst, XmmRegister src) {
   EmitXmmRegisterOperand(dst, src);
 }
 
+
+void X86Assembler::psadbw(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0xF6);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::pmaddwd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0xF5);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::phaddw(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x38);
+  EmitUint8(0x01);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::phaddd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x38);
+  EmitUint8(0x02);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::haddps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xF2);
+  EmitUint8(0x0F);
+  EmitUint8(0x7C);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::haddpd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x7C);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::phsubw(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x38);
+  EmitUint8(0x05);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::phsubd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x38);
+  EmitUint8(0x06);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::hsubps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xF2);
+  EmitUint8(0x0F);
+  EmitUint8(0x7D);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::hsubpd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x7D);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
 void X86Assembler::pminsb(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x66);
