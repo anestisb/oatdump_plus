@@ -145,7 +145,7 @@ OppositeBranchChanger 40
 PoolIndexChanger 30
 RandomBranchChanger 30
 RandomInstructionGenerator 30
-RegisterClobber 40
+RegisterClobber 10
 SwitchBranchShifter 30
 TryBlockShifter 40
 ValuePrinter 40
