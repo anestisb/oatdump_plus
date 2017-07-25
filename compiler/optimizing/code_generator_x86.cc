@@ -4956,8 +4956,8 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
       if (value.IsConstant()) {
-        int16_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
-        __ movw(Address(base, offset), Immediate(v));
+        __ movw(Address(base, offset),
+                Immediate(CodeGenerator::GetInt16ValueOf(value.GetConstant())));
       } else {
         __ movw(Address(base, offset), value.AsRegister<Register>());
       }
@@ -5404,7 +5404,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       if (value.IsRegister()) {
         __ movb(address, value.AsRegister<ByteRegister>());
       } else {
-        __ movb(address, Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+        __ movb(address, Immediate(CodeGenerator::GetInt8ValueOf(value.GetConstant())));
       }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
@@ -5417,7 +5417,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       if (value.IsRegister()) {
         __ movw(address, value.AsRegister<Register>());
       } else {
-        __ movw(address, Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+        __ movw(address, Immediate(CodeGenerator::GetInt16ValueOf(value.GetConstant())));
       }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
