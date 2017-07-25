@@ -75,7 +75,11 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
- 1.3 Pending
+ 1.4 Pending
+
+ 1.3 July 25, 2017
+   Improve diffing of static and instance fields.
+   Improve startup performance by roughly 25%.
 
  1.2 May 26, 2017
    Show registered native sizes of objects.
