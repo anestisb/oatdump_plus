@@ -712,5 +712,10 @@
                          "lookup changes" ],
         "bug": "b/63089991",
         "env_vars": {"ANDROID_COMPILE_WITH_JACK": "false"}
+    },
+    {
+        "tests": "660-clinit",
+        "variant": "no-image",
+        "description": "Tests <clinit> for app images, which --no-image doesn't do"
     }
 ]
