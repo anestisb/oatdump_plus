@@ -29,6 +29,7 @@
 namespace art {
 
 class ArtMethod;
+class LinearAlloc;
 
 /**
  * Class Hierarchy Analysis (CHA) tries to devirtualize virtual calls into
@@ -111,6 +112,11 @@ class ClassHierarchyAnalysis {
 
   // Update CHA info for methods that `klass` overrides, after loading `klass`.
   void UpdateAfterLoadingOf(Handle<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Remove all of the dependencies for a linear allocator. This is called when dex cache unloading
+  // occurs.
+  void RemoveDependenciesForLinearAlloc(const LinearAlloc* linear_alloc)
+      REQUIRES(!Locks::cha_lock_);
 
  private:
   void InitSingleImplementationFlag(Handle<mirror::Class> klass,
