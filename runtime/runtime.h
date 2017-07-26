@@ -458,12 +458,13 @@ class Runtime {
     return preinitialization_transaction_ != nullptr;
   }
   void EnterTransactionMode();
-  void EnterTransactionMode(mirror::Class* root);
+  void EnterTransactionMode(bool strict, mirror::Class* root);
   void ExitTransactionMode();
   // Transaction rollback and exit transaction are always done together, it's convenience to
   // do them in one function.
   void RollbackAndExitTransactionMode() REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsTransactionAborted() const;
+  bool IsActiveStrictTransactionMode() const;
 
   void AbortTransactionAndThrowAbortError(Thread* self, const std::string& abort_message)
       REQUIRES_SHARED(Locks::mutator_lock_);

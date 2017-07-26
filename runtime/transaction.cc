@@ -34,11 +34,14 @@ namespace art {
 static constexpr bool kEnableTransactionStats = false;
 
 Transaction::Transaction()
-  : log_lock_("transaction log lock", kTransactionLogLock), aborted_(false) {
+  : log_lock_("transaction log lock", kTransactionLogLock),
+    aborted_(false),
+    strict_(false) {
   CHECK(Runtime::Current()->IsAotCompiler());
 }
 
-Transaction::Transaction(mirror::Class* root) : Transaction() {
+Transaction::Transaction(bool strict, mirror::Class* root) : Transaction() {
+  strict_ = strict;
   root_ = root;
 }
 
@@ -99,6 +102,11 @@ void Transaction::ThrowAbortError(Thread* self, const std::string* abort_message
 bool Transaction::IsAborted() {
   MutexLock mu(Thread::Current(), log_lock_);
   return aborted_;
+}
+
+bool Transaction::IsStrict() {
+  MutexLock mu(Thread::Current(), log_lock_);
+  return strict_;
 }
 
 const std::string& Transaction::GetAbortMessage() {

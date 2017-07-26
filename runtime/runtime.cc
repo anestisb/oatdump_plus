@@ -2068,9 +2068,9 @@ void Runtime::EnterTransactionMode() {
   preinitialization_transaction_ = std::make_unique<Transaction>();
 }
 
-void Runtime::EnterTransactionMode(mirror::Class* root) {
+void Runtime::EnterTransactionMode(bool strict, mirror::Class* root) {
   DCHECK(IsAotCompiler());
-  preinitialization_transaction_ = std::make_unique<Transaction>(root);
+  preinitialization_transaction_ = std::make_unique<Transaction>(strict, root);
 }
 
 void Runtime::ExitTransactionMode() {
@@ -2093,6 +2093,10 @@ bool Runtime::IsTransactionAborted() const {
     DCHECK(IsAotCompiler());
     return preinitialization_transaction_->IsAborted();
   }
+}
+
+bool Runtime::IsActiveStrictTransactionMode() const {
+  return IsActiveTransaction() && preinitialization_transaction_->IsStrict();
 }
 
 void Runtime::AbortTransactionAndThrowAbortError(Thread* self, const std::string& abort_message) {
@@ -2418,5 +2422,4 @@ void Runtime::DeoptimizeBootImage() {
     GetClassLinker()->VisitClasses(&visitor);
   }
 }
-
 }  // namespace art
