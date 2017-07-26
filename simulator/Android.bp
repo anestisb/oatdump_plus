@@ -14,6 +14,12 @@
 // limitations under the License.
 //
 
+cc_library_headers {
+    name: "libart_simulator_headers",
+    host_supported: true,
+    export_include_dirs: ["include"],
+}
+
 cc_defaults {
     name: "libart_simulator_defaults",
     host_supported: true,
@@ -29,8 +35,8 @@ cc_defaults {
         "liblog",
     ],
     cflags: ["-DVIXL_INCLUDE_SIMULATOR_AARCH64"],
-    export_include_dirs: ["."],
-    include_dirs: ["art/runtime"],
+
+    header_libs: ["libart_simulator_headers"],
 }
 
 art_cc_library {
@@ -51,5 +57,40 @@ art_cc_library {
     shared_libs: [
         "libartd",
         "libvixld-arm64",
+    ],
+}
+
+cc_defaults {
+    name: "libart_simulator_container_defaults",
+    host_supported: true,
+
+    defaults: ["art_defaults"],
+    srcs: [
+        "code_simulator_container.cc",
+    ],
+    shared_libs: [
+        "libbase",
+    ],
+
+    header_libs: ["libart_simulator_headers"],
+    export_include_dirs: ["."],  // TODO: Consider a proper separation.
+}
+
+art_cc_library {
+    name: "libart-simulator-container",
+    defaults: ["libart_simulator_container_defaults"],
+    shared_libs: [
+        "libart",
+    ],
+}
+
+art_cc_library {
+    name: "libartd-simulator-container",
+    defaults: [
+        "art_debug_defaults",
+        "libart_simulator_container_defaults",
+    ],
+    shared_libs: [
+        "libartd",
     ],
 }

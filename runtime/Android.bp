@@ -50,7 +50,6 @@ cc_defaults {
         "class_linker.cc",
         "class_loader_context.cc",
         "class_table.cc",
-        "code_simulator_container.cc",
         "common_throws.cc",
         "compiler_filter.cc",
         "debugger.cc",
@@ -629,5 +628,4 @@ art_cc_test {
 subdirs = [
     "openjdkjvm",
     "openjdkjvmti",
-    "simulator",
 ]

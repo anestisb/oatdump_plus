@@ -423,8 +423,11 @@ art_cc_test {
         },
     },
 
+    header_libs: ["libart_simulator_headers"],
+
     shared_libs: [
         "libartd-compiler",
+        "libartd-simulator-container",
         "libvixld-arm",
         "libvixld-arm64",
 

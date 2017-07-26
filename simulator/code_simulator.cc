@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "simulator/code_simulator.h"
-#include "simulator/code_simulator_arm64.h"
+#include "code_simulator.h"
+
+#include "code_simulator_arm64.h"
 
 namespace art {
 

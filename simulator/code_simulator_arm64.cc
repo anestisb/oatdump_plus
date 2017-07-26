@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "simulator/code_simulator_arm64.h"
+#include "code_simulator_arm64.h"
 
 #include "base/logging.h"
 

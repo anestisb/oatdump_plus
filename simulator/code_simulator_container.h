@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_CODE_SIMULATOR_CONTAINER_H_
-#define ART_RUNTIME_CODE_SIMULATOR_CONTAINER_H_
+#ifndef ART_SIMULATOR_CODE_SIMULATOR_CONTAINER_H_
+#define ART_SIMULATOR_CODE_SIMULATOR_CONTAINER_H_
 
 #include "arch/instruction_set.h"
 #include "base/logging.h"
-#include "simulator/code_simulator.h"
 
 namespace art {
+
+class CodeSimulator;
 
 // This container dynamically opens and closes libart-simulator.
 class CodeSimulatorContainer {
@@ -52,4 +53,4 @@ class CodeSimulatorContainer {
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_CODE_SIMULATOR_CONTAINER_H_
+#endif  // ART_SIMULATOR_CODE_SIMULATOR_CONTAINER_H_
