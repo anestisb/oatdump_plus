@@ -139,6 +139,7 @@ InstructionDuplicator 80
 InstructionSwapper 80
 InvokeChanger 30
 NewArrayLengthChanger 50
+NewInstanceChanger 10
 NewMethodCaller 10
 NonsenseStringPrinter 10
 OppositeBranchChanger 40
