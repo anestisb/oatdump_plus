@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_SIMULATOR_CODE_SIMULATOR_H_
-#define ART_RUNTIME_SIMULATOR_CODE_SIMULATOR_H_
+#ifndef ART_SIMULATOR_INCLUDE_CODE_SIMULATOR_H_
+#define ART_SIMULATOR_INCLUDE_CODE_SIMULATOR_H_
 
 #include "arch/instruction_set.h"
 
@@ -43,4 +43,4 @@ extern "C" CodeSimulator* CreateCodeSimulator(InstructionSet target_isa);
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_SIMULATOR_CODE_SIMULATOR_H_
+#endif  // ART_SIMULATOR_INCLUDE_CODE_SIMULATOR_H_

@@ -17,6 +17,8 @@
 #include <dlfcn.h>
 
 #include "code_simulator_container.h"
+
+#include "code_simulator.h"
 #include "globals.h"
 
 namespace art {

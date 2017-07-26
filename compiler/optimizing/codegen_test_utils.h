@@ -28,6 +28,7 @@
 #include "arch/x86/instruction_set_features_x86.h"
 #include "arch/x86/registers_x86.h"
 #include "arch/x86_64/instruction_set_features_x86_64.h"
+#include "code_simulator.h"
 #include "code_simulator_container.h"
 #include "common_compiler_test.h"
 #include "graph_checker.h"

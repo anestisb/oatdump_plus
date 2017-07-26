@@ -35,6 +35,7 @@ subdirs = [
     "profman",
     "runtime",
     "sigchainlib",
+    "simulator",
     "test",
     "tools/cpp-define-generator",
     "tools/dmtracedump",

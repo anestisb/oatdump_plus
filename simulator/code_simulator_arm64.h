@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_SIMULATOR_CODE_SIMULATOR_ARM64_H_
-#define ART_RUNTIME_SIMULATOR_CODE_SIMULATOR_ARM64_H_
+#ifndef ART_SIMULATOR_CODE_SIMULATOR_ARM64_H_
+#define ART_SIMULATOR_CODE_SIMULATOR_ARM64_H_
 
 #include "memory"
-#include "simulator/code_simulator.h"
 
 // TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
 #include "aarch64/simulator-aarch64.h"
 #pragma GCC diagnostic pop
+
+#include "code_simulator.h"
 
 namespace art {
 namespace arm64 {
@@ -55,4 +56,4 @@ class CodeSimulatorArm64 : public CodeSimulator {
 }  // namespace arm64
 }  // namespace art
 
-#endif  // ART_RUNTIME_SIMULATOR_CODE_SIMULATOR_ARM64_H_
+#endif  // ART_SIMULATOR_CODE_SIMULATOR_ARM64_H_
