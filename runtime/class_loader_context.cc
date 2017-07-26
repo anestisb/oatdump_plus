@@ -607,7 +607,8 @@ bool ClassLoaderContext::VerifyClassLoaderContextMatch(const std::string& contex
   if (expected_context.class_loader_chain_.size() != class_loader_chain_.size()) {
     LOG(WARNING) << "ClassLoaderContext size mismatch. expected="
         << expected_context.class_loader_chain_.size()
-        << ", actual=" << class_loader_chain_.size();
+        << ", actual=" << class_loader_chain_.size()
+        << " (" << context_spec << " | " << EncodeContextForOatFile("") << ")";
     return false;
   }
 
@@ -617,13 +618,15 @@ bool ClassLoaderContext::VerifyClassLoaderContextMatch(const std::string& contex
     if (info.type != expected_info.type) {
       LOG(WARNING) << "ClassLoaderContext type mismatch for position " << i
           << ". expected=" << GetClassLoaderTypeName(expected_info.type)
-          << ", found=" << GetClassLoaderTypeName(info.type);
+          << ", found=" << GetClassLoaderTypeName(info.type)
+          << " (" << context_spec << " | " << EncodeContextForOatFile("") << ")";
       return false;
     }
     if (info.classpath.size() != expected_info.classpath.size()) {
       LOG(WARNING) << "ClassLoaderContext classpath size mismatch for position " << i
             << ". expected=" << expected_info.classpath.size()
-            << ", found=" << info.classpath.size();
+            << ", found=" << info.classpath.size()
+            << " (" << context_spec << " | " << EncodeContextForOatFile("") << ")";
       return false;
     }
 
@@ -634,13 +637,15 @@ bool ClassLoaderContext::VerifyClassLoaderContextMatch(const std::string& contex
       if (info.classpath[k] != expected_info.classpath[k]) {
         LOG(WARNING) << "ClassLoaderContext classpath element mismatch for position " << i
             << ". expected=" << expected_info.classpath[k]
-            << ", found=" << info.classpath[k];
+            << ", found=" << info.classpath[k]
+            << " (" << context_spec << " | " << EncodeContextForOatFile("") << ")";
         return false;
       }
       if (info.checksums[k] != expected_info.checksums[k]) {
         LOG(WARNING) << "ClassLoaderContext classpath element checksum mismatch for position " << i
             << ". expected=" << expected_info.checksums[k]
-            << ", found=" << info.checksums[k];
+            << ", found=" << info.checksums[k]
+            << " (" << context_spec << " | " << EncodeContextForOatFile("") << ")";
         return false;
       }
     }
