@@ -19,24 +19,19 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
-if [ -z "$ANDROID_JAVA_TOOLCHAIN" ] ; then
-  source build/envsetup.sh
-  setpaths # include platform prebuilt java, javac, etc in $PATH.
-fi
+source build/envsetup.sh >&/dev/null # for get_build_var, setpaths
+setpaths # include platform prebuilt java, javac, etc in $PATH.
 
 if [ -z "$ANDROID_HOST_OUT" ] ; then
   ANDROID_HOST_OUT=${OUT_DIR-$ANDROID_BUILD_TOP/out}/host/linux-x86
 fi
 
-using_jack=true
-if [[ $ANDROID_COMPILE_WITH_JACK == false ]]; then
-  using_jack=false
-fi
+using_jack=$(get_build_var ANDROID_COMPILE_WITH_JACK)
 
 function jlib_suffix {
   local str=$1
   local suffix="jar"
-  if $using_jack; then
+  if [[ $using_jack == "true" ]]; then
     suffix="jack"
   fi
   echo "$str.$suffix"
@@ -166,7 +161,7 @@ if [[ $verbose == "yes" ]]; then
   art_debugee="$art_debugee -verbose:jdwp"
 fi
 
-if $using_jack; then
+if [[ $using_jack == "true" ]]; then
   toolchain_args="--toolchain jack --language JN --jack-arg -g"
 else
   toolchain_args="--toolchain jdk --language CUR"
