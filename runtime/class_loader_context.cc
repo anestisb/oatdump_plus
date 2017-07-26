@@ -145,6 +145,10 @@ ClassLoaderContext::ExtractClassLoaderType(const std::string& class_loader_spec)
 // ClasspathElem is the path of dex/jar/apk file.
 bool ClassLoaderContext::Parse(const std::string& spec, bool parse_checksums) {
   if (spec.empty()) {
+    // By default we load the dex files in a PathClassLoader.
+    // So an empty spec is equivalent to an empty PathClassLoader (this happens when running
+    // tests)
+    class_loader_chain_.push_back(ClassLoaderInfo(kPathClassLoader));
     return true;
   }
 
@@ -265,11 +269,15 @@ std::string ClassLoaderContext::EncodeContextForOatFile(const std::string& base_
     return OatFile::kSpecialSharedLibrary;
   }
 
-  if (class_loader_chain_.empty()) {
-    return "";
-  }
-
   std::ostringstream out;
+  if (class_loader_chain_.empty()) {
+    // We can get in this situation if the context was created with a class path containing the
+    // source dex files which were later removed (happens during run-tests).
+    out << GetClassLoaderTypeName(kPathClassLoader)
+        << kClassLoaderOpeningMark
+        << kClassLoaderClosingMark;
+    return out.str();
+  }
 
   for (size_t i = 0; i < class_loader_chain_.size(); i++) {
     const ClassLoaderInfo& info = class_loader_chain_[i];

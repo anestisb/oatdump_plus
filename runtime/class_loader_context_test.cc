@@ -161,6 +161,19 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
   }
 };
 
+TEST_F(ClassLoaderContextTest, ParseValidEmptyContext) {
+  std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create("");
+  // An empty context should create a single empty PathClassLoader.
+  VerifyContextSize(context.get(), 1);
+  VerifyClassLoaderPCL(context.get(), 0, "");
+}
+
+TEST_F(ClassLoaderContextTest, ParseValidSharedLibraryContext) {
+  std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create("&");
+  // An shared library context should have no class loader in the chain.
+  VerifyContextSize(context.get(), 0);
+}
+
 TEST_F(ClassLoaderContextTest, ParseValidContextPCL) {
   std::unique_ptr<ClassLoaderContext> context =
       ClassLoaderContext::Create("PCL[a.dex]");
@@ -310,6 +323,34 @@ TEST_F(ClassLoaderContextTest, CreateClassLoaderWithEmptyContext) {
                             compilation_sources_raw);
   ASSERT_TRUE(class_loader->GetParent()->GetClass() ==
       soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+}
+
+TEST_F(ClassLoaderContextTest, CreateClassLoaderWithSharedLibraryContext) {
+  std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create("&");
+
+  ASSERT_TRUE(context->OpenDexFiles(InstructionSet::kArm, ""));
+
+  std::vector<std::unique_ptr<const DexFile>> compilation_sources = OpenTestDexFiles("MultiDex");
+
+  std::vector<const DexFile*> compilation_sources_raw =
+      MakeNonOwningPointerVector(compilation_sources);
+  jobject jclass_loader = context->CreateClassLoader(compilation_sources_raw);
+  ASSERT_TRUE(jclass_loader != nullptr);
+
+  ScopedObjectAccess soa(Thread::Current());
+
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader = hs.NewHandle(
+      soa.Decode<mirror::ClassLoader>(jclass_loader));
+
+  // A shared library context should create a single PathClassLoader with only the compilation
+  // sources.
+  VerifyClassLoaderDexFiles(soa,
+      class_loader,
+      WellKnownClasses::dalvik_system_PathClassLoader,
+      compilation_sources_raw);
+  ASSERT_TRUE(class_loader->GetParent()->GetClass() ==
+  soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
 }
 
 TEST_F(ClassLoaderContextTest, CreateClassLoaderWithComplexChain) {
