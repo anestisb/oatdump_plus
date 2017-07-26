@@ -461,8 +461,7 @@ class Instrumentation {
   // This is used by the debugger to cause a deoptimization of the thread's stack after updating
   // local variable(s).
   void InstrumentThreadStack(Thread* thread)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::thread_list_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static size_t ComputeFrameId(Thread* self,
                                size_t frame_depth,

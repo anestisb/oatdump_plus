@@ -159,17 +159,6 @@ jvmtiError ThreadUtil::GetCurrentThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread*
   return ERR(NONE);
 }
 
-static art::Thread* GetNativeThreadLocked(jthread thread,
-                                          const art::ScopedObjectAccessAlreadyRunnable& soa)
-    REQUIRES_SHARED(art::Locks::mutator_lock_)
-    REQUIRES(art::Locks::thread_list_lock_) {
-  if (thread == nullptr) {
-    return art::Thread::Current();
-  }
-
-  return art::Thread::FromManagedThread(soa, thread);
-}
-
 // Get the native thread. The spec says a null object denotes the current thread.
 art::Thread* ThreadUtil::GetNativeThread(jthread thread,
                                          const art::ScopedObjectAccessAlreadyRunnable& soa) {
@@ -177,7 +166,6 @@ art::Thread* ThreadUtil::GetNativeThread(jthread thread,
     return art::Thread::Current();
   }
 
-  art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
   return art::Thread::FromManagedThread(soa, thread);
 }
 
@@ -189,18 +177,20 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
     return JVMTI_ERROR_WRONG_PHASE;
   }
 
-  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::Thread* self = art::Thread::Current();
+  art::ScopedObjectAccess soa(self);
+  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
 
-  art::Thread* self = GetNativeThread(thread, soa);
-  if (self == nullptr && thread == nullptr) {
+  art::Thread* target = GetNativeThread(thread, soa);
+  if (target == nullptr && thread == nullptr) {
     return ERR(INVALID_THREAD);
   }
 
   JvmtiUniquePtr<char[]> name_uptr;
-  if (self != nullptr) {
+  if (target != nullptr) {
     // Have a native thread object, this thread is alive.
     std::string name;
-    self->GetThreadName(name);
+    target->GetThreadName(name);
     jvmtiError name_result;
     name_uptr = CopyString(env, name.c_str(), &name_result);
     if (name_uptr == nullptr) {
@@ -208,11 +198,11 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
     }
     info_ptr->name = name_uptr.get();
 
-    info_ptr->priority = self->GetNativePriority();
+    info_ptr->priority = target->GetNativePriority();
 
-    info_ptr->is_daemon = self->IsDaemon();
+    info_ptr->is_daemon = target->IsDaemon();
 
-    art::ObjPtr<art::mirror::Object> peer = self->GetPeerFromOtherThread();
+    art::ObjPtr<art::mirror::Object> peer = target->GetPeerFromOtherThread();
 
     // ThreadGroup.
     if (peer != nullptr) {
@@ -309,9 +299,8 @@ struct InternalThreadState {
 static InternalThreadState GetNativeThreadState(jthread thread,
                                                 const art::ScopedObjectAccessAlreadyRunnable& soa)
     REQUIRES_SHARED(art::Locks::mutator_lock_)
-    REQUIRES(art::Locks::user_code_suspension_lock_) {
+    REQUIRES(art::Locks::thread_list_lock_, art::Locks::user_code_suspension_lock_) {
   art::Thread* self = nullptr;
-  art::MutexLock tll_mu(soa.Self(), *art::Locks::thread_list_lock_);
   if (thread == nullptr) {
     self = art::Thread::Current();
   } else {
@@ -455,43 +444,46 @@ jvmtiError ThreadUtil::GetThreadState(jvmtiEnv* env ATTRIBUTE_UNUSED,
       }
     }
     art::ScopedObjectAccess soa(self);
+    art::MutexLock tll_mu(self, *art::Locks::thread_list_lock_);
     state = GetNativeThreadState(thread, soa);
-    break;
+    if (state.art_state == art::ThreadState::kStarting) {
+      break;
+    }
+    DCHECK(state.native_thread != nullptr);
+
+    // Translate internal thread state to JVMTI and Java state.
+    jint jvmti_state = GetJvmtiThreadStateFromInternal(state);
+
+    // Java state is derived from nativeGetState.
+    // TODO: Our implementation assigns "runnable" to suspended. As such, we will have slightly
+    //       different mask if a thread got suspended due to user-code. However, this is for
+    //       consistency with the Java view.
+    jint java_state = GetJavaStateFromInternal(state);
+
+    *thread_state_ptr = jvmti_state | java_state;
+
+    return ERR(NONE);
   } while (true);
 
-  if (state.art_state == art::ThreadState::kStarting) {
-    if (thread == nullptr) {
-      // No native thread, and no Java thread? We must be starting up. Report as wrong phase.
-      return ERR(WRONG_PHASE);
-    }
+  DCHECK_EQ(state.art_state, art::ThreadState::kStarting);
 
-    art::ScopedObjectAccess soa(self);
-
-    // Need to read the Java "started" field to know whether this is starting or terminated.
-    art::ObjPtr<art::mirror::Object> peer = soa.Decode<art::mirror::Object>(thread);
-    art::ObjPtr<art::mirror::Class> klass = peer->GetClass();
-    art::ArtField* started_field = klass->FindDeclaredInstanceField("started", "Z");
-    CHECK(started_field != nullptr);
-    bool started = started_field->GetBoolean(peer) != 0;
-    constexpr jint kStartedState = JVMTI_JAVA_LANG_THREAD_STATE_NEW;
-    constexpr jint kTerminatedState = JVMTI_THREAD_STATE_TERMINATED |
-                                      JVMTI_JAVA_LANG_THREAD_STATE_TERMINATED;
-    *thread_state_ptr = started ? kTerminatedState : kStartedState;
-    return ERR(NONE);
+  if (thread == nullptr) {
+    // No native thread, and no Java thread? We must be starting up. Report as wrong phase.
+    return ERR(WRONG_PHASE);
   }
-  DCHECK(state.native_thread != nullptr);
 
-  // Translate internal thread state to JVMTI and Java state.
-  jint jvmti_state = GetJvmtiThreadStateFromInternal(state);
+  art::ScopedObjectAccess soa(self);
 
-  // Java state is derived from nativeGetState.
-  // TODO: Our implementation assigns "runnable" to suspended. As such, we will have slightly
-  //       different mask if a thread got suspended due to user-code. However, this is for
-  //       consistency with the Java view.
-  jint java_state = GetJavaStateFromInternal(state);
-
-  *thread_state_ptr = jvmti_state | java_state;
-
+  // Need to read the Java "started" field to know whether this is starting or terminated.
+  art::ObjPtr<art::mirror::Object> peer = soa.Decode<art::mirror::Object>(thread);
+  art::ObjPtr<art::mirror::Class> klass = peer->GetClass();
+  art::ArtField* started_field = klass->FindDeclaredInstanceField("started", "Z");
+  CHECK(started_field != nullptr);
+  bool started = started_field->GetBoolean(peer) != 0;
+  constexpr jint kStartedState = JVMTI_JAVA_LANG_THREAD_STATE_NEW;
+  constexpr jint kTerminatedState = JVMTI_THREAD_STATE_TERMINATED |
+                                    JVMTI_JAVA_LANG_THREAD_STATE_TERMINATED;
+  *thread_state_ptr = started ? kTerminatedState : kStartedState;
   return ERR(NONE);
 }
 
@@ -570,7 +562,7 @@ jvmtiError ThreadUtil::SetThreadLocalStorage(jvmtiEnv* env, jthread thread, cons
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
   art::MutexLock mu(self, *art::Locks::thread_list_lock_);
-  art::Thread* target = GetNativeThreadLocked(thread, soa);
+  art::Thread* target = GetNativeThread(thread, soa);
   if (target == nullptr && thread == nullptr) {
     return ERR(INVALID_THREAD);
   }
@@ -599,7 +591,7 @@ jvmtiError ThreadUtil::GetThreadLocalStorage(jvmtiEnv* env,
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
   art::MutexLock mu(self, *art::Locks::thread_list_lock_);
-  art::Thread* target = GetNativeThreadLocked(thread, soa);
+  art::Thread* target = GetNativeThread(thread, soa);
   if (target == nullptr && thread == nullptr) {
     return ERR(INVALID_THREAD);
   }
@@ -699,8 +691,7 @@ jvmtiError ThreadUtil::RunAgentThread(jvmtiEnv* jvmti_env,
 }
 
 jvmtiError ThreadUtil::SuspendOther(art::Thread* self,
-                                    jthread target_jthread,
-                                    const art::Thread* target) {
+                                    jthread target_jthread) {
   // Loop since we need to bail out and try again if we would end up getting suspended while holding
   // the user_code_suspension_lock_ due to a SuspendReason::kForUserCode. In this situation we
   // release the lock, wait to get resumed and try again.
@@ -713,33 +704,43 @@ jvmtiError ThreadUtil::SuspendOther(art::Thread* self,
     SuspendCheck(self);
     art::MutexLock mu(self, *art::Locks::user_code_suspension_lock_);
     {
-      art::MutexLock thread_list_mu(self, *art::Locks::thread_suspend_count_lock_);
+      art::MutexLock thread_suspend_count_mu(self, *art::Locks::thread_suspend_count_lock_);
       // Make sure we won't be suspended in the middle of holding the thread_suspend_count_lock_ by
       // a user-code suspension. We retry and do another SuspendCheck to clear this.
       if (self->GetUserCodeSuspendCount() != 0) {
         continue;
-      } else if (target->GetUserCodeSuspendCount() != 0) {
-        return ERR(THREAD_SUSPENDED);
       }
+      // We are not going to be suspended by user code from now on.
     }
-    bool timeout = true;
-    while (timeout) {
+    {
+      art::ScopedObjectAccess soa(self);
+      art::MutexLock thread_list_mu(self, *art::Locks::thread_list_lock_);
+      art::Thread* target = GetNativeThread(target_jthread, soa);
       art::ThreadState state = target->GetState();
       if (state == art::ThreadState::kTerminated || state == art::ThreadState::kStarting) {
         return ERR(THREAD_NOT_ALIVE);
-      }
-      art::Thread* ret_target = art::Runtime::Current()->GetThreadList()->SuspendThreadByPeer(
-          target_jthread,
-          /* request_suspension */ true,
-          art::SuspendReason::kForUserCode,
-          &timeout);
-      if (ret_target == nullptr && !timeout) {
-        // TODO It would be good to get more information about why exactly the thread failed to
-        // suspend.
-        return ERR(INTERNAL);
+      } else {
+        art::MutexLock thread_suspend_count_mu(self, *art::Locks::thread_suspend_count_lock_);
+        if (target->GetUserCodeSuspendCount() != 0) {
+          return ERR(THREAD_SUSPENDED);
+        }
       }
     }
-    return OK;
+    bool timeout = true;
+    art::Thread* ret_target = art::Runtime::Current()->GetThreadList()->SuspendThreadByPeer(
+        target_jthread,
+        /* request_suspension */ true,
+        art::SuspendReason::kForUserCode,
+        &timeout);
+    if (ret_target == nullptr && !timeout) {
+      // TODO It would be good to get more information about why exactly the thread failed to
+      // suspend.
+      return ERR(INTERNAL);
+    } else if (!timeout) {
+      // we didn't time out and got a result.
+      return OK;
+    }
+    // We timed out. Just go around and try again.
   } while (true);
   UNREACHABLE();
 }
@@ -768,18 +769,21 @@ jvmtiError ThreadUtil::SuspendSelf(art::Thread* self) {
 
 jvmtiError ThreadUtil::SuspendThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread thread) {
   art::Thread* self = art::Thread::Current();
-  art::Thread* target;
+  bool target_is_self = false;
   {
     art::ScopedObjectAccess soa(self);
-    target = GetNativeThread(thread, soa);
+    art::MutexLock mu(self, *art::Locks::thread_list_lock_);
+    art::Thread* target = GetNativeThread(thread, soa);
+    if (target == nullptr) {
+      return ERR(INVALID_THREAD);
+    } else if (target == self) {
+      target_is_self = true;
+    }
   }
-  if (target == nullptr) {
-    return ERR(INVALID_THREAD);
-  }
-  if (target == self) {
+  if (target_is_self) {
     return SuspendSelf(self);
   } else {
-    return SuspendOther(self, thread, target);
+    return SuspendOther(self, thread);
   }
 }
 
@@ -790,41 +794,56 @@ jvmtiError ThreadUtil::ResumeThread(jvmtiEnv* env ATTRIBUTE_UNUSED,
   }
   art::Thread* self = art::Thread::Current();
   art::Thread* target;
-  {
-    // NB This does a SuspendCheck (during thread state change) so we need to make sure we don't
-    // have the 'suspend_lock' locked here.
-    art::ScopedObjectAccess soa(self);
-    target = GetNativeThread(thread, soa);
-  }
-  if (target == nullptr) {
-    return ERR(INVALID_THREAD);
-  } else if (target == self) {
-    // We would have paused until we aren't suspended anymore due to the ScopedObjectAccess so we
-    // can just return THREAD_NOT_SUSPENDED. Unfortunately we cannot do any real DCHECKs about
-    // current state since it's all concurrent.
-    return ERR(THREAD_NOT_SUSPENDED);
-  }
-  // Now that we know we aren't getting suspended ourself (since we have a mutator lock) we lock the
-  // suspend_lock to start suspending.
-  art::MutexLock mu(self, *art::Locks::user_code_suspension_lock_);
-  {
-    // The JVMTI spec requires us to return THREAD_NOT_SUSPENDED if it is alive but we really cannot
-    // tell why resume failed.
-    art::MutexLock thread_list_mu(self, *art::Locks::thread_suspend_count_lock_);
-    if (target->GetUserCodeSuspendCount() == 0) {
-      return ERR(THREAD_NOT_SUSPENDED);
+  // Retry until we know we won't get suspended by user code while resuming something.
+  do {
+    SuspendCheck(self);
+    art::MutexLock ucsl_mu(self, *art::Locks::user_code_suspension_lock_);
+    {
+      art::MutexLock tscl_mu(self, *art::Locks::thread_suspend_count_lock_);
+      // Make sure we won't be suspended in the middle of holding the thread_suspend_count_lock_ by
+      // a user-code suspension. We retry and do another SuspendCheck to clear this.
+      if (self->GetUserCodeSuspendCount() != 0) {
+        continue;
+      }
     }
-  }
-  if (target->GetState() == art::ThreadState::kTerminated) {
-    return ERR(THREAD_NOT_ALIVE);
-  }
-  DCHECK(target != self);
-  if (!art::Runtime::Current()->GetThreadList()->Resume(target, art::SuspendReason::kForUserCode)) {
-    // TODO Give a better error.
-    // This is most likely THREAD_NOT_SUSPENDED but we cannot really be sure.
-    return ERR(INTERNAL);
-  }
-  return OK;
+    // From now on we know we cannot get suspended by user-code.
+    {
+      // NB This does a SuspendCheck (during thread state change) so we need to make sure we don't
+      // have the 'suspend_lock' locked here.
+      art::ScopedObjectAccess soa(self);
+      art::MutexLock tll_mu(self, *art::Locks::thread_list_lock_);
+      target = GetNativeThread(thread, soa);
+      if (target == nullptr) {
+        return ERR(INVALID_THREAD);
+      } else if (target == self) {
+        // We would have paused until we aren't suspended anymore due to the ScopedObjectAccess so
+        // we can just return THREAD_NOT_SUSPENDED. Unfortunately we cannot do any real DCHECKs
+        // about current state since it's all concurrent.
+        return ERR(THREAD_NOT_SUSPENDED);
+      } else if (target->GetState() == art::ThreadState::kTerminated) {
+        return ERR(THREAD_NOT_ALIVE);
+      }
+      // The JVMTI spec requires us to return THREAD_NOT_SUSPENDED if it is alive but we really
+      // cannot tell why resume failed.
+      {
+        art::MutexLock thread_suspend_count_mu(self, *art::Locks::thread_suspend_count_lock_);
+        if (target->GetUserCodeSuspendCount() == 0) {
+          return ERR(THREAD_NOT_SUSPENDED);
+        }
+      }
+    }
+    // It is okay that we don't have a thread_list_lock here since we know that the thread cannot
+    // die since it is currently held suspended by a SuspendReason::kForUserCode suspend.
+    DCHECK(target != self);
+    if (!art::Runtime::Current()->GetThreadList()->Resume(target,
+                                                          art::SuspendReason::kForUserCode)) {
+      // TODO Give a better error.
+      // This is most likely THREAD_NOT_SUSPENDED but we cannot really be sure.
+      return ERR(INTERNAL);
+    } else {
+      return OK;
+    }
+  } while (true);
 }
 
 // Suspends all the threads in the list at the same time. Getting this behavior is a little tricky
@@ -850,6 +869,7 @@ jvmtiError ThreadUtil::SuspendThreadList(jvmtiEnv* env,
   for (jint i = 0; i < request_count; i++) {
     {
       art::ScopedObjectAccess soa(self);
+      art::MutexLock mu(self, *art::Locks::thread_list_lock_);
       if (threads[i] == nullptr || GetNativeThread(threads[i], soa) == self) {
         current_thread_indexes.push_back(i);
         continue;
