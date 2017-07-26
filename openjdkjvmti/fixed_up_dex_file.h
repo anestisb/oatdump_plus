@@ -1,4 +1,4 @@
-/* Copyright (C) 2016 The Android Open Source Project
+/* Copyright (C) 2017 The Android Open Source Project
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This file implements interfaces from the file jvmti.h. This implementation
@@ -29,46 +29,55 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_STACK_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_STACK_H_
+#ifndef ART_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_
+#define ART_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_
+
+#include <memory>
+#include <vector>
 
 #include "jni.h"
 #include "jvmti.h"
 
 #include "base/mutex.h"
+#include "dex_file.h"
 
 namespace openjdkjvmti {
 
-class StackUtil {
+// A holder for a DexFile that has been 'fixed up' to ensure it is fully compliant with the
+// published standard (no internal/quick opcodes, all fields are the defined values, etc). This is
+// used to ensure that agents get a consistent dex file regardless of what version of android they
+// are running on.
+class FixedUpDexFile {
  public:
-  static jvmtiError GetAllStackTraces(jvmtiEnv* env,
-                                      jint max_frame_count,
-                                      jvmtiStackInfo** stack_info_ptr,
-                                      jint* thread_count_ptr)
-      REQUIRES(!art::Locks::thread_list_lock_);
+  static std::unique_ptr<FixedUpDexFile> Create(const art::DexFile& original)
+      REQUIRES_SHARED(art::Locks::mutator_lock_);
 
-  static jvmtiError GetFrameCount(jvmtiEnv* env, jthread thread, jint* count_ptr);
+  const art::DexFile& GetDexFile() {
+    return *dex_file_;
+  }
 
-  static jvmtiError GetFrameLocation(jvmtiEnv* env,
-                                     jthread thread,
-                                     jint depth,
-                                     jmethodID* method_ptr,
-                                     jlocation* location_ptr);
+  const unsigned char* Begin() {
+    return data_.data();
+  }
 
-  static jvmtiError GetStackTrace(jvmtiEnv* env,
-                                  jthread thread,
-                                  jint start_depth,
-                                  jint max_frame_count,
-                                  jvmtiFrameInfo* frame_buffer,
-                                  jint* count_ptr);
+  size_t Size() {
+    return data_.size();
+  }
 
-  static jvmtiError GetThreadListStackTraces(jvmtiEnv* env,
-                                             jint thread_count,
-                                             const jthread* thread_list,
-                                             jint max_frame_count,
-                                             jvmtiStackInfo** stack_info_ptr);
+ private:
+  explicit FixedUpDexFile(std::unique_ptr<const art::DexFile> fixed_up_dex_file,
+                          std::vector<unsigned char> data)
+      : dex_file_(std::move(fixed_up_dex_file)),
+        data_(std::move(data)) {}
+
+  // the fixed up DexFile
+  std::unique_ptr<const art::DexFile> dex_file_;
+  // The backing data for dex_file_.
+  const std::vector<unsigned char> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(FixedUpDexFile);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_STACK_H_
+#endif  // ART_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_

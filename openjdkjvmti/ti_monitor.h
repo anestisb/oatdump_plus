@@ -29,66 +29,31 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_BREAKPOINT_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_BREAKPOINT_H_
+#ifndef ART_OPENJDKJVMTI_TI_MONITOR_H_
+#define ART_OPENJDKJVMTI_TI_MONITOR_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
-#include "base/mutex.h"
-
-namespace art {
-class ArtMethod;
-namespace mirror {
-class Class;
-}  // namespace mirror
-}  // namespace art
-
 namespace openjdkjvmti {
 
-struct ArtJvmTiEnv;
-
-class Breakpoint {
+class MonitorUtil {
  public:
-  Breakpoint(art::ArtMethod* m, jlocation loc);
+  static jvmtiError CreateRawMonitor(jvmtiEnv* env, const char* name, jrawMonitorID* monitor_ptr);
 
-  // Get the hash code of this breakpoint.
-  size_t hash() const;
+  static jvmtiError DestroyRawMonitor(jvmtiEnv* env, jrawMonitorID monitor);
 
-  bool operator==(const Breakpoint& other) const {
-    return method_ == other.method_ && location_ == other.location_;
-  }
+  static jvmtiError RawMonitorEnter(jvmtiEnv* env, jrawMonitorID monitor);
 
-  art::ArtMethod* GetMethod() const {
-    return method_;
-  }
+  static jvmtiError RawMonitorExit(jvmtiEnv* env, jrawMonitorID monitor);
 
-  jlocation GetLocation() const {
-    return location_;
-  }
+  static jvmtiError RawMonitorWait(jvmtiEnv* env, jrawMonitorID monitor, jlong millis);
 
- private:
-  art::ArtMethod* method_;
-  jlocation location_;
-};
+  static jvmtiError RawMonitorNotify(jvmtiEnv* env, jrawMonitorID monitor);
 
-class BreakpointUtil {
- public:
-  static jvmtiError SetBreakpoint(jvmtiEnv* env, jmethodID method, jlocation location);
-  static jvmtiError ClearBreakpoint(jvmtiEnv* env, jmethodID method, jlocation location);
-  // Used by class redefinition to remove breakpoints on redefined classes.
-  static void RemoveBreakpointsInClass(ArtJvmTiEnv* env, art::mirror::Class* klass)
-      REQUIRES(art::Locks::mutator_lock_);
+  static jvmtiError RawMonitorNotifyAll(jvmtiEnv* env, jrawMonitorID monitor);
 };
 
 }  // namespace openjdkjvmti
 
-namespace std {
-template<> struct hash<openjdkjvmti::Breakpoint> {
-  size_t operator()(const openjdkjvmti::Breakpoint& b) const {
-    return b.hash();
-  }
-};
-
-}  // namespace std
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_BREAKPOINT_H_
+#endif  // ART_OPENJDKJVMTI_TI_MONITOR_H_

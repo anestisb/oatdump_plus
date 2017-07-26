@@ -22,7 +22,7 @@ ART_CPPLINT_FLAGS := --root=$(TOP)
 ART_CPPLINT_QUIET := --quiet
 ART_CPPLINT_INGORED := \
     runtime/elf.h \
-    runtime/openjdkjvmti/include/jvmti.h
+    openjdkjvmti/include/jvmti.h
 
 # This:
 #  1) Gets a list of all .h & .cc files in the art directory.

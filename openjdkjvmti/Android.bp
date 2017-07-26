@@ -48,7 +48,6 @@ cc_defaults {
            "ti_threadgroup.cc",
            "ti_timers.cc",
            "transform.cc"],
-    include_dirs: ["art/runtime"],
     header_libs: ["libopenjdkjvmti_headers"],
     shared_libs: [
         "libbase",

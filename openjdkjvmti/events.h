@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_EVENTS_H_
-#define ART_RUNTIME_OPENJDKJVMTI_EVENTS_H_
+#ifndef ART_OPENJDKJVMTI_EVENTS_H_
+#define ART_OPENJDKJVMTI_EVENTS_H_
 
 #include <bitset>
 #include <vector>
@@ -227,4 +227,4 @@ class EventHandler {
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_EVENTS_H_
+#endif  // ART_OPENJDKJVMTI_EVENTS_H_

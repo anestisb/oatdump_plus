@@ -29,41 +29,23 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_PHASE_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_PHASE_H_
+#ifndef ART_OPENJDKJVMTI_TI_TIMERS_H_
+#define ART_OPENJDKJVMTI_TI_TIMERS_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
-class EventHandler;
-
-class PhaseUtil {
+class TimerUtil {
  public:
-  static jvmtiError GetPhase(jvmtiEnv* env, jvmtiPhase* phase_ptr);
-  static bool IsLivePhase();
+  static jvmtiError GetAvailableProcessors(jvmtiEnv* env, jint* processor_count_ptr);
 
-  static void Register(EventHandler* event_handler);
-  static void Unregister();
+  static jvmtiError GetTimerInfo(jvmtiEnv* env, jvmtiTimerInfo* info_ptr);
 
-  // Move the phase from unitialized to LOAD.
-  static void SetToOnLoad();
-
-  // Move the phase from LOAD to PRIMORDIAL.
-  static void SetToPrimordial();
-
-  // Move the phase from unitialized to LIVE.
-  static void SetToLive();
-
-  struct PhaseCallback;
-
-  static jvmtiPhase GetPhaseUnchecked();
-
- private:
-  static jvmtiPhase current_phase_;
+  static jvmtiError GetTime(jvmtiEnv* env, jlong* nanos_ptr);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_PHASE_H_
+#endif  // ART_OPENJDKJVMTI_TI_TIMERS_H_

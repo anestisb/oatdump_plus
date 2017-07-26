@@ -29,31 +29,25 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_MONITOR_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_MONITOR_H_
+#ifndef ART_OPENJDKJVMTI_TI_SEARCH_H_
+#define ART_OPENJDKJVMTI_TI_SEARCH_H_
 
-#include "jni.h"
+#include <vector>
+
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
-class MonitorUtil {
+class SearchUtil {
  public:
-  static jvmtiError CreateRawMonitor(jvmtiEnv* env, const char* name, jrawMonitorID* monitor_ptr);
+  static void Register();
+  static void Unregister();
 
-  static jvmtiError DestroyRawMonitor(jvmtiEnv* env, jrawMonitorID monitor);
+  static jvmtiError AddToBootstrapClassLoaderSearch(jvmtiEnv* env, const char* segment);
 
-  static jvmtiError RawMonitorEnter(jvmtiEnv* env, jrawMonitorID monitor);
-
-  static jvmtiError RawMonitorExit(jvmtiEnv* env, jrawMonitorID monitor);
-
-  static jvmtiError RawMonitorWait(jvmtiEnv* env, jrawMonitorID monitor, jlong millis);
-
-  static jvmtiError RawMonitorNotify(jvmtiEnv* env, jrawMonitorID monitor);
-
-  static jvmtiError RawMonitorNotifyAll(jvmtiEnv* env, jrawMonitorID monitor);
+  static jvmtiError AddToSystemClassLoaderSearch(jvmtiEnv* env, const char* segment);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_MONITOR_H_
+#endif  // ART_OPENJDKJVMTI_TI_SEARCH_H_
