@@ -371,7 +371,9 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       quick_generic_jni_trampoline_(nullptr),
       quick_to_interpreter_bridge_trampoline_(nullptr),
       image_pointer_size_(kRuntimePointerSize),
-      cha_(new ClassHierarchyAnalysis()) {
+      cha_(Runtime::Current()->IsAotCompiler() ? nullptr : new ClassHierarchyAnalysis()) {
+  // For CHA disabled during Aot, see b/34193647.
+
   CHECK(intern_table_ != nullptr);
   static_assert(kFindArrayCacheSize == arraysize(find_array_class_cache_),
                 "Array cache size wrong.");
