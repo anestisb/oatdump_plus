@@ -455,6 +455,20 @@ TEST_F(ClassLoaderContextTest, EncodeInOatFile) {
   ASSERT_EQ(expected_encoding, context->EncodeContextForOatFile(""));
 }
 
+TEST_F(ClassLoaderContextTest, EncodeForDex2oat) {
+  std::string dex1_name = GetTestDexFileName("Main");
+  std::string dex2_name = GetTestDexFileName("MultiDex");
+  std::unique_ptr<ClassLoaderContext> context =
+      ClassLoaderContext::Create("PCL[" + dex1_name + ":" + dex2_name + "]");
+  ASSERT_TRUE(context->OpenDexFiles(InstructionSet::kArm, ""));
+
+  std::vector<std::unique_ptr<const DexFile>> dex1 = OpenTestDexFiles("Main");
+  std::vector<std::unique_ptr<const DexFile>> dex2 = OpenTestDexFiles("MultiDex");
+  std::string encoding = context->EncodeContextForDex2oat("");
+  std::string expected_encoding = "PCL[" + dex1_name + ":" + dex2_name + "]";
+  ASSERT_EQ(expected_encoding, context->EncodeContextForDex2oat(""));
+}
+
 // TODO(calin) add a test which creates the context for a class loader together with dex_elements.
 TEST_F(ClassLoaderContextTest, CreateContextForClassLoader) {
   // The chain is

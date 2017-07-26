@@ -329,12 +329,14 @@ static bool CollisionCheck(std::vector<const DexFile*>& dex_files_loaded,
 
 // Check for class-def collisions in dex files.
 //
-// This first walks the class loader chain, getting all the dex files from the class loader. If
-// the class loader is null or one of the class loaders in the chain is unsupported, we collect
-// dex files from all open non-boot oat files to be safe.
+// This first walks the class loader chain present in the given context, getting all the dex files
+// from the class loader.
 //
-// This first checks whether the shared libraries are in the expected order and the oat files
-// have the expected checksums. If so, we exit early. Otherwise, we do the collision check.
+// If the context is null (which means the initial class loader was null or unsupported)
+// this returns false. b/37777332.
+//
+// This first checks whether all class loaders in the context have the same type and
+// classpath. If so, we exit early. Otherwise, we do the collision check.
 //
 // The collision check works by maintaining a heap with one class from each dex file, sorted by the
 // class descriptor. Then a dex-file/class pair is continually removed from the heap and compared
@@ -342,22 +344,10 @@ static bool CollisionCheck(std::vector<const DexFile*>& dex_files_loaded,
 // the two elements agree on whether their dex file was from an already-loaded oat-file or the
 // new oat file. Any disagreement indicates a collision.
 bool OatFileManager::HasCollisions(const OatFile* oat_file,
-                                   jobject class_loader,
-                                   jobjectArray dex_elements,
+                                   const ClassLoaderContext* context,
                                    std::string* error_msg /*out*/) const {
   DCHECK(oat_file != nullptr);
   DCHECK(error_msg != nullptr);
-
-  // If the class_loader is null there's not much we can do. This happens if a dex files is loaded
-  // directly with DexFile APIs instead of using class loaders.
-  if (class_loader == nullptr) {
-    LOG(WARNING) << "Opening an oat file without a class loader. "
-        << "Are you using the deprecated DexFile APIs?";
-    return false;
-  }
-
-  std::unique_ptr<ClassLoaderContext> context =
-      ClassLoaderContext::CreateContextForClassLoader(class_loader, dex_elements);
 
   // The context might be null if there are unrecognized class loaders in the chain or they
   // don't meet sensible sanity conditions. In this case we assume that the app knows what it's
@@ -406,6 +396,17 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   Locks::mutator_lock_->AssertNotHeld(self);
   Runtime* const runtime = Runtime::Current();
 
+  std::unique_ptr<ClassLoaderContext> context;
+  // If the class_loader is null there's not much we can do. This happens if a dex files is loaded
+  // directly with DexFile APIs instead of using class loaders.
+  if (class_loader == nullptr) {
+    LOG(WARNING) << "Opening an oat file without a class loader. "
+                 << "Are you using the deprecated DexFile APIs?";
+    context = nullptr;
+  } else {
+    context = ClassLoaderContext::CreateContextForClassLoader(class_loader, dex_elements);
+  }
+
   OatFileAssistant oat_file_assistant(dex_location,
                                       kRuntimeISA,
                                       !runtime->IsAotCompiler());
@@ -425,7 +426,12 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     // Update the oat file on disk if we can, based on the --compiler-filter
     // option derived from the current runtime options.
     // This may fail, but that's okay. Best effort is all that matters here.
-    switch (oat_file_assistant.MakeUpToDate(/*profile_changed*/false, /*out*/ &error_msg)) {
+
+    const std::string& dex2oat_context = context == nullptr
+        ? OatFile::kSpecialSharedLibrary
+        : context->EncodeContextForDex2oat(/*base_dir*/ "");
+    switch (oat_file_assistant.MakeUpToDate(
+        /*profile_changed*/false, dex2oat_context, /*out*/ &error_msg)) {
       case OatFileAssistant::kUpdateFailed:
         LOG(WARNING) << error_msg;
         break;
@@ -451,7 +457,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   if ((class_loader != nullptr || dex_elements != nullptr) && oat_file != nullptr) {
     // Take the file only if it has no collisions, or we must take it because of preopting.
     bool accept_oat_file =
-        !HasCollisions(oat_file.get(), class_loader, dex_elements, /*out*/ &error_msg);
+        !HasCollisions(oat_file.get(), context.get(), /*out*/ &error_msg);
     if (!accept_oat_file) {
       // Failed the collision check. Print warning.
       if (Runtime::Current()->IsDexFileFallbackEnabled()) {

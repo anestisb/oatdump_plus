@@ -35,6 +35,7 @@ class ImageSpace;
 }  // namespace space
 }  // namespace gc
 
+class ClassLoaderContext;
 class DexFile;
 class OatFile;
 
@@ -105,15 +106,17 @@ class OatFileManager {
   void DumpForSigQuit(std::ostream& os);
 
  private:
-  // Check that the shared libraries in the given oat file match those in the given class loader and
-  // dex elements. If the class loader is null or we do not support one of the class loaders in the
-  // chain, compare against all non-boot oat files instead. If the shared libraries are not ok,
-  // check for duplicate class definitions of the given oat file against the oat files (either from
-  // the class loader and dex elements if possible or all non-boot oat files otherwise).
+  // Check that the class loader context of the given oat file matches the given context.
+  // This will perform a check that all class loaders in the chain have the same type and
+  // classpath.
+  // If the context is null (which means the initial class loader was null or unsupported)
+  // this returns false.
+  // If the context does not validate the method will check for duplicate class definitions of
+  // the given oat file against the oat files (either from the class loaders if possible or all
+  // non-boot oat files otherwise).
   // Return true if there are any class definition collisions in the oat_file.
   bool HasCollisions(const OatFile* oat_file,
-                     jobject class_loader,
-                     jobjectArray dex_elements,
+                     const ClassLoaderContext* context,
                      /*out*/ std::string* error_msg) const
       REQUIRES(!Locks::oat_file_manager_lock_);
 

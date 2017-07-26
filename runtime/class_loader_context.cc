@@ -263,7 +263,16 @@ bool ClassLoaderContext::RemoveLocationsFromClassPaths(
   return removed_locations;
 }
 
+std::string ClassLoaderContext::EncodeContextForDex2oat(const std::string& base_dir) const {
+  return EncodeContext(base_dir, /*for_dex2oat*/ true);
+}
+
 std::string ClassLoaderContext::EncodeContextForOatFile(const std::string& base_dir) const {
+  return EncodeContext(base_dir, /*for_dex2oat*/ false);
+}
+
+std::string ClassLoaderContext::EncodeContext(const std::string& base_dir,
+                                              bool for_dex2oat) const {
   CheckDexFilesOpened("EncodeContextForOatFile");
   if (special_shared_library_) {
     return OatFile::kSpecialSharedLibrary;
@@ -286,8 +295,17 @@ std::string ClassLoaderContext::EncodeContextForOatFile(const std::string& base_
     }
     out << GetClassLoaderTypeName(info.type);
     out << kClassLoaderOpeningMark;
+    std::set<std::string> seen_locations;
     for (size_t k = 0; k < info.opened_dex_files.size(); k++) {
       const std::unique_ptr<const DexFile>& dex_file = info.opened_dex_files[k];
+      if (for_dex2oat) {
+        // dex2oat only needs the base location. It cannot accept multidex locations.
+        // So ensure we only add each file once.
+        bool new_insert = seen_locations.insert(dex_file->GetBaseLocation()).second;
+        if (!new_insert) {
+          continue;
+        }
+      }
       const std::string& location = dex_file->GetLocation();
       if (k > 0) {
         out << kClasspathSeparator;
@@ -298,8 +316,11 @@ std::string ClassLoaderContext::EncodeContextForOatFile(const std::string& base_
       } else {
         out << dex_file->GetLocation().c_str();
       }
-      out << kDexFileChecksumSeparator;
-      out << dex_file->GetLocationChecksum();
+      // dex2oat does not need the checksums.
+      if (!for_dex2oat) {
+        out << kDexFileChecksumSeparator;
+        out << dex_file->GetLocationChecksum();
+      }
     }
     out << kClassLoaderClosingMark;
   }
@@ -593,7 +614,7 @@ std::unique_ptr<ClassLoaderContext> ClassLoaderContext::CreateContextForClassLoa
   }
 }
 
-bool ClassLoaderContext::VerifyClassLoaderContextMatch(const std::string& context_spec) {
+bool ClassLoaderContext::VerifyClassLoaderContextMatch(const std::string& context_spec) const {
   ClassLoaderContext expected_context;
   if (!expected_context.Parse(context_spec, /*parse_checksums*/ true)) {
     LOG(WARNING) << "Invalid class loader context: " << context_spec;

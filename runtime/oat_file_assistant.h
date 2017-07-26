@@ -185,12 +185,17 @@ class OatFileAssistant {
   // profile_changed should be true to indicate the profile has recently
   // changed for this dex location.
   //
+  // If the dex files need to be made up to date, class_loader_context will be
+  // passed to dex2oat.
+  //
   // Returns the result of attempting to update the code.
   //
   // If the result is not kUpdateSucceeded, the value of error_msg will be set
   // to a string describing why there was a failure or the update was not
   // attempted. error_msg must not be null.
-  ResultOfAttemptToUpdate MakeUpToDate(bool profile_changed, std::string* error_msg);
+  ResultOfAttemptToUpdate MakeUpToDate(bool profile_changed,
+                                       const std::string& class_loader_context,
+                                       std::string* error_msg);
 
   // Returns an oat file that can be used for loading dex files.
   // Returns null if no suitable oat file was found.
@@ -389,7 +394,8 @@ class OatFileAssistant {
   };
 
   // Generate the oat file for the given info from the dex file using the
-  // current runtime compiler options and the specified filter.
+  // current runtime compiler options, the specified filter and class loader
+  // context.
   // This does not check the current status before attempting to generate the
   // oat file.
   //
@@ -398,6 +404,7 @@ class OatFileAssistant {
   // attempted. error_msg must not be null.
   ResultOfAttemptToUpdate GenerateOatFileNoChecks(OatFileInfo& info,
                                                   CompilerFilter::Filter target,
+                                                  const std::string& class_loader_context,
                                                   std::string* error_msg);
 
   // Return info for the best oat file.
