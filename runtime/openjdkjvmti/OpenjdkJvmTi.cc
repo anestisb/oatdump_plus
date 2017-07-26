@@ -904,12 +904,12 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetLocalVariableTable(jvmtiEnv* env,
-                                          jmethodID method ATTRIBUTE_UNUSED,
-                                          jint* entry_count_ptr ATTRIBUTE_UNUSED,
-                                          jvmtiLocalVariableEntry** table_ptr ATTRIBUTE_UNUSED) {
+                                          jmethodID method,
+                                          jint* entry_count_ptr,
+                                          jvmtiLocalVariableEntry** table_ptr) {
     ENSURE_VALID_ENV(env);
     ENSURE_HAS_CAP(env, can_access_local_variables);
-    return ERR(NOT_IMPLEMENTED);
+    return MethodUtil::GetLocalVariableTable(env, method, entry_count_ptr, table_ptr);
   }
 
   static jvmtiError GetBytecodes(jvmtiEnv* env,

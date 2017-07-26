@@ -80,6 +80,10 @@ class MethodUtil {
   static jvmtiError IsMethodNative(jvmtiEnv* env, jmethodID method, jboolean* is_native_ptr);
   static jvmtiError IsMethodObsolete(jvmtiEnv* env, jmethodID method, jboolean* is_obsolete_ptr);
   static jvmtiError IsMethodSynthetic(jvmtiEnv* env, jmethodID method, jboolean* is_synthetic_ptr);
+  static jvmtiError GetLocalVariableTable(jvmtiEnv* env,
+                                          jmethodID method,
+                                          jint* entry_count_ptr,
+                                          jvmtiLocalVariableEntry** table_ptr);
 };
 
 }  // namespace openjdkjvmti

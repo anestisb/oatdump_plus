@@ -159,6 +159,106 @@ jvmtiError MethodUtil::GetArgumentsSize(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
+jvmtiError MethodUtil::GetLocalVariableTable(jvmtiEnv* env,
+                                             jmethodID method,
+                                             jint* entry_count_ptr,
+                                             jvmtiLocalVariableEntry** table_ptr) {
+  if (method == nullptr) {
+    return ERR(INVALID_METHODID);
+  }
+  art::ArtMethod* art_method = art::jni::DecodeArtMethod(method);
+
+  if (art_method->IsNative()) {
+    return ERR(NATIVE_METHOD);
+  }
+
+  if (entry_count_ptr == nullptr || table_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  const art::DexFile* dex_file = art_method->GetDexFile();
+  const art::DexFile::CodeItem* code_item = art_method->GetCodeItem();
+  // TODO code_item == nullptr means that the method is abstract (or native, but we check that
+  // earlier). We should check what is returned by the RI in this situation since it's not clear
+  // what the appropriate return value is from the spec.
+  if (dex_file == nullptr || code_item == nullptr) {
+    return ERR(ABSENT_INFORMATION);
+  }
+
+  struct LocalVariableContext {
+    explicit LocalVariableContext(jvmtiEnv* jenv) : env_(jenv), variables_(), err_(OK) {}
+
+    static void Callback(void* raw_ctx, const art::DexFile::LocalInfo& entry) {
+      reinterpret_cast<LocalVariableContext*>(raw_ctx)->Insert(entry);
+    }
+
+    void Insert(const art::DexFile::LocalInfo& entry) {
+      if (err_ != OK) {
+        return;
+      }
+      JvmtiUniquePtr<char[]> name_str = CopyString(env_, entry.name_, &err_);
+      if (err_ != OK) {
+        return;
+      }
+      JvmtiUniquePtr<char[]> sig_str = CopyString(env_, entry.descriptor_, &err_);
+      if (err_ != OK) {
+        return;
+      }
+      JvmtiUniquePtr<char[]> generic_sig_str = CopyString(env_, entry.signature_, &err_);
+      if (err_ != OK) {
+        return;
+      }
+      variables_.push_back({
+        .start_location = static_cast<jlocation>(entry.start_address_),
+        .length = static_cast<jint>(entry.end_address_ - entry.start_address_),
+        .name = name_str.release(),
+        .signature = sig_str.release(),
+        .generic_signature = generic_sig_str.release(),
+        .slot = entry.reg_,
+      });
+    }
+
+    jvmtiError Release(jint* out_entry_count_ptr, jvmtiLocalVariableEntry** out_table_ptr) {
+      jlong table_size = sizeof(jvmtiLocalVariableEntry) * variables_.size();
+      if (err_ != OK ||
+          (err_ = env_->Allocate(table_size,
+                                 reinterpret_cast<unsigned char**>(out_table_ptr))) != OK) {
+        Cleanup();
+        return err_;
+      } else {
+        *out_entry_count_ptr = variables_.size();
+        memcpy(*out_table_ptr, variables_.data(), table_size);
+        return OK;
+      }
+    }
+
+    void Cleanup() {
+      for (jvmtiLocalVariableEntry& e : variables_) {
+        env_->Deallocate(reinterpret_cast<unsigned char*>(e.name));
+        env_->Deallocate(reinterpret_cast<unsigned char*>(e.signature));
+        env_->Deallocate(reinterpret_cast<unsigned char*>(e.generic_signature));
+      }
+    }
+
+    jvmtiEnv* env_;
+    std::vector<jvmtiLocalVariableEntry> variables_;
+    jvmtiError err_;
+  };
+
+  LocalVariableContext context(env);
+  if (!dex_file->DecodeDebugLocalInfo(code_item,
+                                      art_method->IsStatic(),
+                                      art_method->GetDexMethodIndex(),
+                                      LocalVariableContext::Callback,
+                                      &context)) {
+    // Something went wrong with decoding the debug information. It might as well not be there.
+    return ERR(ABSENT_INFORMATION);
+  } else {
+    return context.Release(entry_count_ptr, table_ptr);
+  }
+}
+
 jvmtiError MethodUtil::GetMaxLocals(jvmtiEnv* env ATTRIBUTE_UNUSED,
                                     jmethodID method,
                                     jint* max_ptr) {

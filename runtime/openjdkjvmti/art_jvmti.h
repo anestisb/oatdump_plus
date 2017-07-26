@@ -204,6 +204,10 @@ static inline jvmtiError CopyDataIntoJvmtiBuffer(ArtJvmTiEnv* env,
 
 ALWAYS_INLINE
 static inline JvmtiUniquePtr<char[]> CopyString(jvmtiEnv* env, const char* src, jvmtiError* error) {
+  if (src == nullptr) {
+    JvmtiUniquePtr<char[]> ret = AllocJvmtiUniquePtr<char[]>(env, 0, error);
+    return ret;
+  }
   size_t len = strlen(src) + 1;
   JvmtiUniquePtr<char[]> ret = AllocJvmtiUniquePtr<char[]>(env, len, error);
   if (ret != nullptr) {
@@ -227,7 +231,7 @@ const jvmtiCapabilities kPotentialCapabilities = {
     .can_get_source_file_name                        = 1,
     .can_get_line_numbers                            = 1,
     .can_get_source_debug_extension                  = 1,
-    .can_access_local_variables                      = 0,
+    .can_access_local_variables                      = 1,
     .can_maintain_original_method_order              = 0,
     .can_generate_single_step_events                 = 1,
     .can_generate_exception_events                   = 0,
