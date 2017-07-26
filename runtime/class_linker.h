@@ -397,9 +397,6 @@ class ClassLinker {
                                            ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void RegisterBootClassPathDexFile(const DexFile& dex_file, ObjPtr<mirror::DexCache> dex_cache)
-      REQUIRES(!Locks::dex_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const std::vector<const DexFile*>& GetBootClassPath() {
     return boot_class_path_;
