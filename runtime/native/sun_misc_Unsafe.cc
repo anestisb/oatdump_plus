@@ -67,10 +67,12 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
   if (kUseReadBarrier) {
     // Need to make sure the reference stored in the field is a to-space one before attempting the
     // CAS or the CAS could fail incorrectly.
+    // Note that the read barrier load does NOT need to be volatile.
     mirror::HeapReference<mirror::Object>* field_addr =
         reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
             reinterpret_cast<uint8_t*>(obj.Ptr()) + static_cast<size_t>(offset));
-    ReadBarrier::Barrier<mirror::Object, kWithReadBarrier, /* kAlwaysUpdateField */ true>(
+    ReadBarrier::Barrier<mirror::Object, /* kIsVolatile */ false, kWithReadBarrier,
+        /* kAlwaysUpdateField */ true>(
         obj.Ptr(),
         MemberOffset(offset),
         field_addr);
@@ -112,6 +114,7 @@ static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong of
                                  jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(javaObj);
+  // TODO: A release store is likely to be faster on future processors.
   QuasiAtomic::ThreadFenceRelease();
   // JNI must use non transactional mode.
   obj->SetField32<false>(MemberOffset(offset), newValue);
