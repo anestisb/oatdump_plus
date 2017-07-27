@@ -924,8 +924,11 @@ void CompilerDriver::PreCompile(jobject class_loader,
   VLOG(compiler) << "Verify: " << GetMemoryUsageString(false);
 
   if (had_hard_verifier_failure_ && GetCompilerOptions().AbortOnHardVerifierFailure()) {
-    LOG(FATAL) << "Had a hard failure verifying all classes, and was asked to abort in such "
-               << "situations. Please check the log.";
+    // Avoid dumping threads. Even if we shut down the thread pools, there will still be three
+    // instances of this thread's stack.
+    LOG(FATAL_WITHOUT_ABORT) << "Had a hard failure verifying all classes, and was asked to abort "
+                             << "in such situations. Please check the log.";
+    abort();
   }
 
   if (compiler_options_->IsAnyCompilationEnabled()) {

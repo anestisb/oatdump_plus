@@ -144,6 +144,8 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     ParseDouble(option.data(), '=', 0.0, 100.0, &top_k_profile_threshold_, Usage);
   } else if (option == "--abort-on-hard-verifier-error") {
     abort_on_hard_verifier_failure_ = true;
+  } else if (option == "--no-abort-on-hard-verifier-error") {
+    abort_on_hard_verifier_failure_ = false;
   } else if (option.starts_with("--dump-init-failures=")) {
     ParseDumpInitFailures(option, Usage);
   } else if (option.starts_with("--dump-cfg=")) {
