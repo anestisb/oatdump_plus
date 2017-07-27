@@ -626,6 +626,5 @@ art_cc_test {
 }
 
 subdirs = [
-    "openjdkjvm",
     "openjdkjvmti",
 ]
