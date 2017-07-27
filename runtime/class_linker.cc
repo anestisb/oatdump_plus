@@ -8574,15 +8574,6 @@ const void* ClassLinker::GetRuntimeQuickGenericJniStub() const {
   return GetQuickGenericJniStub();
 }
 
-void ClassLinker::SetEntryPointsToCompiledCode(ArtMethod* method, const void* code) const {
-  CHECK(code != nullptr);
-  const uint8_t* base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
-  base -= sizeof(void*);  // Move backward so that code_offset != 0.
-  const uint32_t code_offset = sizeof(void*);
-  OatFile::OatMethod oat_method(base, code_offset);
-  oat_method.LinkMethod(method);
-}
-
 void ClassLinker::SetEntryPointsToInterpreter(ArtMethod* method) const {
   if (!method->IsNative()) {
     method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());

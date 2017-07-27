@@ -95,7 +95,7 @@ void CommonCompilerTest::MakeExecutable(ArtMethod* method) {
     const void* method_code = CompiledMethod::CodePointer(code_ptr,
                                                           compiled_method->GetInstructionSet());
     LOG(INFO) << "MakeExecutable " << method->PrettyMethod() << " code=" << method_code;
-    class_linker_->SetEntryPointsToCompiledCode(method, method_code);
+    method->SetEntryPointFromQuickCompiledCode(method_code);
   } else {
     // No code? You must mean to go into the interpreter.
     // Or the generic JNI...
