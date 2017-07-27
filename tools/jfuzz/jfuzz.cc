@@ -55,7 +55,7 @@ static constexpr const char* kRelOps[]     = { "==", "!=", ">", ">=", "<", "<=" 
  * to preserve the property that a given version of JFuzz yields the same
  * fuzzed program for a deterministic random seed.
  */
-const char* VERSION = "1.3";
+const char* VERSION = "1.4";
 
 /*
  * Maximum number of array dimensions, together with corresponding maximum size
@@ -802,13 +802,6 @@ class JFuzz {
     // Continuing loop nest becomes less likely as the depth grows.
     if (random1(loop_nest_ + 1) > fuzz_loop_nest_) {
       return emitAssignment();  // fall back
-    }
-
-    // TODO: remove this
-    // The jack bug b/28862040 prevents generating while/do-while loops because otherwise
-    // we get dozens of reports on the same issue per nightly/ run.
-    if (true) {
-      return emitAssignment();
     }
 
     bool isWhile = random1(2) == 1;
