@@ -238,8 +238,7 @@ class ArgArray {
         // TODO: The method's parameter's type must have been previously resolved, yet
         // we've seen cases where it's not b/34440020.
         ObjPtr<mirror::Class> dst_class(
-            m->GetClassFromTypeIndex(classes->GetTypeItem(args_offset).type_idx_,
-                                     true /* resolve */));
+            m->ResolveClassFromTypeIndex(classes->GetTypeItem(args_offset).type_idx_));
         if (dst_class.Ptr() == nullptr) {
           CHECK(self->IsExceptionPending());
           return false;
@@ -378,7 +377,7 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
   Thread* const self = Thread::Current();
   for (uint32_t i = 0; i < num_params; i++) {
     dex::TypeIndex type_idx = params->GetTypeItem(i).type_idx_;
-    ObjPtr<mirror::Class> param_type(m->GetClassFromTypeIndex(type_idx, true /* resolve */));
+    ObjPtr<mirror::Class> param_type(m->ResolveClassFromTypeIndex(type_idx));
     if (param_type == nullptr) {
       CHECK(self->IsExceptionPending());
       LOG(ERROR) << "Internal error: unresolvable type for argument type in JNI invoke: "

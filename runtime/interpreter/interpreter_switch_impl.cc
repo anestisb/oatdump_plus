@@ -349,7 +349,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         const size_t ref_idx = inst->VRegA_11x(inst_data);
         ObjPtr<mirror::Object> obj_result = shadow_frame.GetVRegReference(ref_idx);
         if (do_assignability_check && obj_result != nullptr) {
-          ObjPtr<mirror::Class> return_type = method->GetReturnType(true /* resolve */);
+          ObjPtr<mirror::Class> return_type = method->ResolveReturnType();
           // Re-load since it might have moved.
           obj_result = shadow_frame.GetVRegReference(ref_idx);
           if (return_type == nullptr) {

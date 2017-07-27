@@ -260,7 +260,7 @@ static jobject Executable_getMethodReturnTypeInternal(JNIEnv* env, jobject javaM
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
   method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
-  ObjPtr<mirror::Class> return_type(method->GetReturnType(true /* resolve */));
+  ObjPtr<mirror::Class> return_type(method->ResolveReturnType());
   if (return_type.IsNull()) {
     CHECK(soa.Self()->IsExceptionPending());
     return nullptr;

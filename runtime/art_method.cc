@@ -280,7 +280,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
       break;
     }
     // Does this catch exception type apply?
-    mirror::Class* iter_exception_type = GetClassFromTypeIndex(iter_type_idx, true /* resolve */);
+    ObjPtr<mirror::Class> iter_exception_type = ResolveClassFromTypeIndex(iter_type_idx);
     if (UNLIKELY(iter_exception_type == nullptr)) {
       // Now have a NoClassDefFoundError as exception. Ignore in case the exception class was
       // removed by a pro-guard like tool.
