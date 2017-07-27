@@ -1070,7 +1070,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
               // Preserve o since it is used below and GetClassFromTypeIndex may cause thread
               // suspension.
               HandleWrapperObjPtr<mirror::Object> h = hs.NewHandleWrapper(&o);
-              arg_type = method->GetClassFromTypeIndex(type_idx, true /* resolve */);
+              arg_type = method->ResolveClassFromTypeIndex(type_idx);
               if (arg_type == nullptr) {
                 CHECK(self->IsExceptionPending());
                 return false;

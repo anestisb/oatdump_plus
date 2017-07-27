@@ -4710,7 +4710,7 @@ void ClassLinker::CheckProxyMethod(ArtMethod* method, ArtMethod* prototype) cons
   CHECK_STREQ(np->GetName(), prototype->GetName());
   CHECK_STREQ(np->GetShorty(), prototype->GetShorty());
   // More complex sanity - via dex cache
-  CHECK_EQ(np->GetReturnType(true /* resolve */), prototype->GetReturnType(true /* resolve */));
+  CHECK_EQ(np->ResolveReturnType(), prototype->ResolveReturnType());
 }
 
 bool ClassLinker::CanWeInitializeClass(ObjPtr<mirror::Class> klass, bool can_init_statics,
@@ -5186,12 +5186,12 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   {
     StackHandleScope<1> hs(self);
-    Handle<mirror::Class> return_type(hs.NewHandle(method1->GetReturnType(true /* resolve */)));
+    Handle<mirror::Class> return_type(hs.NewHandle(method1->ResolveReturnType()));
     if (UNLIKELY(return_type == nullptr)) {
       ThrowSignatureCheckResolveReturnTypeException(klass, super_klass, method1, method1);
       return false;
     }
-    ObjPtr<mirror::Class> other_return_type = method2->GetReturnType(true /* resolve */);
+    ObjPtr<mirror::Class> other_return_type = method2->ResolveReturnType();
     if (UNLIKELY(other_return_type == nullptr)) {
       ThrowSignatureCheckResolveReturnTypeException(klass, super_klass, method1, method2);
       return false;
@@ -5236,7 +5236,7 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
     StackHandleScope<1> hs(self);
     dex::TypeIndex param_type_idx = types1->GetTypeItem(i).type_idx_;
     Handle<mirror::Class> param_type(hs.NewHandle(
-        method1->GetClassFromTypeIndex(param_type_idx, true /* resolve */)));
+        method1->ResolveClassFromTypeIndex(param_type_idx)));
     if (UNLIKELY(param_type == nullptr)) {
       ThrowSignatureCheckResolveArgException(klass, super_klass, method1,
                                              method1, i, param_type_idx);
@@ -5244,7 +5244,7 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
     }
     dex::TypeIndex other_param_type_idx = types2->GetTypeItem(i).type_idx_;
     ObjPtr<mirror::Class> other_param_type =
-        method2->GetClassFromTypeIndex(other_param_type_idx, true /* resolve */);
+        method2->ResolveClassFromTypeIndex(other_param_type_idx);
     if (UNLIKELY(other_param_type == nullptr)) {
       ThrowSignatureCheckResolveArgException(klass, super_klass, method1,
                                              method2, i, other_param_type_idx);
@@ -8508,7 +8508,7 @@ mirror::MethodHandle* ClassLinker::ResolveMethodHandleForMethod(
     it.Next();
   }
 
-  Handle<mirror::Class> return_type = hs.NewHandle(target_method->GetReturnType(true));
+  Handle<mirror::Class> return_type = hs.NewHandle(target_method->ResolveReturnType());
   if (UNLIKELY(return_type.IsNull())) {
     DCHECK(self->IsExceptionPending());
     return nullptr;

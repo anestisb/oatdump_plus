@@ -2899,10 +2899,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       ArtMethod* called_method = VerifyInvocationArgs(inst, type, is_range);
       const RegType* return_type = nullptr;
       if (called_method != nullptr) {
-        mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_);
+        ObjPtr<mirror::Class> return_type_class = can_load_classes_
+            ? called_method->ResolveReturnType()
+            : called_method->LookupResolvedReturnType();
         if (return_type_class != nullptr) {
           return_type = &FromClass(called_method->GetReturnTypeDescriptor(),
-                                   return_type_class,
+                                   return_type_class.Ptr(),
                                    return_type_class->CannotBeAssignedFromOtherTypes());
         } else {
           DCHECK(!can_load_classes_ || self_->IsExceptionPending());
@@ -2942,10 +2944,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       } else {
         is_constructor = called_method->IsConstructor();
         return_type_descriptor = called_method->GetReturnTypeDescriptor();
-        mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_);
+        ObjPtr<mirror::Class> return_type_class = can_load_classes_
+            ? called_method->ResolveReturnType()
+            : called_method->LookupResolvedReturnType();
         if (return_type_class != nullptr) {
           return_type = &FromClass(return_type_descriptor,
-                                   return_type_class,
+                                   return_type_class.Ptr(),
                                    return_type_class->CannotBeAssignedFromOtherTypes());
         } else {
           DCHECK(!can_load_classes_ || self_->IsExceptionPending());
@@ -5261,10 +5265,12 @@ InstructionFlags* MethodVerifier::CurrentInsnFlags() {
 const RegType& MethodVerifier::GetMethodReturnType() {
   if (return_type_ == nullptr) {
     if (mirror_method_ != nullptr) {
-      mirror::Class* return_type_class = mirror_method_->GetReturnType(can_load_classes_);
+      ObjPtr<mirror::Class> return_type_class = can_load_classes_
+          ? mirror_method_->ResolveReturnType()
+          : mirror_method_->LookupResolvedReturnType();
       if (return_type_class != nullptr) {
         return_type_ = &FromClass(mirror_method_->GetReturnTypeDescriptor(),
-                                  return_type_class,
+                                  return_type_class.Ptr(),
                                   return_type_class->CannotBeAssignedFromOtherTypes());
       } else {
         DCHECK(!can_load_classes_ || self_->IsExceptionPending());

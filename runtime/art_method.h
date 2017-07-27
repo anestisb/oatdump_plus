@@ -376,8 +376,11 @@ class ArtMethod FINAL {
                                       PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Get the Class* from the type index into this method's dex cache.
-  mirror::Class* GetClassFromTypeIndex(dex::TypeIndex type_idx, bool resolve)
+  // Lookup the Class* from the type index into this method's dex cache.
+  ObjPtr<mirror::Class> LookupResolvedClassFromTypeIndex(dex::TypeIndex type_idx)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Resolve the Class* from the type index into this method's dex cache.
+  ObjPtr<mirror::Class> ResolveClassFromTypeIndex(dex::TypeIndex type_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if this method has the same name and signature of the other method.
@@ -592,9 +595,11 @@ class ArtMethod FINAL {
   const char* GetTypeDescriptorFromTypeIdx(dex::TypeIndex type_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // May cause thread suspension due to GetClassFromTypeIdx calling ResolveType this caused a large
-  // number of bugs at call sites.
-  mirror::Class* GetReturnType(bool resolve) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Lookup return type.
+  ObjPtr<mirror::Class> LookupResolvedReturnType() REQUIRES_SHARED(Locks::mutator_lock_);
+  // Resolve return type. May cause thread suspension due to GetClassFromTypeIdx
+  // calling ResolveType this caused a large number of bugs at call sites.
+  ObjPtr<mirror::Class> ResolveReturnType() REQUIRES_SHARED(Locks::mutator_lock_);
 
   mirror::ClassLoader* GetClassLoader() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -747,6 +752,8 @@ class ArtMethod FINAL {
 
   // Compare given pointer size to the image pointer size.
   static bool IsImagePointerSize(PointerSize pointer_size);
+
+  dex::TypeIndex GetReturnTypeIndex() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<typename T>
   ALWAYS_INLINE T GetNativePointer(MemberOffset offset, PointerSize pointer_size) const {

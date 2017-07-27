@@ -154,20 +154,22 @@ inline bool ArtMethod::HasSameDexCacheResolvedMethods(mirror::MethodDexCacheType
   return GetDexCacheResolvedMethods(pointer_size) == other_cache;
 }
 
-inline mirror::Class* ArtMethod::GetClassFromTypeIndex(dex::TypeIndex type_idx, bool resolve) {
-  // TODO: Refactor this function into two functions, Resolve...() and Lookup...()
-  // so that we can properly annotate it with no-suspension possible / suspension possible.
+inline ObjPtr<mirror::Class> ArtMethod::LookupResolvedClassFromTypeIndex(dex::TypeIndex type_idx) {
   ObjPtr<mirror::DexCache> dex_cache = GetDexCache();
   ObjPtr<mirror::Class> type = dex_cache->GetResolvedType(type_idx);
   if (UNLIKELY(type == nullptr)) {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (resolve) {
-      type = class_linker->ResolveType(type_idx, this);
-      CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
-    } else {
-      type = class_linker->LookupResolvedType(
-          *dex_cache->GetDexFile(), type_idx, dex_cache, GetClassLoader());
-    }
+    type = Runtime::Current()->GetClassLinker()->LookupResolvedType(
+        *dex_cache->GetDexFile(), type_idx, dex_cache, GetClassLoader());
+  }
+  return type.Ptr();
+}
+
+inline ObjPtr<mirror::Class> ArtMethod::ResolveClassFromTypeIndex(dex::TypeIndex type_idx) {
+  ObjPtr<mirror::DexCache> dex_cache = GetDexCache();
+  ObjPtr<mirror::Class> type = dex_cache->GetResolvedType(type_idx);
+  if (UNLIKELY(type == nullptr)) {
+    type = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, this);
+    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
   }
   return type.Ptr();
 }
@@ -294,7 +296,7 @@ inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
 
 inline bool ArtMethod::IsResolvedTypeIdx(dex::TypeIndex type_idx) {
   DCHECK(!IsProxyMethod());
-  return GetClassFromTypeIndex(type_idx, /* resolve */ false) != nullptr;
+  return LookupResolvedClassFromTypeIndex(type_idx) != nullptr;
 }
 
 inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {
@@ -403,13 +405,20 @@ inline void ArtMethod::SetDexCacheResolvedMethods(mirror::MethodDexCacheType* ne
                    pointer_size);
 }
 
-inline mirror::Class* ArtMethod::GetReturnType(bool resolve) {
+inline dex::TypeIndex ArtMethod::GetReturnTypeIndex() {
   DCHECK(!IsProxyMethod());
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
-  dex::TypeIndex return_type_idx = proto_id.return_type_idx_;
-  return GetClassFromTypeIndex(return_type_idx, resolve);
+  return proto_id.return_type_idx_;
+}
+
+inline ObjPtr<mirror::Class> ArtMethod::LookupResolvedReturnType() {
+  return LookupResolvedClassFromTypeIndex(GetReturnTypeIndex());
+}
+
+inline ObjPtr<mirror::Class> ArtMethod::ResolveReturnType() {
+  return ResolveClassFromTypeIndex(GetReturnTypeIndex());
 }
 
 inline bool ArtMethod::HasSingleImplementation() {

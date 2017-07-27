@@ -1948,7 +1948,7 @@ static bool IsReferenceTypeRefinement(ReferenceTypeInfo declared_rti,
           declared_rti.IsStrictSupertypeOf(actual_rti);
 }
 
-ReferenceTypeInfo HInliner::GetClassRTI(mirror::Class* klass) {
+ReferenceTypeInfo HInliner::GetClassRTI(ObjPtr<mirror::Class> klass) {
   return ReferenceTypePropagation::IsAdmissible(klass)
       ? ReferenceTypeInfo::Create(handles_->NewHandle(klass))
       : graph_->GetInexactObjectRti();
@@ -1976,9 +1976,8 @@ bool HInliner::ArgumentTypesMoreSpecific(HInvoke* invoke_instruction, ArtMethod*
        ++param_idx, ++input_idx) {
     HInstruction* input = invoke_instruction->InputAt(input_idx);
     if (input->GetType() == Primitive::kPrimNot) {
-      mirror::Class* param_cls = resolved_method->GetClassFromTypeIndex(
-          param_list->GetTypeItem(param_idx).type_idx_,
-          /* resolve */ false);
+      ObjPtr<mirror::Class> param_cls = resolved_method->LookupResolvedClassFromTypeIndex(
+          param_list->GetTypeItem(param_idx).type_idx_);
       if (IsReferenceTypeRefinement(GetClassRTI(param_cls),
                                     /* declared_can_be_null */ true,
                                     input)) {
@@ -2027,7 +2026,7 @@ void HInliner::FixUpReturnReferenceType(ArtMethod* resolved_method,
         // TODO: we could be more precise by merging the phi inputs but that requires
         // some functionality from the reference type propagation.
         DCHECK(return_replacement->IsPhi());
-        mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */);
+        ObjPtr<mirror::Class> cls = resolved_method->LookupResolvedReturnType();
         return_replacement->SetReferenceTypeInfo(GetClassRTI(cls));
       }
     }

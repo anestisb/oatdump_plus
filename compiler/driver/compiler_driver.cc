@@ -2452,7 +2452,8 @@ class InitializeClassVisitor : public CompilationVisitor {
 
   bool ResolveTypesOfMethods(Thread* self, ArtMethod* m)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    auto rtn_type = m->GetReturnType(true);  // return value is discarded because resolve will be done internally.
+    // Return value of ResolveReturnType() is discarded because resolve will be done internally.
+    ObjPtr<mirror::Class> rtn_type = m->ResolveReturnType();
     if (rtn_type == nullptr) {
       self->ClearException();
       return false;
@@ -2461,7 +2462,7 @@ class InitializeClassVisitor : public CompilationVisitor {
     if (types != nullptr) {
       for (uint32_t i = 0; i < types->Size(); ++i) {
         dex::TypeIndex param_type_idx = types->GetTypeItem(i).type_idx_;
-        auto param_type = m->GetClassFromTypeIndex(param_type_idx, true);
+        ObjPtr<mirror::Class> param_type = m->ResolveClassFromTypeIndex(param_type_idx);
         if (param_type == nullptr) {
           self->ClearException();
           return false;

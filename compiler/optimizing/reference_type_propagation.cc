@@ -848,7 +848,7 @@ void ReferenceTypePropagation::RTPVisitor::VisitInvoke(HInvoke* instr) {
 
   ScopedObjectAccess soa(Thread::Current());
   ArtMethod* method = instr->GetResolvedMethod();
-  mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(/* resolve */ false);
+  ObjPtr<mirror::Class> klass = (method == nullptr) ? nullptr : method->LookupResolvedReturnType();
   SetClassAsTypeInfo(instr, klass, /* is_exact */ false);
 }
 
