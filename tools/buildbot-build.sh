@@ -19,8 +19,6 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-source build/envsetup.sh >&/dev/null # for get_build_var
-
 # Logic for setting out_dir from build/make/core/envsetup.mk:
 if [[ -z $OUT_DIR ]]; then
   if [[ -z $OUT_DIR_COMMON_BASE ]]; then
@@ -32,7 +30,10 @@ else
   out_dir=${OUT_DIR}
 fi
 
-using_jack=$(get_build_var ANDROID_COMPILE_WITH_JACK)
+using_jack=true
+if [[ $ANDROID_COMPILE_WITH_JACK == false ]]; then
+  using_jack=false
+fi
 
 java_libraries_dir=${out_dir}/target/common/obj/JAVA_LIBRARIES
 common_targets="vogar core-tests apache-harmony-jdwp-tests-hostdex jsr166-tests mockito-target"
@@ -62,7 +63,7 @@ while true; do
   fi
 done
 
-if [[ $using_jack == "true" ]]; then
+if $using_jack; then
   common_targets="$common_targets ${out_dir}/host/linux-x86/bin/jack"
 fi
 
