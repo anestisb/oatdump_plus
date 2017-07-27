@@ -426,6 +426,21 @@ public class Main {
     }
   }
 
+  // Environment of an instruction, removed during SimplifyInduction, should be adjusted.
+  //
+  /// CHECK-START: void Main.inductionMax(int[]) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: void Main.inductionMax(int[]) loop_optimization (after)
+  /// CHECK-NOT: Phi
+  private static void inductionMax(int[] a) {
+   int s = 0;
+    for (int i = 0; i < 10; i++) {
+      s = Math.max(s, 5);
+    }
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -538,6 +553,8 @@ public class Main {
     for (int i = 0; i < 259; i++) {
       expectEquals((byte)(i + 1), b1[i]);
     }
+
+    inductionMax(yy);
 
     System.out.println("passed");
   }

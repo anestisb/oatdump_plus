@@ -90,13 +90,43 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
   }
 }
 
-static void RemoveEnvironmentUses(HInstruction* instruction) {
+// Remove the environment use records of the instruction for users.
+void RemoveEnvironmentUses(HInstruction* instruction) {
   for (HEnvironment* environment = instruction->GetEnvironment();
        environment != nullptr;
        environment = environment->GetParent()) {
     for (size_t i = 0, e = environment->Size(); i < e; ++i) {
       if (environment->GetInstructionAt(i) != nullptr) {
         environment->RemoveAsUserOfInput(i);
+      }
+    }
+  }
+}
+
+// Return whether the instruction has an environment and it's used by others.
+bool HasEnvironmentUsedByOthers(HInstruction* instruction) {
+  for (HEnvironment* environment = instruction->GetEnvironment();
+       environment != nullptr;
+       environment = environment->GetParent()) {
+    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
+      HInstruction* user = environment->GetInstructionAt(i);
+      if (user != nullptr) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Reset environment records of the instruction itself.
+void ResetEnvironmentInputRecords(HInstruction* instruction) {
+  for (HEnvironment* environment = instruction->GetEnvironment();
+       environment != nullptr;
+       environment = environment->GetParent()) {
+    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
+      DCHECK(environment->GetHolder() == instruction);
+      if (environment->GetInstructionAt(i) != nullptr) {
+        environment->SetRawEnvAt(i, nullptr);
       }
     }
   }
