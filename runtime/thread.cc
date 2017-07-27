@@ -569,7 +569,14 @@ void Thread::InstallImplicitProtection() {
       // Use a large local volatile array to ensure a large frame size. Do not use anything close
       // to a full page for ASAN. It would be nice to ensure the frame size is at most a page, but
       // there is no pragma support for this.
-      volatile char space[kPageSize - 256];
+      // Note: for ASAN we need to shrink the array a bit, as there's other overhead.
+      constexpr size_t kAsanMultiplier =
+#ifdef ADDRESS_SANITIZER
+          2u;
+#else
+          1u;
+#endif
+      volatile char space[kPageSize - (kAsanMultiplier * 256)];
       char sink ATTRIBUTE_UNUSED = space[zero];
       if (reinterpret_cast<uintptr_t>(space) >= target + kPageSize) {
         Touch(target);
