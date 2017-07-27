@@ -196,6 +196,10 @@ class Instrumentation {
   }
   bool ShouldNotifyMethodEnterExitEvents() const REQUIRES_SHARED(Locks::mutator_lock_);
 
+  bool CanDeoptimize() {
+    return deoptimization_enabled_;
+  }
+
   // Executes everything with interpreter.
   void DeoptimizeEverything(const char* key)
       REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)

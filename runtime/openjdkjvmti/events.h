@@ -210,6 +210,7 @@ class EventHandler {
                                                            unsigned char** new_class_data) const;
 
   void HandleEventType(ArtJvmtiEvent event, bool enable);
+  void HandleLocalAccessCapabilityAdded();
 
   // List of all JvmTiEnv objects that have been created, in their creation order.
   // NB Some elements might be null representing envs that have been deleted. They should be skipped

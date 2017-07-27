@@ -43,7 +43,7 @@ void CheckJvmtiError(jvmtiEnv* env, jvmtiError error);
 
 // Convert the given error to a RuntimeException with a message derived from the error. Returns
 // true on error, false if error is JVMTI_ERROR_NONE.
-bool JvmtiErrorToException(JNIEnv* env, jvmtiEnv* jvmti_env, jvmtiError error);
+bool JvmtiErrorToException(JNIEnv* env, jvmtiEnv* jvmtienv, jvmtiError error);
 
 class JvmtiDeleter {
  public:

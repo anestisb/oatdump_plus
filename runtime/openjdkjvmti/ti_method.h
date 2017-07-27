@@ -34,6 +34,7 @@
 
 #include "jni.h"
 #include "jvmti.h"
+#include "primitive.h"
 
 namespace openjdkjvmti {
 
@@ -80,6 +81,32 @@ class MethodUtil {
   static jvmtiError IsMethodNative(jvmtiEnv* env, jmethodID method, jboolean* is_native_ptr);
   static jvmtiError IsMethodObsolete(jvmtiEnv* env, jmethodID method, jboolean* is_obsolete_ptr);
   static jvmtiError IsMethodSynthetic(jvmtiEnv* env, jmethodID method, jboolean* is_synthetic_ptr);
+  static jvmtiError GetLocalVariableTable(jvmtiEnv* env,
+                                          jmethodID method,
+                                          jint* entry_count_ptr,
+                                          jvmtiLocalVariableEntry** table_ptr);
+
+  template<typename T>
+  static jvmtiError SetLocalVariable(jvmtiEnv* env, jthread thread, jint depth, jint slot, T data);
+
+  template<typename T>
+  static jvmtiError GetLocalVariable(jvmtiEnv* env, jthread thread, jint depth, jint slot, T* data);
+
+  static jvmtiError GetLocalInstance(jvmtiEnv* env, jthread thread, jint depth, jobject* data);
+
+ private:
+  static jvmtiError SetLocalVariableGeneric(jvmtiEnv* env,
+                                            jthread thread,
+                                            jint depth,
+                                            jint slot,
+                                            art::Primitive::Type type,
+                                            jvalue value);
+  static jvmtiError GetLocalVariableGeneric(jvmtiEnv* env,
+                                            jthread thread,
+                                            jint depth,
+                                            jint slot,
+                                            art::Primitive::Type type,
+                                            jvalue* value);
 };
 
 }  // namespace openjdkjvmti

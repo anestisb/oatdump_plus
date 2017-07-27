@@ -453,6 +453,10 @@ fi
 
 if [ "$USE_JVM" = "y" ]; then
   export LD_LIBRARY_PATH=${ANDROID_HOST_OUT}/lib64
+  # Some jvmti tests are flaky without -Xint on the RI.
+  if [ "$IS_JVMTI_TEST" = "y" ]; then
+    FLAGS="${FLAGS} -Xint"
+  fi
   # Xmx is necessary since we don't pass down the ART flags to JVM.
   # We pass the classes2 path whether it's used (src-multidex) or not.
   cmdline="${JAVA} ${DEBUGGER_OPTS} ${JVM_VERIFY_ARG} -Xmx256m -classpath classes:classes2 ${FLAGS} $MAIN $@ ${ARGS}"

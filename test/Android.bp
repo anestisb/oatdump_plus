@@ -252,8 +252,10 @@ art_cc_defaults {
         "ti-agent/test_env.cc",
         "ti-agent/breakpoint_helper.cc",
         "ti-agent/common_helper.cc",
+        "ti-agent/locals_helper.cc",
         "ti-agent/redefinition_helper.cc",
         "ti-agent/suspension_helper.cc",
+        "ti-agent/stack_trace_helper.cc",
         "ti-agent/trace_helper.cc",
         // This is the list of non-special OnLoad things and excludes BCI and anything that depends
         // on ART internals.
@@ -292,6 +294,7 @@ art_cc_defaults {
         "1905-suspend-native/native_suspend.cc",
         "1908-suspend-native-resume-self/native_suspend_resume.cc",
         "1909-per-agent-tls/agent_tls.cc",
+        "1914-get-local-instance/local_instance.cc",
     ],
     shared_libs: [
         "libbase",

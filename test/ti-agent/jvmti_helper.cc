@@ -15,6 +15,7 @@
  */
 
 #include "jvmti_helper.h"
+#include "test_env.h"
 
 #include <dlfcn.h>
 
@@ -90,6 +91,11 @@ jvmtiCapabilities GetStandardCapabilities() {
 }
 
 void SetStandardCapabilities(jvmtiEnv* env) {
+  if (IsJVM()) {
+    // RI is more strict about adding capabilities at runtime then ART so just give it everything.
+    SetAllCapabilities(env);
+    return;
+  }
   jvmtiCapabilities caps = GetStandardCapabilities();
   CheckJvmtiError(env, env->AddCapabilities(&caps));
 }
@@ -100,7 +106,7 @@ void SetAllCapabilities(jvmtiEnv* env) {
   CheckJvmtiError(env, env->AddCapabilities(&caps));
 }
 
-bool JvmtiErrorToException(JNIEnv* env, jvmtiEnv* jvmti_env, jvmtiError error) {
+bool JvmtiErrorToException(JNIEnv* env, jvmtiEnv* jvmtienv, jvmtiError error) {
   if (error == JVMTI_ERROR_NONE) {
     return false;
   }
@@ -112,11 +118,11 @@ bool JvmtiErrorToException(JNIEnv* env, jvmtiEnv* jvmti_env, jvmtiError error) {
   }
 
   char* err;
-  CheckJvmtiError(jvmti_env, jvmti_env->GetErrorName(error, &err));
+  CheckJvmtiError(jvmtienv, jvmtienv->GetErrorName(error, &err));
 
   env->ThrowNew(rt_exception.get(), err);
 
-  Deallocate(jvmti_env, err);
+  Deallocate(jvmtienv, err);
   return true;
 }
 
