@@ -524,7 +524,9 @@ class JFuzzTester(object):
       jfuzz_args = ['\'-{0}\''.format(arg)
                     for arg in jfuzz_cmd_str.strip().split(' -')][1:]
       wrapped_args = ['--jfuzz_arg={0}'.format(opt) for opt in jfuzz_args]
-      repro_cmd_str = (os.path.basename(__file__) + ' --num_tests 1 ' +
+      repro_cmd_str = (os.path.basename(__file__) +
+                       ' --num_tests=1 ' +
+                       ('--use_dx ' if self._use_dx else '') +
                        ' '.join(wrapped_args))
       comment = 'jfuzz {0}\nReproduce test:\n{1}\nReproduce divergence:\n{2}\n'.format(
           jfuzz_ver, jfuzz_cmd_str, repro_cmd_str)
