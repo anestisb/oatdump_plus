@@ -2332,7 +2332,7 @@ class InitializeClassVisitor : public CompilationVisitor {
             // checks in Thread::AssertThreadSuspensionIsAllowable.
             Runtime* const runtime = Runtime::Current();
             // Run the class initializer in transaction mode.
-            runtime->EnterTransactionMode(klass.Get());
+            runtime->EnterTransactionMode(is_app_image, klass.Get());
             bool success = manager_->GetClassLinker()->EnsureInitialized(soa.Self(), klass, true,
                                                                          true);
             // TODO we detach transaction from runtime to indicate we quit the transactional
@@ -2359,7 +2359,7 @@ class InitializeClassVisitor : public CompilationVisitor {
                   *file_log << exception->Dump() << "\n";
                 }
                 soa.Self()->ClearException();
-                runtime->RollbackAndExitTransactionMode();
+                runtime->RollbackAllTransactions();
                 CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
               } else if (is_boot_image) {
                 // For boot image, we want to put the updated status in the oat class since we can't
