@@ -762,15 +762,16 @@ const DexFile::AnnotationItem* GetAnnotationItemFromAnnotationSet(
     }
     const uint8_t* annotation = annotation_item->annotation_;
     uint32_t type_index = DecodeUnsignedLeb128(&annotation);
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Thread* self = Thread::Current();
     mirror::Class* resolved_class;
     if (lookup_in_resolved_boot_classes) {
+      // Note: We cannot use ClassLinker::LookupResolvedType() because the current DexCache
+      // may not be registered with the boot class path ClassLoader and we must not pollute
+      // the DexCache with classes that are not in the associated ClassLoader's ClassTable.
+      const char* descriptor = dex_file.StringByTypeIdx(dex::TypeIndex(type_index));
       ObjPtr<mirror::Class> looked_up_class =
-          Runtime::Current()->GetClassLinker()->LookupResolvedType(
-              klass.GetDexFile(),
-              dex::TypeIndex(type_index),
-              klass.GetDexCache(),
-              // Force the use of the bootstrap class loader.
-              static_cast<mirror::ClassLoader*>(nullptr));
+          class_linker->LookupClass(self, descriptor, /* class_loader */ nullptr);
       resolved_class = looked_up_class.Ptr();
       if (resolved_class == nullptr) {
         // If `resolved_class` is null, this is fine: just ignore that
@@ -779,8 +780,8 @@ const DexFile::AnnotationItem* GetAnnotationItemFromAnnotationSet(
         continue;
       }
     } else {
-      StackHandleScope<2> hs(Thread::Current());
-      resolved_class = Runtime::Current()->GetClassLinker()->ResolveType(
+      StackHandleScope<2> hs(self);
+      resolved_class = class_linker->ResolveType(
           klass.GetDexFile(),
           dex::TypeIndex(type_index),
           hs.NewHandle(klass.GetDexCache()),
@@ -789,8 +790,8 @@ const DexFile::AnnotationItem* GetAnnotationItemFromAnnotationSet(
         std::string temp;
         LOG(WARNING) << StringPrintf("Unable to resolve %s annotation class %d",
                                      klass.GetRealClass()->GetDescriptor(&temp), type_index);
-        CHECK(Thread::Current()->IsExceptionPending());
-        Thread::Current()->ClearException();
+        CHECK(self->IsExceptionPending());
+        self->ClearException();
         continue;
       }
     }
