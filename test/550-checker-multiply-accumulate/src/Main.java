@@ -434,7 +434,7 @@ public class Main {
   /// CHECK-DAG:     VecMultiplyAccumulate kind:Add loop:<<Loop>>      outer_loop:none
 
   /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier_arm64 (after)
-  /// CHECK-NOT:     VecMull
+  /// CHECK-NOT:     VecMul
   /// CHECK-NOT:     VecAdd
   public static void SimdMulAdd(int[] array1, int[] array2) {
     for (int j = 0; j < 100; j++) {
@@ -452,7 +452,7 @@ public class Main {
   /// CHECK-DAG:     VecMultiplyAccumulate kind:Sub loop:<<Loop>>      outer_loop:none
 
   /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier_arm64 (after)
-  /// CHECK-NOT:     VecMull
+  /// CHECK-NOT:     VecMul
   /// CHECK-NOT:     VecSub
   public static void SimdMulSub(int[] array1, int[] array2) {
     for (int j = 0; j < 100; j++) {
