@@ -256,6 +256,35 @@ static bool IsAddConst(HInstruction* instruction,
   return false;
 }
 
+// Detect reductions of the following forms,
+// under assumption phi has only *one* use:
+//   x = x_phi + ..
+//   x = x_phi - ..
+//   x = max(x_phi, ..)
+//   x = min(x_phi, ..)
+static bool HasReductionFormat(HInstruction* reduction, HInstruction* phi) {
+  if (reduction->IsAdd()) {
+    return reduction->InputAt(0) == phi || reduction->InputAt(1) == phi;
+  } else if (reduction->IsSub()) {
+    return reduction->InputAt(0) == phi;
+  } else if (reduction->IsInvokeStaticOrDirect()) {
+    switch (reduction->AsInvokeStaticOrDirect()->GetIntrinsic()) {
+      case Intrinsics::kMathMinIntInt:
+      case Intrinsics::kMathMinLongLong:
+      case Intrinsics::kMathMinFloatFloat:
+      case Intrinsics::kMathMinDoubleDouble:
+      case Intrinsics::kMathMaxIntInt:
+      case Intrinsics::kMathMaxLongLong:
+      case Intrinsics::kMathMaxFloatFloat:
+      case Intrinsics::kMathMaxDoubleDouble:
+        return reduction->InputAt(0) == phi || reduction->InputAt(1) == phi;
+      default:
+        return false;
+    }
+  }
+  return false;
+}
+
 // Test vector restrictions.
 static bool HasVectorRestrictions(uint64_t restrictions, uint64_t tested) {
   return (restrictions & tested) != 0;
@@ -280,12 +309,11 @@ static bool CheckInductionSetFullyRemoved(ArenaSet<HInstruction*>* iset) {
       return false;
     }
   }
-
   return true;
 }
 
 //
-// Class methods.
+// Public methods.
 //
 
 HLoopOptimization::HLoopOptimization(HGraph* graph,
@@ -299,7 +327,7 @@ HLoopOptimization::HLoopOptimization(HGraph* graph,
       top_loop_(nullptr),
       last_loop_(nullptr),
       iset_(nullptr),
-      induction_simplication_count_(0),
+      reductions_(nullptr),
       simplified_(false),
       vector_length_(0),
       vector_refs_(nullptr),
@@ -333,6 +361,10 @@ void HLoopOptimization::Run() {
   last_loop_ = top_loop_ = nullptr;
 }
 
+//
+// Loop setup and traversal.
+//
+
 void HLoopOptimization::LocalRun() {
   // Build the linear order using the phase-local allocator. This step enables building
   // a loop hierarchy that properly reflects the outer-inner and previous-next relation.
@@ -351,17 +383,21 @@ void HLoopOptimization::LocalRun() {
   // should use the global allocator.
   if (top_loop_ != nullptr) {
     ArenaSet<HInstruction*> iset(loop_allocator_->Adapter(kArenaAllocLoopOptimization));
+    ArenaSafeMap<HInstruction*, HInstruction*> reds(
+        std::less<HInstruction*>(), loop_allocator_->Adapter(kArenaAllocLoopOptimization));
     ArenaSet<ArrayReference> refs(loop_allocator_->Adapter(kArenaAllocLoopOptimization));
     ArenaSafeMap<HInstruction*, HInstruction*> map(
         std::less<HInstruction*>(), loop_allocator_->Adapter(kArenaAllocLoopOptimization));
     // Attach.
     iset_ = &iset;
+    reductions_ = &reds;
     vector_refs_ = &refs;
     vector_map_ = &map;
     // Traverse.
     TraverseLoopsInnerToOuter(top_loop_);
     // Detach.
     iset_ = nullptr;
+    reductions_ = nullptr;
     vector_refs_ = nullptr;
     vector_map_ = nullptr;
   }
@@ -414,16 +450,12 @@ void HLoopOptimization::RemoveLoop(LoopNode* node) {
   }
 }
 
-void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
+bool HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
+  bool changed = false;
   for ( ; node != nullptr; node = node->next) {
-    // Visit inner loops first.
-    uint32_t current_induction_simplification_count = induction_simplication_count_;
-    if (node->inner != nullptr) {
-      TraverseLoopsInnerToOuter(node->inner);
-    }
-    // Recompute induction information of this loop if the induction
-    // of any inner loop has been simplified.
-    if (current_induction_simplification_count != induction_simplication_count_) {
+    // Visit inner loops first. Recompute induction information for this
+    // loop if the induction of any inner loop has changed.
+    if (TraverseLoopsInnerToOuter(node->inner)) {
       induction_range_.ReVisit(node->loop_info);
     }
     // Repeat simplifications in the loop-body until no more changes occur.
@@ -433,12 +465,14 @@ void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
       simplified_ = false;
       SimplifyInduction(node);
       SimplifyBlocks(node);
+      changed = simplified_ || changed;
     } while (simplified_);
     // Optimize inner loop.
     if (node->inner == nullptr) {
-      OptimizeInnerLoop(node);
+      changed = OptimizeInnerLoop(node) || changed;
     }
   }
+  return changed;
 }
 
 //
@@ -455,21 +489,14 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
   //           for (int i = 0; i < 10; i++, k++) { .... no k .... } return k;
   for (HInstructionIterator it(header->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
-    iset_->clear();  // prepare phi induction
     if (TrySetPhiInduction(phi, /*restrict_uses*/ true) &&
+        CanRemoveCycle() &&
         TryAssignLastValue(node->loop_info, phi, preheader, /*collect_loop_uses*/ false)) {
-      // Note that it's ok to have replaced uses after the loop with the last value, without
-      // being able to remove the cycle. Environment uses (which are the reason we may not be
-      // able to remove the cycle) within the loop will still hold the right value.
-      if (CanRemoveCycle()) {
-        for (HInstruction* i : *iset_) {
-          RemoveFromCycle(i);
-        }
-
-        // Check that there are no records of the deleted instructions.
-        DCHECK(CheckInductionSetFullyRemoved(iset_));
-        simplified_ = true;
+      simplified_ = true;
+      for (HInstruction* i : *iset_) {
+        RemoveFromCycle(i);
       }
+      DCHECK(CheckInductionSetFullyRemoved(iset_));
     }
   }
 }
@@ -511,21 +538,20 @@ void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
   }
 }
 
-void HLoopOptimization::OptimizeInnerLoop(LoopNode* node) {
+bool HLoopOptimization::OptimizeInnerLoop(LoopNode* node) {
   HBasicBlock* header = node->loop_info->GetHeader();
   HBasicBlock* preheader = node->loop_info->GetPreHeader();
   // Ensure loop header logic is finite.
   int64_t trip_count = 0;
   if (!induction_range_.IsFinite(node->loop_info, &trip_count)) {
-    return;
+    return false;
   }
-
   // Ensure there is only a single loop-body (besides the header).
   HBasicBlock* body = nullptr;
   for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
     if (it.Current() != header) {
       if (body != nullptr) {
-        return;
+        return false;
       }
       body = it.Current();
     }
@@ -533,27 +559,27 @@ void HLoopOptimization::OptimizeInnerLoop(LoopNode* node) {
   CHECK(body != nullptr);
   // Ensure there is only a single exit point.
   if (header->GetSuccessors().size() != 2) {
-    return;
+    return false;
   }
   HBasicBlock* exit = (header->GetSuccessors()[0] == body)
       ? header->GetSuccessors()[1]
       : header->GetSuccessors()[0];
   // Ensure exit can only be reached by exiting loop.
   if (exit->GetPredecessors().size() != 1) {
-    return;
+    return false;
   }
   // Detect either an empty loop (no side effects other than plain iteration) or
   // a trivial loop (just iterating once). Replace subsequent index uses, if any,
   // with the last value and remove the loop, possibly after unrolling its body.
-  HInstruction* phi = header->GetFirstPhi();
-  iset_->clear();  // prepare phi induction
-  if (TrySetSimpleLoopHeader(header)) {
+  HPhi* main_phi = nullptr;
+  if (TrySetSimpleLoopHeader(header, &main_phi)) {
     bool is_empty = IsEmptyBody(body);
-    if ((is_empty || trip_count == 1) &&
-        TryAssignLastValue(node->loop_info, phi, preheader, /*collect_loop_uses*/ true)) {
+    if (reductions_->empty() &&  // TODO: possible with some effort
+        (is_empty || trip_count == 1) &&
+        TryAssignLastValue(node->loop_info, main_phi, preheader, /*collect_loop_uses*/ true)) {
       if (!is_empty) {
         // Unroll the loop-body, which sees initial value of the index.
-        phi->ReplaceWith(phi->InputAt(0));
+        main_phi->ReplaceWith(main_phi->InputAt(0));
         preheader->MergeInstructionsWith(body);
       }
       body->DisconnectAndDelete();
@@ -566,21 +592,20 @@ void HLoopOptimization::OptimizeInnerLoop(LoopNode* node) {
       preheader->AddDominatedBlock(exit);
       exit->SetDominator(preheader);
       RemoveLoop(node);  // update hierarchy
-      return;
+      return true;
     }
   }
-
   // Vectorize loop, if possible and valid.
-  if (kEnableVectorization) {
-    iset_->clear();  // prepare phi induction
-    if (TrySetSimpleLoopHeader(header) &&
-        ShouldVectorize(node, body, trip_count) &&
-        TryAssignLastValue(node->loop_info, phi, preheader, /*collect_loop_uses*/ true)) {
-      Vectorize(node, body, exit, trip_count);
-      graph_->SetHasSIMD(true);  // flag SIMD usage
-      return;
-    }
+  if (kEnableVectorization &&
+      TrySetSimpleLoopHeader(header, &main_phi) &&
+      reductions_->empty() &&  // TODO: possible with some effort
+      ShouldVectorize(node, body, trip_count) &&
+      TryAssignLastValue(node->loop_info, main_phi, preheader, /*collect_loop_uses*/ true)) {
+    Vectorize(node, body, exit, trip_count);
+    graph_->SetHasSIMD(true);  // flag SIMD usage
+    return true;
   }
+  return false;
 }
 
 //
@@ -621,6 +646,8 @@ bool HLoopOptimization::ShouldVectorize(LoopNode* node, HBasicBlock* block, int6
   // aliased, as well as the property that references either point to the same
   // array or to two completely disjoint arrays, i.e., no partial aliasing.
   // Other than a few simply heuristics, no detailed subscript analysis is done.
+  // The scan over references also finds a suitable dynamic loop peeling candidate.
+  const ArrayReference* candidate = nullptr;
   for (auto i = vector_refs_->begin(); i != vector_refs_->end(); ++i) {
     for (auto j = i; ++j != vector_refs_->end(); ) {
       if (i->type == j->type && (i->lhs || j->lhs)) {
@@ -656,7 +683,7 @@ bool HLoopOptimization::ShouldVectorize(LoopNode* node, HBasicBlock* block, int6
   }
 
   // Consider dynamic loop peeling for alignment.
-  SetPeelingCandidate(trip_count);
+  SetPeelingCandidate(candidate, trip_count);
 
   // Success!
   return true;
@@ -679,14 +706,15 @@ void HLoopOptimization::Vectorize(LoopNode* node,
   bool needs_cleanup = trip_count == 0 || (trip_count % chunk) != 0;
 
   // Adjust vector bookkeeping.
-  iset_->clear();  // prepare phi induction
-  bool is_simple_loop_header = TrySetSimpleLoopHeader(header);  // fills iset_
+  HPhi* main_phi = nullptr;
+  bool is_simple_loop_header = TrySetSimpleLoopHeader(header, &main_phi);  // refills sets
   DCHECK(is_simple_loop_header);
   vector_header_ = header;
   vector_body_ = block;
 
-  // Generate dynamic loop peeling trip count, if needed:
-  // ptc = <peeling-needed-for-candidate>
+  // Generate dynamic loop peeling trip count, if needed, under the assumption
+  // that the Android runtime guarantees at least "component size" alignment:
+  // ptc = (ALIGN - (&a[initial] % ALIGN)) / type-size
   HInstruction* ptc = nullptr;
   if (vector_peeling_candidate_ != nullptr) {
     DCHECK_LT(vector_length_, trip_count) << "dynamic peeling currently requires known trip count";
@@ -775,6 +803,7 @@ void HLoopOptimization::Vectorize(LoopNode* node,
   while (!header->GetFirstInstruction()->IsGoto()) {
     header->RemoveInstruction(header->GetFirstInstruction());
   }
+
   // Update loop hierarchy: the old header now resides in the same outer loop
   // as the old preheader. Note that we don't bother putting sequential
   // loops back in the hierarchy at this point.
@@ -841,13 +870,12 @@ void HLoopOptimization::GenerateNewLoop(LoopNode* node,
     vector_index_ = new (global_allocator_) HAdd(induc_type, vector_index_, step);
     Insert(vector_body_, vector_index_);
   }
-  // Finalize phi for the loop index.
+  // Finalize phi inputs for the loop index.
   phi->AddInput(lo);
   phi->AddInput(vector_index_);
   vector_index_ = phi;
 }
 
-// TODO: accept reductions at left-hand-side, mixed-type store idioms, etc.
 bool HLoopOptimization::VectorizeDef(LoopNode* node,
                                      HInstruction* instruction,
                                      bool generate_code) {
@@ -1118,7 +1146,7 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
     case kArm:
     case kThumb2:
       // Allow vectorization for all ARM devices, because Android assumes that
-      // ARM 32-bit always supports advanced SIMD.
+      // ARM 32-bit always supports advanced SIMD (64-bit SIMD).
       switch (type) {
         case Primitive::kPrimBoolean:
         case Primitive::kPrimByte:
@@ -1137,7 +1165,7 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
       return false;
     case kArm64:
       // Allow vectorization for all ARM devices, because Android assumes that
-      // ARMv8 AArch64 always supports advanced SIMD.
+      // ARMv8 AArch64 always supports advanced SIMD (128-bit SIMD).
       switch (type) {
         case Primitive::kPrimBoolean:
         case Primitive::kPrimByte:
@@ -1162,7 +1190,7 @@ bool HLoopOptimization::TrySetVectorType(Primitive::Type type, uint64_t* restric
       }
     case kX86:
     case kX86_64:
-      // Allow vectorization for SSE4-enabled X86 devices only (128-bit vectors).
+      // Allow vectorization for SSE4.1-enabled X86 devices only (128-bit SIMD).
       if (features->AsX86InstructionSetFeatures()->HasSSE4_1()) {
         switch (type) {
           case Primitive::kPrimBoolean:
@@ -1310,8 +1338,6 @@ void HLoopOptimization::GenerateVecMem(HInstruction* org,
           global_allocator_, base, opa, type, vector_length_, is_string_char_at);
     }
     // Known dynamically enforced alignment?
-    // TODO: detect offset + constant differences.
-    // TODO: long run, static alignment analysis?
     if (vector_peeling_candidate_ != nullptr &&
         vector_peeling_candidate_->base == base &&
         vector_peeling_candidate_->offset == offset) {
@@ -1586,9 +1612,11 @@ bool HLoopOptimization::IsVectorizationProfitable(int64_t trip_count) {
   return true;
 }
 
-void HLoopOptimization::SetPeelingCandidate(int64_t trip_count ATTRIBUTE_UNUSED) {
+void HLoopOptimization::SetPeelingCandidate(const ArrayReference* candidate,
+                                            int64_t trip_count ATTRIBUTE_UNUSED) {
   // Current heuristic: none.
   // TODO: implement
+  vector_peeling_candidate_ = candidate;
 }
 
 uint32_t HLoopOptimization::GetUnrollingFactor(HBasicBlock* block, int64_t trip_count) {
@@ -1616,13 +1644,17 @@ uint32_t HLoopOptimization::GetUnrollingFactor(HBasicBlock* block, int64_t trip_
 //
 
 bool HLoopOptimization::TrySetPhiInduction(HPhi* phi, bool restrict_uses) {
+  // Start with empty phi induction.
+  iset_->clear();
+
   // Special case Phis that have equivalent in a debuggable setup. Our graph checker isn't
   // smart enough to follow strongly connected components (and it's probably not worth
   // it to make it so). See b/33775412.
   if (graph_->IsDebuggable() && phi->HasEquivalentPhi()) {
     return false;
   }
-  DCHECK(iset_->empty());
+
+  // Lookup phi induction cycle.
   ArenaSet<HInstruction*>* set = induction_range_.LookupCycle(phi);
   if (set != nullptr) {
     for (HInstruction* i : *set) {
@@ -1634,6 +1666,7 @@ bool HLoopOptimization::TrySetPhiInduction(HPhi* phi, bool restrict_uses) {
       } else if (!i->IsRemovable()) {
         return false;
       } else if (i != phi && restrict_uses) {
+        // Deal with regular uses.
         for (const HUseListNode<HInstruction*>& use : i->GetUses()) {
           if (set->find(use.GetUser()) == set->end()) {
             return false;
@@ -1647,17 +1680,65 @@ bool HLoopOptimization::TrySetPhiInduction(HPhi* phi, bool restrict_uses) {
   return false;
 }
 
-// Find: phi: Phi(init, addsub)
-//       s:   SuspendCheck
-//       c:   Condition(phi, bound)
-//       i:   If(c)
-// TODO: Find a less pattern matching approach?
-bool HLoopOptimization::TrySetSimpleLoopHeader(HBasicBlock* block) {
+bool HLoopOptimization::TrySetPhiReduction(HPhi* phi) {
   DCHECK(iset_->empty());
-  HInstruction* phi = block->GetFirstPhi();
-  if (phi != nullptr &&
-      phi->GetNext() == nullptr &&
-      TrySetPhiInduction(phi->AsPhi(), /*restrict_uses*/ false)) {
+  // Only unclassified phi cycles are candidates for reductions.
+  if (induction_range_.IsClassified(phi)) {
+    return false;
+  }
+  // Accept operations like x = x + .., provided that the phi and the reduction are
+  // used exactly once inside the loop, and by each other.
+  HInputsRef inputs = phi->GetInputs();
+  if (inputs.size() == 2) {
+    HInstruction* reduction = inputs[1];
+    if (HasReductionFormat(reduction, phi)) {
+      HLoopInformation* loop_info = phi->GetBlock()->GetLoopInformation();
+      int32_t use_count = 0;
+      bool single_use_inside_loop =
+          // Reduction update only used by phi.
+          reduction->GetUses().HasExactlyOneElement() &&
+          !reduction->HasEnvironmentUses() &&
+          // Reduction update is only use of phi inside the loop.
+          IsOnlyUsedAfterLoop(loop_info, phi, /*collect_loop_uses*/ true, &use_count) &&
+          iset_->size() == 1;
+      iset_->clear();  // leave the way you found it
+      if (single_use_inside_loop) {
+        // Link reduction back, and start recording feed value.
+        reductions_->Put(reduction, phi);
+        reductions_->Put(phi, phi->InputAt(0));
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool HLoopOptimization::TrySetSimpleLoopHeader(HBasicBlock* block, /*out*/ HPhi** main_phi) {
+  // Start with empty phi induction and reductions.
+  iset_->clear();
+  reductions_->clear();
+
+  // Scan the phis to find the following (the induction structure has already
+  // been optimized, so we don't need to worry about trivial cases):
+  // (1) optional reductions in loop,
+  // (2) the main induction, used in loop control.
+  HPhi* phi = nullptr;
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    if (TrySetPhiReduction(it.Current()->AsPhi())) {
+      continue;
+    } else if (phi == nullptr) {
+      // Found the first candidate for main induction.
+      phi = it.Current()->AsPhi();
+    } else {
+      return false;
+    }
+  }
+
+  // Then test for a typical loopheader:
+  //   s:  SuspendCheck
+  //   c:  Condition(phi, bound)
+  //   i:  If(c)
+  if (phi != nullptr && TrySetPhiInduction(phi, /*restrict_uses*/ false)) {
     HInstruction* s = block->GetFirstInstruction();
     if (s != nullptr && s->IsSuspendCheck()) {
       HInstruction* c = s->GetNext();
@@ -1669,6 +1750,7 @@ bool HLoopOptimization::TrySetSimpleLoopHeader(HBasicBlock* block) {
         if (i != nullptr && i->IsIf() && i->InputAt(0) == c) {
           iset_->insert(c);
           iset_->insert(s);
+          *main_phi = phi;
           return true;
         }
       }
@@ -1692,6 +1774,7 @@ bool HLoopOptimization::IsEmptyBody(HBasicBlock* block) {
 
 bool HLoopOptimization::IsUsedOutsideLoop(HLoopInformation* loop_info,
                                           HInstruction* instruction) {
+  // Deal with regular uses.
   for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
     if (use.GetUser()->GetBlock()->GetLoopInformation() != loop_info) {
       return true;
@@ -1704,6 +1787,7 @@ bool HLoopOptimization::IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
                                             HInstruction* instruction,
                                             bool collect_loop_uses,
                                             /*out*/ int32_t* use_count) {
+  // Deal with regular uses.
   for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
     HInstruction* user = use.GetUser();
     if (iset_->find(user) == iset_->end()) {  // not excluded?
@@ -1729,6 +1813,7 @@ bool HLoopOptimization::TryReplaceWithLastValue(HLoopInformation* loop_info,
   // Try to replace outside uses with the last value.
   if (induction_range_.CanGenerateLastValue(instruction)) {
     HInstruction* replacement = induction_range_.GenerateLastValue(instruction, graph_, block);
+    // Deal with regular uses.
     const HUseList<HInstruction*>& uses = instruction->GetUses();
     for (auto it = uses.begin(), end = uses.end(); it != end;) {
       HInstruction* user = it->GetUser();
@@ -1744,6 +1829,7 @@ bool HLoopOptimization::TryReplaceWithLastValue(HLoopInformation* loop_info,
         induction_range_.Replace(user, instruction, replacement);  // update induction
       }
     }
+    // Deal with environment uses.
     const HUseList<HEnvironment*>& env_uses = instruction->GetEnvUses();
     for (auto it = env_uses.begin(), end = env_uses.end(); it != end;) {
       HEnvironment* user = it->GetUser();
@@ -1759,7 +1845,6 @@ bool HLoopOptimization::TryReplaceWithLastValue(HLoopInformation* loop_info,
         }
       }
     }
-    induction_simplication_count_++;
     return true;
   }
   return false;

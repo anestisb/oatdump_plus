@@ -151,6 +151,16 @@ class InductionVarRange {
   }
 
   /**
+   * Checks if the given phi instruction has been classified as anything by
+   * induction variable analysis. Returns false for anything that cannot be
+   * classified statically, such as reductions or other complex cycles.
+   */
+  bool IsClassified(HPhi* phi) const {
+    HLoopInformation* lp = phi->GetBlock()->GetLoopInformation();  // closest enveloping loop
+    return (lp != nullptr) && (induction_analysis_->LookupInfo(lp, phi) != nullptr);
+  }
+
+  /**
    * Checks if header logic of a loop terminates. Sets trip-count tc if known.
    */
   bool IsFinite(HLoopInformation* loop, /*out*/ int64_t* tc) const;
