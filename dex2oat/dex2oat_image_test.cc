@@ -340,6 +340,15 @@ TEST_F(Dex2oatImageTest, TestModesAndFilters) {
     // EXPECT_GE(profile_sizes.oat_size / kRatio, compiled_methods_sizes.oat_size);
     EXPECT_GE(profile_sizes.vdex_size / kRatio, compiled_methods_sizes.vdex_size);
   }
+  // Test dirty image objects.
+  {
+    ScratchFile classes;
+    GenerateClasses(classes.GetFile(), /*frequency*/ 1u);
+    image_classes_sizes = CompileImageAndGetSizes(
+        {"--dirty-image-objects=" + classes.GetFilename()});
+    classes.Close();
+    std::cout << "Dirty image object sizes " << image_classes_sizes << std::endl;
+  }
 }
 
 }  // namespace art
