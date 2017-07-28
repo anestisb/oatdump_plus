@@ -51,6 +51,7 @@ public class Test1917 {
 
     public void waitForOtherThreadToPause() throws Exception {
       sem_wakeup_main.acquire();
+      while (!sem_wait.hasQueuedThreads()) {}
     }
 
     public void wakeupOtherThread() throws Exception {
