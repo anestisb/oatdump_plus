@@ -87,13 +87,13 @@ class VerifierDepsTest : public CommonCompilerTest {
     TimingLogger timings("Verify", false, false);
     // The compiler driver handles the verifier deps in the callbacks, so
     // remove what this class did for unit testing.
-    verifier_deps_.reset(nullptr);
+    if (deps == nullptr) {
+      // Create some verifier deps by default if they are not already specified.
+      deps = new verifier::VerifierDeps(dex_files_);
+      verifier_deps_.reset(deps);
+    }
     callbacks_->SetVerifierDeps(deps);
     compiler_driver_->Verify(class_loader_, dex_files_, &timings);
-    // The compiler driver may have updated the VerifierDeps in the callback object.
-    if (callbacks_->GetVerifierDeps() != deps) {
-      verifier_deps_.reset(callbacks_->GetVerifierDeps());
-    }
     callbacks_->SetVerifierDeps(nullptr);
     // Clear entries in the verification results to avoid hitting a DCHECK that
     // we always succeed inserting a new entry after verifying.
@@ -128,6 +128,7 @@ class VerifierDepsTest : public CommonCompilerTest {
     for (const DexFile* dex_file : dex_files_) {
       compiler_driver_->GetVerificationResults()->AddDexFile(dex_file);
     }
+    compiler_driver_->SetDexFilesForOatFile(dex_files_);
   }
 
   void LoadDexFile(ScopedObjectAccess* soa) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1441,7 +1442,6 @@ TEST_F(VerifierDepsTest, CompilerDriver) {
         ASSERT_FALSE(verifier_deps_ == nullptr);
         ASSERT_FALSE(verifier_deps_->Equals(decoded_deps));
       } else {
-        ASSERT_TRUE(verifier_deps_ == nullptr);
         VerifyClassStatus(decoded_deps);
       }
     }

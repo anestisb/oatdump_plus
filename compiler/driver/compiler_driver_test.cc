@@ -42,7 +42,9 @@ class CompilerDriverTest : public CommonCompilerTest {
   void CompileAll(jobject class_loader) REQUIRES(!Locks::mutator_lock_) {
     TimingLogger timings("CompilerDriverTest::CompileAll", false, false);
     TimingLogger::ScopedTiming t(__FUNCTION__, &timings);
-    compiler_driver_->CompileAll(class_loader, GetDexFiles(class_loader), &timings);
+    dex_files_ = GetDexFiles(class_loader);
+    compiler_driver_->SetDexFilesForOatFile(dex_files_);;
+    compiler_driver_->CompileAll(class_loader, dex_files_, &timings);
     t.NewTiming("MakeAllExecutable");
     MakeAllExecutable(class_loader);
   }
@@ -95,6 +97,7 @@ class CompilerDriverTest : public CommonCompilerTest {
   JNIEnv* env_;
   jclass class_;
   jmethodID mid_;
+  std::vector<const DexFile*> dex_files_;
 };
 
 // Disabled due to 10 second runtime on host

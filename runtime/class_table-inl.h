@@ -132,6 +132,13 @@ inline ClassTable::TableSlot::TableSlot(ObjPtr<mirror::Class> klass, uint32_t de
   }
 }
 
+template <typename Filter>
+inline void ClassTable::RemoveStrongRoots(const Filter& filter) {
+  WriterMutexLock mu(Thread::Current(), lock_);
+  strong_roots_.erase(std::remove_if(strong_roots_.begin(), strong_roots_.end(), filter),
+                      strong_roots_.end());
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_CLASS_TABLE_INL_H_

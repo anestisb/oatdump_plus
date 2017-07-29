@@ -303,7 +303,6 @@ CompilerDriver::CompilerDriver(
       timings_logger_(timer),
       compiler_context_(nullptr),
       support_boot_image_fixup_(true),
-      dex_files_for_oat_file_(nullptr),
       compiled_method_storage_(swap_fd),
       profile_compilation_info_(profile_compilation_info),
       max_arena_alloc_(0),
@@ -1915,8 +1914,8 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
                                 TimingLogger* timings) {
   verifier::VerifierDeps* verifier_deps =
       Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
-  // If there is an existing `VerifierDeps`, try to use it for fast verification.
-  if (verifier_deps == nullptr) {
+  // If there exist VerifierDeps that aren't the ones we just created to output, use them to verify.
+  if (verifier_deps == nullptr || verifier_deps->OutputOnly()) {
     return false;
   }
   TimingLogger::ScopedTiming t("Fast Verify", timings);
@@ -1983,13 +1982,6 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
 void CompilerDriver::Verify(jobject jclass_loader,
                             const std::vector<const DexFile*>& dex_files,
                             TimingLogger* timings) {
-  // Always add the dex files to compiled_classes_. This happens for all compiler filters.
-  for (const DexFile* dex_file : dex_files) {
-    if (!compiled_classes_.HaveDexFile(dex_file)) {
-      compiled_classes_.AddDexFile(dex_file, dex_file->NumClassDefs());
-    }
-  }
-
   if (FastVerify(jclass_loader, dex_files, timings)) {
     return;
   }
@@ -1999,14 +1991,16 @@ void CompilerDriver::Verify(jobject jclass_loader,
   // non boot image compilation. The verifier will need it to record the new dependencies.
   // Then dex2oat can update the vdex file with these new dependencies.
   if (!GetCompilerOptions().IsBootImage()) {
+    // Dex2oat creates the verifier deps.
     // Create the main VerifierDeps, and set it to this thread.
-    verifier::VerifierDeps* verifier_deps = new verifier::VerifierDeps(dex_files);
-    Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(verifier_deps);
+    verifier::VerifierDeps* verifier_deps =
+        Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
+    CHECK(verifier_deps != nullptr);
     Thread::Current()->SetVerifierDeps(verifier_deps);
     // Create per-thread VerifierDeps to avoid contention on the main one.
     // We will merge them after verification.
     for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
-      worker->GetThread()->SetVerifierDeps(new verifier::VerifierDeps(dex_files));
+      worker->GetThread()->SetVerifierDeps(new verifier::VerifierDeps(dex_files_for_oat_file_));
     }
   }
 
@@ -2031,7 +2025,7 @@ void CompilerDriver::Verify(jobject jclass_loader,
     for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
       verifier::VerifierDeps* thread_deps = worker->GetThread()->GetVerifierDeps();
       worker->GetThread()->SetVerifierDeps(nullptr);
-      verifier_deps->MergeWith(*thread_deps, dex_files);;
+      verifier_deps->MergeWith(*thread_deps, dex_files_for_oat_file_);
       delete thread_deps;
     }
     Thread::Current()->SetVerifierDeps(nullptr);
@@ -2702,7 +2696,14 @@ void CompilerDriver::Compile(jobject class_loader,
             : profile_compilation_info_->DumpInfo(&dex_files));
   }
 
-  DCHECK(current_dex_to_dex_methods_ == nullptr);
+  current_dex_to_dex_methods_ = nullptr;
+  Thread* const self = Thread::Current();
+  {
+    // Clear in case we aren't the first call to Compile.
+    MutexLock mu(self, dex_to_dex_references_lock_);
+    dex_to_dex_references_.clear();
+  }
+
   for (const DexFile* dex_file : dex_files) {
     CHECK(dex_file != nullptr);
     CompileDexFile(class_loader,
@@ -2721,7 +2722,7 @@ void CompilerDriver::Compile(jobject class_loader,
   {
     // From this point on, we shall not modify dex_to_dex_references_, so
     // just grab a reference to it that we use without holding the mutex.
-    MutexLock lock(Thread::Current(), dex_to_dex_references_lock_);
+    MutexLock lock(self, dex_to_dex_references_lock_);
     dex_to_dex_references = ArrayRef<DexFileMethodSet>(dex_to_dex_references_);
   }
   for (const auto& method_set : dex_to_dex_references) {
@@ -2914,7 +2915,7 @@ void CompilerDriver::RecordClassStatus(ClassReference ref, mirror::Class::Status
       if (kIsDebugBuild) {
         // Check to make sure it's not a dex file for an oat file we are compiling since these
         // should always succeed. These do not include classes in for used libraries.
-        for (const DexFile* dex_file : *dex_files_for_oat_file_) {
+        for (const DexFile* dex_file : GetDexFilesForOatFile()) {
           CHECK_NE(dex_ref.dex_file, dex_file) << dex_ref.dex_file->GetLocation();
         }
       }
@@ -3030,6 +3031,15 @@ void CompilerDriver::InitializeThreadPools() {
 void CompilerDriver::FreeThreadPools() {
   parallel_thread_pool_.reset();
   single_thread_pool_.reset();
+}
+
+void CompilerDriver::SetDexFilesForOatFile(const std::vector<const DexFile*>& dex_files) {
+  dex_files_for_oat_file_ = dex_files;
+  for (const DexFile* dex_file : dex_files) {
+    if (!compiled_classes_.HaveDexFile(dex_file)) {
+      compiled_classes_.AddDexFile(dex_file, dex_file->NumClassDefs());
+    }
+  }
 }
 
 }  // namespace art

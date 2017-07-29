@@ -3555,6 +3555,14 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   data.resolved_methods = dex_cache->GetResolvedMethods();
   data.class_table = ClassTableForClassLoader(class_loader);
   DCHECK(data.class_table != nullptr);
+  // Make sure to hold the dex cache live in the class table. This case happens for the boot class
+  // path dex caches without an image.
+  data.class_table->InsertStrongRoot(dex_cache);
+  if (class_loader != nullptr) {
+    // Since we added a strong root to the class table, do the write barrier as required for
+    // remembered sets and generational GCs.
+    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
+  }
   dex_caches_.push_back(data);
 }
 
@@ -8837,16 +8845,6 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
 void ClassLinker::DropFindArrayClassCache() {
   std::fill_n(find_array_class_cache_, kFindArrayCacheSize, GcRoot<mirror::Class>(nullptr));
   find_array_class_cache_next_victim_ = 0;
-}
-
-void ClassLinker::ClearClassTableStrongRoots() const {
-  Thread* const self = Thread::Current();
-  WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  for (const ClassLoaderData& data : class_loaders_) {
-    if (data.class_table != nullptr) {
-      data.class_table->ClearStrongRoots();
-    }
-  }
 }
 
 void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {

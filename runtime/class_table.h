@@ -250,6 +250,12 @@ class ClassTable {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Filter strong roots (other than classes themselves).
+  template <typename Filter>
+  void RemoveStrongRoots(const Filter& filter)
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   ReaderWriterMutex& GetLock() {
     return lock_;
   }
