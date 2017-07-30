@@ -782,6 +782,7 @@ jvmtiError MethodUtil::GetLocalVariableGeneric(jvmtiEnv* env ATTRIBUTE_UNUSED,
   }
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
+  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
   art::Thread* target = ThreadUtil::GetNativeThread(thread, soa);
   if (target == nullptr && thread == nullptr) {
     return ERR(INVALID_THREAD);
@@ -790,7 +791,6 @@ jvmtiError MethodUtil::GetLocalVariableGeneric(jvmtiEnv* env ATTRIBUTE_UNUSED,
     return ERR(THREAD_NOT_ALIVE);
   }
   GetLocalVariableClosure c(self, depth, slot, type, val);
-  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
   if (!target->RequestSynchronousCheckpoint(&c)) {
     return ERR(THREAD_NOT_ALIVE);
   } else {
@@ -909,6 +909,7 @@ jvmtiError MethodUtil::SetLocalVariableGeneric(jvmtiEnv* env ATTRIBUTE_UNUSED,
   }
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
+  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
   art::Thread* target = ThreadUtil::GetNativeThread(thread, soa);
   if (target == nullptr && thread == nullptr) {
     return ERR(INVALID_THREAD);
@@ -917,7 +918,6 @@ jvmtiError MethodUtil::SetLocalVariableGeneric(jvmtiEnv* env ATTRIBUTE_UNUSED,
     return ERR(THREAD_NOT_ALIVE);
   }
   SetLocalVariableClosure c(self, depth, slot, type, val);
-  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
   if (!target->RequestSynchronousCheckpoint(&c)) {
     return ERR(THREAD_NOT_ALIVE);
   } else {
@@ -974,6 +974,7 @@ jvmtiError MethodUtil::GetLocalInstance(jvmtiEnv* env ATTRIBUTE_UNUSED,
   }
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
+  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
   art::Thread* target = ThreadUtil::GetNativeThread(thread, soa);
   if (target == nullptr && thread == nullptr) {
     return ERR(INVALID_THREAD);
@@ -982,7 +983,6 @@ jvmtiError MethodUtil::GetLocalInstance(jvmtiEnv* env ATTRIBUTE_UNUSED,
     return ERR(THREAD_NOT_ALIVE);
   }
   GetLocalInstanceClosure c(self, depth, data);
-  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
   if (!target->RequestSynchronousCheckpoint(&c)) {
     return ERR(THREAD_NOT_ALIVE);
   } else {

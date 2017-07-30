@@ -90,7 +90,8 @@ class ThreadUtil {
 
   static art::Thread* GetNativeThread(jthread thread,
                                       const art::ScopedObjectAccessAlreadyRunnable& soa)
-      REQUIRES_SHARED(art::Locks::mutator_lock_);
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(art::Locks::thread_list_lock_);
 
  private:
   // We need to make sure only one thread tries to suspend threads at a time so we can get the
@@ -104,9 +105,7 @@ class ThreadUtil {
   // cause the thread to wake up if the thread is suspended for the debugger or gc or something.
   static jvmtiError SuspendSelf(art::Thread* self)
       REQUIRES(!art::Locks::mutator_lock_, !art::Locks::user_code_suspension_lock_);
-  static jvmtiError SuspendOther(art::Thread* self,
-                                 jthread target_jthread,
-                                 const art::Thread* target)
+  static jvmtiError SuspendOther(art::Thread* self, jthread target_jthread)
       REQUIRES(!art::Locks::mutator_lock_, !art::Locks::user_code_suspension_lock_);
 
   static art::ArtField* context_class_loader_;
