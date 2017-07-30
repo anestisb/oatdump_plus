@@ -1075,6 +1075,8 @@ class ImgDiagDumper {
       }
     }
 
+    std::vector<size_t> private_dirty_pages_for_section(ImageHeader::kSectionCount, 0u);
+
     // Iterate through one byte at a time.
     ptrdiff_t page_off_begin = image_header_.GetImageBegin() - image_begin;
     for (uintptr_t begin = boot_map_.start; begin != boot_map_.end; ++begin) {
@@ -1127,6 +1129,12 @@ class ImgDiagDumper {
 
         if (is_dirty && is_private) {
           mapping_data->private_dirty_pages++;
+          for (size_t i = 0; i < ImageHeader::kSectionCount; ++i) {
+            const ImageHeader::ImageSections section = static_cast<ImageHeader::ImageSections>(i);
+            if (image_header_.GetImageSection(section).Contains(offset)) {
+              ++private_dirty_pages_for_section[i];
+            }
+          }
         }
       }
     }
@@ -1138,7 +1146,19 @@ class ImgDiagDumper {
        << mapping_data->dirty_pages << " pages are dirty;\n  "
        << mapping_data->false_dirty_pages << " pages are false dirty;\n  "
        << mapping_data->private_pages << " pages are private;\n  "
-       << mapping_data->private_dirty_pages << " pages are Private_Dirty\n  ";
+       << mapping_data->private_dirty_pages << " pages are Private_Dirty\n  "
+       << "\n";
+
+    size_t total_private_dirty_pages = std::accumulate(private_dirty_pages_for_section.begin(),
+                                                       private_dirty_pages_for_section.end(),
+                                                       0u);
+    os << "Image sections (total private dirty pages " << total_private_dirty_pages << ")\n";
+    for (size_t i = 0; i < ImageHeader::kSectionCount; ++i) {
+      const ImageHeader::ImageSections section = static_cast<ImageHeader::ImageSections>(i);
+      os << section << " " << image_header_.GetImageSection(section)
+         << " private dirty pages=" << private_dirty_pages_for_section[i] << "\n";
+    }
+    os << "\n";
 
     return true;
   }
