@@ -1,4 +1,4 @@
-/* Copyright (C) 2016 The Android Open Source Project
+/* Copyright (C) 2017 The Android Open Source Project
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This file implements interfaces from the file jvmti.h. This implementation
@@ -29,41 +29,21 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
+#ifndef ART_OPENJDKJVMTI_TI_OBJECT_H_
+#define ART_OPENJDKJVMTI_TI_OBJECT_H_
 
-#include <string>
-
-#include <jni.h>
+#include "jni.h"
 #include "jvmti.h"
-
-#include "art_jvmti.h"
-#include "ti_class_definition.h"
 
 namespace openjdkjvmti {
 
-class EventHandler;
-
-jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* location);
-
-class Transformer {
+class ObjectUtil {
  public:
-  static jvmtiError RetransformClassesDirect(
-      ArtJvmTiEnv* env,
-      EventHandler* event_handler,
-      art::Thread* self,
-      /*in-out*/std::vector<ArtClassDefinition>* definitions);
+  static jvmtiError GetObjectSize(jvmtiEnv* env, jobject object, jlong* size_ptr);
 
-  static jvmtiError RetransformClasses(ArtJvmTiEnv* env,
-                                       EventHandler* event_handler,
-                                       art::Runtime* runtime,
-                                       art::Thread* self,
-                                       jint class_count,
-                                       const jclass* classes,
-                                       /*out*/std::string* error_msg);
+  static jvmtiError GetObjectHashCode(jvmtiEnv* env, jobject object, jint* hash_code_ptr);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TRANSFORM_H_
-
+#endif  // ART_OPENJDKJVMTI_TI_OBJECT_H_

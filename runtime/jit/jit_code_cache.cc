@@ -1600,7 +1600,7 @@ OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* 
     // is the one we expect. We change to the non-obsolete versions in the error message since the
     // obsolete version of the method might not be fully initialized yet. This situation can only
     // occur when we are in the process of allocating and setting up obsolete methods. Otherwise
-    // method and it->second should be identical. (See runtime/openjdkjvmti/ti_redefine.cc for more
+    // method and it->second should be identical. (See openjdkjvmti/ti_redefine.cc for more
     // information.)
     DCHECK_EQ(it->second->GetNonObsoleteMethod(), method->GetNonObsoleteMethod())
         << ArtMethod::PrettyMethod(method->GetNonObsoleteMethod()) << " "

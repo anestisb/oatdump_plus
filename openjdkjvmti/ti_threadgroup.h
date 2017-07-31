@@ -29,22 +29,32 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_DUMP_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_DUMP_H_
+#ifndef ART_OPENJDKJVMTI_TI_THREADGROUP_H_
+#define ART_OPENJDKJVMTI_TI_THREADGROUP_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
-class EventHandler;
-
-class DumpUtil {
+class ThreadGroupUtil {
  public:
-  static void Register(EventHandler* event_handler);
-  static void Unregister();
+  static jvmtiError GetTopThreadGroups(jvmtiEnv* env,
+                                       jint* group_count_ptr,
+                                       jthreadGroup** groups_ptr);
+
+  static jvmtiError GetThreadGroupInfo(jvmtiEnv* env,
+                                       jthreadGroup group,
+                                       jvmtiThreadGroupInfo* info_ptr);
+
+  static jvmtiError GetThreadGroupChildren(jvmtiEnv* env,
+                                           jthreadGroup group,
+                                           jint* thread_count_ptr,
+                                           jthread** threads_ptr,
+                                           jint* group_count_ptr,
+                                           jthreadGroup** groups_ptr);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_DUMP_H_
+#endif  // ART_OPENJDKJVMTI_TI_THREADGROUP_H_

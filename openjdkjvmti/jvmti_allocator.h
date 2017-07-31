@@ -29,8 +29,8 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_JVMTI_ALLOCATOR_H_
-#define ART_RUNTIME_OPENJDKJVMTI_JVMTI_ALLOCATOR_H_
+#ifndef ART_OPENJDKJVMTI_JVMTI_ALLOCATOR_H_
+#define ART_OPENJDKJVMTI_JVMTI_ALLOCATOR_H_
 
 #include "base/logging.h"
 #include "base/macros.h"
@@ -171,4 +171,4 @@ inline bool operator!=(const JvmtiAllocator<T>& lhs, const JvmtiAllocator<T>& rh
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_JVMTI_ALLOCATOR_H_
+#endif  // ART_OPENJDKJVMTI_JVMTI_ALLOCATOR_H_

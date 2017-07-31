@@ -29,23 +29,22 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_TIMERS_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_TIMERS_H_
+#ifndef ART_OPENJDKJVMTI_TI_DUMP_H_
+#define ART_OPENJDKJVMTI_TI_DUMP_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
-class TimerUtil {
+class EventHandler;
+
+class DumpUtil {
  public:
-  static jvmtiError GetAvailableProcessors(jvmtiEnv* env, jint* processor_count_ptr);
-
-  static jvmtiError GetTimerInfo(jvmtiEnv* env, jvmtiTimerInfo* info_ptr);
-
-  static jvmtiError GetTime(jvmtiEnv* env, jlong* nanos_ptr);
+  static void Register(EventHandler* event_handler);
+  static void Unregister();
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_TIMERS_H_
+#endif  // ART_OPENJDKJVMTI_TI_DUMP_H_

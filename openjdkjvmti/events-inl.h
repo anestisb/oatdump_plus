@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_EVENTS_INL_H_
-#define ART_RUNTIME_OPENJDKJVMTI_EVENTS_INL_H_
+#ifndef ART_OPENJDKJVMTI_EVENTS_INL_H_
+#define ART_OPENJDKJVMTI_EVENTS_INL_H_
 
 #include <array>
 
@@ -437,4 +437,4 @@ inline void EventHandler::HandleChangedCapabilities(ArtJvmTiEnv* env,
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_EVENTS_INL_H_
+#endif  // ART_OPENJDKJVMTI_EVENTS_INL_H_

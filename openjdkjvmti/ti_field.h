@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 The Android Open Source Project
+/* Copyright (C) 2016 The Android Open Source Project
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This file implements interfaces from the file jvmti.h. This implementation
@@ -29,55 +29,44 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_
-#define ART_RUNTIME_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_
-
-#include <memory>
-#include <vector>
+#ifndef ART_OPENJDKJVMTI_TI_FIELD_H_
+#define ART_OPENJDKJVMTI_TI_FIELD_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
-#include "base/mutex.h"
-#include "dex_file.h"
-
 namespace openjdkjvmti {
 
-// A holder for a DexFile that has been 'fixed up' to ensure it is fully compliant with the
-// published standard (no internal/quick opcodes, all fields are the defined values, etc). This is
-// used to ensure that agents get a consistent dex file regardless of what version of android they
-// are running on.
-class FixedUpDexFile {
+class FieldUtil {
  public:
-  static std::unique_ptr<FixedUpDexFile> Create(const art::DexFile& original)
-      REQUIRES_SHARED(art::Locks::mutator_lock_);
+  static jvmtiError GetFieldName(jvmtiEnv* env,
+                                 jclass klass,
+                                 jfieldID field,
+                                 char** name_ptr,
+                                 char** signature_ptr,
+                                 char** generic_ptr);
 
-  const art::DexFile& GetDexFile() {
-    return *dex_file_;
-  }
+  static jvmtiError GetFieldDeclaringClass(jvmtiEnv* env,
+                                           jclass klass,
+                                           jfieldID field,
+                                           jclass* declaring_class_ptr);
 
-  const unsigned char* Begin() {
-    return data_.data();
-  }
+  static jvmtiError GetFieldModifiers(jvmtiEnv* env,
+                                      jclass klass,
+                                      jfieldID field,
+                                      jint* modifiers_ptr);
 
-  size_t Size() {
-    return data_.size();
-  }
+  static jvmtiError IsFieldSynthetic(jvmtiEnv* env,
+                                     jclass klass,
+                                     jfieldID field,
+                                     jboolean* is_synthetic_ptr);
 
- private:
-  explicit FixedUpDexFile(std::unique_ptr<const art::DexFile> fixed_up_dex_file,
-                          std::vector<unsigned char> data)
-      : dex_file_(std::move(fixed_up_dex_file)),
-        data_(std::move(data)) {}
-
-  // the fixed up DexFile
-  std::unique_ptr<const art::DexFile> dex_file_;
-  // The backing data for dex_file_.
-  const std::vector<unsigned char> data_;
-
-  DISALLOW_COPY_AND_ASSIGN(FixedUpDexFile);
+  static jvmtiError SetFieldModificationWatch(jvmtiEnv* env, jclass klass, jfieldID field);
+  static jvmtiError ClearFieldModificationWatch(jvmtiEnv* env, jclass klass, jfieldID field);
+  static jvmtiError SetFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field);
+  static jvmtiError ClearFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_FIXED_UP_DEX_FILE_H_
+#endif  // ART_OPENJDKJVMTI_TI_FIELD_H_

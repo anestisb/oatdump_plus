@@ -21,7 +21,7 @@ import pathlib
 import subprocess
 import sys
 
-IGNORED_FILES = {"runtime/elf.h", "runtime/openjdkjvmti/include/jvmti.h"}
+IGNORED_FILES = {"runtime/elf.h", "openjdkjvmti/include/jvmti.h"}
 
 INTERESTING_SUFFIXES = {".h", ".cc"}
 

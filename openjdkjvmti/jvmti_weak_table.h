@@ -29,8 +29,8 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_JVMTI_WEAK_TABLE_H_
-#define ART_RUNTIME_OPENJDKJVMTI_JVMTI_WEAK_TABLE_H_
+#ifndef ART_OPENJDKJVMTI_JVMTI_WEAK_TABLE_H_
+#define ART_OPENJDKJVMTI_JVMTI_WEAK_TABLE_H_
 
 #include <unordered_map>
 
@@ -224,4 +224,4 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_JVMTI_WEAK_TABLE_H_
+#endif  // ART_OPENJDKJVMTI_JVMTI_WEAK_TABLE_H_

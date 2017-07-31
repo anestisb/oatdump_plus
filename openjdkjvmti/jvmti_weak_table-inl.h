@@ -29,8 +29,8 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_JVMTI_WEAK_TABLE_INL_H_
-#define ART_RUNTIME_OPENJDKJVMTI_JVMTI_WEAK_TABLE_INL_H_
+#ifndef ART_OPENJDKJVMTI_JVMTI_WEAK_TABLE_INL_H_
+#define ART_OPENJDKJVMTI_JVMTI_WEAK_TABLE_INL_H_
 
 #include "jvmti_weak_table.h"
 
@@ -403,4 +403,4 @@ art::mirror::Object* JvmtiWeakTable<T>::Find(T tag) {
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_JVMTI_WEAK_TABLE_INL_H_
+#endif  // ART_OPENJDKJVMTI_JVMTI_WEAK_TABLE_INL_H_

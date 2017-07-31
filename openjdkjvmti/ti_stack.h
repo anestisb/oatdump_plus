@@ -29,37 +29,46 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_ALLOCATOR_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_ALLOCATOR_H_
+#ifndef ART_OPENJDKJVMTI_TI_STACK_H_
+#define ART_OPENJDKJVMTI_TI_STACK_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
-#include <atomic>
-#include <memory>
+#include "base/mutex.h"
 
 namespace openjdkjvmti {
 
-template<typename T>
-class JvmtiAllocator;
-
-class AllocUtil {
+class StackUtil {
  public:
-  static jvmtiError Allocate(jvmtiEnv* env, jlong size, unsigned char** mem_ptr);
-  static jvmtiError Deallocate(jvmtiEnv* env, unsigned char* mem);
-  static jvmtiError GetGlobalJvmtiAllocationState(jvmtiEnv* env, jlong* total_allocated);
+  static jvmtiError GetAllStackTraces(jvmtiEnv* env,
+                                      jint max_frame_count,
+                                      jvmtiStackInfo** stack_info_ptr,
+                                      jint* thread_count_ptr)
+      REQUIRES(!art::Locks::thread_list_lock_);
 
- private:
-  static void DeallocateImpl(unsigned char* mem);
-  static unsigned char* AllocateImpl(jlong size);
+  static jvmtiError GetFrameCount(jvmtiEnv* env, jthread thread, jint* count_ptr);
 
-  static std::atomic<jlong> allocated;
+  static jvmtiError GetFrameLocation(jvmtiEnv* env,
+                                     jthread thread,
+                                     jint depth,
+                                     jmethodID* method_ptr,
+                                     jlocation* location_ptr);
 
-  template <typename T>
-  friend class JvmtiAllocator;
+  static jvmtiError GetStackTrace(jvmtiEnv* env,
+                                  jthread thread,
+                                  jint start_depth,
+                                  jint max_frame_count,
+                                  jvmtiFrameInfo* frame_buffer,
+                                  jint* count_ptr);
+
+  static jvmtiError GetThreadListStackTraces(jvmtiEnv* env,
+                                             jint thread_count,
+                                             const jthread* thread_list,
+                                             jint max_frame_count,
+                                             jvmtiStackInfo** stack_info_ptr);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_ALLOCATOR_H_
-
+#endif  // ART_OPENJDKJVMTI_TI_STACK_H_

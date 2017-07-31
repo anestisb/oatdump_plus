@@ -29,8 +29,8 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_ART_JVMTI_H_
-#define ART_RUNTIME_OPENJDKJVMTI_ART_JVMTI_H_
+#ifndef ART_OPENJDKJVMTI_ART_JVMTI_H_
+#define ART_OPENJDKJVMTI_ART_JVMTI_H_
 
 #include <memory>
 #include <type_traits>
@@ -262,4 +262,4 @@ const jvmtiCapabilities kPotentialCapabilities = {
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_ART_JVMTI_H_
+#endif  // ART_OPENJDKJVMTI_ART_JVMTI_H_

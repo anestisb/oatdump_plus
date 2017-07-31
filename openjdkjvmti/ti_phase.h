@@ -29,25 +29,41 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_SEARCH_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_SEARCH_H_
+#ifndef ART_OPENJDKJVMTI_TI_PHASE_H_
+#define ART_OPENJDKJVMTI_TI_PHASE_H_
 
-#include <vector>
-
+#include "jni.h"
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
-class SearchUtil {
+class EventHandler;
+
+class PhaseUtil {
  public:
-  static void Register();
+  static jvmtiError GetPhase(jvmtiEnv* env, jvmtiPhase* phase_ptr);
+  static bool IsLivePhase();
+
+  static void Register(EventHandler* event_handler);
   static void Unregister();
 
-  static jvmtiError AddToBootstrapClassLoaderSearch(jvmtiEnv* env, const char* segment);
+  // Move the phase from unitialized to LOAD.
+  static void SetToOnLoad();
 
-  static jvmtiError AddToSystemClassLoaderSearch(jvmtiEnv* env, const char* segment);
+  // Move the phase from LOAD to PRIMORDIAL.
+  static void SetToPrimordial();
+
+  // Move the phase from unitialized to LIVE.
+  static void SetToLive();
+
+  struct PhaseCallback;
+
+  static jvmtiPhase GetPhaseUnchecked();
+
+ private:
+  static jvmtiPhase current_phase_;
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_SEARCH_H_
+#endif  // ART_OPENJDKJVMTI_TI_PHASE_H_

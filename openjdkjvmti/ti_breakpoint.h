@@ -29,32 +29,66 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_THREADGROUP_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_THREADGROUP_H_
+#ifndef ART_OPENJDKJVMTI_TI_BREAKPOINT_H_
+#define ART_OPENJDKJVMTI_TI_BREAKPOINT_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
+#include "base/mutex.h"
+
+namespace art {
+class ArtMethod;
+namespace mirror {
+class Class;
+}  // namespace mirror
+}  // namespace art
+
 namespace openjdkjvmti {
 
-class ThreadGroupUtil {
+struct ArtJvmTiEnv;
+
+class Breakpoint {
  public:
-  static jvmtiError GetTopThreadGroups(jvmtiEnv* env,
-                                       jint* group_count_ptr,
-                                       jthreadGroup** groups_ptr);
+  Breakpoint(art::ArtMethod* m, jlocation loc);
 
-  static jvmtiError GetThreadGroupInfo(jvmtiEnv* env,
-                                       jthreadGroup group,
-                                       jvmtiThreadGroupInfo* info_ptr);
+  // Get the hash code of this breakpoint.
+  size_t hash() const;
 
-  static jvmtiError GetThreadGroupChildren(jvmtiEnv* env,
-                                           jthreadGroup group,
-                                           jint* thread_count_ptr,
-                                           jthread** threads_ptr,
-                                           jint* group_count_ptr,
-                                           jthreadGroup** groups_ptr);
+  bool operator==(const Breakpoint& other) const {
+    return method_ == other.method_ && location_ == other.location_;
+  }
+
+  art::ArtMethod* GetMethod() const {
+    return method_;
+  }
+
+  jlocation GetLocation() const {
+    return location_;
+  }
+
+ private:
+  art::ArtMethod* method_;
+  jlocation location_;
+};
+
+class BreakpointUtil {
+ public:
+  static jvmtiError SetBreakpoint(jvmtiEnv* env, jmethodID method, jlocation location);
+  static jvmtiError ClearBreakpoint(jvmtiEnv* env, jmethodID method, jlocation location);
+  // Used by class redefinition to remove breakpoints on redefined classes.
+  static void RemoveBreakpointsInClass(ArtJvmTiEnv* env, art::mirror::Class* klass)
+      REQUIRES(art::Locks::mutator_lock_);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_THREADGROUP_H_
+namespace std {
+template<> struct hash<openjdkjvmti::Breakpoint> {
+  size_t operator()(const openjdkjvmti::Breakpoint& b) const {
+    return b.hash();
+  }
+};
+
+}  // namespace std
+#endif  // ART_OPENJDKJVMTI_TI_BREAKPOINT_H_

@@ -29,8 +29,8 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_
+#ifndef ART_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_
+#define ART_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_
 
 #include "art_jvmti.h"
 
@@ -128,4 +128,4 @@ class ArtClassDefinition {
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_
+#endif  // ART_OPENJDKJVMTI_TI_CLASS_DEFINITION_H_

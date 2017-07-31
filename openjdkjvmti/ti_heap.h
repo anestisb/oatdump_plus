@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_HEAP_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_HEAP_H_
+#ifndef ART_OPENJDKJVMTI_TI_HEAP_H_
+#define ART_OPENJDKJVMTI_TI_HEAP_H_
 
 #include "jvmti.h"
 
@@ -70,4 +70,4 @@ class HeapExtensions {
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_HEAP_H_
+#endif  // ART_OPENJDKJVMTI_TI_HEAP_H_

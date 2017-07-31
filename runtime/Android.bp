@@ -625,7 +625,3 @@ art_cc_test {
         "libvixld-arm64",
     ],
 }
-
-subdirs = [
-    "openjdkjvmti",
-]

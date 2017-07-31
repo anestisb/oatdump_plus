@@ -29,8 +29,8 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_REDEFINE_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_REDEFINE_H_
+#ifndef ART_OPENJDKJVMTI_TI_REDEFINE_H_
+#define ART_OPENJDKJVMTI_TI_REDEFINE_H_
 
 #include <string>
 
@@ -265,4 +265,4 @@ class Redefiner {
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_REDEFINE_H_
+#endif  // ART_OPENJDKJVMTI_TI_REDEFINE_H_

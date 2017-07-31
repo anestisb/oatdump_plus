@@ -29,8 +29,8 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_OBJECT_TAGGING_H_
-#define ART_RUNTIME_OPENJDKJVMTI_OBJECT_TAGGING_H_
+#ifndef ART_OPENJDKJVMTI_OBJECT_TAGGING_H_
+#define ART_OPENJDKJVMTI_OBJECT_TAGGING_H_
 
 #include <unordered_map>
 
@@ -83,4 +83,4 @@ class ObjectTagTable FINAL : public JvmtiWeakTable<jlong> {
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_OBJECT_TAGGING_H_
+#endif  // ART_OPENJDKJVMTI_OBJECT_TAGGING_H_

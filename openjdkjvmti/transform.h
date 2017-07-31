@@ -29,44 +29,41 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_FIELD_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_FIELD_H_
+#ifndef ART_OPENJDKJVMTI_TRANSFORM_H_
+#define ART_OPENJDKJVMTI_TRANSFORM_H_
 
-#include "jni.h"
+#include <string>
+
+#include <jni.h>
 #include "jvmti.h"
+
+#include "art_jvmti.h"
+#include "ti_class_definition.h"
 
 namespace openjdkjvmti {
 
-class FieldUtil {
+class EventHandler;
+
+jvmtiError GetClassLocation(ArtJvmTiEnv* env, jclass klass, /*out*/std::string* location);
+
+class Transformer {
  public:
-  static jvmtiError GetFieldName(jvmtiEnv* env,
-                                 jclass klass,
-                                 jfieldID field,
-                                 char** name_ptr,
-                                 char** signature_ptr,
-                                 char** generic_ptr);
+  static jvmtiError RetransformClassesDirect(
+      ArtJvmTiEnv* env,
+      EventHandler* event_handler,
+      art::Thread* self,
+      /*in-out*/std::vector<ArtClassDefinition>* definitions);
 
-  static jvmtiError GetFieldDeclaringClass(jvmtiEnv* env,
-                                           jclass klass,
-                                           jfieldID field,
-                                           jclass* declaring_class_ptr);
-
-  static jvmtiError GetFieldModifiers(jvmtiEnv* env,
-                                      jclass klass,
-                                      jfieldID field,
-                                      jint* modifiers_ptr);
-
-  static jvmtiError IsFieldSynthetic(jvmtiEnv* env,
-                                     jclass klass,
-                                     jfieldID field,
-                                     jboolean* is_synthetic_ptr);
-
-  static jvmtiError SetFieldModificationWatch(jvmtiEnv* env, jclass klass, jfieldID field);
-  static jvmtiError ClearFieldModificationWatch(jvmtiEnv* env, jclass klass, jfieldID field);
-  static jvmtiError SetFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field);
-  static jvmtiError ClearFieldAccessWatch(jvmtiEnv* env, jclass klass, jfieldID field);
+  static jvmtiError RetransformClasses(ArtJvmTiEnv* env,
+                                       EventHandler* event_handler,
+                                       art::Runtime* runtime,
+                                       art::Thread* self,
+                                       jint class_count,
+                                       const jclass* classes,
+                                       /*out*/std::string* error_msg);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_FIELD_H_
+#endif  // ART_OPENJDKJVMTI_TRANSFORM_H_
+

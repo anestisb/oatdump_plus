@@ -29,23 +29,30 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_PROPERTIES_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_PROPERTIES_H_
+#ifndef ART_OPENJDKJVMTI_TI_JNI_H_
+#define ART_OPENJDKJVMTI_TI_JNI_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
-class PropertiesUtil {
+// Note: Currently, JNI function table changes are sensitive to the order of operations wrt/
+//       CheckJNI. If an agent sets the function table, and a program than late-enables CheckJNI,
+//       CheckJNI will not be working (as the agent will forward to the non-CheckJNI table).
+//
+//       This behavior results from our usage of the function table to avoid a check of the
+//       CheckJNI flag. A future implementation may install on loading of this plugin an
+//       intermediate function table that explicitly checks the flag, so that switching CheckJNI
+//       is transparently handled.
+
+class JNIUtil {
  public:
-  static jvmtiError GetSystemProperties(jvmtiEnv* env, jint* count_ptr, char*** property_ptr);
+  static jvmtiError SetJNIFunctionTable(jvmtiEnv* env, const jniNativeInterface* function_table);
 
-  static jvmtiError GetSystemProperty(jvmtiEnv* env, const char* property, char** value_ptr);
-
-  static jvmtiError SetSystemProperty(jvmtiEnv* env, const char* property, const char* value);
+  static jvmtiError GetJNIFunctionTable(jvmtiEnv* env, jniNativeInterface** function_table);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_PROPERTIES_H_
+#endif  // ART_OPENJDKJVMTI_TI_JNI_H_

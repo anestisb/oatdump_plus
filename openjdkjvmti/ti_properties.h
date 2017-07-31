@@ -29,21 +29,23 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_OBJECT_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_OBJECT_H_
+#ifndef ART_OPENJDKJVMTI_TI_PROPERTIES_H_
+#define ART_OPENJDKJVMTI_TI_PROPERTIES_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
 namespace openjdkjvmti {
 
-class ObjectUtil {
+class PropertiesUtil {
  public:
-  static jvmtiError GetObjectSize(jvmtiEnv* env, jobject object, jlong* size_ptr);
+  static jvmtiError GetSystemProperties(jvmtiEnv* env, jint* count_ptr, char*** property_ptr);
 
-  static jvmtiError GetObjectHashCode(jvmtiEnv* env, jobject object, jint* hash_code_ptr);
+  static jvmtiError GetSystemProperty(jvmtiEnv* env, const char* property, char** value_ptr);
+
+  static jvmtiError SetSystemProperty(jvmtiEnv* env, const char* property, const char* value);
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_OBJECT_H_
+#endif  // ART_OPENJDKJVMTI_TI_PROPERTIES_H_

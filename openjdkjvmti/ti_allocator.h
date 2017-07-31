@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 The Android Open Source Project
+/* Copyright (C) 2016 The Android Open Source Project
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This file implements interfaces from the file jvmti.h. This implementation
@@ -29,30 +29,37 @@
  * questions.
  */
 
-#ifndef ART_RUNTIME_OPENJDKJVMTI_TI_JNI_H_
-#define ART_RUNTIME_OPENJDKJVMTI_TI_JNI_H_
+#ifndef ART_OPENJDKJVMTI_TI_ALLOCATOR_H_
+#define ART_OPENJDKJVMTI_TI_ALLOCATOR_H_
 
 #include "jni.h"
 #include "jvmti.h"
 
+#include <atomic>
+#include <memory>
+
 namespace openjdkjvmti {
 
-// Note: Currently, JNI function table changes are sensitive to the order of operations wrt/
-//       CheckJNI. If an agent sets the function table, and a program than late-enables CheckJNI,
-//       CheckJNI will not be working (as the agent will forward to the non-CheckJNI table).
-//
-//       This behavior results from our usage of the function table to avoid a check of the
-//       CheckJNI flag. A future implementation may install on loading of this plugin an
-//       intermediate function table that explicitly checks the flag, so that switching CheckJNI
-//       is transparently handled.
+template<typename T>
+class JvmtiAllocator;
 
-class JNIUtil {
+class AllocUtil {
  public:
-  static jvmtiError SetJNIFunctionTable(jvmtiEnv* env, const jniNativeInterface* function_table);
+  static jvmtiError Allocate(jvmtiEnv* env, jlong size, unsigned char** mem_ptr);
+  static jvmtiError Deallocate(jvmtiEnv* env, unsigned char* mem);
+  static jvmtiError GetGlobalJvmtiAllocationState(jvmtiEnv* env, jlong* total_allocated);
 
-  static jvmtiError GetJNIFunctionTable(jvmtiEnv* env, jniNativeInterface** function_table);
+ private:
+  static void DeallocateImpl(unsigned char* mem);
+  static unsigned char* AllocateImpl(jlong size);
+
+  static std::atomic<jlong> allocated;
+
+  template <typename T>
+  friend class JvmtiAllocator;
 };
 
 }  // namespace openjdkjvmti
 
-#endif  // ART_RUNTIME_OPENJDKJVMTI_TI_JNI_H_
+#endif  // ART_OPENJDKJVMTI_TI_ALLOCATOR_H_
+
