@@ -195,4 +195,44 @@ TEST_F(LoopOptimizationTest, LoopNestWithSequence) {
   EXPECT_EQ("[[[[[[[[[[][][][][][][][][][]]]]]]]]]]", LoopStructure());
 }
 
+// Check that SimplifyLoop() doesn't invalidate data flow when ordering loop headers'
+// predecessors.
+TEST_F(LoopOptimizationTest, SimplifyLoop) {
+  // Can't use AddLoop as we want special order for blocks predecessors.
+  HBasicBlock* header = new (&allocator_) HBasicBlock(graph_);
+  HBasicBlock* body = new (&allocator_) HBasicBlock(graph_);
+  graph_->AddBlock(header);
+  graph_->AddBlock(body);
+
+  // Control flow: make a loop back edge first in the list of predecessors.
+  entry_block_->RemoveSuccessor(return_block_);
+  body->AddSuccessor(header);
+  entry_block_->AddSuccessor(header);
+  header->AddSuccessor(body);
+  header->AddSuccessor(return_block_);
+  DCHECK(header->GetSuccessors()[1] == return_block_);
+
+  // Data flow.
+  header->AddInstruction(new (&allocator_) HIf(parameter_));
+  body->AddInstruction(new (&allocator_) HGoto());
+
+  HPhi* phi = new (&allocator_) HPhi(&allocator_, 0, 0, Primitive::kPrimInt);
+  HInstruction* add = new (&allocator_) HAdd(Primitive::kPrimInt, phi, parameter_);
+  header->AddPhi(phi);
+  body->AddInstruction(add);
+
+  phi->AddInput(add);
+  phi->AddInput(parameter_);
+
+  graph_->ClearLoopInformation();
+  graph_->ClearDominanceInformation();
+  graph_->BuildDominatorTree();
+
+  // Check that after optimizations in BuildDominatorTree()/SimplifyCFG() phi inputs
+  // are still mapped correctly to the block predecessors.
+  for (size_t i = 0, e = phi->InputCount(); i < e; i++) {
+    HInstruction* input = phi->InputAt(i);
+    ASSERT_TRUE(input->GetBlock()->Dominates(header->GetPredecessors()[i]));
+  }
+}
 }  // namespace art
