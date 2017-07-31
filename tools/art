@@ -17,7 +17,6 @@
 # Android (e.g. mksh).
 
 # Globals
-ARCHS={arm,arm64,mips,mips64,x86,x86_64}
 ART_BINARY=dalvikvm
 DELETE_ANDROID_DATA="no"
 LAUNCH_WRAPPER=
@@ -120,26 +119,31 @@ function verbose_run() {
   env "$@"
 }
 
+# Attempt to find $ANDROID_ROOT/framework/<isa>/core.art' without knowing what <isa> is.
+function check_if_boot_image_file_exists() {
+  local image_location_dir="$1"
+  local image_location_name="$2"
+
+  # Expand image_files to a list of existing image files on the disk.
+  # If no such files exist, it expands to single element 'dir/*/file' with a literal '*'.
+  local image_files
+  image_files=("$image_location_dir"/*/"$image_location_name") # avoid treating "*" as literal.
+
+  # Array always has at least 1 element. Test explicitly whether the file exists.
+  [[ -e "${image_files[0]}" ]]
+}
+
 # Automatically find the boot image location. It uses core.art by default.
 # On a real device, it might only have a boot.art, so use that instead when core.art does not exist.
 function detect_boot_image_location() {
   local image_location_dir="$ANDROID_ROOT/framework"
   local image_location_name="core.art"
 
-  local maybe_arch
-  local core_image_exists="false"
-
-  # Parse ARCHS={a,b,c,d} syntax.
-  local array
-  IFS=, read -a array <<< "${ARCHS:1:(-1)}";
-  for maybe_arch in "${array[@]}"; do
-    if [[ -e "$image_location_dir/$maybe_arch/$image_location_name" ]]; then
-      core_image_exists="true"
-      break
-    fi
-  done
-
-  if [[ "$core_image_exists" == "false" ]]; then
+  # If there are no existing core.art, try to find boot.art.
+  # If there is no boot.art then leave it as-is, assumes -Ximage is explicitly used.
+  # Otherwise let dalvikvm give the error message about an invalid image file.
+  if ! check_if_boot_image_file_exists "$image_location_dir" "core.art" && \
+       check_if_boot_image_file_exists "$image_location_dir" "boot.art"; then
     image_location_name="boot.art"
   fi
 
@@ -251,7 +255,7 @@ if [ "$ANDROID_DATA" = "/data" ] || [ "$ANDROID_DATA" = "" ]; then
     # by default.
     ANDROID_DATA="$ANDROID_DATA/local/tmp/android-data$$"
   fi
-  mkdir -p $ANDROID_DATA/dalvik-cache/$ARCHS
+  mkdir -p "$ANDROID_DATA"
   DELETE_ANDROID_DATA="yes"
 fi
 
@@ -264,7 +268,7 @@ if [ "$JIT_PROFILE" = "yes" ]; then
   # Create the profile. The runtime expects profiles to be created before
   # execution.
   PROFILE_PATH="$ANDROID_DATA/primary.prof"
-  touch $PROFILE_PATH
+  touch "$PROFILE_PATH"
 
   # Replace the compiler filter with quicken so that we
   # can capture the profile.
@@ -282,13 +286,15 @@ if [ "$JIT_PROFILE" = "yes" ]; then
   EXIT_STATUS=$?
 
   if [ $EXIT_STATUS != 0 ]; then
-    cat "$ANDROID_DATA/profile_gen.log"
+    echo "Profile run failed: " >&2
+    cat "$ANDROID_DATA/profile_gen.log" >&2
     clean_android_data
     exit $EXIT_STATUS
   fi
 
-  # Wipe dalvik-cache to prepare it for the next invocation.
-  rm -rf $ANDROID_DATA/dalvik-cache/$ARCHS/*
+  # Wipe dalvik-cache so that a subsequent run_art must regenerate it.
+  # Leave $ANDROID_DATA intact since it contains our profile file.
+  rm -rf "$ANDROID_DATA/dalvik-cache"
 
   # Append arguments so next invocation of run_art uses the profile.
   EXTRA_OPTIONS+=(-Xcompiler-option --profile-file="$PROFILE_PATH")
