@@ -30,6 +30,9 @@ public class Main {
     expectNotPreInit(A.class); // should pass
     expectNotPreInit(B.class); // should fail
     expectNotPreInit(C.class); // should fail
+    expectNotPreInit(G.class); // should fail
+    expectNotPreInit(Gs.class); // should fail
+    expectNotPreInit(Gss.class); // should fail
 
     A x = new A();
     System.out.println("A.a: " + A.a);
@@ -146,3 +149,19 @@ class C {
     c = A.a; // read other's static field, fail
   }
 }
+
+class G {
+  static G g;
+  static int i;
+  static {
+    g = new Gss(); // fail because recursive dependency
+    i = A.a;  // read other's static field, fail
+  }
+}
+
+// Gs will be successfully initialized as G's status is initializing at that point, which will
+// later aborted but Gs' transaction is already committed.
+// Instantiation of Gs will fail because we try to invoke G's <init>
+// but G's status will be StatusVerified. INVOKE_DIRECT will not initialize class.
+class Gs extends G {}  // fail because super class can't be initialized
+class Gss extends Gs {}
