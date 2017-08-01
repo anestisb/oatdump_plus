@@ -33,7 +33,8 @@ _DUMP_MANY_VARS_LIST = ['HOST_2ND_ARCH_PREFIX',
                         'TARGET_ARCH',
                         'HOST_PREFER_32_BIT',
                         'HOST_OUT_EXECUTABLES',
-                        'ANDROID_JAVA_TOOLCHAIN']
+                        'ANDROID_JAVA_TOOLCHAIN',
+                        'ANDROID_COMPILE_WITH_JACK']
 _DUMP_MANY_VARS = None  # To be set to a dictionary with above list being the keys,
                         # and the build variable being the value.
 def _dump_many_vars(var_name):
@@ -78,6 +79,15 @@ def _dump_many_vars(var_name):
 def _get_build_var(var_name):
   return _dump_many_vars(var_name)
 
+def _get_build_var_boolean(var, default):
+  val = _get_build_var(var)
+  if val:
+    if val == "True" or val == "true":
+      return True
+    if val == "False" or val == "false":
+      return False
+  return default
+
 def get_env(key):
   return _env.get(key)
 
@@ -97,7 +107,7 @@ def _get_android_build_top():
 ANDROID_BUILD_TOP = _get_android_build_top()
 
 # Compiling with jack? Possible values in (True, False, 'default')
-ANDROID_COMPILE_WITH_JACK = _getEnvBoolean('ANDROID_COMPILE_WITH_JACK', 'default')
+ANDROID_COMPILE_WITH_JACK = _get_build_var_boolean('ANDROID_COMPILE_WITH_JACK', 'default')
 
 # Directory used for temporary test files on the host.
 ART_HOST_TEST_DIR = tempfile.mkdtemp(prefix = 'test-art-')
