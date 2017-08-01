@@ -28,6 +28,20 @@ public class Main {
         testClassNewInstance();
         testMissingStuff();
         testBadAccess();
+        testBadInterfaceMethod();
+     }
+    /**
+     * Try to create and invoke a non-existant interface method.
+     */
+    static void testBadInterfaceMethod() {
+        BadInterface badiface = new BadIfaceImpl();
+        try {
+            badiface.internalClone();
+        } catch (IncompatibleClassChangeError icce) {
+            // TODO b/64274113 This should really be an NSME
+            System.out.println("Got expected IncompatibleClassChangeError (interface)");
+            if (VERBOSE) System.out.println("--- " + icce);
+        }
     }
 
     /**

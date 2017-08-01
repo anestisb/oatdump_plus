@@ -3861,10 +3861,20 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   // TODO: Maybe we should not record dependency if the invoke type does not match the lookup type.
   VerifierDeps::MaybeRecordMethodResolution(*dex_file_, dex_method_idx, res_method);
 
+  bool must_fail = false;
+  // This is traditional and helps with screwy bytecode. It will tell you that, yes, a method
+  // exists, but that it's called incorrectly. This significantly helps debugging, as locally it's
+  // hard to see the differences.
+  // If we don't have res_method here we must fail. Just use this bool to make sure of that with a
+  // DCHECK.
   if (res_method == nullptr) {
+    must_fail = true;
     // Try to find the method also with the other type for better error reporting below
     // but do not store such bogus lookup result in the DexCache or VerifierDeps.
     if (klass->IsInterface()) {
+      // NB This is normally not really allowed but we want to get any static or private object
+      // methods for error message purposes. This will never be returned.
+      // TODO We might want to change the verifier to not require this.
       res_method = klass->FindClassMethod(dex_cache_.Get(), dex_method_idx, pointer_size);
     } else {
       // If there was an interface method with the same signature,
@@ -3922,6 +3932,20 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
     }
   }
 
+  // Check specifically for non-public object methods being provided for interface dispatch. This
+  // can occur if we failed to find a method with FindInterfaceMethod but later find one with
+  // FindClassMethod for error message use.
+  if (method_type == METHOD_INTERFACE &&
+      res_method->GetDeclaringClass()->IsObjectClass() &&
+      !res_method->IsPublic()) {
+    Fail(VERIFY_ERROR_NO_METHOD) << "invoke-interface " << klass->PrettyDescriptor() << "."
+                                 << dex_file_->GetMethodName(method_id) << " "
+                                 << dex_file_->GetMethodSignature(method_id) << " resolved to "
+                                 << "non-public object method " << res_method->PrettyMethod() << " "
+                                 << "but non-public Object methods are excluded from interface "
+                                 << "method resolution.";
+    return nullptr;
+  }
   // Check if access is allowed.
   if (!referrer.CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
     Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call "
@@ -3950,6 +3974,13 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
                                        "type of " << res_method->PrettyMethod();
     return nullptr;
   }
+  // Make sure we weren't expecting to fail.
+  DCHECK(!must_fail) << "invoke type (" << method_type << ")"
+                     << klass->PrettyDescriptor() << "."
+                     << dex_file_->GetMethodName(method_id) << " "
+                     << dex_file_->GetMethodSignature(method_id) << " unexpectedly resolved to "
+                     << res_method->PrettyMethod() << " without error. Initially this method was "
+                     << "not found so we were expecting to fail for some reason.";
   return res_method;
 }
 

@@ -41,3 +41,6 @@ Test9Derived.foo()
 Calling Test9User2.test():
 Caught java.lang.reflect.InvocationTargetException
   caused by java.lang.IncompatibleClassChangeError
+Calling Test10User.test():
+Caught java.lang.reflect.InvocationTargetException
+  caused by java.lang.IncompatibleClassChangeError

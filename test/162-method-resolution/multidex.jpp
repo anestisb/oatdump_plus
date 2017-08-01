@@ -112,6 +112,16 @@ Test9User2:
   @@com.android.jack.annotations.ForceInMainDex
   class Test9User2
 
+Test10Base:
+  @@com.android.jack.annotations.ForceInMainDex
+  class Test10Base
+Test10Interface:
+  @@com.android.jack.annotations.ForceInMainDex
+  class Test10Interface
+Test10User:
+  @@com.android.jack.annotations.ForceInMainDex
+  class Test10User
+
 Main:
   @@com.android.jack.annotations.ForceInMainDex
   class Main
