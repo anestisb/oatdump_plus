@@ -1935,14 +1935,12 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
   // time. So instead we assume these classes still need to be verified at
   // runtime.
   for (const DexFile* dex_file : dex_files) {
-    // Fetch the list of unverified classes and turn it into a set for faster
-    // lookups.
-    const std::vector<dex::TypeIndex>& unverified_classes =
+    // Fetch the list of unverified classes.
+    const std::set<dex::TypeIndex>& unverified_classes =
         verifier_deps->GetUnverifiedClasses(*dex_file);
-    std::set<dex::TypeIndex> set(unverified_classes.begin(), unverified_classes.end());
     for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
-      if (set.find(class_def.class_idx_) == set.end()) {
+      if (unverified_classes.find(class_def.class_idx_) == unverified_classes.end()) {
         if (compiler_only_verifies) {
           // Just update the compiled_classes_ map. The compiler doesn't need to resolve
           // the type.
