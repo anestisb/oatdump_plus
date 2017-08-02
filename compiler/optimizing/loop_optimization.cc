@@ -40,6 +40,8 @@ static void RemoveFromCycle(HInstruction* instruction) {
   instruction->RemoveAsUserOfAllInputs();
   instruction->RemoveEnvironmentUsers();
   instruction->GetBlock()->RemoveInstructionOrPhi(instruction, /*ensure_safety=*/ false);
+  RemoveEnvironmentUses(instruction);
+  ResetEnvironmentInputRecords(instruction);
 }
 
 // Detect a goto block and sets succ to the single successor.
@@ -267,6 +269,21 @@ static HInstruction* Insert(HBasicBlock* block, HInstruction* instruction) {
   return instruction;
 }
 
+// Check that instructions from the induction sets are fully removed: have no uses
+// and no other instructions use them.
+static bool CheckInductionSetFullyRemoved(ArenaSet<HInstruction*>* iset) {
+  for (HInstruction* instr : *iset) {
+    if (instr->GetBlock() != nullptr ||
+        !instr->GetUses().empty() ||
+        !instr->GetEnvUses().empty() ||
+        HasEnvironmentUsedByOthers(instr)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 //
 // Class methods.
 //
@@ -448,6 +465,9 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
         for (HInstruction* i : *iset_) {
           RemoveFromCycle(i);
         }
+
+        // Check that there are no records of the deleted instructions.
+        DCHECK(CheckInductionSetFullyRemoved(iset_));
         simplified_ = true;
       }
     }
