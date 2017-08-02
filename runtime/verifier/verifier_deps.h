@@ -117,7 +117,7 @@ class VerifierDeps {
   bool ValidateDependencies(Handle<mirror::ClassLoader> class_loader, Thread* self) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const std::vector<dex::TypeIndex>& GetUnverifiedClasses(const DexFile& dex_file) const {
+  const std::set<dex::TypeIndex>& GetUnverifiedClasses(const DexFile& dex_file) const {
     return GetDexFileDeps(dex_file)->unverified_classes_;
   }
 
@@ -197,7 +197,7 @@ class VerifierDeps {
     std::set<MethodResolution> methods_;
 
     // List of classes that were not fully verified in that dex file.
-    std::vector<dex::TypeIndex> unverified_classes_;
+    std::set<dex::TypeIndex> unverified_classes_;
 
     bool Equals(const DexFileDeps& rhs) const;
   };

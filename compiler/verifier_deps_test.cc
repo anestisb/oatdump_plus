@@ -229,8 +229,7 @@ class VerifierDepsTest : public CommonCompilerTest {
         hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader_)));
     MutableHandle<mirror::Class> cls(hs.NewHandle<mirror::Class>(nullptr));
     for (const DexFile* dex_file : dex_files_) {
-      const std::vector<dex::TypeIndex>& unverified_classes = deps.GetUnverifiedClasses(*dex_file);
-      std::set<dex::TypeIndex> set(unverified_classes.begin(), unverified_classes.end());
+      const std::set<dex::TypeIndex>& unverified_classes = deps.GetUnverifiedClasses(*dex_file);
       for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
         const char* descriptor = dex_file->GetClassDescriptor(class_def);
@@ -238,7 +237,7 @@ class VerifierDepsTest : public CommonCompilerTest {
         if (cls == nullptr) {
           CHECK(soa.Self()->IsExceptionPending());
           soa.Self()->ClearException();
-        } else if (set.find(class_def.class_idx_) == set.end()) {
+        } else if (unverified_classes.find(class_def.class_idx_) == unverified_classes.end()) {
           ASSERT_EQ(cls->GetStatus(), mirror::Class::kStatusVerified);
         } else {
           ASSERT_LT(cls->GetStatus(), mirror::Class::kStatusVerified);
@@ -1143,6 +1142,39 @@ TEST_F(VerifierDepsTest, UnverifiedClasses) {
   ASSERT_TRUE(HasUnverifiedClass("LMyClassWithNoSuper;"));
   // Test that a class with unresolved super and hard failure is recorded.
   ASSERT_TRUE(HasUnverifiedClass("LMyClassWithNoSuperButFailures;"));
+}
+
+TEST_F(VerifierDepsTest, UnverifiedOrder) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject loader = LoadDex("VerifierDeps");
+  std::vector<const DexFile*> dex_files = GetDexFiles(loader);
+  ASSERT_GT(dex_files.size(), 0u);
+  const DexFile* dex_file = dex_files[0];
+  VerifierDeps deps1(dex_files);
+  Thread* const self = Thread::Current();
+  ASSERT_TRUE(self->GetVerifierDeps() == nullptr);
+  self->SetVerifierDeps(&deps1);
+  deps1.MaybeRecordVerificationStatus(*dex_file,
+                                      dex::TypeIndex(0),
+                                      verifier::FailureKind::kHardFailure);
+  deps1.MaybeRecordVerificationStatus(*dex_file,
+                                      dex::TypeIndex(1),
+                                      verifier::FailureKind::kHardFailure);
+  VerifierDeps deps2(dex_files);
+  self->SetVerifierDeps(nullptr);
+  self->SetVerifierDeps(&deps2);
+  deps2.MaybeRecordVerificationStatus(*dex_file,
+                                      dex::TypeIndex(1),
+                                      verifier::FailureKind::kHardFailure);
+  deps2.MaybeRecordVerificationStatus(*dex_file,
+                                      dex::TypeIndex(0),
+                                      verifier::FailureKind::kHardFailure);
+  self->SetVerifierDeps(nullptr);
+  std::vector<uint8_t> buffer1;
+  deps1.Encode(dex_files, &buffer1);
+  std::vector<uint8_t> buffer2;
+  deps2.Encode(dex_files, &buffer2);
+  EXPECT_EQ(buffer1, buffer2);
 }
 
 TEST_F(VerifierDepsTest, VerifyDeps) {

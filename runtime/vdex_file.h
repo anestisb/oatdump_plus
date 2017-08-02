@@ -72,8 +72,8 @@ class VdexFile {
 
    private:
     static constexpr uint8_t kVdexMagic[] = { 'v', 'd', 'e', 'x' };
-    // Last update: Change method lookup.
-    static constexpr uint8_t kVdexVersion[] = { '0', '0', '9', '\0' };
+    // Last update: Use set for unverified_classes_.
+    static constexpr uint8_t kVdexVersion[] = { '0', '1', '0', '\0' };
 
     uint8_t magic_[4];
     uint8_t version_[4];

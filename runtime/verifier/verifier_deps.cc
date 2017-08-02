@@ -59,9 +59,7 @@ void VerifierDeps::MergeWith(const VerifierDeps& other,
     MergeSets(my_deps->classes_, other_deps.classes_);
     MergeSets(my_deps->fields_, other_deps.fields_);
     MergeSets(my_deps->methods_, other_deps.methods_);
-    for (dex::TypeIndex entry : other_deps.unverified_classes_) {
-      my_deps->unverified_classes_.push_back(entry);
-    }
+    MergeSets(my_deps->unverified_classes_, other_deps.unverified_classes_);
   }
 }
 
@@ -507,7 +505,7 @@ void VerifierDeps::MaybeRecordVerificationStatus(const DexFile& dex_file,
   VerifierDeps* thread_deps = GetThreadLocalVerifierDeps();
   if (thread_deps != nullptr) {
     DexFileDeps* dex_deps = thread_deps->GetDexFileDeps(dex_file);
-    dex_deps->unverified_classes_.push_back(type_idx);
+    dex_deps->unverified_classes_.insert(type_idx);
   }
 }
 
@@ -584,6 +582,16 @@ template<> inline dex::TypeIndex Decode<dex::TypeIndex>(uint32_t in) {
 }
 template<> inline dex::StringIndex Decode<dex::StringIndex>(uint32_t in) {
   return dex::StringIndex(in);
+}
+
+// TODO: Clean this up, if we use a template arg here it confuses the compiler.
+static inline void EncodeTuple(std::vector<uint8_t>* out, const dex::TypeIndex& t) {
+  EncodeUnsignedLeb128(out, Encode(t));
+}
+
+// TODO: Clean this up, if we use a template arg here it confuses the compiler.
+static inline void DecodeTuple(const uint8_t** in, const uint8_t* end, dex::TypeIndex* t) {
+  *t = Decode<dex::TypeIndex>(DecodeUint32WithOverflowCheck(in, end));
 }
 
 template<typename T1, typename T2>
@@ -692,7 +700,7 @@ void VerifierDeps::Encode(const std::vector<const DexFile*>& dex_files,
     EncodeSet(buffer, deps.classes_);
     EncodeSet(buffer, deps.fields_);
     EncodeSet(buffer, deps.methods_);
-    EncodeUint16Vector(buffer, deps.unverified_classes_);
+    EncodeSet(buffer, deps.unverified_classes_);
   }
 }
 
@@ -715,7 +723,7 @@ VerifierDeps::VerifierDeps(const std::vector<const DexFile*>& dex_files,
     DecodeSet(&data_start, data_end, &deps->classes_);
     DecodeSet(&data_start, data_end, &deps->fields_);
     DecodeSet(&data_start, data_end, &deps->methods_);
-    DecodeUint16Vector(&data_start, data_end, &deps->unverified_classes_);
+    DecodeSet(&data_start, data_end, &deps->unverified_classes_);
   }
   CHECK_LE(data_start, data_end);
 }
