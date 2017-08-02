@@ -214,7 +214,8 @@ inline void CompilationHelper::Compile(CompilerDriver* driver,
                                                       /*compile_app_image*/false,
                                                       storage_mode,
                                                       oat_filename_vector,
-                                                      dex_file_to_oat_index_map));
+                                                      dex_file_to_oat_index_map,
+                                                      /*dirty_image_objects*/nullptr));
   {
     {
       jobject class_loader = nullptr;

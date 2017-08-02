@@ -408,17 +408,17 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --class-loader-context=<string spec>: a string specifying the intended");
   UsageError("      runtime loading context for the compiled dex files.");
-  UsageError("      ");
+  UsageError("");
   UsageError("      It describes how the class loader chain should be built in order to ensure");
   UsageError("      classes are resolved during dex2aot as they would be resolved at runtime.");
   UsageError("      This spec will be encoded in the oat file. If at runtime the dex file is");
   UsageError("      loaded in a different context, the oat file will be rejected.");
-  UsageError("      ");
+  UsageError("");
   UsageError("      The chain is interpreted in the natural 'parent order', meaning that class");
   UsageError("      loader 'i+1' will be the parent of class loader 'i'.");
   UsageError("      The compilation sources will be appended to the classpath of the first class");
   UsageError("      loader.");
-  UsageError("      ");
+  UsageError("");
   UsageError("      E.g. if the context is 'PCL[lib1.dex];DLC[lib2.dex]' and ");
   UsageError("      --dex-file=src.dex then dex2oat will setup a PathClassLoader with classpath ");
   UsageError("      'lib1.dex:src.dex' and set its parent to a DelegateLastClassLoader with ");
@@ -428,8 +428,11 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      with --dex-file are found in the classpath. The source dex files will be");
   UsageError("      removed from any class loader's classpath possibly resulting in empty");
   UsageError("      class loaders.");
-  UsageError("      ");
+  UsageError("");
   UsageError("      Example: --class-loader-context=PCL[lib1.dex:lib2.dex];DLC[lib3.dex]");
+  UsageError("");
+  UsageError("  --dirty-image-objects=<directory-path>: list of known dirty objects in the image.");
+  UsageError("      The image writer will group them together.");
   UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
@@ -1307,6 +1310,8 @@ class Dex2Oat FINAL {
         if (class_loader_context_== nullptr) {
           Usage("Option --class-loader-context has an incorrect format: %s", option.data());
         }
+      } else if (option.starts_with("--dirty-image-objects=")) {
+        dirty_image_objects_filename_ = option.substr(strlen("--dirty-image-objects=")).data();
       } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
         Usage("Unknown argument %s", option.data());
       }
@@ -1508,7 +1513,8 @@ class Dex2Oat FINAL {
   dex2oat::ReturnCode Setup() {
     TimingLogger::ScopedTiming t("dex2oat Setup", timings_);
 
-    if (!PrepareImageClasses() || !PrepareCompiledClasses() || !PrepareCompiledMethods()) {
+    if (!PrepareImageClasses() || !PrepareCompiledClasses() || !PrepareCompiledMethods() ||
+        !PrepareDirtyObjects()) {
       return dex2oat::ReturnCode::kOther;
     }
 
@@ -2002,7 +2008,8 @@ class Dex2Oat FINAL {
                                           IsAppImage(),
                                           image_storage_mode_,
                                           oat_filenames_,
-                                          dex_file_oat_index_map_));
+                                          dex_file_oat_index_map_,
+                                          dirty_image_objects_.get()));
 
       // We need to prepare method offsets in the image address space for direct method patching.
       TimingLogger::ScopedTiming t2("dex2oat Prepare image address space", timings_);
@@ -2428,6 +2435,22 @@ class Dex2Oat FINAL {
     return true;
   }
 
+  bool PrepareDirtyObjects() {
+    if (dirty_image_objects_filename_ != nullptr) {
+      dirty_image_objects_.reset(ReadCommentedInputFromFile<std::unordered_set<std::string>>(
+          dirty_image_objects_filename_,
+          nullptr));
+      if (dirty_image_objects_ == nullptr) {
+        LOG(ERROR) << "Failed to create list of dirty objects from '"
+            << dirty_image_objects_filename_ << "'";
+        return false;
+      }
+    } else {
+      dirty_image_objects_.reset(nullptr);
+    }
+    return true;
+  }
+
   void PruneNonExistentDexFiles() {
     DCHECK_EQ(dex_filenames_.size(), dex_locations_.size());
     size_t kept = 0u;
@@ -2845,9 +2868,11 @@ class Dex2Oat FINAL {
   const char* compiled_methods_zip_filename_;
   const char* compiled_methods_filename_;
   const char* passes_to_run_filename_;
+  const char* dirty_image_objects_filename_;
   std::unique_ptr<std::unordered_set<std::string>> image_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_methods_;
+  std::unique_ptr<std::unordered_set<std::string>> dirty_image_objects_;
   std::unique_ptr<std::vector<std::string>> passes_to_run_;
   bool multi_image_;
   bool is_host_;

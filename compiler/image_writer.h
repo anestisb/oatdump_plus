@@ -75,7 +75,8 @@ class ImageWriter FINAL {
               bool compile_app_image,
               ImageHeader::StorageMode image_storage_mode,
               const std::vector<const char*>& oat_filenames,
-              const std::unordered_map<const DexFile*, size_t>& dex_file_oat_index_map);
+              const std::unordered_map<const DexFile*, size_t>& dex_file_oat_index_map,
+              const std::unordered_set<std::string>* dirty_image_objects);
 
   bool PrepareImageAddressSpace();
 
@@ -159,6 +160,7 @@ class ImageWriter FINAL {
   // Classify different kinds of bins that objects end up getting packed into during image writing.
   // Ordered from dirtiest to cleanest (until ArtMethods).
   enum Bin {
+    kBinKnownDirty,               // Known dirty objects from --dirty-image-objects list
     kBinMiscDirty,                // Dex caches, object locks, etc...
     kBinClassVerified,            // Class verified, but initializers haven't been run
     // Unknown mix of clean/dirty:
@@ -598,6 +600,9 @@ class ImageWriter FINAL {
 
   // Map of dex files to the indexes of oat files that they were compiled into.
   const std::unordered_map<const DexFile*, size_t>& dex_file_oat_index_map_;
+
+  // Set of objects known to be dirty in the image. Can be nullptr if there are none.
+  const std::unordered_set<std::string>* dirty_image_objects_;
 
   class ComputeLazyFieldsForClassesVisitor;
   class FixupClassVisitor;
