@@ -119,6 +119,71 @@ function verbose_run() {
   env "$@"
 }
 
+# Parse a colon-separated list into an array (e.g. "foo.dex:bar.dex" -> (foo.dex bar.dex))
+PARSE_CLASSPATH_RESULT=()  # Return value will be here due to shell limitations.
+parse_classpath() {
+  local cp="$1"
+  local oldifs=$IFS
+
+  local cp_array
+  cp_array=()
+
+  IFS=":"
+  for part in $cp; do
+    cp_array+=("$part")
+  done
+  IFS=$oldifs
+
+  PARSE_CLASSPATH_RESULT=("${cp_array[@]}")
+}
+
+# Sets 'PARSE_CLASSPATH_RESULT' to an array of class path dex files.
+# e.g. (-cp foo/classes.dex:bar/classes.dex) -> (foo/classes.dex bar/classes.dex)
+find_cp_in_args() {
+  local found="false"
+  local index=0
+  local what
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -cp|-classpath)
+        parse_classpath "$2"
+        # Sets 'PARSE_CLASSPATH_RESULT' to an array of class path dex files.
+        # Subsequent parses will overwrite the preceding.
+        shift
+        ;;
+    esac
+    shift
+  done
+}
+
+# Delete the 'oat' directories relative to the classpath's dex files.
+# e.g. (foo/classes.dex bar/classes.dex) would delete (foo/oat bar/oat) directories.
+cleanup_oat_directory() {
+  local classpath
+  classpath=("$@")
+
+  local dirpath
+
+  for path in "${classpath[@]}"; do
+    dirpath="$(dirname "$path")"
+    [[ -d "$dirpath" ]] && verbose_run rm -rf "$dirpath/oat"
+  done
+}
+
+# Parse -cp <CP>, -classpath <CP>, and $CLASSPATH to find the dex files.
+# Each dex file's directory will have an 'oat' file directory, delete it.
+# Input: Command line arguments to the art script.
+# e.g. -cp foo/classes.dex:bar/classes.dex would delete (foo/oat bar/oat) directories.
+cleanup_oat_directory_for_classpath() {
+  # First try: Use $CLASSPATH environment variable.
+  parse_classpath "$CLASSPATH"
+  # Second try: Look for latest -cp or -classpath arg which will take precedence.
+  find_cp_in_args "$@"
+
+  cleanup_oat_directory "${PARSE_CLASSPATH_RESULT[@]}"
+}
+
 # Attempt to find $ANDROID_ROOT/framework/<isa>/core.art' without knowing what <isa> is.
 function check_if_boot_image_file_exists() {
   local image_location_dir="$1"
@@ -154,6 +219,9 @@ function detect_boot_image_location() {
 function run_art() {
   local image_location="$(detect_boot_image_location)"
 
+  # First cleanup any left-over 'oat' files from the last time dalvikvm was run.
+  cleanup_oat_directory_for_classpath "$@"
+  # Run dalvikvm.
   verbose_run ANDROID_DATA=$ANDROID_DATA               \
               ANDROID_ROOT=$ANDROID_ROOT               \
               LD_LIBRARY_PATH=$LD_LIBRARY_PATH         \
@@ -164,6 +232,9 @@ function run_art() {
               -Xnorelocate                             \
               -Ximage:"$image_location"                \
               "$@"
+
+  # Avoid polluting disk with 'oat' files after dalvikvm has finished.
+  cleanup_oat_directory_for_classpath "$@"
 }
 
 while [[ "$1" = "-"* ]]; do
