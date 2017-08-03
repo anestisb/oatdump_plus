@@ -208,8 +208,8 @@ void PrepareForRegisterAllocation::VisitConstructorFence(HConstructorFence* cons
 
 void PrepareForRegisterAllocation::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   if (invoke->IsStaticWithExplicitClinitCheck()) {
-    HLoadClass* last_input = invoke->GetInputs().back()->AsLoadClass();
-    DCHECK(last_input != nullptr)
+    HInstruction* last_input = invoke->GetInputs().back();
+    DCHECK(last_input->IsLoadClass())
         << "Last input is not HLoadClass. It is " << last_input->DebugName();
 
     // Detach the explicit class initialization check from the invoke.
