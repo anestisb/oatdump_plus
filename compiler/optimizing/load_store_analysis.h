@@ -466,6 +466,11 @@ class HeapLocationCollector : public HGraphVisitor {
     CreateReferenceInfoForReferenceType(new_instance);
   }
 
+  void VisitNewArray(HNewArray* new_array) OVERRIDE {
+    // Any references appearing in the ref_info_array_ so far cannot alias with new_array.
+    CreateReferenceInfoForReferenceType(new_array);
+  }
+
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* instruction) OVERRIDE {
     CreateReferenceInfoForReferenceType(instruction);
   }
@@ -475,6 +480,22 @@ class HeapLocationCollector : public HGraphVisitor {
   }
 
   void VisitInvokeInterface(HInvokeInterface* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
+  }
+
+  void VisitInvokeUnresolved(HInvokeUnresolved* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
+  }
+
+  void VisitInvokePolymorphic(HInvokePolymorphic* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
+  }
+
+  void VisitLoadString(HLoadString* instruction) OVERRIDE {
+    CreateReferenceInfoForReferenceType(instruction);
+  }
+
+  void VisitPhi(HPhi* instruction) OVERRIDE {
     CreateReferenceInfoForReferenceType(instruction);
   }
 
