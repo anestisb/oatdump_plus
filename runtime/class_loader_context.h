@@ -34,9 +34,6 @@ class OatFile;
 // Utility class which holds the class loader context used during compilation/verification.
 class ClassLoaderContext {
  public:
-  // Creates an empty context (with no class loaders).
-  ClassLoaderContext();
-
   ~ClassLoaderContext();
 
   // Opens requested class path files and appends them to ClassLoaderInfo::opened_dex_files.
@@ -126,6 +123,10 @@ class ClassLoaderContext {
   static std::unique_ptr<ClassLoaderContext> CreateContextForClassLoader(jobject class_loader,
                                                                          jobjectArray dex_elements);
 
+  // Returns the default class loader context to be used when none is specified.
+  // This will return a context with a single and empty PathClassLoader.
+  static std::unique_ptr<ClassLoaderContext> Default();
+
  private:
   enum ClassLoaderType {
     kInvalidClassLoader = 0,
@@ -150,6 +151,9 @@ class ClassLoaderContext {
 
     explicit ClassLoaderInfo(ClassLoaderType cl_type) : type(cl_type) {}
   };
+
+  // Creates an empty context (with no class loaders).
+  ClassLoaderContext();
 
   // Constructs an empty context.
   // `owns_the_dex_files` specifies whether or not the context will own the opened dex files
