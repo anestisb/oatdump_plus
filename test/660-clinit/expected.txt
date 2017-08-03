@@ -1,5 +1,4 @@
 JNI_OnLoad called
-hello world
 A.a: 5
 A.a: 10
 B.b: 10

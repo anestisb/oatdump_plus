@@ -24,28 +24,19 @@ public class Main {
     if (!checkAppImageLoaded()) {
       System.out.println("AppImage not loaded.");
     }
-    if (!checkAppImageContains(ClInit.class)) {
-      System.out.println("ClInit class is not in app image!");
-    }
 
-    expectPreInit(ClInit.class);
-    expectPreInit(A.class);
-    expectPreInit(E.class);
-    expectNotPreInit(B.class);
-    expectNotPreInit(C.class);
-    expectNotPreInit(G.class);
-    expectNotPreInit(Gs.class);
-    expectNotPreInit(Gss.class);
-    expectPreInit(InvokeStatic.class);
-    expectNotPreInit(ClinitE.class);
+    expectNotPreInit(Day.class);
+    expectNotPreInit(ClInit.class); // should pass
+    expectNotPreInit(A.class); // should pass
+    expectNotPreInit(B.class); // should fail
+    expectNotPreInit(C.class); // should fail
+    expectNotPreInit(G.class); // should fail
+    expectNotPreInit(Gs.class); // should fail
+    expectNotPreInit(Gss.class); // should fail
 
     expectNotPreInit(Add.class);
     expectNotPreInit(Mul.class);
     expectNotPreInit(ObjectRef.class);
-    expectNotPreInit(Print.class);
-
-    Print p = new Print();
-    Gs gs = new Gs();
 
     A x = new A();
     System.out.println("A.a: " + A.a);
@@ -70,10 +61,6 @@ public class Main {
     if (c.a != 101) {
       System.out.println("a != 101");
     }
-
-    try {
-      ClinitE e = new ClinitE();
-    } catch (Error err) { }
 
     return;
   }
@@ -167,13 +154,6 @@ class C {
   }
 }
 
-class E {
-  public static final int e;
-  static {
-    e = 100;
-  }
-}
-
 class G {
   static G g;
   static int i;
@@ -202,36 +182,9 @@ class Add {
   }
 }
 
-// test of INVOKE_STATIC instruction
-class InvokeStatic {
-  static int a;
-  static int b;
-  static {
-    a = Add.exec(10, 20);
-    b = Mul.exec(10, 20);
-  }
-}
-
 // non-image
 class Mul {
   static int exec(int a, int b) {
     return a * b;
   }
 }
-
-class ClinitE {
-  static {
-    if (Math.sin(3) < 0.5) {
-      // throw anyway, can't initialized
-      throw new ExceptionInInitializerError("Can't initialize this class!");
-    }
-  }
-}
-
-// fail because JNI
-class Print {
-  static {
-    System.out.println("hello world");
-  }
-}
-

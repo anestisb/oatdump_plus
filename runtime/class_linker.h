@@ -710,12 +710,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
-  virtual bool CanAllocClass()
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::dex_lock_) {
-    return true;
-  }
-
  private:
   class LinkInterfaceMethodsHelper;
 
