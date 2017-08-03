@@ -114,8 +114,6 @@ public abstract class Executor {
 
     commandBuilder.append("--oat-file=output.oat ");
     commandBuilder.append("--android-root=").append(device.getAndroidHostOut()).append(" ");
-    commandBuilder.append("--runtime-arg -classpath ");
-    commandBuilder.append("--runtime-arg ").append(programName).append(" ");
     commandBuilder.append("--dex-file=").append(programName).append(" ");
     commandBuilder.append("--compiler-filter=quicken --runtime-arg -Xnorelocate ");
 

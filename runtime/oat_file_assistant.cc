@@ -37,6 +37,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "utils.h"
 #include "vdex_file.h"
+#include "class_loader_context.h"
 
 namespace art {
 
@@ -225,13 +226,25 @@ bool OatFileAssistant::IsUpToDate() {
 }
 
 OatFileAssistant::ResultOfAttemptToUpdate
-OatFileAssistant::MakeUpToDate(bool profile_changed, std::string* error_msg) {
+OatFileAssistant::MakeUpToDate(bool profile_changed,
+                               const std::string& class_loader_context,
+                               std::string* error_msg) {
   CompilerFilter::Filter target;
   if (!GetRuntimeCompilerFilterOption(&target, error_msg)) {
     return kUpdateNotAttempted;
   }
 
   OatFileInfo& info = GetBestInfo();
+  // TODO(calin, jeffhao): the context should really be passed to GetDexOptNeeded: b/62269291.
+  // This is actually not trivial in the current logic as it will interact with the collision
+  // check:
+  //   - currently, if the context does not match but we have no collisions we still accept the
+  //     oat file.
+  //   - if GetDexOptNeeded would return kDex2OatFromScratch for a context mismatch and we make
+  //     the oat code up to date the collision check becomes useless.
+  //   - however, MakeUpToDate will not always succeed (e.g. for primary apks, or for dex files
+  //     loaded in other processes). So it boils down to how far do we want to complicate
+  //     the logic in order to enable the use of oat files. Maybe its time to try simplify it.
   switch (info.GetDexOptNeeded(target, profile_changed, /*downgrade*/ false)) {
     case kNoDexOptNeeded:
       return kUpdateSucceeded;
@@ -243,7 +256,7 @@ OatFileAssistant::MakeUpToDate(bool profile_changed, std::string* error_msg) {
     case kDex2OatForBootImage:
     case kDex2OatForRelocation:
     case kDex2OatForFilter:
-      return GenerateOatFileNoChecks(info, target, error_msg);
+      return GenerateOatFileNoChecks(info, target, class_loader_context, error_msg);
   }
   UNREACHABLE();
 }
@@ -628,7 +641,10 @@ static bool PrepareOdexDirectories(const std::string& dex_location,
 }
 
 OatFileAssistant::ResultOfAttemptToUpdate OatFileAssistant::GenerateOatFileNoChecks(
-      OatFileAssistant::OatFileInfo& info, CompilerFilter::Filter filter, std::string* error_msg) {
+      OatFileAssistant::OatFileInfo& info,
+      CompilerFilter::Filter filter,
+      const std::string& class_loader_context,
+      std::string* error_msg) {
   CHECK(error_msg != nullptr);
 
   Runtime* runtime = Runtime::Current();
@@ -704,6 +720,7 @@ OatFileAssistant::ResultOfAttemptToUpdate OatFileAssistant::GenerateOatFileNoChe
   args.push_back("--oat-fd=" + std::to_string(oat_file->Fd()));
   args.push_back("--oat-location=" + oat_file_name);
   args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
+  args.push_back("--class-loader-context=" + class_loader_context);
 
   if (!Dex2Oat(args, error_msg)) {
     // Manually delete the oat and vdex files. This ensures there is no garbage
@@ -743,14 +760,6 @@ bool OatFileAssistant::Dex2Oat(const std::vector<std::string>& args,
 
   std::vector<std::string> argv;
   argv.push_back(runtime->GetCompilerExecutable());
-  argv.push_back("--runtime-arg");
-  argv.push_back("-classpath");
-  argv.push_back("--runtime-arg");
-  std::string class_path = runtime->GetClassPathString();
-  if (class_path == "") {
-    class_path = OatFile::kSpecialSharedLibrary;
-  }
-  argv.push_back(class_path);
   if (runtime->IsJavaDebuggable()) {
     argv.push_back("--debuggable");
   }

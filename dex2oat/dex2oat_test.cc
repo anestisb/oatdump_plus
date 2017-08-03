@@ -134,7 +134,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
     }
   }
 
-  // Check the input compiler filter against the generated oat file's filter. Mayb be overridden
+  // Check the input compiler filter against the generated oat file's filter. May be overridden
   // in subclasses when equality is not expected.
   virtual void CheckFilter(CompilerFilter::Filter expected, CompilerFilter::Filter actual) {
     EXPECT_EQ(expected, actual);
@@ -153,14 +153,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
 
     std::vector<std::string> argv;
     argv.push_back(runtime->GetCompilerExecutable());
-    argv.push_back("--runtime-arg");
-    argv.push_back("-classpath");
-    argv.push_back("--runtime-arg");
-    std::string class_path = runtime->GetClassPathString();
-    if (class_path == "") {
-      class_path = OatFile::kSpecialSharedLibrary;
-    }
-    argv.push_back(class_path);
+
     if (runtime->IsJavaDebuggable()) {
       argv.push_back("--debuggable");
     }

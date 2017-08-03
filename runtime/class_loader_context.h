@@ -34,9 +34,6 @@ class OatFile;
 // Utility class which holds the class loader context used during compilation/verification.
 class ClassLoaderContext {
  public:
-  // Creates an empty context (with no class loaders).
-  ClassLoaderContext();
-
   ~ClassLoaderContext();
 
   // Opens requested class path files and appends them to ClassLoaderInfo::opened_dex_files.
@@ -82,8 +79,15 @@ class ClassLoaderContext {
   // (so that it can be read and verified at runtime against the actual class
   // loader hierarchy).
   // Should only be called if OpenDexFiles() returned true.
-  // E.g. if the context is PCL[a.dex:b.dex] this will return "a.dex*a_checksum*b.dex*a_checksum".
+  // E.g. if the context is PCL[a.dex:b.dex] this will return
+  // "PCL[a.dex*a_checksum*b.dex*a_checksum]".
   std::string EncodeContextForOatFile(const std::string& base_dir) const;
+
+  // Encodes the context as a string suitable to be passed to dex2oat.
+  // This is the same as EncodeContextForOatFile but without adding the checksums
+  // and only adding each dex files once (no multidex).
+  // Should only be called if OpenDexFiles() returned true.
+  std::string EncodeContextForDex2oat(const std::string& base_dir) const;
 
   // Flattens the opened dex files into the given vector.
   // Should only be called if OpenDexFiles() returned true.
@@ -94,7 +98,7 @@ class ClassLoaderContext {
   //    - the number and type of the class loaders from the chain matches
   //    - the class loader from the same position have the same classpath
   //      (the order and checksum of the dex files matches)
-  bool VerifyClassLoaderContextMatch(const std::string& context_spec);
+  bool VerifyClassLoaderContextMatch(const std::string& context_spec) const;
 
   // Creates the class loader context from the given string.
   // The format: ClassLoaderType1[ClasspathElem1:ClasspathElem2...];ClassLoaderType2[...]...
@@ -118,6 +122,10 @@ class ClassLoaderContext {
   // method returns null.
   static std::unique_ptr<ClassLoaderContext> CreateContextForClassLoader(jobject class_loader,
                                                                          jobjectArray dex_elements);
+
+  // Returns the default class loader context to be used when none is specified.
+  // This will return a context with a single and empty PathClassLoader.
+  static std::unique_ptr<ClassLoaderContext> Default();
 
  private:
   enum ClassLoaderType {
@@ -143,6 +151,9 @@ class ClassLoaderContext {
 
     explicit ClassLoaderInfo(ClassLoaderType cl_type) : type(cl_type) {}
   };
+
+  // Creates an empty context (with no class loaders).
+  ClassLoaderContext();
 
   // Constructs an empty context.
   // `owns_the_dex_files` specifies whether or not the context will own the opened dex files
@@ -173,7 +184,15 @@ class ClassLoaderContext {
   bool AddInfoToContextFromClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
                                        Handle<mirror::ClassLoader> class_loader,
                                        Handle<mirror::ObjectArray<mirror::Object>> dex_elements)
-  REQUIRES_SHARED(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Encodes the context as a string suitable to be passed to dex2oat or to be added to the
+  // oat file as the class path key.
+  // If for_dex2oat is true, the encoding adds each file once (i.e. it does not add multidex
+  // location). Otherwise, for oat files, the encoding adds all the dex files (including multidex)
+  // together with their checksums.
+  // Should only be called if OpenDexFiles() returned true.
+  std::string EncodeContext(const std::string& base_dir, bool for_dex2oat) const;
 
   // Extracts the class loader type from the given spec.
   // Return ClassLoaderContext::kInvalidClassLoader if the class loader type is not
