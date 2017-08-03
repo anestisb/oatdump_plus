@@ -708,7 +708,7 @@
     },
     {
         "tests": "660-clinit",
-        "variant": "no-image | no-dex2oat | no-prebuild | interp-ac",
+        "variant": "no-image | no-dex2oat | no-prebuild | interp-ac | debuggable",
         "description": ["Tests <clinit> for app images, which --no-image, --no-prebuild, interp-ac",
                         "and --no-dex2oat do not create"]
     }
