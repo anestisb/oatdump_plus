@@ -711,5 +711,10 @@
         "variant": "no-image | no-dex2oat | no-prebuild",
         "description": ["Tests <clinit> for app images, which --no-image, --no-prebuild and",
                         "--no-dex2oat do not create"]
+    },
+    {
+        "tests": "961-default-iface-resolution-gen",
+        "env_vars": {"SANITIZE_HOST": "address"},
+        "description": ["Test hits dex2oat watchdog timeout (60sec) on art-asan"]
     }
 ]
