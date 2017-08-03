@@ -464,14 +464,25 @@ ArtMethod* Class::FindInterfaceMethod(ObjPtr<DexCache> dex_cache,
   return FindInterfaceMethod(name, signature, pointer_size);
 }
 
+static inline bool IsValidInheritanceCheck(ObjPtr<mirror::Class> klass,
+                                           ObjPtr<mirror::Class> declaring_class)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (klass->IsArrayClass()) {
+    return declaring_class->IsObjectClass();
+  } else if (klass->IsInterface()) {
+    return declaring_class->IsObjectClass() || declaring_class == klass;
+  } else {
+    return klass->IsSubClass(declaring_class);
+  }
+}
+
 static inline bool IsInheritedMethod(ObjPtr<mirror::Class> klass,
                                      ObjPtr<mirror::Class> declaring_class,
                                      ArtMethod& method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK_EQ(declaring_class, method.GetDeclaringClass());
   DCHECK_NE(klass, declaring_class);
-  DCHECK(klass->IsArrayClass() ? declaring_class->IsObjectClass()
-                               : klass->IsSubClass(declaring_class));
+  DCHECK(IsValidInheritanceCheck(klass, declaring_class));
   uint32_t access_flags = method.GetAccessFlags();
   if ((access_flags & (kAccPublic | kAccProtected)) != 0) {
     return true;
