@@ -234,7 +234,7 @@ JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
   std::unique_ptr<MemMap> code_sync_map(SplitMemMap(post_code_map.get(),
                                                     "jit-code-sync",
                                                     post_code_size,
-                                                    kProtReadOnly,
+                                                    kProtCode,
                                                     error_msg,
                                                     use_ashmem));
   if (code_sync_map == nullptr) {
@@ -769,14 +769,14 @@ static void FlushInstructionPiplines(uint8_t* sync_page) {
   // After updating the JIT code cache we need to force all CPUs to
   // flush their instruction pipelines. In the absence of system call
   // to do this explicitly, we can achieve this indirectly by toggling
-  // permissions on a data page. This should send an IPI to
+  // permissions on an executable page. This should send an IPI to
   // each core to update the TLB entry with the interrupt raised on
   // each core causing the instruction pipeline to be flushed.
-  CHECKED_MPROTECT(sync_page, kPageSize, kProtData);
+  CHECKED_MPROTECT(sync_page, kPageSize, kProtAll);
   // Ensure the sync_page is present otherwise a TLB update may not be
   // necessary.
   sync_page[0] = 0;
-  CHECKED_MPROTECT(sync_page, kPageSize, kProtReadOnly);
+  CHECKED_MPROTECT(sync_page, kPageSize, kProtCode);
 }
 
 #ifdef __aarch64__
