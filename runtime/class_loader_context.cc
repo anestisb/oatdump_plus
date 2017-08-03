@@ -68,10 +68,6 @@ ClassLoaderContext::~ClassLoaderContext() {
   }
 }
 
-std::unique_ptr<ClassLoaderContext> ClassLoaderContext::Default() {
-  return Create("");
-}
-
 std::unique_ptr<ClassLoaderContext> ClassLoaderContext::Create(const std::string& spec) {
   std::unique_ptr<ClassLoaderContext> result(new ClassLoaderContext());
   if (result->Parse(spec)) {
