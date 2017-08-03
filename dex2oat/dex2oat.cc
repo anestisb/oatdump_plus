@@ -1308,7 +1308,7 @@ class Dex2Oat FINAL {
       } else if (option.starts_with("--class-loader-context=")) {
         class_loader_context_ = ClassLoaderContext::Create(
             option.substr(strlen("--class-loader-context=")).data());
-        if (class_loader_context_ == nullptr) {
+        if (class_loader_context_== nullptr) {
           Usage("Option --class-loader-context has an incorrect format: %s", option.data());
         }
       } else if (option.starts_with("--dirty-image-objects=")) {
@@ -1576,12 +1576,20 @@ class Dex2Oat FINAL {
       }
 
       // Open dex files for class path.
-
       if (class_loader_context_ == nullptr) {
-        // If no context was specified use the default one (which is an empty PathClassLoader).
-        class_loader_context_ = std::unique_ptr<ClassLoaderContext>(ClassLoaderContext::Default());
+        // TODO(calin): Temporary workaround while we transition to use
+        // --class-loader-context instead of --runtime-arg -cp
+        if (runtime_->GetClassPathString().empty()) {
+          class_loader_context_ = std::unique_ptr<ClassLoaderContext>(
+              new ClassLoaderContext());
+        } else {
+          std::string spec = runtime_->GetClassPathString() == OatFile::kSpecialSharedLibrary
+              ? OatFile::kSpecialSharedLibrary
+              : "PCL[" + runtime_->GetClassPathString() + "]";
+          class_loader_context_ = ClassLoaderContext::Create(spec);
+        }
       }
-
+      CHECK(class_loader_context_ != nullptr);
       DCHECK_EQ(oat_writers_.size(), 1u);
 
       // Note: Ideally we would reject context where the source dex files are also
