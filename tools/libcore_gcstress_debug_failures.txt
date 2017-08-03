@@ -9,6 +9,7 @@
   result: EXEC_FAILED,
   modes: [device],
   names: ["libcore.icu.TransliteratorTest#testAll",
+          "libcore.icu.RelativeDateTimeFormatterTest#test_bug25821045",
           "libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndTimeout",
           "libcore.java.util.TimeZoneTest#testSetDefaultDeadlock",
           "org.apache.harmony.tests.java.util.TimerTest#testThrowingTaskKillsTimerThread"]
