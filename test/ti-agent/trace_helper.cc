@@ -388,10 +388,12 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableTracing(
   data->single_step = single_step != nullptr ? env->FromReflectedMethod(single_step) : nullptr;
   data->in_callback = false;
 
-  void* old_data = nullptr;
-  if (JvmtiErrorToException(env, jvmti_env, jvmti_env->GetEnvironmentLocalStorage(&old_data))) {
+  TraceData* old_data = nullptr;
+  if (JvmtiErrorToException(env, jvmti_env,
+                            jvmti_env->GetEnvironmentLocalStorage(
+                                reinterpret_cast<void**>(&old_data)))) {
     return;
-  } else if (old_data != nullptr) {
+  } else if (old_data != nullptr && old_data->test_klass != nullptr) {
     ScopedLocalRef<jclass> rt_exception(env, env->FindClass("java/lang/RuntimeException"));
     env->ThrowNew(rt_exception.get(), "Environment already has local storage set!");
     return;
@@ -455,6 +457,21 @@ extern "C" JNIEXPORT void JNICALL Java_art_Trace_enableTracing(
 
 extern "C" JNIEXPORT void JNICALL Java_art_Trace_disableTracing(
     JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+  TraceData* data = nullptr;
+  if (JvmtiErrorToException(
+      env, jvmti_env, jvmti_env->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&data)))) {
+    return;
+  }
+  // If data is null then we haven't ever enabled tracing so we don't need to do anything.
+  if (data == nullptr || data->test_klass == nullptr) {
+    return;
+  }
+  env->DeleteGlobalRef(data->test_klass);
+  if (env->ExceptionCheck()) {
+    return;
+  }
+  // Clear test_klass so we know this isn't being used
+  data->test_klass = nullptr;
   if (JvmtiErrorToException(env, jvmti_env,
                             jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                                                 JVMTI_EVENT_FIELD_ACCESS,
