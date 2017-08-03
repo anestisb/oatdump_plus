@@ -4,10 +4,7 @@ LDay;
 LA;
 LB;
 LC;
-LE;
 LG;
 LGs;
 LObjectRef;
-LInvokeStatic;
-LClinitE;
-LPrint;
+

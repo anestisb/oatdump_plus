@@ -27,13 +27,6 @@ class AotClassLinker : public ClassLinker {
   explicit AotClassLinker(InternTable *intern_table);
   ~AotClassLinker();
 
-  // Override AllocClass because aot compiler will need to perform a transaction check to determine
-  // can we allocate class from heap.
-  bool CanAllocClass()
-      OVERRIDE
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Roles::uninterruptible_);
-
   bool InitializeClass(Thread *self,
                        Handle<mirror::Class> klass,
                        bool can_run_clinit,
