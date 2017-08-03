@@ -716,5 +716,11 @@
         "tests": "961-default-iface-resolution-gen",
         "env_vars": {"SANITIZE_HOST": "address"},
         "description": ["Test hits dex2oat watchdog timeout (60sec) on art-asan"]
+    },
+    {
+        "tests": "662-regression-alias",
+        "variant": "target",
+        "description": ["disable until ARM scheduling/aliasing bug is fixed."],
+        "bug": "b/64018485"
     }
 ]
