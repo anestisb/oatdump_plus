@@ -211,13 +211,6 @@
           "libcore.java.lang.ProcessBuilderTest#testRedirect_nullStreams"]
 },
 {
-  description: "Test is timing sensitive",
-  result: EXEC_FAILED,
-  bug: 62528691,
-  modes: [device],
-  names: ["libcore.java.util.TimeZoneTest#testSetDefaultRace"]
-},
-{
   description: "Repeated annotations do not work in javac (OpenJDK8), fixed in OpenJDK9.
                 Blacklisted to support javac/dx build (b/36902714)",
   result: EXEC_FAILED,
