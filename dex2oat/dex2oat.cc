@@ -596,6 +596,7 @@ class Dex2Oat FINAL {
       compiled_methods_zip_filename_(nullptr),
       compiled_methods_filename_(nullptr),
       passes_to_run_filename_(nullptr),
+      dirty_image_objects_filename_(nullptr),
       multi_image_(false),
       is_host_(false),
       elf_writers_(),
