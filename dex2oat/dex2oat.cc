@@ -355,6 +355,9 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --debuggable: Produce code debuggable with Java debugger.");
   UsageError("");
+  UsageError("  --avoid-storing-invocation: Avoid storing the invocation args in the key value");
+  UsageError("      store. Used to test determinism with different args.");
+  UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
   UsageError("      Use a separate --runtime-arg switch for each argument.");
@@ -611,6 +614,7 @@ class Dex2Oat FINAL {
       dump_passes_(false),
       dump_timing_(false),
       dump_slow_timing_(kIsDebugBuild),
+      avoid_storing_invocation_(false),
       swap_fd_(kInvalidFd),
       app_image_fd_(kInvalidFd),
       profile_file_fd_(kInvalidFd),
@@ -1133,14 +1137,16 @@ class Dex2Oat FINAL {
 
   void InsertCompileOptions(int argc, char** argv) {
     std::ostringstream oss;
-    for (int i = 0; i < argc; ++i) {
-      if (i > 0) {
-        oss << ' ';
+    if (!avoid_storing_invocation_) {
+      for (int i = 0; i < argc; ++i) {
+        if (i > 0) {
+          oss << ' ';
+        }
+        oss << argv[i];
       }
-      oss << argv[i];
+      key_value_store_->Put(OatHeader::kDex2OatCmdLineKey, oss.str());
+      oss.str("");  // Reset.
     }
-    key_value_store_->Put(OatHeader::kDex2OatCmdLineKey, oss.str());
-    oss.str("");  // Reset.
     oss << kRuntimeISA;
     key_value_store_->Put(OatHeader::kDex2OatHostKey, oss.str());
     key_value_store_->Put(
@@ -1271,6 +1277,8 @@ class Dex2Oat FINAL {
         dump_passes_ = true;
       } else if (option == "--dump-stats") {
         dump_stats_ = true;
+      } else if (option == "--avoid-storing-invocation") {
+        avoid_storing_invocation_ = true;
       } else if (option.starts_with("--swap-file=")) {
         swap_file_name_ = option.substr(strlen("--swap-file=")).data();
       } else if (option.starts_with("--swap-fd=")) {
@@ -2891,6 +2899,7 @@ class Dex2Oat FINAL {
   bool dump_passes_;
   bool dump_timing_;
   bool dump_slow_timing_;
+  bool avoid_storing_invocation_;
   std::string swap_file_name_;
   int swap_fd_;
   size_t min_dex_files_for_swap_ = kDefaultMinDexFilesForSwap;
