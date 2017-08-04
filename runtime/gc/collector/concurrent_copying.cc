@@ -2431,24 +2431,31 @@ mirror::Object* ConcurrentCopying::IsMarked(mirror::Object* from_ref) {
       // Non-immune non-moving space. Use the mark bitmap.
       accounting::ContinuousSpaceBitmap* mark_bitmap =
           heap_mark_bitmap_->GetContinuousSpaceBitmap(from_ref);
-      accounting::LargeObjectBitmap* los_bitmap =
-          heap_mark_bitmap_->GetLargeObjectBitmap(from_ref);
-      CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
       bool is_los = mark_bitmap == nullptr;
       if (!is_los && mark_bitmap->Test(from_ref)) {
         // Already marked.
         to_ref = from_ref;
-      } else if (is_los && los_bitmap->Test(from_ref)) {
-        // Already marked in LOS.
-        to_ref = from_ref;
       } else {
-        // Not marked.
-        if (IsOnAllocStack(from_ref)) {
-          // If on the allocation stack, it's considered marked.
+        accounting::LargeObjectBitmap* los_bitmap =
+            heap_mark_bitmap_->GetLargeObjectBitmap(from_ref);
+        // We may not have a large object space for dex2oat, don't assume it exists.
+        if (los_bitmap == nullptr) {
+          CHECK(heap_->GetLargeObjectsSpace() == nullptr)
+              << "LOS bitmap covers the entire address range " << from_ref
+              << " " << heap_->DumpSpaces();
+        }
+        if (los_bitmap != nullptr && is_los && los_bitmap->Test(from_ref)) {
+          // Already marked in LOS.
           to_ref = from_ref;
         } else {
           // Not marked.
-          to_ref = nullptr;
+          if (IsOnAllocStack(from_ref)) {
+            // If on the allocation stack, it's considered marked.
+            to_ref = from_ref;
+          } else {
+            // Not marked.
+            to_ref = nullptr;
+          }
         }
       }
     }
