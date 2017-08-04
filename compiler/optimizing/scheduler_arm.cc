@@ -20,6 +20,7 @@
 #include "code_generator_utils.h"
 #include "common_arm.h"
 #include "mirror/array-inl.h"
+#include "mirror/string.h"
 
 namespace art {
 namespace arm {

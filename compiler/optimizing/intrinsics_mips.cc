@@ -22,6 +22,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
 #include "mirror/array-inl.h"
+#include "mirror/object_array-inl.h"
 #include "mirror/string.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"

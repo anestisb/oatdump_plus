@@ -18,6 +18,7 @@
 
 #include "code_generator_utils.h"
 #include "mirror/array-inl.h"
+#include "mirror/string.h"
 
 namespace art {
 namespace arm64 {
