@@ -1188,4 +1188,164 @@ TEST_F(Dex2oatDeterminism, UnloadCompile) {
   EXPECT_GT(app_image_file->GetLength(), 0u);
 }
 
+// Test that dexlayout section info is correctly written to the oat file for profile based
+// compilation.
+TEST_F(Dex2oatTest, LayoutSections) {
+  using Hotness = ProfileCompilationInfo::MethodHotness;
+  std::unique_ptr<const DexFile> dex(OpenTestDexFile("ManyMethods"));
+  ScratchFile profile_file;
+  // We can only layout method indices with code items, figure out which ones have this property
+  // first.
+  std::vector<uint16_t> methods;
+  {
+    const DexFile::TypeId* type_id = dex->FindTypeId("LManyMethods;");
+    dex::TypeIndex type_idx = dex->GetIndexForTypeId(*type_id);
+    const DexFile::ClassDef* class_def = dex->FindClassDef(type_idx);
+    ClassDataItemIterator it(*dex, dex->GetClassData(*class_def));
+    it.SkipAllFields();
+    std::set<size_t> code_item_offsets;
+    for (; it.HasNextDirectMethod() || it.HasNextVirtualMethod(); it.Next()) {
+      const uint16_t method_idx = it.GetMemberIndex();
+      const size_t code_item_offset = it.GetMethodCodeItemOffset();
+      if (code_item_offsets.insert(code_item_offset).second) {
+        // Unique code item, add the method index.
+        methods.push_back(method_idx);
+      }
+    }
+    DCHECK(!it.HasNext());
+  }
+  ASSERT_GE(methods.size(), 8u);
+  std::vector<uint16_t> hot_methods = {methods[1], methods[3], methods[5]};
+  std::vector<uint16_t> startup_methods = {methods[1], methods[2], methods[7]};
+  std::vector<uint16_t> post_methods = {methods[0], methods[2], methods[6]};
+  // Here, we build the profile from the method lists.
+  ProfileCompilationInfo info;
+  info.AddMethodsForDex(
+      static_cast<Hotness::Flag>(Hotness::kFlagHot | Hotness::kFlagStartup),
+      dex.get(),
+      hot_methods.begin(),
+      hot_methods.end());
+  info.AddMethodsForDex(
+      Hotness::kFlagStartup,
+      dex.get(),
+      startup_methods.begin(),
+      startup_methods.end());
+  info.AddMethodsForDex(
+      Hotness::kFlagPostStartup,
+      dex.get(),
+      post_methods.begin(),
+      post_methods.end());
+  for (uint16_t id : hot_methods) {
+    EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), id)).IsHot());
+    EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), id)).IsStartup());
+  }
+  for (uint16_t id : startup_methods) {
+    EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), id)).IsStartup());
+  }
+  for (uint16_t id : post_methods) {
+    EXPECT_TRUE(info.GetMethodHotness(MethodReference(dex.get(), id)).IsPostStartup());
+  }
+  // Save the profile since we want to use it with dex2oat to produce an oat file.
+  ASSERT_TRUE(info.Save(profile_file.GetFd()));
+  // Generate a profile based odex.
+  const std::string dir = GetScratchDir();
+  const std::string oat_filename = dir + "/base.oat";
+  const std::string vdex_filename = dir + "/base.vdex";
+  std::string error_msg;
+  const int res = GenerateOdexForTestWithStatus(
+      {dex->GetLocation()},
+      oat_filename,
+      CompilerFilter::Filter::kQuicken,
+      &error_msg,
+      {"--profile-file=" + profile_file.GetFilename()});
+  EXPECT_EQ(res, 0);
+
+  // Open our generated oat file.
+  std::unique_ptr<OatFile> odex_file(OatFile::Open(oat_filename.c_str(),
+                                                   oat_filename.c_str(),
+                                                   nullptr,
+                                                   nullptr,
+                                                   false,
+                                                   /*low_4gb*/false,
+                                                   dex->GetLocation().c_str(),
+                                                   &error_msg));
+  ASSERT_TRUE(odex_file != nullptr);
+  std::vector<const OatDexFile*> oat_dex_files = odex_file->GetOatDexFiles();
+  ASSERT_EQ(oat_dex_files.size(), 1u);
+  // Check that the code sections match what we expect.
+  for (const OatDexFile* oat_dex : oat_dex_files) {
+    const DexLayoutSections* const sections = oat_dex->GetDexLayoutSections();
+    // Testing of logging the sections.
+    ASSERT_TRUE(sections != nullptr);
+    LOG(INFO) << *sections;
+
+    // Load the sections into temporary variables for convenience.
+    const DexLayoutSection& code_section =
+        sections->sections_[static_cast<size_t>(DexLayoutSections::SectionType::kSectionTypeCode)];
+    const DexLayoutSection::Subsection& section_hot_code =
+        code_section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeHot)];
+    const DexLayoutSection::Subsection& section_sometimes_used =
+        code_section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeSometimesUsed)];
+    const DexLayoutSection::Subsection& section_startup_only =
+        code_section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeStartupOnly)];
+    const DexLayoutSection::Subsection& section_unused =
+        code_section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeUnused)];
+
+    // All the sections should be non-empty.
+    EXPECT_GT(section_hot_code.size_, 0u);
+    EXPECT_GT(section_sometimes_used.size_, 0u);
+    EXPECT_GT(section_startup_only.size_, 0u);
+    EXPECT_GT(section_unused.size_, 0u);
+
+    // Open the dex file since we need to peek at the code items to verify the layout matches what
+    // we expect.
+    std::unique_ptr<const DexFile> dex_file(oat_dex->OpenDexFile(&error_msg));
+    ASSERT_TRUE(dex_file != nullptr) << error_msg;
+    const DexFile::TypeId* type_id = dex_file->FindTypeId("LManyMethods;");
+    ASSERT_TRUE(type_id != nullptr);
+    dex::TypeIndex type_idx = dex_file->GetIndexForTypeId(*type_id);
+    const DexFile::ClassDef* class_def = dex_file->FindClassDef(type_idx);
+    ASSERT_TRUE(class_def != nullptr);
+
+    // Count how many code items are for each category, there should be at least one per category.
+    size_t hot_count = 0;
+    size_t post_startup_count = 0;
+    size_t startup_count = 0;
+    size_t unused_count = 0;
+    // Visit all of the methdos of the main class and cross reference the method indices to their
+    // corresponding code item offsets to verify the layout.
+    ClassDataItemIterator it(*dex_file, dex_file->GetClassData(*class_def));
+    it.SkipAllFields();
+    for (; it.HasNextDirectMethod() || it.HasNextVirtualMethod(); it.Next()) {
+      const size_t method_idx = it.GetMemberIndex();
+      const size_t code_item_offset = it.GetMethodCodeItemOffset();
+      const bool is_hot = ContainsElement(hot_methods, method_idx);
+      const bool is_startup = ContainsElement(startup_methods, method_idx);
+      const bool is_post_startup = ContainsElement(post_methods, method_idx);
+      if (is_hot) {
+        // Hot is highest precedence, check that the hot methods are in the hot section.
+        EXPECT_LT(code_item_offset - section_hot_code.offset_, section_hot_code.size_);
+        ++hot_count;
+      } else if (is_post_startup) {
+        // Post startup is sometimes used section.
+        EXPECT_LT(code_item_offset - section_sometimes_used.offset_, section_sometimes_used.size_);
+        ++post_startup_count;
+      } else if (is_startup) {
+        // Startup at this point means not hot or post startup, these must be startup only then.
+        EXPECT_LT(code_item_offset - section_startup_only.offset_, section_startup_only.size_);
+        ++startup_count;
+      } else {
+        // If no flags are set, the method should be unused.
+        EXPECT_LT(code_item_offset - section_unused.offset_, section_unused.size_);
+        ++unused_count;
+      }
+    }
+    DCHECK(!it.HasNext());
+    EXPECT_GT(hot_count, 0u);
+    EXPECT_GT(post_startup_count, 0u);
+    EXPECT_GT(startup_count, 0u);
+    EXPECT_GT(unused_count, 0u);
+  }
+}
+
 }  // namespace art

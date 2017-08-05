@@ -544,6 +544,19 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
       return false;
     }
 
+    uint32_t dex_layout_sections_offset;
+    if (UNLIKELY(!ReadOatDexFileData(*this, &oat, &dex_layout_sections_offset))) {
+      *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' truncated "
+                                    "after dex layout sections offset",
+                                GetLocation().c_str(),
+                                i,
+                                dex_file_location.c_str());
+      return false;
+    }
+    const DexLayoutSections* const dex_layout_sections = dex_layout_sections_offset != 0
+        ? reinterpret_cast<const DexLayoutSections*>(Begin() + dex_layout_sections_offset)
+        : nullptr;
+
     uint32_t method_bss_mapping_offset;
     if (UNLIKELY(!ReadOatDexFileData(*this, &oat, &method_bss_mapping_offset))) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' truncated "
@@ -635,7 +648,8 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
                                               lookup_table_data,
                                               method_bss_mapping,
                                               class_offsets_pointer,
-                                              current_dex_cache_arrays);
+                                              current_dex_cache_arrays,
+                                              dex_layout_sections);
     oat_dex_files_storage_.push_back(oat_dex_file);
 
     // Add the location and canonical location (if different) to the oat_dex_files_ table.
@@ -1362,7 +1376,8 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 const uint8_t* lookup_table_data,
                                 const MethodBssMapping* method_bss_mapping_data,
                                 const uint32_t* oat_class_offsets_pointer,
-                                uint8_t* dex_cache_arrays)
+                                uint8_t* dex_cache_arrays,
+                                const DexLayoutSections* dex_layout_sections)
     : oat_file_(oat_file),
       dex_file_location_(dex_file_location),
       canonical_dex_file_location_(canonical_dex_file_location),
@@ -1371,7 +1386,8 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
       lookup_table_data_(lookup_table_data),
       method_bss_mapping_(method_bss_mapping_data),
       oat_class_offsets_pointer_(oat_class_offsets_pointer),
-      dex_cache_arrays_(dex_cache_arrays) {
+      dex_cache_arrays_(dex_cache_arrays),
+      dex_layout_sections_(dex_layout_sections) {
   // Initialize TypeLookupTable.
   if (lookup_table_data_ != nullptr) {
     // Peek the number of classes from the DexFile.
@@ -1475,6 +1491,23 @@ const DexFile::ClassDef* OatFile::OatDexFile::FindClassDef(const DexFile& dex_fi
     return dex_file.FindClassDef(type_idx);
   }
   return nullptr;
+}
+
+// Madvise the dex file based on the state we are moving to.
+void OatDexFile::MadviseDexFile(const DexFile& dex_file, MadviseState state) {
+  if (state == MadviseState::kMadviseStateAtLoad) {
+    // Default every dex file to MADV_RANDOM when its loaded by default.
+    MadviseLargestPageAlignedRegion(dex_file.Begin(),
+                                    dex_file.Begin() + dex_file.Size(),
+                                    MADV_RANDOM);
+  }
+  const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
+  if (oat_dex_file != nullptr) {
+    // Should always be there.
+    const DexLayoutSections* const sections = oat_dex_file->GetDexLayoutSections();
+    CHECK(sections != nullptr);
+    sections->Madvise(&dex_file, state);
+  }
 }
 
 OatFile::OatClass::OatClass(const OatFile* oat_file,

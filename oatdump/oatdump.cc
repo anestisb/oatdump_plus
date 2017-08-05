@@ -500,6 +500,13 @@ class OatDumper {
       os << "Dex file data for " << dex_file->GetLocation() << "\n";
       data.Dump(os);
       os << "\n";
+      const DexLayoutSections* const layout_sections = oat_dex_file->GetDexLayoutSections();
+      if (layout_sections != nullptr) {
+        os << "Layout data\n";
+        os << *layout_sections;
+        os << "\n";
+      }
+
       cumulative.Add(data);
     }
     os << "Cumulative dex file data\n";

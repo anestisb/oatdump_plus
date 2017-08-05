@@ -18,6 +18,7 @@
 
 #include <inttypes.h>
 #include <pthread.h>
+#include <sys/mman.h>  // For madvise
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -938,6 +939,20 @@ void SleepForever() {
   while (true) {
     usleep(1000000);
   }
+}
+
+int MadviseLargestPageAlignedRegion(const uint8_t* begin, const uint8_t* end, int advice) {
+  DCHECK_LE(begin, end);
+  begin = AlignUp(begin, kPageSize);
+  end = AlignDown(end, kPageSize);
+  if (begin < end) {
+    int result = madvise(const_cast<uint8_t*>(begin), end - begin, advice);
+    if (result != 0) {
+      PLOG(WARNING) << "madvise failed " << result;
+    }
+    return result;
+  }
+  return 0;
 }
 
 }  // namespace art
