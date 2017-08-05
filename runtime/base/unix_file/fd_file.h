@@ -145,6 +145,11 @@ class FdFile : public RandomAccessFile {
   // WARNING: Only use this when you know what you're doing!
   void MarkUnchecked();
 
+  // Compare against another file. Returns 0 if the files are equivalent, otherwise returns -1 or 1
+  // depending on if the lenghts are different. If the lengths are the same, the function returns
+  // the difference of the first byte that differs.
+  int Compare(FdFile* other);
+
  protected:
   // If the guard state indicates checking (!=kNoCheck), go to the target state "target". Print the
   // given warning if the current state is or exceeds warn_threshold.

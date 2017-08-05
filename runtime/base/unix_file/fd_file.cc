@@ -438,4 +438,30 @@ bool FdFile::ResetOffset() {
   return true;
 }
 
+int FdFile::Compare(FdFile* other) {
+  int64_t length = GetLength();
+  int64_t length2 = other->GetLength();
+  if (length != length2) {
+    return length < length2 ? -1 : 1;
+  }
+  static const size_t kBufferSize = 4096;
+  std::unique_ptr<uint8_t[]> buffer1(new uint8_t[kBufferSize]);
+  std::unique_ptr<uint8_t[]> buffer2(new uint8_t[kBufferSize]);
+  while (length > 0) {
+    size_t len = std::min(kBufferSize, static_cast<size_t>(length));
+    if (!ReadFully(&buffer1[0], len)) {
+      return -1;
+    }
+    if (!other->ReadFully(&buffer2[0], len)) {
+      return 1;
+    }
+    int result = memcmp(&buffer1[0], &buffer2[0], len);
+    if (result != 0) {
+      return result;
+    }
+    length -= len;
+  }
+  return 0;
+}
+
 }  // namespace unix_file
