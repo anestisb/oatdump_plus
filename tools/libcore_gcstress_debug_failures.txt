@@ -11,6 +11,7 @@
   names: ["libcore.icu.TransliteratorTest#testAll",
           "libcore.icu.RelativeDateTimeFormatterTest#test_bug25821045",
           "libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndTimeout",
+          "libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndNoTimeout",
           "libcore.java.util.TimeZoneTest#testSetDefaultDeadlock",
           "org.apache.harmony.tests.java.util.TimerTest#testThrowingTaskKillsTimerThread"]
 }
