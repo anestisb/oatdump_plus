@@ -713,7 +713,9 @@
                         "--no-dex2oat do not create"]
     },
     {
-        "tests": "961-default-iface-resolution-gen",
+        "tests": ["961-default-iface-resolution-gen",
+                  "964-default-iface-init-gen",
+                  "968-default-partial-compile-gen"],
         "env_vars": {"SANITIZE_HOST": "address"},
         "description": ["Test hits dex2oat watchdog timeout (60sec) on art-asan"]
     }
