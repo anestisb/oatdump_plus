@@ -7119,7 +7119,7 @@ void ClassLinker::LinkInterfaceMethodsHelper::ReallocMethods() {
                                                                       method_alignment_);
   const size_t old_methods_ptr_size = (old_methods != nullptr) ? old_size : 0;
   auto* methods = reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
-      Runtime::Current()->GetLinearAlloc()->Realloc(
+      class_linker_->GetAllocatorForClassLoader(klass_->GetClassLoader())->Realloc(
           self_, old_methods, old_methods_ptr_size, new_size));
   CHECK(methods != nullptr);  // Native allocation failure aborts.
 

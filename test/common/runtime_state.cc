@@ -254,4 +254,17 @@ extern "C" JNIEXPORT int JNICALL Java_Main_numberOfDeoptimizations(JNIEnv*, jcla
   return Runtime::Current()->GetNumberOfDeoptimizations();
 }
 
+extern "C" JNIEXPORT void JNICALL Java_Main_fetchProfiles(JNIEnv*, jclass) {
+  jit::Jit* jit = GetJitIfEnabled();
+  if (jit == nullptr) {
+    return;
+  }
+  jit::JitCodeCache* code_cache = jit->GetCodeCache();
+  std::vector<ProfileMethodInfo> unused_vector;
+  std::set<std::string> unused_locations;
+  unused_locations.insert("fake_location");
+  ScopedObjectAccess soa(Thread::Current());
+  code_cache->GetProfiledMethods(unused_locations, unused_vector);
+}
+
 }  // namespace art
