@@ -418,6 +418,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   HBasicBlock* SplitEdge(HBasicBlock* block, HBasicBlock* successor);
 
   void SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor);
+  void OrderLoopHeaderPredecessors(HBasicBlock* header);
   void SimplifyLoop(HBasicBlock* header);
 
   int32_t GetNextInstructionId() {

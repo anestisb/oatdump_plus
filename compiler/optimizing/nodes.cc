@@ -358,6 +358,35 @@ void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
   }
 }
 
+// Reorder phi inputs to match reordering of the block's predecessors.
+static void FixPhisAfterPredecessorsReodering(HBasicBlock* block, size_t first, size_t second) {
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    HPhi* phi = it.Current()->AsPhi();
+    HInstruction* first_instr = phi->InputAt(first);
+    HInstruction* second_instr = phi->InputAt(second);
+    phi->ReplaceInput(first_instr, second);
+    phi->ReplaceInput(second_instr, first);
+  }
+}
+
+// Make sure that the first predecessor of a loop header is the incoming block.
+void HGraph::OrderLoopHeaderPredecessors(HBasicBlock* header) {
+  DCHECK(header->IsLoopHeader());
+  HLoopInformation* info = header->GetLoopInformation();
+  if (info->IsBackEdge(*header->GetPredecessors()[0])) {
+    HBasicBlock* to_swap = header->GetPredecessors()[0];
+    for (size_t pred = 1, e = header->GetPredecessors().size(); pred < e; ++pred) {
+      HBasicBlock* predecessor = header->GetPredecessors()[pred];
+      if (!info->IsBackEdge(*predecessor)) {
+        header->predecessors_[pred] = to_swap;
+        header->predecessors_[0] = predecessor;
+        FixPhisAfterPredecessorsReodering(header, 0, pred);
+        break;
+      }
+    }
+  }
+}
+
 void HGraph::SimplifyLoop(HBasicBlock* header) {
   HLoopInformation* info = header->GetLoopInformation();
 
@@ -381,18 +410,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     pre_header->AddSuccessor(header);
   }
 
-  // Make sure the first predecessor of a loop header is the incoming block.
-  if (info->IsBackEdge(*header->GetPredecessors()[0])) {
-    HBasicBlock* to_swap = header->GetPredecessors()[0];
-    for (size_t pred = 1, e = header->GetPredecessors().size(); pred < e; ++pred) {
-      HBasicBlock* predecessor = header->GetPredecessors()[pred];
-      if (!info->IsBackEdge(*predecessor)) {
-        header->predecessors_[pred] = to_swap;
-        header->predecessors_[0] = predecessor;
-        break;
-      }
-    }
-  }
+  OrderLoopHeaderPredecessors(header);
 
   HInstruction* first_instruction = header->GetFirstInstruction();
   if (first_instruction != nullptr && first_instruction->IsSuspendCheck()) {
