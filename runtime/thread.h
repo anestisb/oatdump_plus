@@ -1705,8 +1705,13 @@ class Thread {
 
 class SCOPED_CAPABILITY ScopedAssertNoThreadSuspension {
  public:
-  ALWAYS_INLINE explicit ScopedAssertNoThreadSuspension(const char* cause)
-      ACQUIRE(Roles::uninterruptible_) {
+  ALWAYS_INLINE ScopedAssertNoThreadSuspension(const char* cause,
+                                               bool enabled = true)
+      ACQUIRE(Roles::uninterruptible_)
+      : enabled_(enabled) {
+    if (!enabled_) {
+      return;
+    }
     if (kIsDebugBuild) {
       self_ = Thread::Current();
       old_cause_ = self_->StartAssertNoThreadSuspension(cause);
@@ -1715,6 +1720,9 @@ class SCOPED_CAPABILITY ScopedAssertNoThreadSuspension {
     }
   }
   ALWAYS_INLINE ~ScopedAssertNoThreadSuspension() RELEASE(Roles::uninterruptible_) {
+    if (!enabled_) {
+      return;
+    }
     if (kIsDebugBuild) {
       self_->EndAssertNoThreadSuspension(old_cause_);
     } else {
@@ -1724,6 +1732,7 @@ class SCOPED_CAPABILITY ScopedAssertNoThreadSuspension {
 
  private:
   Thread* self_;
+  const bool enabled_;
   const char* old_cause_;
 };
 
