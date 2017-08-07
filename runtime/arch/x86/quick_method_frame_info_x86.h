@@ -57,23 +57,27 @@ static constexpr uint32_t kX86CalleeSaveFpEverythingSpills =
     (1 << art::x86::XMM6) | (1 << art::x86::XMM7);
 
 constexpr uint32_t X86CalleeSaveCoreSpills(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return kX86CalleeSaveAlwaysSpills | kX86CalleeSaveRefSpills |
       (type == CalleeSaveType::kSaveRefsAndArgs ? kX86CalleeSaveArgSpills : 0) |
       (type == CalleeSaveType::kSaveEverything ? kX86CalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t X86CalleeSaveFpSpills(CalleeSaveType type) {
-    return (type == CalleeSaveType::kSaveRefsAndArgs ? kX86CalleeSaveFpArgSpills : 0) |
-           (type == CalleeSaveType::kSaveEverything ? kX86CalleeSaveFpEverythingSpills : 0);
+  type = GetCanonicalCalleeSaveType(type);
+  return (type == CalleeSaveType::kSaveRefsAndArgs ? kX86CalleeSaveFpArgSpills : 0) |
+         (type == CalleeSaveType::kSaveEverything ? kX86CalleeSaveFpEverythingSpills : 0);
 }
 
 constexpr uint32_t X86CalleeSaveFrameSize(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return RoundUp((POPCOUNT(X86CalleeSaveCoreSpills(type)) /* gprs */ +
                   2 * POPCOUNT(X86CalleeSaveFpSpills(type)) /* fprs */ +
                   1 /* Method* */) * static_cast<size_t>(kX86PointerSize), kStackAlignment);
 }
 
 constexpr QuickMethodFrameInfo X86CalleeSaveMethodFrameInfo(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return QuickMethodFrameInfo(X86CalleeSaveFrameSize(type),
                               X86CalleeSaveCoreSpills(type),
                               X86CalleeSaveFpSpills(type));

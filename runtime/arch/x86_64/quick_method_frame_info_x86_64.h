@@ -56,24 +56,28 @@ static constexpr uint32_t kX86_64CalleeSaveFpEverythingSpills =
     (1 << art::x86_64::XMM10) | (1 << art::x86_64::XMM11);
 
 constexpr uint32_t X86_64CalleeSaveCoreSpills(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return kX86_64CalleeSaveAlwaysSpills | kX86_64CalleeSaveRefSpills |
       (type == CalleeSaveType::kSaveRefsAndArgs ? kX86_64CalleeSaveArgSpills : 0) |
       (type == CalleeSaveType::kSaveEverything ? kX86_64CalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t X86_64CalleeSaveFpSpills(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return kX86_64CalleeSaveFpSpills |
       (type == CalleeSaveType::kSaveRefsAndArgs ? kX86_64CalleeSaveFpArgSpills : 0) |
       (type == CalleeSaveType::kSaveEverything ? kX86_64CalleeSaveFpEverythingSpills : 0);
 }
 
 constexpr uint32_t X86_64CalleeSaveFrameSize(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return RoundUp((POPCOUNT(X86_64CalleeSaveCoreSpills(type)) /* gprs */ +
                   POPCOUNT(X86_64CalleeSaveFpSpills(type)) /* fprs */ +
                   1 /* Method* */) * static_cast<size_t>(kX86_64PointerSize), kStackAlignment);
 }
 
 constexpr QuickMethodFrameInfo X86_64CalleeSaveMethodFrameInfo(CalleeSaveType type) {
+  type = GetCanonicalCalleeSaveType(type);
   return QuickMethodFrameInfo(X86_64CalleeSaveFrameSize(type),
                               X86_64CalleeSaveCoreSpills(type),
                               X86_64CalleeSaveFpSpills(type));

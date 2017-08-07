@@ -65,8 +65,8 @@ extern "C" mirror::Class* artInitializeStaticStorageFromCode(uint32_t type_idx, 
   // A class may be accessing another class' fields when it doesn't have access, as access has been
   // given by inheritance.
   ScopedQuickEntrypointChecks sqec(self);
-  auto caller_and_outer = GetCalleeSaveMethodCallerAndOuterMethod(self,
-                                                                  CalleeSaveType::kSaveEverything);
+  auto caller_and_outer = GetCalleeSaveMethodCallerAndOuterMethod(
+      self, CalleeSaveType::kSaveEverythingForClinit);
   ArtMethod* caller = caller_and_outer.caller;
   mirror::Class* result =
       ResolveVerifyAndClinit(dex::TypeIndex(type_idx), caller, self, true, false);
@@ -80,8 +80,8 @@ extern "C" mirror::Class* artInitializeTypeFromCode(uint32_t type_idx, Thread* s
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Called when method->dex_cache_resolved_types_[] misses.
   ScopedQuickEntrypointChecks sqec(self);
-  auto caller_and_outer = GetCalleeSaveMethodCallerAndOuterMethod(self,
-                                                                  CalleeSaveType::kSaveEverything);
+  auto caller_and_outer = GetCalleeSaveMethodCallerAndOuterMethod(
+      self, CalleeSaveType::kSaveEverythingForClinit);
   ArtMethod* caller = caller_and_outer.caller;
   mirror::Class* result =
       ResolveVerifyAndClinit(dex::TypeIndex(type_idx), caller, self, false, false);

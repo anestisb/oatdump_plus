@@ -90,7 +90,18 @@ TEST_F(QuickTrampolineEntrypointsTest, FrameSize) {
                  GetCalleeSaveFrameSize(isa, CalleeSaveType::kSaveRefsOnly));        \
   CheckFrameSize(isa,                                                                \
                  CalleeSaveType::kSaveAllCalleeSaves,                                \
-                 GetCalleeSaveFrameSize(isa, CalleeSaveType::kSaveAllCalleeSaves))
+                 GetCalleeSaveFrameSize(isa, CalleeSaveType::kSaveAllCalleeSaves));  \
+  CheckFrameSize(isa,                                                                \
+                 CalleeSaveType::kSaveEverything,                                    \
+                 GetCalleeSaveFrameSize(isa, CalleeSaveType::kSaveEverything));      \
+  CheckFrameSize(isa,                                                                \
+                 CalleeSaveType::kSaveEverythingForClinit,                           \
+                 GetCalleeSaveFrameSize(isa,                                         \
+                                        CalleeSaveType::kSaveEverythingForClinit));  \
+  CheckFrameSize(isa,                                                                \
+                 CalleeSaveType::kSaveEverythingForSuspendCheck,                     \
+                 GetCalleeSaveFrameSize(                                             \
+                     isa, CalleeSaveType::kSaveEverythingForSuspendCheck))
 
   CHECK_FRAME_SIZE(kArm);
   CHECK_FRAME_SIZE(kArm64);
@@ -123,6 +134,13 @@ TEST_F(QuickTrampolineEntrypointsTest, ReturnPC) {
                 GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveRefsOnly));
   CheckPCOffset(kRuntimeISA, CalleeSaveType::kSaveAllCalleeSaves,
                 GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveAllCalleeSaves));
+  CheckPCOffset(kRuntimeISA, CalleeSaveType::kSaveEverything,
+                GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveEverything));
+  CheckPCOffset(kRuntimeISA, CalleeSaveType::kSaveEverythingForClinit,
+                GetCalleeSaveReturnPcOffset(kRuntimeISA, CalleeSaveType::kSaveEverythingForClinit));
+  CheckPCOffset(kRuntimeISA, CalleeSaveType::kSaveEverythingForSuspendCheck,
+                GetCalleeSaveReturnPcOffset(kRuntimeISA,
+                                            CalleeSaveType::kSaveEverythingForSuspendCheck));
 }
 
 }  // namespace art

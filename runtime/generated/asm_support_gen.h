@@ -34,6 +34,10 @@ DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET), (stat
 DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveRefsAndArgs))))
 #define RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET 0x18
 DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveEverything))))
+#define RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET 0x20
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveEverythingForClinit))))
+#define RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET 0x28
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveEverythingForSuspendCheck))))
 #define THREAD_FLAGS_OFFSET 0
 DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_FLAGS_OFFSET), (static_cast<int32_t>(art::Thread:: ThreadFlagsOffset<art::kRuntimePointerSize>().Int32Value())))
 #define THREAD_ID_OFFSET 12

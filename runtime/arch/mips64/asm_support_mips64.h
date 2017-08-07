@@ -27,6 +27,8 @@
 #define FRAME_SIZE_SAVE_REFS_AND_ARGS 208
 // $f0-$f31, $at, $v0-$v1, $a0-$a7, $t0-$t3, $s0-$s7, $t8-$t9, $gp, $s8, $ra + padding + method*
 #define FRAME_SIZE_SAVE_EVERYTHING 496
+#define FRAME_SIZE_SAVE_EVERYTHING_FOR_CLINIT FRAME_SIZE_SAVE_EVERYTHING
+#define FRAME_SIZE_SAVE_EVERYTHING_FOR_SUSPEND_CHECK FRAME_SIZE_SAVE_EVERYTHING
 
 // &art_quick_read_barrier_mark_introspection is the first of many entry points:
 //   20 entry points for long field offsets, large array indices and variable array indices
