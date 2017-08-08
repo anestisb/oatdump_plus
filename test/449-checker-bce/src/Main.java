@@ -876,6 +876,91 @@ public class Main {
     return true;
   }
 
+  /// CHECK-START: void Main.modArrayIndex1(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+
+  /// CHECK-START: void Main.modArrayIndex1(int[]) BCE (after)
+  /// CHECK-NOT: Deoptimize
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  public static void modArrayIndex1(int[] array) {
+    for(int i = 0; i < 100; i++) {
+      // Cannot statically eliminate, for example, when array.length == 5.
+      // Currently dynamic BCE isn't applied for this case.
+      array[i % 10] = i;
+      // Can be eliminated by BCE.
+      array[i % array.length] = i;
+    }
+  }
+
+  /// CHECK-START: void Main.modArrayIndex2(int[], int) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+
+  /// CHECK-START: void Main.modArrayIndex2(int[], int) BCE (after)
+  /// CHECK-NOT: Deoptimize
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  public static void modArrayIndex2(int array[], int index) {
+    for(int i = 0; i < 100; i++) {
+      // Both bounds checks cannot be statically eliminated, because index can be < 0.
+      // Currently dynamic BCE isn't applied for this case.
+      array[(index+i) % 10] = i;
+      array[(index+i) % array.length] = i;
+    }
+  }
+
+  static final int[] staticArray = new int[10];
+
+  /// CHECK-START: void Main.modArrayIndex3() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+
+  /// CHECK-START: void Main.modArrayIndex3() BCE (after)
+  /// CHECK-NOT: Deoptimize
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  public static void modArrayIndex3() {
+    for(int i = 0; i < 100; i++) {
+      // Currently dynamic BCE isn't applied for this case.
+      staticArray[i % 10] = i;
+      // Can be eliminated by BCE.
+      staticArray[i % staticArray.length] = i;
+    }
+  }
+
+  /// CHECK-START: void Main.modArrayIndex4() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: ArraySet
+
+  /// CHECK-START: void Main.modArrayIndex4() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-DAG: ArraySet
+  public static void modArrayIndex4() {
+    int[] array = new int[20];
+    for(int i = 0; i < 100; i++) {
+      // The local array length is statically know. Both can be eliminated by BCE.
+      array[i % 10] = i;
+      array[i % array.length] = i;
+    }
+  }
 
   /// CHECK-START: void Main.bubbleSort(int[]) GVN (before)
   /// CHECK: BoundsCheck
