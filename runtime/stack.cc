@@ -634,7 +634,7 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
 void StackVisitor::SanityCheckFrame() const {
   if (kIsDebugBuild) {
     ArtMethod* method = GetMethod();
-    auto* declaring_class = method->GetDeclaringClass();
+    mirror::Class* declaring_class = method->GetDeclaringClass();
     // Runtime methods have null declaring class.
     if (!method->IsRuntimeMethod()) {
       CHECK(declaring_class != nullptr);
@@ -647,11 +647,14 @@ void StackVisitor::SanityCheckFrame() const {
     LinearAlloc* const linear_alloc = runtime->GetLinearAlloc();
     if (!linear_alloc->Contains(method)) {
       // Check class linker linear allocs.
-      mirror::Class* klass = method->GetDeclaringClass();
+      // We get the canonical method as copied methods may have their declaring
+      // class from another class loader.
+      ArtMethod* canonical = method->GetCanonicalMethod();
+      mirror::Class* klass = canonical->GetDeclaringClass();
       LinearAlloc* const class_linear_alloc = (klass != nullptr)
           ? runtime->GetClassLinker()->GetAllocatorForClassLoader(klass->GetClassLoader())
           : linear_alloc;
-      if (!class_linear_alloc->Contains(method)) {
+      if (!class_linear_alloc->Contains(canonical)) {
         // Check image space.
         bool in_image = false;
         for (auto& space : runtime->GetHeap()->GetContinuousSpaces()) {
@@ -660,14 +663,14 @@ void StackVisitor::SanityCheckFrame() const {
             const auto& header = image_space->GetImageHeader();
             const ImageSection& methods = header.GetMethodsSection();
             const ImageSection& runtime_methods = header.GetRuntimeMethodsSection();
-            const size_t offset =  reinterpret_cast<const uint8_t*>(method) - image_space->Begin();
+            const size_t offset =  reinterpret_cast<const uint8_t*>(canonical) - image_space->Begin();
             if (methods.Contains(offset) || runtime_methods.Contains(offset)) {
               in_image = true;
               break;
             }
           }
         }
-        CHECK(in_image) << method->PrettyMethod() << " not in linear alloc or image";
+        CHECK(in_image) << canonical->PrettyMethod() << " not in linear alloc or image";
       }
     }
     if (cur_quick_frame_ != nullptr) {
