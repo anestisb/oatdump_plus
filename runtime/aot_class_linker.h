@@ -27,6 +27,16 @@ class AotClassLinker : public ClassLinker {
   explicit AotClassLinker(InternTable *intern_table);
   ~AotClassLinker();
 
+ protected:
+  // Overridden version of PerformClassVerification allows skipping verification if the class was
+  // previously verified but unloaded.
+  verifier::FailureKind PerformClassVerification(Thread* self,
+                                                 Handle<mirror::Class> klass,
+                                                 verifier::HardFailLogMode log_level,
+                                                 std::string* error_msg)
+      OVERRIDE
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   bool InitializeClass(Thread *self,
                        Handle<mirror::Class> klass,
                        bool can_run_clinit,

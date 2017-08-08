@@ -377,6 +377,8 @@ class CompilerDriver {
     return profile_compilation_info_;
   }
 
+  bool CanAssumeVerified(ClassReference ref) const;
+
  private:
   void PreCompile(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
