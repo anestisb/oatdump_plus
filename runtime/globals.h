@@ -51,11 +51,17 @@ static constexpr size_t kObjectAlignmentShift = 3;
 static constexpr size_t kObjectAlignment = 1u << kObjectAlignmentShift;
 static constexpr size_t kLargeObjectAlignment = kPageSize;
 
+// Clion, clang analyzer, etc can falsely believe that "if (kIsDebugBuild)" always
+// returns the same value. By wrapping into a call to another constexpr function, we force it
+// to realize that is not actually always evaluating to the same value.
+static constexpr bool GlobalsReturnSelf(bool self) { return self; }
+
 // Whether or not this is a debug build. Useful in conditionals where NDEBUG isn't.
-#if defined(NDEBUG)
-static constexpr bool kIsDebugBuild = false;
+// TODO: Use only __clang_analyzer__ here. b/64455231
+#if defined(NDEBUG) && !defined(__CLION_IDE__)
+static constexpr bool kIsDebugBuild = GlobalsReturnSelf(false);
 #else
-static constexpr bool kIsDebugBuild = true;
+static constexpr bool kIsDebugBuild = GlobalsReturnSelf(true);
 #endif
 
 // ART_TARGET - Defined for target builds of ART.
