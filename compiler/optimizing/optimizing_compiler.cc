@@ -711,11 +711,12 @@ NO_INLINE  // Avoid increasing caller's frame size by large stack-allocated obje
 static void AllocateRegisters(HGraph* graph,
                               CodeGenerator* codegen,
                               PassObserver* pass_observer,
-                              RegisterAllocator::Strategy strategy) {
+                              RegisterAllocator::Strategy strategy,
+                              OptimizingCompilerStats* stats) {
   {
     PassScope scope(PrepareForRegisterAllocation::kPrepareForRegisterAllocationPassName,
                     pass_observer);
-    PrepareForRegisterAllocation(graph).Run();
+    PrepareForRegisterAllocation(graph, stats).Run();
   }
   SsaLivenessAnalysis liveness(graph, codegen);
   {
@@ -1035,7 +1036,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
   AllocateRegisters(graph,
                     codegen.get(),
                     &pass_observer,
-                    regalloc_strategy);
+                    regalloc_strategy,
+                    compilation_stats_.get());
 
   codegen->Compile(code_allocator);
   pass_observer.DumpDisassembly();

@@ -1198,10 +1198,13 @@ void HVariableInputSizeInstruction::RemoveAllInputs() {
   DCHECK_EQ(0u, InputCount());
 }
 
-void HConstructorFence::RemoveConstructorFences(HInstruction* instruction) {
+size_t HConstructorFence::RemoveConstructorFences(HInstruction* instruction) {
   DCHECK(instruction->GetBlock() != nullptr);
   // Removing constructor fences only makes sense for instructions with an object return type.
   DCHECK_EQ(Primitive::kPrimNot, instruction->GetType());
+
+  // Return how many instructions were removed for statistic purposes.
+  size_t remove_count = 0;
 
   // Efficient implementation that simultaneously (in one pass):
   // * Scans the uses list for all constructor fences.
@@ -1250,6 +1253,7 @@ void HConstructorFence::RemoveConstructorFences(HInstruction* instruction) {
       // is removed.
       if (ctor_fence->InputCount() == 0u) {
         ctor_fence->GetBlock()->RemoveInstruction(ctor_fence);
+        ++remove_count;
       }
     }
   }
@@ -1263,6 +1267,8 @@ void HConstructorFence::RemoveConstructorFences(HInstruction* instruction) {
     }
     CHECK(instruction->GetBlock() != nullptr);
   }
+
+  return remove_count;
 }
 
 HInstruction* HConstructorFence::GetAssociatedAllocation() {

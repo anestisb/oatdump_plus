@@ -6630,7 +6630,9 @@ class HConstructorFence FINAL : public HVariableInputSizeInstruction {
   // This must *not* be called during/after prepare_for_register_allocation,
   // because that removes all the inputs to the fences but the fence is actually
   // still considered live.
-  static void RemoveConstructorFences(HInstruction* instruction);
+  //
+  // Returns how many HConstructorFence instructions were removed from graph.
+  static size_t RemoveConstructorFences(HInstruction* instruction);
 
   // Check if this constructor fence is protecting
   // an HNewInstance or HNewArray that is also the immediate
@@ -6878,9 +6880,13 @@ class HParallelMove FINAL : public HTemplateInstruction<0> {
 
 namespace art {
 
+class OptimizingCompilerStats;
+
 class HGraphVisitor : public ValueObject {
  public:
-  explicit HGraphVisitor(HGraph* graph) : graph_(graph) {}
+  explicit HGraphVisitor(HGraph* graph, OptimizingCompilerStats* stats = nullptr)
+      : stats_(stats),
+        graph_(graph) {}
   virtual ~HGraphVisitor() {}
 
   virtual void VisitInstruction(HInstruction* instruction ATTRIBUTE_UNUSED) {}
@@ -6902,6 +6908,9 @@ class HGraphVisitor : public ValueObject {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
+ protected:
+  OptimizingCompilerStats* stats_;
+
  private:
   HGraph* const graph_;
 
@@ -6910,7 +6919,8 @@ class HGraphVisitor : public ValueObject {
 
 class HGraphDelegateVisitor : public HGraphVisitor {
  public:
-  explicit HGraphDelegateVisitor(HGraph* graph) : HGraphVisitor(graph) {}
+  explicit HGraphDelegateVisitor(HGraph* graph, OptimizingCompilerStats* stats = nullptr)
+      : HGraphVisitor(graph, stats) {}
   virtual ~HGraphDelegateVisitor() {}
 
   // Visit functions that delegate to to super class.

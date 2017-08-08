@@ -21,6 +21,8 @@
 
 namespace art {
 
+class OptimizingCompilerStats;
+
 /**
  * A simplification pass over the graph before doing register allocation.
  * For example it changes uses of null checks and bounds checks to the original
@@ -28,7 +30,9 @@ namespace art {
  */
 class PrepareForRegisterAllocation : public HGraphDelegateVisitor {
  public:
-  explicit PrepareForRegisterAllocation(HGraph* graph) : HGraphDelegateVisitor(graph) {}
+  explicit PrepareForRegisterAllocation(HGraph* graph,
+                                        OptimizingCompilerStats* stats = nullptr)
+      : HGraphDelegateVisitor(graph, stats) {}
 
   void Run();
 
