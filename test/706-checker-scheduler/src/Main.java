@@ -31,6 +31,7 @@ public class Main {
   public ExampleObj my_obj;
   public static int number1;
   public static int number2;
+  public static volatile int number3;
 
   /// CHECK-START-ARM64: int Main.arrayAccess() scheduler (before)
   /// CHECK:    <<Const1:i\d+>>       IntConstant 1
@@ -337,6 +338,87 @@ public class Main {
       my_obj.n2++;
       number1++;
       number2++;
+    }
+  }
+
+  /// CHECK-START-ARM: void Main.accessFieldsVolatile() scheduler (before)
+  /// CHECK-START-ARM64: void Main.accessFieldsVolatile() scheduler (before)
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            StaticFieldSet
+  /// CHECK:            StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            StaticFieldSet
+
+  /// CHECK-START-ARM: void Main.accessFieldsVolatile() scheduler (after)
+  /// CHECK-START-ARM64: void Main.accessFieldsVolatile() scheduler (after)
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            StaticFieldSet
+  /// CHECK:            StaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            StaticFieldSet
+
+  public void accessFieldsVolatile() {
+    my_obj = new ExampleObj(1, 2);
+    for (int i = 0; i < 10; i++) {
+      my_obj.n1++;
+      my_obj.n2++;
+      number1++;
+      number3++;
+    }
+  }
+
+  /// CHECK-START-ARM: void Main.accessFieldsUnresolved() scheduler (before)
+  /// CHECK-START-ARM64: void Main.accessFieldsUnresolved() scheduler (before)
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            UnresolvedInstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            UnresolvedInstanceFieldSet
+  /// CHECK:            UnresolvedStaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            UnresolvedStaticFieldSet
+
+  /// CHECK-START-ARM: void Main.accessFieldsUnresolved() scheduler (after)
+  /// CHECK-START-ARM64: void Main.accessFieldsUnresolved() scheduler (after)
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            InstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            InstanceFieldSet
+  /// CHECK:            UnresolvedInstanceFieldGet
+  /// CHECK:            Add
+  /// CHECK:            UnresolvedInstanceFieldSet
+  /// CHECK:            UnresolvedStaticFieldGet
+  /// CHECK:            Add
+  /// CHECK:            UnresolvedStaticFieldSet
+
+  public void accessFieldsUnresolved() {
+    my_obj = new ExampleObj(1, 2);
+    UnresolvedClass unresolved_obj = new UnresolvedClass();
+    for (int i = 0; i < 10; i++) {
+      my_obj.n1++;
+      my_obj.n2++;
+      unresolved_obj.instanceInt++;
+      UnresolvedClass.staticInt++;
     }
   }
 

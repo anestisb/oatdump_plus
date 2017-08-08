@@ -724,8 +724,8 @@ bool HScheduler::IsSchedulable(const HInstruction* instruction) const {
       instruction->IsClassTableGet() ||
       instruction->IsCurrentMethod() ||
       instruction->IsDivZeroCheck() ||
-      instruction->IsInstanceFieldGet() ||
-      instruction->IsInstanceFieldSet() ||
+      (instruction->IsInstanceFieldGet() && !instruction->AsInstanceFieldGet()->IsVolatile()) ||
+      (instruction->IsInstanceFieldSet() && !instruction->AsInstanceFieldSet()->IsVolatile()) ||
       instruction->IsInstanceOf() ||
       instruction->IsInvokeInterface() ||
       instruction->IsInvokeStaticOrDirect() ||
@@ -741,14 +741,10 @@ bool HScheduler::IsSchedulable(const HInstruction* instruction) const {
       instruction->IsReturn() ||
       instruction->IsReturnVoid() ||
       instruction->IsSelect() ||
-      instruction->IsStaticFieldGet() ||
-      instruction->IsStaticFieldSet() ||
+      (instruction->IsStaticFieldGet() && !instruction->AsStaticFieldGet()->IsVolatile()) ||
+      (instruction->IsStaticFieldSet() && !instruction->AsStaticFieldSet()->IsVolatile()) ||
       instruction->IsSuspendCheck() ||
-      instruction->IsTypeConversion() ||
-      instruction->IsUnresolvedInstanceFieldGet() ||
-      instruction->IsUnresolvedInstanceFieldSet() ||
-      instruction->IsUnresolvedStaticFieldGet() ||
-      instruction->IsUnresolvedStaticFieldSet();
+      instruction->IsTypeConversion();
 }
 
 bool HScheduler::IsSchedulable(const HBasicBlock* block) const {
