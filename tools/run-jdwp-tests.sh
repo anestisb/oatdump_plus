@@ -122,6 +122,9 @@ while true; do
   fi
 done
 
+# Make sure the debuggee doesn't clean up what the debugger has generated.
+art_debugee="$art_debugee --no-clean"
+
 # For the host:
 #
 # If, on the other hand, there is a variant set, use it to modify the art_debugee parameter to

@@ -23,6 +23,7 @@ LAUNCH_WRAPPER=
 LIBART=libart.so
 JIT_PROFILE="no"
 VERBOSE="no"
+CLEAN_OAT_FILES="yes"
 EXTRA_OPTIONS=()
 
 # Follow all sym links to get the program name.
@@ -87,6 +88,7 @@ Supported OPTIONS include:
                            report upon completion.
   --profile                Run with profiling, then run using profile data.
   --verbose                Run script verbosely.
+  --no-clean               Don't cleanup oat directories.
 
 The ART_OPTIONS are passed directly to the Android Runtime.
 
@@ -176,12 +178,14 @@ cleanup_oat_directory() {
 # Input: Command line arguments to the art script.
 # e.g. -cp foo/classes.dex:bar/classes.dex would delete (foo/oat bar/oat) directories.
 cleanup_oat_directory_for_classpath() {
-  # First try: Use $CLASSPATH environment variable.
-  parse_classpath "$CLASSPATH"
-  # Second try: Look for latest -cp or -classpath arg which will take precedence.
-  find_cp_in_args "$@"
+  if [ "$CLEAN_OAT_FILES" = "yes" ]; then
+    # First try: Use $CLASSPATH environment variable.
+    parse_classpath "$CLASSPATH"
+    # Second try: Look for latest -cp or -classpath arg which will take precedence.
+    find_cp_in_args "$@"
 
-  cleanup_oat_directory "${PARSE_CLASSPATH_RESULT[@]}"
+    cleanup_oat_directory "${PARSE_CLASSPATH_RESULT[@]}"
+  fi
 }
 
 # Attempt to find $ANDROID_ROOT/framework/<isa>/core.art' without knowing what <isa> is.
@@ -290,6 +294,9 @@ while [[ "$1" = "-"* ]]; do
     ;;
   --verbose)
     VERBOSE="yes"
+    ;;
+  --no-clean)
+    CLEAN_OAT_FILES="no"
     ;;
   --*)
     echo "unknown option: $1" 1>&2
