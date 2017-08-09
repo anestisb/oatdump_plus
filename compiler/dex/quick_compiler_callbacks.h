@@ -22,7 +22,6 @@
 
 namespace art {
 
-class CompilerDriver;
 class VerificationResults;
 
 class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
@@ -54,19 +53,8 @@ class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
       verification_results_ = verification_results;
     }
 
-    bool CanAssumeVerified(ClassReference ref) OVERRIDE;
-
-    void SetDoesClassUnloading(bool does_class_unloading, CompilerDriver* compiler_driver)
-        OVERRIDE {
-      does_class_unloading_ = does_class_unloading;
-      compiler_driver_ = compiler_driver;
-      DCHECK(!does_class_unloading || compiler_driver_ != nullptr);
-    }
-
   private:
     VerificationResults* verification_results_ = nullptr;
-    bool does_class_unloading_ = false;
-    CompilerDriver* compiler_driver_ = nullptr;
     std::unique_ptr<verifier::VerifierDeps> verifier_deps_;
 };
 

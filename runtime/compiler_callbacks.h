@@ -22,8 +22,6 @@
 
 namespace art {
 
-class CompilerDriver;
-
 namespace verifier {
 
 class MethodVerifier;
@@ -50,13 +48,6 @@ class CompilerCallbacks {
 
   virtual verifier::VerifierDeps* GetVerifierDeps() const = 0;
   virtual void SetVerifierDeps(verifier::VerifierDeps* deps ATTRIBUTE_UNUSED) {}
-
-  virtual bool CanAssumeVerified(ClassReference ref ATTRIBUTE_UNUSED) {
-    return false;
-  }
-
-  virtual void SetDoesClassUnloading(bool does_class_unloading ATTRIBUTE_UNUSED,
-                                     CompilerDriver* compiler_driver ATTRIBUTE_UNUSED) {}
 
   bool IsBootImage() {
     return mode_ == CallbackMode::kCompileBootImage;

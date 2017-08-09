@@ -3040,10 +3040,4 @@ void CompilerDriver::SetDexFilesForOatFile(const std::vector<const DexFile*>& de
   }
 }
 
-bool CompilerDriver::CanAssumeVerified(ClassReference ref) const {
-  mirror::Class::Status existing = mirror::Class::kStatusNotReady;
-  compiled_classes_.Get(DexFileReference(ref.first, ref.second), &existing);
-  return existing >= mirror::Class::kStatusVerified;
-}
-
 }  // namespace art

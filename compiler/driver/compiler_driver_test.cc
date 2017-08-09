@@ -23,7 +23,6 @@
 #include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
-#include "compiler_callbacks.h"
 #include "dex_file.h"
 #include "dex_file_types.h"
 #include "gc/heap.h"
@@ -369,9 +368,7 @@ TEST_F(CompilerDriverVerifyTest, VerifyCompilation) {
 
 // Test that a class of status kStatusRetryVerificationAtRuntime is indeed recorded that way in the
 // driver.
-// Test that checks that classes can be assumed as verified if unloading mode is enabled and
-// the class status is at least verified.
-TEST_F(CompilerDriverVerifyTest, RetryVerifcationStatusCheckVerified) {
+TEST_F(CompilerDriverVerifyTest, RetryVerifcationStatus) {
   Thread* const self = Thread::Current();
   jobject class_loader;
   std::vector<const DexFile*> dex_files;
@@ -385,7 +382,6 @@ TEST_F(CompilerDriverVerifyTest, RetryVerifcationStatusCheckVerified) {
     dex_file = dex_files.front();
   }
   compiler_driver_->SetDexFilesForOatFile(dex_files);
-  callbacks_->SetDoesClassUnloading(true, compiler_driver_.get());
   ClassReference ref(dex_file, 0u);
   // Test that the status is read from the compiler driver as expected.
   for (size_t i = mirror::Class::kStatusRetryVerificationAtRuntime;
@@ -401,12 +397,6 @@ TEST_F(CompilerDriverVerifyTest, RetryVerifcationStatusCheckVerified) {
     mirror::Class::Status status = {};
     ASSERT_TRUE(compiler_driver_->GetCompiledClass(ref, &status));
     EXPECT_EQ(status, expected_status);
-
-    // Check that we can assume verified if we are a status that is at least verified.
-    if (status >= mirror::Class::kStatusVerified) {
-      // Check that the class can be assumed as verified in the compiler driver.
-      EXPECT_TRUE(callbacks_->CanAssumeVerified(ref)) << status;
-    }
   }
 }
 
