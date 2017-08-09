@@ -1774,11 +1774,11 @@ class Dex2Oat FINAL {
   bool ShouldCompileDexFilesIndividually() const {
     // Compile individually if we are not building an image, not using any compilation, and are
     // using multidex.
-    // This means extract, and verify, will use the individual compilation mode (to reduce RAM used
-    // by the compiler).
+    // This means extract, verify, and quicken, will use the individual compilation mode (to reduce
+    // RAM used by the compiler).
     return !IsImage() &&
         dex_files_.size() > 1 &&
-        !CompilerFilter::IsAnyCompilationEnabled(compiler_options_->GetCompilerFilter());
+        !CompilerFilter::IsAotCompilationEnabled(compiler_options_->GetCompilerFilter());
   }
 
   // Set up and create the compiler driver and then invoke it to compile all the dex files.
