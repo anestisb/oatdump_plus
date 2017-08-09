@@ -414,7 +414,7 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
     if (!post_dominated.IsBitSet(position->GetBlock()->GetBlockId())) {
       continue;
     }
-    MaybeRecordStat(MethodCompilationStat::kInstructionSunk);
+    MaybeRecordStat(stats_, MethodCompilationStat::kInstructionSunk);
     instruction->MoveBefore(position, /* ensure_safety */ false);
   }
 }

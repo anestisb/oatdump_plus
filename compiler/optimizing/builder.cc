@@ -31,12 +31,6 @@
 
 namespace art {
 
-void HGraphBuilder::MaybeRecordStat(MethodCompilationStat compilation_stat) {
-  if (compilation_stats_ != nullptr) {
-    compilation_stats_->RecordStat(compilation_stat);
-  }
-}
-
 bool HGraphBuilder::SkipCompilation(size_t number_of_branches) {
   if (compiler_driver_ == nullptr) {
     // Note that the compiler driver is null when unit testing.
@@ -53,7 +47,8 @@ bool HGraphBuilder::SkipCompilation(size_t number_of_branches) {
     VLOG(compiler) << "Skip compilation of huge method "
                    << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                    << ": " << code_item_.insns_size_in_code_units_ << " code units";
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledHugeMethod);
+    MaybeRecordStat(compilation_stats_,
+                    MethodCompilationStat::kNotCompiledHugeMethod);
     return true;
   }
 
@@ -63,7 +58,8 @@ bool HGraphBuilder::SkipCompilation(size_t number_of_branches) {
     VLOG(compiler) << "Skip compilation of large method with no branch "
                    << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                    << ": " << code_item_.insns_size_in_code_units_ << " code units";
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledLargeMethodNoBranches);
+    MaybeRecordStat(compilation_stats_,
+                    MethodCompilationStat::kNotCompiledLargeMethodNoBranches);
     return true;
   }
 

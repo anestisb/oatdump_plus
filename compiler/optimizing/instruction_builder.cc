@@ -28,12 +28,6 @@
 
 namespace art {
 
-void HInstructionBuilder::MaybeRecordStat(MethodCompilationStat compilation_stat) {
-  if (compilation_stats_ != nullptr) {
-    compilation_stats_->RecordStat(compilation_stat);
-  }
-}
-
 HBasicBlock* HInstructionBuilder::FindBlockStartingAt(uint32_t dex_pc) const {
   return block_builder_->GetBlockAt(dex_pc);
 }
@@ -816,7 +810,8 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
   ArtMethod* resolved_method = ResolveMethod(method_idx, invoke_type);
 
   if (UNLIKELY(resolved_method == nullptr)) {
-    MaybeRecordStat(MethodCompilationStat::kUnresolvedMethod);
+    MaybeRecordStat(compilation_stats_,
+                    MethodCompilationStat::kUnresolvedMethod);
     HInvoke* invoke = new (arena_) HInvokeUnresolved(arena_,
                                                      number_of_arguments,
                                                      return_type,
@@ -1122,7 +1117,8 @@ bool HInstructionBuilder::SetupInvokeArguments(HInvoke* invoke,
       VLOG(compiler) << "Did not compile "
                      << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                      << " because of non-sequential dex register pair in wide argument";
-      MaybeRecordStat(MethodCompilationStat::kNotCompiledMalformedOpcode);
+      MaybeRecordStat(compilation_stats_,
+                      MethodCompilationStat::kNotCompiledMalformedOpcode);
       return false;
     }
     HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
@@ -1136,7 +1132,8 @@ bool HInstructionBuilder::SetupInvokeArguments(HInvoke* invoke,
     VLOG(compiler) << "Did not compile "
                    << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                    << " because of wrong number of arguments in invoke instruction";
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledMalformedOpcode);
+    MaybeRecordStat(compilation_stats_,
+                    MethodCompilationStat::kNotCompiledMalformedOpcode);
     return false;
   }
 
@@ -1286,7 +1283,8 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
     HInstruction* value = LoadLocal(source_or_dest_reg, field_type);
     HInstruction* field_set = nullptr;
     if (resolved_field == nullptr) {
-      MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
+      MaybeRecordStat(compilation_stats_,
+                      MethodCompilationStat::kUnresolvedField);
       field_set = new (arena_) HUnresolvedInstanceFieldSet(object,
                                                            value,
                                                            field_type,
@@ -1309,7 +1307,8 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
   } else {
     HInstruction* field_get = nullptr;
     if (resolved_field == nullptr) {
-      MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
+      MaybeRecordStat(compilation_stats_,
+                      MethodCompilationStat::kUnresolvedField);
       field_get = new (arena_) HUnresolvedInstanceFieldGet(object,
                                                            field_type,
                                                            field_index,
@@ -1444,7 +1443,8 @@ bool HInstructionBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   ArtField* resolved_field = ResolveField(field_index, /* is_static */ true, is_put);
 
   if (resolved_field == nullptr) {
-    MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
+    MaybeRecordStat(compilation_stats_,
+                    MethodCompilationStat::kUnresolvedField);
     Primitive::Type field_type = GetFieldAccessType(*dex_file_, field_index);
     BuildUnresolvedStaticFieldAccess(instruction, dex_pc, is_put, field_type);
     return true;
@@ -1462,7 +1462,8 @@ bool HInstructionBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   if (constant == nullptr) {
     // The class cannot be referenced from this compiled code. Generate
     // an unresolved access.
-    MaybeRecordStat(MethodCompilationStat::kUnresolvedFieldNotAFastAccess);
+    MaybeRecordStat(compilation_stats_,
+                    MethodCompilationStat::kUnresolvedFieldNotAFastAccess);
     BuildUnresolvedStaticFieldAccess(instruction, dex_pc, is_put, field_type);
     return true;
   }
@@ -2823,7 +2824,8 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction,
                      << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                      << " because of unhandled instruction "
                      << instruction.Name();
-      MaybeRecordStat(MethodCompilationStat::kNotCompiledUnhandledInstruction);
+      MaybeRecordStat(compilation_stats_,
+                      MethodCompilationStat::kNotCompiledUnhandledInstruction);
       return false;
   }
   return true;

@@ -216,6 +216,14 @@ class OptimizingCompilerStats {
   DISALLOW_COPY_AND_ASSIGN(OptimizingCompilerStats);
 };
 
+inline void MaybeRecordStat(OptimizingCompilerStats* compiler_stats,
+                            MethodCompilationStat stat,
+                            uint32_t count = 1) {
+  if (compiler_stats != nullptr) {
+    compiler_stats->RecordStat(stat, count);
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_OPTIMIZING_COMPILER_STATS_H_

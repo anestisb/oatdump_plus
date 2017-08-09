@@ -47,8 +47,6 @@ class HOptimization : public ArenaObject<kArenaAllocOptimization> {
   virtual void Run() = 0;
 
  protected:
-  void MaybeRecordStat(MethodCompilationStat compilation_stat, size_t count = 1) const;
-
   HGraph* const graph_;
   // Used to record stats about the optimization.
   OptimizingCompilerStats* const stats_;

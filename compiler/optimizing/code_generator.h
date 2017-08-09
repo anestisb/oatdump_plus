@@ -254,8 +254,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   const CompilerOptions& GetCompilerOptions() const { return compiler_options_; }
 
-  void MaybeRecordStat(MethodCompilationStat compilation_stat, size_t count = 1) const;
-
   // Saves the register in the stack. Returns the size taken on stack.
   virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) = 0;
   // Restores the register from the stack. Returns the size taken on stack.
