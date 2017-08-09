@@ -33,7 +33,8 @@ namespace art {
 // Disabled for performance reasons.
 static constexpr bool kCheckDebugDisallowReadBarrierCount = false;
 
-template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kAlwaysUpdateField>
+template <typename MirrorType, bool kIsVolatile, ReadBarrierOption kReadBarrierOption,
+          bool kAlwaysUpdateField>
 inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
   constexpr bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
@@ -55,7 +56,7 @@ inline MirrorType* ReadBarrier::Barrier(
       }
       ref_addr = reinterpret_cast<mirror::HeapReference<MirrorType>*>(
           fake_address_dependency | reinterpret_cast<uintptr_t>(ref_addr));
-      MirrorType* ref = ref_addr->AsMirrorPtr();
+      MirrorType* ref = ref_addr->template AsMirrorPtr<kIsVolatile>();
       MirrorType* old_ref = ref;
       if (is_gray) {
         // Slow-path.
@@ -71,9 +72,9 @@ inline MirrorType* ReadBarrier::Barrier(
       return ref;
     } else if (kUseBrooksReadBarrier) {
       // To be implemented.
-      return ref_addr->AsMirrorPtr();
+      return ref_addr->template AsMirrorPtr<kIsVolatile>();
     } else if (kUseTableLookupReadBarrier) {
-      MirrorType* ref = ref_addr->AsMirrorPtr();
+      MirrorType* ref = ref_addr->template AsMirrorPtr<kIsVolatile>();
       MirrorType* old_ref = ref;
       // The heap or the collector can be null at startup. TODO: avoid the need for this null check.
       gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -93,7 +94,7 @@ inline MirrorType* ReadBarrier::Barrier(
     }
   } else {
     // No read barrier.
-    return ref_addr->AsMirrorPtr();
+    return ref_addr->template AsMirrorPtr<kIsVolatile>();
   }
 }
 

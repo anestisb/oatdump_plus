@@ -716,11 +716,10 @@ inline T* Object::GetFieldObject(MemberOffset field_offset) {
   }
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   HeapReference<T>* objref_addr = reinterpret_cast<HeapReference<T>*>(raw_addr);
-  T* result = ReadBarrier::Barrier<T, kReadBarrierOption>(this, field_offset, objref_addr);
-  if (kIsVolatile) {
-    // TODO: Refactor to use a SequentiallyConsistent load instead.
-    QuasiAtomic::ThreadFenceAcquire();  // Ensure visibility of operations preceding store.
-  }
+  T* result = ReadBarrier::Barrier<T, kIsVolatile, kReadBarrierOption>(
+      this,
+      field_offset,
+      objref_addr);
   if (kVerifyFlags & kVerifyReads) {
     VerifyObject(result);
   }
@@ -756,15 +755,7 @@ inline void Object::SetFieldObjectWithoutWriteBarrier(MemberOffset field_offset,
   }
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   HeapReference<Object>* objref_addr = reinterpret_cast<HeapReference<Object>*>(raw_addr);
-  if (kIsVolatile) {
-    // TODO: Refactor to use a SequentiallyConsistent store instead.
-    QuasiAtomic::ThreadFenceRelease();  // Ensure that prior accesses are visible before store.
-    objref_addr->Assign(new_value.Ptr());
-    QuasiAtomic::ThreadFenceSequentiallyConsistent();
-                                // Ensure this store occurs before any volatile loads.
-  } else {
-    objref_addr->Assign(new_value.Ptr());
-  }
+  objref_addr->Assign<kIsVolatile>(new_value.Ptr());
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
@@ -835,13 +826,12 @@ inline bool Object::CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier(
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
   }
-  HeapReference<Object> old_ref(HeapReference<Object>::FromObjPtr(old_value));
-  HeapReference<Object> new_ref(HeapReference<Object>::FromObjPtr(new_value));
+  uint32_t old_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(old_value));
+  uint32_t new_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(new_value));
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
 
-  bool success = atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_ref.reference_,
-                                                                        new_ref.reference_);
+  bool success = atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_ref, new_ref);
   return success;
 }
 
@@ -877,13 +867,12 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrie
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
   }
-  HeapReference<Object> old_ref(HeapReference<Object>::FromObjPtr(old_value));
-  HeapReference<Object> new_ref(HeapReference<Object>::FromObjPtr(new_value));
+  uint32_t old_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(old_value));
+  uint32_t new_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(new_value));
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
 
-  bool success = atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_ref.reference_,
-                                                                          new_ref.reference_);
+  bool success = atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_ref, new_ref);
   return success;
 }
 
@@ -907,13 +896,12 @@ inline bool Object::CasFieldWeakRelaxedObjectWithoutWriteBarrier(
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
   }
-  HeapReference<Object> old_ref(HeapReference<Object>::FromObjPtr(old_value));
-  HeapReference<Object> new_ref(HeapReference<Object>::FromObjPtr(new_value));
+  uint32_t old_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(old_value));
+  uint32_t new_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(new_value));
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
 
-  bool success = atomic_addr->CompareExchangeWeakRelaxed(old_ref.reference_,
-                                                         new_ref.reference_);
+  bool success = atomic_addr->CompareExchangeWeakRelaxed(old_ref, new_ref);
   return success;
 }
 
@@ -937,13 +925,12 @@ inline bool Object::CasFieldWeakReleaseObjectWithoutWriteBarrier(
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
   }
-  HeapReference<Object> old_ref(HeapReference<Object>::FromObjPtr(old_value));
-  HeapReference<Object> new_ref(HeapReference<Object>::FromObjPtr(new_value));
+  uint32_t old_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(old_value));
+  uint32_t new_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(new_value));
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
 
-  bool success = atomic_addr->CompareExchangeWeakRelease(old_ref.reference_,
-                                                         new_ref.reference_);
+  bool success = atomic_addr->CompareExchangeWeakRelease(old_ref, new_ref);
   return success;
 }
 

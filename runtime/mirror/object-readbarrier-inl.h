@@ -211,13 +211,12 @@ inline bool Object::CasFieldStrongRelaxedObjectWithoutWriteBarrier(
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
   }
-  HeapReference<Object> old_ref(HeapReference<Object>::FromObjPtr(old_value));
-  HeapReference<Object> new_ref(HeapReference<Object>::FromObjPtr(new_value));
+  uint32_t old_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(old_value));
+  uint32_t new_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(new_value));
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
 
-  bool success = atomic_addr->CompareExchangeStrongRelaxed(old_ref.reference_,
-                                                           new_ref.reference_);
+  bool success = atomic_addr->CompareExchangeStrongRelaxed(old_ref, new_ref);
   return success;
 }
 
@@ -241,13 +240,12 @@ inline bool Object::CasFieldStrongReleaseObjectWithoutWriteBarrier(
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
   }
-  HeapReference<Object> old_ref(HeapReference<Object>::FromObjPtr(old_value));
-  HeapReference<Object> new_ref(HeapReference<Object>::FromObjPtr(new_value));
+  uint32_t old_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(old_value));
+  uint32_t new_ref(PtrCompression<kPoisonHeapReferences, Object>::Compress(new_value));
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
 
-  bool success = atomic_addr->CompareExchangeStrongRelease(old_ref.reference_,
-                                                           new_ref.reference_);
+  bool success = atomic_addr->CompareExchangeStrongRelease(old_ref, new_ref);
   return success;
 }
 

@@ -46,9 +46,13 @@ class ReadBarrier {
   // fast-debug environment.
   DECLARE_RUNTIME_DEBUG_FLAG(kEnableReadBarrierInvariantChecks);
 
+  // Return the reference at ref_addr, invoking read barrier as appropriate.
+  // Ref_addr is an address within obj.
   // It's up to the implementation whether the given field gets updated whereas the return value
   // must be an updated reference unless kAlwaysUpdateField is true.
-  template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+  template <typename MirrorType,
+            bool kIsVolatile,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             bool kAlwaysUpdateField = false>
   ALWAYS_INLINE static MirrorType* Barrier(
       mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr)

@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_OBJECT_REFERENCE_H_
 #define ART_RUNTIME_MIRROR_OBJECT_REFERENCE_H_
 
+#include "atomic.h"
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
 #include "obj_ptr.h"
@@ -30,20 +31,43 @@ class Object;
 // extra platform specific padding.
 #define MANAGED PACKED(4)
 
+template<bool kPoisonReferences, class MirrorType>
+class PtrCompression {
+ public:
+  // Compress reference to its bit representation.
+  static uint32_t Compress(MirrorType* mirror_ptr) {
+    uintptr_t as_bits = reinterpret_cast<uintptr_t>(mirror_ptr);
+    return static_cast<uint32_t>(kPoisonReferences ? -as_bits : as_bits);
+  }
+
+  // Uncompress an encoded reference from its bit representation.
+  static MirrorType* Decompress(uint32_t ref) {
+    uintptr_t as_bits = kPoisonReferences ? -ref : ref;
+    return reinterpret_cast<MirrorType*>(as_bits);
+  }
+
+  // Convert an ObjPtr to a compressed reference.
+  static uint32_t Compress(ObjPtr<MirrorType> ptr) REQUIRES_SHARED(Locks::mutator_lock_) {
+    return Compress(ptr.Ptr());
+  }
+};
+
 // Value type representing a reference to a mirror::Object of type MirrorType.
 template<bool kPoisonReferences, class MirrorType>
 class MANAGED ObjectReference {
+ private:
+  using Compression = PtrCompression<kPoisonReferences, MirrorType>;
+
  public:
-  MirrorType* AsMirrorPtr() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    return UnCompress();
+  MirrorType* AsMirrorPtr() const {
+    return Compression::Decompress(reference_);
   }
 
-  void Assign(MirrorType* other) REQUIRES_SHARED(Locks::mutator_lock_) {
-    reference_ = Compress(other);
+  void Assign(MirrorType* other) {
+    reference_ = Compression::Compress(other);
   }
 
-  void Assign(ObjPtr<MirrorType> ptr)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  void Assign(ObjPtr<MirrorType> ptr) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Clear() {
     reference_ = 0;
@@ -58,48 +82,69 @@ class MANAGED ObjectReference {
     return reference_;
   }
 
+  static ObjectReference<kPoisonReferences, MirrorType> FromMirrorPtr(MirrorType* mirror_ptr)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    return ObjectReference<kPoisonReferences, MirrorType>(mirror_ptr);
+  }
+
  protected:
-  explicit ObjectReference(MirrorType* mirror_ptr)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      : reference_(Compress(mirror_ptr)) {
+  explicit ObjectReference(MirrorType* mirror_ptr) REQUIRES_SHARED(Locks::mutator_lock_)
+      : reference_(Compression::Compress(mirror_ptr)) {
   }
-
-  // Compress reference to its bit representation.
-  static uint32_t Compress(MirrorType* mirror_ptr) REQUIRES_SHARED(Locks::mutator_lock_) {
-    uintptr_t as_bits = reinterpret_cast<uintptr_t>(mirror_ptr);
-    return static_cast<uint32_t>(kPoisonReferences ? -as_bits : as_bits);
-  }
-
-  // Uncompress an encoded reference from its bit representation.
-  MirrorType* UnCompress() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    uintptr_t as_bits = kPoisonReferences ? -reference_ : reference_;
-    return reinterpret_cast<MirrorType*>(as_bits);
-  }
-
-  friend class Object;
 
   // The encoded reference to a mirror::Object.
   uint32_t reference_;
 };
 
 // References between objects within the managed heap.
+// Similar API to ObjectReference, but not a value type. Supports atomic access.
 template<class MirrorType>
-class MANAGED HeapReference : public ObjectReference<kPoisonHeapReferences, MirrorType> {
+class MANAGED HeapReference {
+ private:
+  using Compression = PtrCompression<kPoisonHeapReferences, MirrorType>;
+
  public:
+  template <bool kIsVolatile = false>
+  MirrorType* AsMirrorPtr() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    return Compression::Decompress(
+        kIsVolatile ? reference_.LoadSequentiallyConsistent() : reference_.LoadJavaData());
+  }
+
+  template <bool kIsVolatile = false>
+  void Assign(MirrorType* other) REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kIsVolatile) {
+      reference_.StoreSequentiallyConsistent(Compression::Compress(other));
+    } else {
+      reference_.StoreJavaData(Compression::Compress(other));
+    }
+  }
+
+  template <bool kIsVolatile = false>
+  void Assign(ObjPtr<MirrorType> ptr) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void Clear() {
+    reference_.StoreJavaData(0);
+    DCHECK(IsNull());
+  }
+
+  bool IsNull() const {
+    return reference_.LoadJavaData() == 0;
+  }
+
   static HeapReference<MirrorType> FromMirrorPtr(MirrorType* mirror_ptr)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     return HeapReference<MirrorType>(mirror_ptr);
   }
-
-  static HeapReference<MirrorType> FromObjPtr(ObjPtr<MirrorType> ptr)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool CasWeakRelaxed(MirrorType* old_ptr, MirrorType* new_ptr)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   explicit HeapReference(MirrorType* mirror_ptr) REQUIRES_SHARED(Locks::mutator_lock_)
-      : ObjectReference<kPoisonHeapReferences, MirrorType>(mirror_ptr) {}
+      : reference_(this->Compress(mirror_ptr)) {}
+
+  // The encoded reference to a mirror::Object. Atomically updateable.
+  Atomic<uint32_t> reference_;
 };
 
 static_assert(sizeof(mirror::HeapReference<mirror::Object>) == kHeapReferenceSize,

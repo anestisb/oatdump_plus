@@ -38,9 +38,8 @@ inline mirror::Object* SemiSpace::GetForwardingAddressInFromSpace(mirror::Object
 // Used to mark and copy objects. Any newly-marked objects who are in the from space Get moved to
 // the to-space and have their forward address updated. Objects which have been newly marked are
 // pushed on the mark stack.
-template<bool kPoisonReferences>
-inline void SemiSpace::MarkObject(
-    mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr) {
+template<typename CompressedReferenceType>
+inline void SemiSpace::MarkObject(CompressedReferenceType* obj_ptr) {
   mirror::Object* obj = obj_ptr->AsMirrorPtr();
   if (obj == nullptr) {
     return;
@@ -73,9 +72,8 @@ inline void SemiSpace::MarkObject(
   }
 }
 
-template<bool kPoisonReferences>
-inline void SemiSpace::MarkObjectIfNotInToSpace(
-    mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr) {
+template<typename CompressedReferenceType>
+inline void SemiSpace::MarkObjectIfNotInToSpace(CompressedReferenceType* obj_ptr) {
   if (!to_space_->HasAddress(obj_ptr->AsMirrorPtr())) {
     MarkObject(obj_ptr);
   }

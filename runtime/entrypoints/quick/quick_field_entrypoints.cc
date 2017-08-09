@@ -301,6 +301,7 @@ extern "C" mirror::Object* artReadBarrierMark(mirror::Object* obj) {
 extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUSED,
                                               mirror::Object* obj,
                                               uint32_t offset) {
+  // Used only in connection with non-volatile loads.
   DCHECK(kEmitCompilerReadBarrier);
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(obj) + offset;
   mirror::HeapReference<mirror::Object>* ref_addr =
@@ -308,9 +309,10 @@ extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUS
   constexpr ReadBarrierOption kReadBarrierOption =
       kUseReadBarrier ? kWithReadBarrier : kWithoutReadBarrier;
   mirror::Object* result =
-      ReadBarrier::Barrier<mirror::Object, kReadBarrierOption>(obj,
-                                                               MemberOffset(offset),
-                                                               ref_addr);
+      ReadBarrier::Barrier<mirror::Object, /* kIsVolatile */ false, kReadBarrierOption>(
+        obj,
+        MemberOffset(offset),
+        ref_addr);
   return result;
 }
 

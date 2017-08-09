@@ -115,8 +115,8 @@ class ModUnionUpdateObjectReferencesVisitor {
   }
 
  private:
-  template<bool kPoisonReferences>
-  void MarkReference(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr) const
+  template<typename CompressedReferenceType>
+  void MarkReference(CompressedReferenceType* obj_ptr) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Only add the reference if it is non null and fits our criteria.
     mirror::Object* ref = obj_ptr->AsMirrorPtr();
