@@ -441,6 +441,29 @@ public class Main {
     }
   }
 
+  /// CHECK-START: int Main.feedsIntoDeopt(int[]) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: Phi loop:<<Loop2:B\d+>> outer_loop:none
+  //
+  /// CHECK-EVAL: "<<Loop1>>" != "<<Loop2>>"
+  //
+  /// CHECK-START: int Main.feedsIntoDeopt(int[]) loop_optimization (after)
+  /// CHECK-DAG: Phi loop:{{B\d+}} outer_loop:none
+  /// CHECK-NOT: Phi
+  static int feedsIntoDeopt(int[] a) {
+    // Reduction should be removed.
+    int r = 0;
+    for (int i = 0; i < 100; i++) {
+      r += 10;
+    }
+    // Even though uses feed into deopts of BCE.
+    for (int i = 1; i < 100; i++) {
+      a[i] = a[i - 1];
+    }
+    return r;
+  }
+
   public static void main(String[] args) {
     expectEquals(10, earlyExitFirst(-1));
     for (int i = 0; i <= 10; i++) {
@@ -555,6 +578,13 @@ public class Main {
     }
 
     inductionMax(yy);
+
+    int[] f = new int[100];
+    f[0] = 11;
+    expectEquals(1000, feedsIntoDeopt(f));
+    for (int i = 0; i < 100; i++) {
+      expectEquals(11, f[i]);
+    }
 
     System.out.println("passed");
   }

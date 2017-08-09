@@ -490,13 +490,18 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
   for (HInstructionIterator it(header->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
     if (TrySetPhiInduction(phi, /*restrict_uses*/ true) &&
-        CanRemoveCycle() &&
         TryAssignLastValue(node->loop_info, phi, preheader, /*collect_loop_uses*/ false)) {
-      simplified_ = true;
-      for (HInstruction* i : *iset_) {
-        RemoveFromCycle(i);
+      // Note that it's ok to have replaced uses after the loop with the last value, without
+      // being able to remove the cycle. Environment uses (which are the reason we may not be
+      // able to remove the cycle) within the loop will still hold the right value. We must
+      // have tried first, however, to replace outside uses.
+      if (CanRemoveCycle()) {
+        simplified_ = true;
+        for (HInstruction* i : *iset_) {
+          RemoveFromCycle(i);
+        }
+        DCHECK(CheckInductionSetFullyRemoved(iset_));
       }
-      DCHECK(CheckInductionSetFullyRemoved(iset_));
     }
   }
 }
