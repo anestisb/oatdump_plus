@@ -16,12 +16,10 @@
 
 #include "aot_class_linker.h"
 
-#include "class_reference.h"
-#include "compiler_callbacks.h"
 #include "handle_scope-inl.h"
-#include "mirror/class-inl.h"
+#include "mirror/class.h"
+#include "mirror/object-inl.h"
 #include "runtime.h"
-#include "verifier/verifier_enums.h"
 
 namespace art {
 
@@ -68,18 +66,4 @@ bool AotClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
   }
   return success;
 }
-
-verifier::FailureKind AotClassLinker::PerformClassVerification(Thread* self,
-                                                               Handle<mirror::Class> klass,
-                                                               verifier::HardFailLogMode log_level,
-                                                               std::string* error_msg) {
-  Runtime* const runtime = Runtime::Current();
-  CompilerCallbacks* callbacks = runtime->GetCompilerCallbacks();
-  if (callbacks->CanAssumeVerified(ClassReference(&klass->GetDexFile(),
-                                                  klass->GetDexClassDefIndex()))) {
-    return verifier::FailureKind::kNoFailure;
-  }
-  return ClassLinker::PerformClassVerification(self, klass, log_level, error_msg);
-}
-
 }  // namespace art

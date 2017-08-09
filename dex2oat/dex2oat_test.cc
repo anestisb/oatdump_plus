@@ -41,7 +41,6 @@
 namespace art {
 
 static constexpr size_t kMaxMethodIds = 65535;
-static constexpr bool kDebugArgs = false;
 
 using android::base::StringPrintf;
 
@@ -56,7 +55,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
   }
 
  protected:
-  int GenerateOdexForTestWithStatus(const std::vector<std::string>& dex_locations,
+  int GenerateOdexForTestWithStatus(const std::string& dex_location,
                                     const std::string& odex_location,
                                     CompilerFilter::Filter filter,
                                     std::string* error_msg,
@@ -64,10 +63,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
                                     bool use_fd = false) {
     std::unique_ptr<File> oat_file;
     std::vector<std::string> args;
-    // Add dex file args.
-    for (const std::string& dex_location : dex_locations) {
-      args.push_back("--dex-file=" + dex_location);
-    }
+    args.push_back("--dex-file=" + dex_location);
     if (use_fd) {
       oat_file.reset(OS::CreateEmptyFile(odex_location.c_str()));
       CHECK(oat_file != nullptr) << odex_location;
@@ -97,7 +93,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
                            bool use_fd = false,
                            std::function<void(const OatFile&)> check_oat = [](const OatFile&) {}) {
     std::string error_msg;
-    int status = GenerateOdexForTestWithStatus({dex_location},
+    int status = GenerateOdexForTestWithStatus(dex_location,
                                                odex_location,
                                                filter,
                                                &error_msg,
@@ -190,14 +186,6 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
     const char* android_root = getenv("ANDROID_ROOT");
     CHECK(android_root != nullptr);
     argv.push_back("--android-root=" + std::string(android_root));
-
-    if (kDebugArgs) {
-      std::string all_args;
-      for (const std::string& arg : argv) {
-        all_args += arg + " ";
-      }
-      LOG(ERROR) << all_args;
-    }
 
     int link[2];
 
@@ -963,7 +951,7 @@ class Dex2oatReturnCodeTest : public Dex2oatTest {
     Copy(GetTestDexFileName(), dex_location);
 
     std::string error_msg;
-    return GenerateOdexForTestWithStatus({dex_location},
+    return GenerateOdexForTestWithStatus(dex_location,
                                          odex_location,
                                          CompilerFilter::kSpeed,
                                          &error_msg,
@@ -1117,68 +1105,6 @@ TEST_F(Dex2oatClassLoaderContextTest, ChainContext) {
       "DLC[" + CreateClassPathWithChecksums(dex_files2) + "]";
 
   RunTest(context.c_str(), expected_classpath_key.c_str(), true);
-}
-
-class Dex2oatDeterminism : public Dex2oatTest {};
-
-TEST_F(Dex2oatDeterminism, UnloadCompile) {
-  Runtime* const runtime = Runtime::Current();
-  std::string out_dir = GetScratchDir();
-  const std::string base_oat_name = out_dir + "/base.oat";
-  const std::string base_vdex_name = out_dir + "/base.vdex";
-  const std::string unload_oat_name = out_dir + "/unload.oat";
-  const std::string unload_vdex_name = out_dir + "/unload.vdex";
-  const std::string no_unload_oat_name = out_dir + "/nounload.oat";
-  const std::string no_unload_vdex_name = out_dir + "/nounload.vdex";
-  const std::string app_image_name = out_dir + "/unload.art";
-  std::string error_msg;
-  const std::vector<gc::space::ImageSpace*>& spaces = runtime->GetHeap()->GetBootImageSpaces();
-  ASSERT_GT(spaces.size(), 0u);
-  const std::string image_location = spaces[0]->GetImageLocation();
-  // Without passing in an app image, it will unload in between compilations.
-  const int res = GenerateOdexForTestWithStatus(
-      GetLibCoreDexFileNames(),
-      base_oat_name,
-      CompilerFilter::Filter::kQuicken,
-      &error_msg,
-      {"--force-determinism", "--avoid-storing-invocation"});
-  EXPECT_EQ(res, 0);
-  Copy(base_oat_name, unload_oat_name);
-  Copy(base_vdex_name, unload_vdex_name);
-  std::unique_ptr<File> unload_oat(OS::OpenFileForReading(unload_oat_name.c_str()));
-  std::unique_ptr<File> unload_vdex(OS::OpenFileForReading(unload_vdex_name.c_str()));
-  ASSERT_TRUE(unload_oat != nullptr);
-  ASSERT_TRUE(unload_vdex != nullptr);
-  EXPECT_GT(unload_oat->GetLength(), 0u);
-  EXPECT_GT(unload_vdex->GetLength(), 0u);
-  // Regenerate with an app image to disable the dex2oat unloading and verify that the output is
-  // the same.
-  const int res2 = GenerateOdexForTestWithStatus(
-      GetLibCoreDexFileNames(),
-      base_oat_name,
-      CompilerFilter::Filter::kQuicken,
-      &error_msg,
-      {"--force-determinism", "--avoid-storing-invocation", "--app-image-file=" + app_image_name});
-  EXPECT_EQ(res2, 0);
-  Copy(base_oat_name, no_unload_oat_name);
-  Copy(base_vdex_name, no_unload_vdex_name);
-  std::unique_ptr<File> no_unload_oat(OS::OpenFileForReading(no_unload_oat_name.c_str()));
-  std::unique_ptr<File> no_unload_vdex(OS::OpenFileForReading(no_unload_vdex_name.c_str()));
-  ASSERT_TRUE(no_unload_oat != nullptr);
-  ASSERT_TRUE(no_unload_vdex != nullptr);
-  EXPECT_GT(no_unload_oat->GetLength(), 0u);
-  EXPECT_GT(no_unload_vdex->GetLength(), 0u);
-  // Verify that both of the files are the same (odex and vdex).
-  EXPECT_EQ(unload_oat->GetLength(), no_unload_oat->GetLength());
-  EXPECT_EQ(unload_vdex->GetLength(), no_unload_vdex->GetLength());
-  EXPECT_EQ(unload_oat->Compare(no_unload_oat.get()), 0)
-      << unload_oat_name << " " << no_unload_oat_name;
-  EXPECT_EQ(unload_vdex->Compare(no_unload_vdex.get()), 0)
-      << unload_vdex_name << " " << no_unload_vdex_name;
-  // App image file.
-  std::unique_ptr<File> app_image_file(OS::OpenFileForReading(app_image_name.c_str()));
-  ASSERT_TRUE(app_image_file != nullptr);
-  EXPECT_GT(app_image_file->GetLength(), 0u);
 }
 
 }  // namespace art
