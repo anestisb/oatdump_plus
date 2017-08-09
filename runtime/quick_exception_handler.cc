@@ -533,21 +533,19 @@ void QuickExceptionHandler::DeoptimizeStack() {
 void QuickExceptionHandler::DeoptimizeSingleFrame(DeoptimizationKind kind) {
   DCHECK(is_deoptimization_);
 
-  if (VLOG_IS_ON(deopt) || kDebugExceptionDelivery) {
-    LOG(INFO) << "Single-frame deopting:";
-    DumpFramesWithType(self_, true);
-  }
-
   DeoptimizeStackVisitor visitor(self_, context_, this, true);
   visitor.WalkStack(true);
 
   // Compiled code made an explicit deoptimization.
   ArtMethod* deopt_method = visitor.GetSingleFrameDeoptMethod();
   DCHECK(deopt_method != nullptr);
-  LOG(INFO) << "Deoptimizing "
-            << deopt_method->PrettyMethod()
-            << " due to "
-            << GetDeoptimizationKindName(kind);
+  if (VLOG_IS_ON(deopt) || kDebugExceptionDelivery) {
+    LOG(INFO) << "Single-frame deopting: "
+              << deopt_method->PrettyMethod()
+              << " due to "
+              << GetDeoptimizationKindName(kind);
+    DumpFramesWithType(self_, /* details */ true);
+  }
   if (Runtime::Current()->UseJitCompilation()) {
     Runtime::Current()->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(
         deopt_method, visitor.GetSingleFrameDeoptQuickMethodHeader());
