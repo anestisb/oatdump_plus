@@ -1315,9 +1315,7 @@ bool JitCodeCache::IncreaseCodeCacheCapacity() {
     current_capacity_ = max_capacity_;
   }
 
-  if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
-    LOG(INFO) << "Increasing code cache capacity to " << PrettySize(current_capacity_);
-  }
+  VLOG(jit) << "Increasing code cache capacity to " << PrettySize(current_capacity_);
 
   SetFootprintLimit(current_capacity_);
 
@@ -1388,21 +1386,17 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
       do_full_collection = ShouldDoFullCollection();
     }
 
-    if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
-      LOG(INFO) << "Do "
-                << (do_full_collection ? "full" : "partial")
-                << " code cache collection, code="
-                << PrettySize(CodeCacheSize())
-                << ", data=" << PrettySize(DataCacheSize());
-    }
+    VLOG(jit) << "Do "
+              << (do_full_collection ? "full" : "partial")
+              << " code cache collection, code="
+              << PrettySize(CodeCacheSize())
+              << ", data=" << PrettySize(DataCacheSize());
 
     DoCollection(self, /* collect_profiling_info */ do_full_collection);
 
-    if (!kIsDebugBuild || VLOG_IS_ON(jit)) {
-      LOG(INFO) << "After code cache collection, code="
-                << PrettySize(CodeCacheSize())
-                << ", data=" << PrettySize(DataCacheSize());
-    }
+    VLOG(jit) << "After code cache collection, code="
+              << PrettySize(CodeCacheSize())
+              << ", data=" << PrettySize(DataCacheSize());
 
     {
       MutexLock mu(self, lock_);
