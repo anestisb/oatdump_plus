@@ -163,6 +163,7 @@ class SpaceBitmap {
 
   void SetHeapSize(size_t bytes) {
     // TODO: Un-map the end of the mem map.
+    heap_limit_ = heap_begin_ + bytes;
     bitmap_size_ = OffsetToIndex(bytes) * sizeof(intptr_t);
     CHECK_EQ(HeapSize(), bytes);
   }
@@ -173,7 +174,7 @@ class SpaceBitmap {
 
   // The maximum address which the bitmap can span. (HeapBegin() <= object < HeapLimit()).
   uint64_t HeapLimit() const {
-    return static_cast<uint64_t>(HeapBegin()) + HeapSize();
+    return heap_limit_;
   }
 
   // Set the max address which can covered by the bitmap.
@@ -196,8 +197,12 @@ class SpaceBitmap {
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_
-  SpaceBitmap(const std::string& name, MemMap* mem_map, uintptr_t* bitmap_begin, size_t bitmap_size,
-              const void* heap_begin);
+  SpaceBitmap(const std::string& name,
+              MemMap* mem_map,
+              uintptr_t* bitmap_begin,
+              size_t bitmap_size,
+              const void* heap_begin,
+              size_t heap_capacity);
 
   template<bool kSetBit>
   bool Modify(const mirror::Object* obj);
@@ -211,9 +216,12 @@ class SpaceBitmap {
   // Size of this bitmap.
   size_t bitmap_size_;
 
-  // The base address of the heap, which corresponds to the word containing the first bit in the
-  // bitmap.
+  // The start address of the memory covered by the bitmap, which corresponds to the word
+  // containing the first bit in the bitmap.
   const uintptr_t heap_begin_;
+
+  // The end address of the memory covered by the bitmap. This may not be on a word boundary.
+  uintptr_t heap_limit_;
 
   // Name of this bitmap.
   std::string name_;

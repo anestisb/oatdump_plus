@@ -48,16 +48,21 @@ SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::CreateFromMemMap(
   CHECK(mem_map != nullptr);
   uintptr_t* bitmap_begin = reinterpret_cast<uintptr_t*>(mem_map->Begin());
   const size_t bitmap_size = ComputeBitmapSize(heap_capacity);
-  return new SpaceBitmap(name, mem_map, bitmap_begin, bitmap_size, heap_begin);
+  return new SpaceBitmap(name, mem_map, bitmap_begin, bitmap_size, heap_begin, heap_capacity);
 }
 
 template<size_t kAlignment>
-SpaceBitmap<kAlignment>::SpaceBitmap(const std::string& name, MemMap* mem_map, uintptr_t* bitmap_begin,
-                                     size_t bitmap_size, const void* heap_begin)
+SpaceBitmap<kAlignment>::SpaceBitmap(const std::string& name,
+                                     MemMap* mem_map,
+                                     uintptr_t* bitmap_begin,
+                                     size_t bitmap_size,
+                                     const void* heap_begin,
+                                     size_t heap_capacity)
     : mem_map_(mem_map),
       bitmap_begin_(reinterpret_cast<Atomic<uintptr_t>*>(bitmap_begin)),
       bitmap_size_(bitmap_size),
       heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
+      heap_limit_(reinterpret_cast<uintptr_t>(heap_begin) + heap_capacity),
       name_(name) {
   CHECK(bitmap_begin_ != nullptr);
   CHECK_NE(bitmap_size, 0U);
@@ -89,6 +94,7 @@ void SpaceBitmap<kAlignment>::SetHeapLimit(uintptr_t new_end) {
   if (new_size < bitmap_size_) {
     bitmap_size_ = new_size;
   }
+  heap_limit_ = new_end;
   // Not sure if doing this trim is necessary, since nothing past the end of the heap capacity
   // should be marked.
 }
