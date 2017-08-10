@@ -113,6 +113,7 @@ class JitCodeCache {
                       size_t fp_spill_mask,
                       const uint8_t* code,
                       size_t code_size,
+                      size_t data_size,
                       bool osr,
                       Handle<mirror::ObjectArray<mirror::Object>> roots,
                       bool has_should_deoptimize_flag,
@@ -228,8 +229,6 @@ class JitCodeCache {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  uint8_t* GetRootTable(const void* code_ptr, uint32_t* number_of_roots = nullptr);
-
   // The GC needs to disallow the reading of inline caches when it processes them,
   // to avoid having a class being used while it is being deleted.
   void AllowInlineCacheAccess() REQUIRES(!lock_);
@@ -248,13 +247,9 @@ class JitCodeCache {
   }
 
  private:
-  friend class ScopedCodeCacheWrite;
-
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
                MemMap* data_map,
-               MemMap* writable_code_map,
-               MemMap* code_sync_map,
                size_t initial_code_capacity,
                size_t initial_data_capacity,
                size_t max_capacity,
@@ -272,6 +267,7 @@ class JitCodeCache {
                               size_t fp_spill_mask,
                               const uint8_t* code,
                               size_t code_size,
+                              size_t data_size,
                               bool osr,
                               Handle<mirror::ObjectArray<mirror::Object>> roots,
                               bool has_should_deoptimize_flag,
@@ -296,7 +292,7 @@ class JitCodeCache {
       REQUIRES(!Locks::cha_lock_);
 
   // Free in the mspace allocations for `code_ptr`.
-  void FreeCodeAndData(const void* code_ptr) REQUIRES(lock_);
+  void FreeCode(const void* code_ptr) REQUIRES(lock_);
 
   // Number of bytes allocated in the code cache.
   size_t CodeCacheSizeLocked() REQUIRES(lock_);
@@ -329,7 +325,7 @@ class JitCodeCache {
   bool CheckLiveCompiledCodeHasProfilingInfo()
       REQUIRES(lock_);
 
-  void FreeRawCode(void* code) REQUIRES(lock_);
+  void FreeCode(uint8_t* code) REQUIRES(lock_);
   uint8_t* AllocateCode(size_t code_size) REQUIRES(lock_);
   void FreeData(uint8_t* data) REQUIRES(lock_);
   uint8_t* AllocateData(size_t data_size) REQUIRES(lock_);
@@ -339,61 +335,25 @@ class JitCodeCache {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  MemMap* GetWritableMemMap() const {
-    if (writable_code_map_ == nullptr) {
-      // The system required us to map the JIT Code Cache RWX (see
-      // JitCodeCache::Create()).
-      return executable_code_map_.get();
-    } else {
-      // Executable code is mapped RX, and writable code is mapped RW
-      // to the underlying same memory, but at a different address.
-      return writable_code_map_.get();
-    }
-  }
-
-  bool IsDataAddress(const void* raw_addr) const;
-
-  bool IsExecutableAddress(const void* raw_addr) const;
-
-  bool IsWritableAddress(const void* raw_addr) const;
-
-  template <typename T>
-  T* ToExecutableAddress(T* writable_address) const;
-
-  void* ToWritableAddress(const void* executable_address) const;
-
   // Lock for guarding allocations, collections, and the method_code_map_.
   Mutex lock_;
   // Condition to wait on during collection.
   ConditionVariable lock_cond_ GUARDED_BY(lock_);
   // Whether there is a code cache collection in progress.
   bool collection_in_progress_ GUARDED_BY(lock_);
-  // JITting methods obviously requires both write and execute permissions on a region of memory.
-  // In tye typical (non-debugging) case, we separate the memory mapped view that can write the code
-  // from a view that the runtime uses to execute the code. Having these two views eliminates any
-  // single address region having rwx permissions.  An attacker could still write the writable
-  // address and then execute the executable address. We allocate the mappings with a random
-  // address relationship to each other which makes the attacker need two addresses rather than
-  // just one.  In the debugging case there is no file descriptor to back the
-  // shared memory, and hence we have to use a single mapping.
+  // Mem map which holds code.
+  std::unique_ptr<MemMap> code_map_;
   // Mem map which holds data (stack maps and profiling info).
   std::unique_ptr<MemMap> data_map_;
-  // Mem map which holds a non-writable view of code for JIT.
-  std::unique_ptr<MemMap> executable_code_map_;
-  // Mem map which holds a non-executable view of code for JIT.
-  std::unique_ptr<MemMap> writable_code_map_;
-  // Mem map which holds one executable page that we use for flushing instruction
-  // fetch buffers. The code on this page is never executed.
-  std::unique_ptr<MemMap> code_sync_map_;
   // The opaque mspace for allocating code.
   void* code_mspace_ GUARDED_BY(lock_);
   // The opaque mspace for allocating data.
   void* data_mspace_ GUARDED_BY(lock_);
   // Bitmap for collecting code and data.
   std::unique_ptr<CodeCacheBitmap> live_bitmap_;
-  // Holds non-writable compiled code associated to the ArtMethod.
+  // Holds compiled code associated to the ArtMethod.
   SafeMap<const void*, ArtMethod*> method_code_map_ GUARDED_BY(lock_);
-  // Holds non-writable osr compiled code associated to the ArtMethod.
+  // Holds osr compiled code associated to the ArtMethod.
   SafeMap<ArtMethod*, const void*> osr_code_map_ GUARDED_BY(lock_);
   // ProfilingInfo objects we have allocated.
   std::vector<ProfilingInfo*> profiling_infos_ GUARDED_BY(lock_);
