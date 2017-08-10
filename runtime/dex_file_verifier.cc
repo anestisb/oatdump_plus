@@ -363,7 +363,7 @@ bool DexFileVerifier::CheckHeader() {
   // Check file size from the header.
   uint32_t expected_size = header_->file_size_;
   if (size_ != expected_size) {
-    ErrorStringPrintf("Bad file size (%zd, expected %ud)", size_, expected_size);
+    ErrorStringPrintf("Bad file size (%zd, expected %u)", size_, expected_size);
     return false;
   }
 

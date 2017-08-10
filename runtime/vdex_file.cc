@@ -20,6 +20,7 @@
 
 #include <memory>
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
@@ -134,6 +135,9 @@ const uint8_t* VdexFile::GetNextDexFileData(const uint8_t* cursor) const {
   } else {
     // Fetch the next dex file. Return null if there is none.
     const uint8_t* data = cursor + reinterpret_cast<const DexFile::Header*>(cursor)->file_size_;
+    // Dex files are required to be 4 byte aligned. the OatWriter makes sure they are, see
+    // OatWriter::SeekToDexFiles.
+    data = AlignUp(data, 4);
     return (data == DexEnd()) ? nullptr : data;
   }
 }
