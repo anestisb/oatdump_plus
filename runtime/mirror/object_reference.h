@@ -104,6 +104,8 @@ class MANAGED HeapReference {
   using Compression = PtrCompression<kPoisonHeapReferences, MirrorType>;
 
  public:
+  HeapReference() REQUIRES_SHARED(Locks::mutator_lock_) : HeapReference(nullptr) {}
+
   template <bool kIsVolatile = false>
   MirrorType* AsMirrorPtr() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return Compression::Decompress(
@@ -141,7 +143,7 @@ class MANAGED HeapReference {
 
  private:
   explicit HeapReference(MirrorType* mirror_ptr) REQUIRES_SHARED(Locks::mutator_lock_)
-      : reference_(this->Compress(mirror_ptr)) {}
+      : reference_(Compression::Compress(mirror_ptr)) {}
 
   // The encoded reference to a mirror::Object. Atomically updateable.
   Atomic<uint32_t> reference_;
