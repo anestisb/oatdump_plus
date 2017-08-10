@@ -1210,14 +1210,14 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   uint8_t* stack_map_data = nullptr;
   uint8_t* method_info_data = nullptr;
   uint8_t* roots_data = nullptr;
-  code_cache->ReserveData(self,
-                          stack_map_size,
-                          method_info_size,
-                          number_of_roots,
-                          method,
-                          &stack_map_data,
-                          &method_info_data,
-                          &roots_data);
+  uint32_t data_size = code_cache->ReserveData(self,
+                                               stack_map_size,
+                                               method_info_size,
+                                               number_of_roots,
+                                               method,
+                                               &stack_map_data,
+                                               &method_info_data,
+                                               &roots_data);
   if (stack_map_data == nullptr || roots_data == nullptr) {
     return false;
   }
@@ -1238,6 +1238,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
       codegen->GetFpuSpillMask(),
       code_allocator.GetMemory().data(),
       code_allocator.GetSize(),
+      data_size,
       osr,
       roots,
       codegen->GetGraph()->HasShouldDeoptimizeFlag(),

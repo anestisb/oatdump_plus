@@ -74,7 +74,6 @@ class MemMapTest : public CommonRuntimeTest {
     MemMap* m1 = m0->RemapAtEnd(base0 + page_size,
                                 "MemMapTest_RemapAtEndTest_map1",
                                 PROT_READ | PROT_WRITE,
-                                MAP_PRIVATE,
                                 &error_msg);
     // Check the states of the two maps.
     EXPECT_EQ(m0->Begin(), base0) << error_msg;
@@ -457,7 +456,6 @@ TEST_F(MemMapTest, AlignBy) {
   std::unique_ptr<MemMap> m1(m0->RemapAtEnd(base0 + 3 * page_size,
                                             "MemMapTest_AlignByTest_map1",
                                             PROT_READ | PROT_WRITE,
-                                            MAP_PRIVATE,
                                             &error_msg));
   uint8_t* base1 = m1->Begin();
   ASSERT_TRUE(base1 != nullptr) << error_msg;
@@ -467,7 +465,6 @@ TEST_F(MemMapTest, AlignBy) {
   std::unique_ptr<MemMap> m2(m1->RemapAtEnd(base1 + 4 * page_size,
                                             "MemMapTest_AlignByTest_map2",
                                             PROT_READ | PROT_WRITE,
-                                            MAP_PRIVATE,
                                             &error_msg));
   uint8_t* base2 = m2->Begin();
   ASSERT_TRUE(base2 != nullptr) << error_msg;
@@ -477,7 +474,6 @@ TEST_F(MemMapTest, AlignBy) {
   std::unique_ptr<MemMap> m3(m2->RemapAtEnd(base2 + 3 * page_size,
                                             "MemMapTest_AlignByTest_map1",
                                             PROT_READ | PROT_WRITE,
-                                            MAP_PRIVATE,
                                             &error_msg));
   uint8_t* base3 = m3->Begin();
   ASSERT_TRUE(base3 != nullptr) << error_msg;

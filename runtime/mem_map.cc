@@ -496,7 +496,7 @@ MemMap::~MemMap() {
     MEMORY_TOOL_MAKE_UNDEFINED(base_begin_, base_size_);
     int result = munmap(base_begin_, base_size_);
     if (result == -1) {
-      PLOG(FATAL) << "munmap failed: " << BaseBegin() << "..." << BaseEnd();
+      PLOG(FATAL) << "munmap failed";
     }
   }
 
@@ -535,13 +535,8 @@ MemMap::MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_
   }
 }
 
-MemMap* MemMap::RemapAtEnd(uint8_t* new_end,
-                           const char* tail_name,
-                           int tail_prot,
-                           int sharing_flags,
-                           std::string* error_msg,
-                           bool use_ashmem,
-                           unique_fd* shmem_fd) {
+MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_prot,
+                           std::string* error_msg, bool use_ashmem) {
   use_ashmem = use_ashmem && !kIsTargetLinux;
   DCHECK_GE(new_end, Begin());
   DCHECK_LE(new_end, End());
@@ -560,12 +555,6 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end,
   size_ = new_end - reinterpret_cast<uint8_t*>(begin_);
   base_size_ = new_base_end - reinterpret_cast<uint8_t*>(base_begin_);
   DCHECK_LE(begin_ + size_, reinterpret_cast<uint8_t*>(base_begin_) + base_size_);
-  if (base_size_ == 0u) {
-    // All pages in this MemMap have been handed out. Invalidate base
-    // pointer to prevent the destructor calling munmap() on
-    // zero-length region (which can't succeed).
-    base_begin_ = nullptr;
-  }
   size_t tail_size = old_end - new_end;
   uint8_t* tail_base_begin = new_base_end;
   size_t tail_base_size = old_base_end - new_base_end;
@@ -573,14 +562,14 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end,
   DCHECK_ALIGNED(tail_base_size, kPageSize);
 
   unique_fd fd;
-  int flags = MAP_ANONYMOUS | sharing_flags;
+  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
   if (use_ashmem) {
     // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
     // prefixed "dalvik-".
     std::string debug_friendly_name("dalvik-");
     debug_friendly_name += tail_name;
     fd.reset(ashmem_create_region(debug_friendly_name.c_str(), tail_base_size));
-    flags = MAP_FIXED | sharing_flags;
+    flags = MAP_PRIVATE | MAP_FIXED;
     if (fd.get() == -1) {
       *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s",
                                 tail_name, strerror(errno));
@@ -613,9 +602,6 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end,
                               "maps in the log.", tail_base_begin, tail_base_size, tail_prot, flags,
                               fd.get());
     return nullptr;
-  }
-  if (shmem_fd != nullptr) {
-    shmem_fd->reset(fd.release());
   }
   return new MemMap(tail_name, actual, tail_size, actual, tail_base_size, tail_prot, false);
 }
