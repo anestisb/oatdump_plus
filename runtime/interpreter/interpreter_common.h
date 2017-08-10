@@ -141,11 +141,8 @@ static inline bool DoFastInvoke(Thread* self,
     return false;
   } else {
     jit::Jit* jit = Runtime::Current()->GetJit();
-    if (jit != nullptr) {
-      if (type == kVirtual) {
-        jit->InvokeVirtualOrInterface(receiver, sf_method, shadow_frame.GetDexPC(), called_method);
-      }
-      jit->AddSamples(self, sf_method, 1, /*with_backedges*/false);
+    if (jit != nullptr && type == kVirtual) {
+      jit->InvokeVirtualOrInterface(receiver, sf_method, shadow_frame.GetDexPC(), called_method);
     }
     if (called_method->IsIntrinsic()) {
       if (MterpHandleIntrinsic(&shadow_frame, called_method, inst, inst_data,
@@ -182,11 +179,8 @@ static inline bool DoInvoke(Thread* self,
     return false;
   } else {
     jit::Jit* jit = Runtime::Current()->GetJit();
-    if (jit != nullptr) {
-      if (type == kVirtual || type == kInterface) {
-        jit->InvokeVirtualOrInterface(receiver, sf_method, shadow_frame.GetDexPC(), called_method);
-      }
-      jit->AddSamples(self, sf_method, 1, /*with_backedges*/false);
+    if (jit != nullptr && (type == kVirtual || type == kInterface)) {
+      jit->InvokeVirtualOrInterface(receiver, sf_method, shadow_frame.GetDexPC(), called_method);
     }
     // TODO: Remove the InvokeVirtualOrInterface instrumentation, as it was only used by the JIT.
     if (type == kVirtual || type == kInterface) {

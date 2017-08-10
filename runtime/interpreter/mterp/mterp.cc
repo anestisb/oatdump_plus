@@ -280,7 +280,6 @@ extern "C" size_t MterpInvokeVirtualQuick(Thread* self,
         if (jit != nullptr) {
           jit->InvokeVirtualOrInterface(
               receiver, shadow_frame->GetMethod(), shadow_frame->GetDexPC(), called_method);
-          jit->AddSamples(self, shadow_frame->GetMethod(), 1, /*with_backedges*/false);
         }
         return !self->IsExceptionPending();
       }
