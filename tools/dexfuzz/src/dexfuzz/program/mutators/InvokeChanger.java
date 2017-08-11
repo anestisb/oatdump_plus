@@ -167,7 +167,7 @@ public class InvokeChanger extends CodeMutator {
   }
 
   private boolean isRangeInvokeInst(Opcode opcode){
-    return Opcode.isBetween(opcode, Opcode.INVOKE_VIRTUAL, Opcode.INVOKE_INTERFACE);
+    return Opcode.isBetween(opcode, Opcode.INVOKE_VIRTUAL_RANGE, Opcode.INVOKE_INTERFACE_RANGE);
 
   }
 
