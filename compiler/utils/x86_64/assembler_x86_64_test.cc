@@ -1465,6 +1465,22 @@ TEST_F(AssemblerX86_64Test, Punpcklqdq) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::punpcklqdq, "punpcklqdq %{reg2}, %{reg1}"), "punpcklqdq");
 }
 
+TEST_F(AssemblerX86_64Test, Punpckhbw) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::punpckhbw, "punpckhbw %{reg2}, %{reg1}"), "punpckhbw");
+}
+
+TEST_F(AssemblerX86_64Test, Punpckhwd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::punpckhwd, "punpckhwd %{reg2}, %{reg1}"), "punpckhwd");
+}
+
+TEST_F(AssemblerX86_64Test, Punpckhdq) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::punpckhdq, "punpckhdq %{reg2}, %{reg1}"), "punpckhdq");
+}
+
+TEST_F(AssemblerX86_64Test, Punpckhqdq) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::punpckhqdq, "punpckhqdq %{reg2}, %{reg1}"), "punpckhqdq");
+}
+
 TEST_F(AssemblerX86_64Test, Psllw) {
   GetAssembler()->psllw(x86_64::XmmRegister(x86_64::XMM0),  x86_64::Immediate(1));
   GetAssembler()->psllw(x86_64::XmmRegister(x86_64::XMM15), x86_64::Immediate(2));
@@ -1519,6 +1535,13 @@ TEST_F(AssemblerX86_64Test, Psrlq) {
   GetAssembler()->psrlq(x86_64::XmmRegister(x86_64::XMM15), x86_64::Immediate(2));
   DriverStr("psrlq $1, %xmm0\n"
             "psrlq $2, %xmm15\n", "pslrqi");
+}
+
+TEST_F(AssemblerX86_64Test, Psrldq) {
+  GetAssembler()->psrldq(x86_64::XmmRegister(x86_64::XMM0),  x86_64::Immediate(1));
+  GetAssembler()->psrldq(x86_64::XmmRegister(x86_64::XMM15), x86_64::Immediate(2));
+  DriverStr("psrldq $1, %xmm0\n"
+            "psrldq $2, %xmm15\n", "pslrdqi");
 }
 
 TEST_F(AssemblerX86_64Test, UcomissAddress) {

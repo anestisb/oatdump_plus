@@ -792,6 +792,7 @@ DISASSEMBLER_ENTRY(cmp,
         src_reg_file = dst_reg_file = SSE;
         break;
       case 0x60: case 0x61: case 0x62: case 0x6C:
+      case 0x68: case 0x69: case 0x6A: case 0x6D:
         if (prefix[2] == 0x66) {
           src_reg_file = dst_reg_file = SSE;
           prefix[2] = 0;  // Clear prefix now. It has served its purpose as part of the opcode.
@@ -803,6 +804,10 @@ DISASSEMBLER_ENTRY(cmp,
           case 0x61: opcode1 = "punpcklwd"; break;
           case 0x62: opcode1 = "punpckldq"; break;
           case 0x6c: opcode1 = "punpcklqdq"; break;
+          case 0x68: opcode1 = "punpckhbw"; break;
+          case 0x69: opcode1 = "punpckhwd"; break;
+          case 0x6A: opcode1 = "punpckhdq"; break;
+          case 0x6D: opcode1 = "punpckhqdq"; break;
         }
         load = true;
         has_modrm = true;

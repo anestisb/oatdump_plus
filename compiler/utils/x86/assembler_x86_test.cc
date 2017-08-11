@@ -777,6 +777,22 @@ TEST_F(AssemblerX86Test, Punpcklqdq) {
   DriverStr(RepeatFF(&x86::X86Assembler::punpcklqdq, "punpcklqdq %{reg2}, %{reg1}"), "punpcklqdq");
 }
 
+TEST_F(AssemblerX86Test, Punpckhbw) {
+  DriverStr(RepeatFF(&x86::X86Assembler::punpckhbw, "punpckhbw %{reg2}, %{reg1}"), "punpckhbw");
+}
+
+TEST_F(AssemblerX86Test, Punpckhwd) {
+  DriverStr(RepeatFF(&x86::X86Assembler::punpckhwd, "punpckhwd %{reg2}, %{reg1}"), "punpckhwd");
+}
+
+TEST_F(AssemblerX86Test, Punpckhdq) {
+  DriverStr(RepeatFF(&x86::X86Assembler::punpckhdq, "punpckhdq %{reg2}, %{reg1}"), "punpckhdq");
+}
+
+TEST_F(AssemblerX86Test, Punpckhqdq) {
+  DriverStr(RepeatFF(&x86::X86Assembler::punpckhqdq, "punpckhqdq %{reg2}, %{reg1}"), "punpckhqdq");
+}
+
 TEST_F(AssemblerX86Test, psllw) {
   GetAssembler()->psllw(x86::XMM0, CreateImmediate(16));
   DriverStr("psllw $0x10, %xmm0\n", "psllwi");
