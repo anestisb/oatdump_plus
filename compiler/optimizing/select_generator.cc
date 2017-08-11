@@ -140,7 +140,7 @@ void HSelectGenerator::Run() {
       block->MergeWith(merge_block);
     }
 
-    MaybeRecordStat(MethodCompilationStat::kSelectGenerated);
+    MaybeRecordStat(stats_, MethodCompilationStat::kSelectGenerated);
 
     // No need to update dominance information, as we are simplifying
     // a simple diamond shape, where the join block is merged with the

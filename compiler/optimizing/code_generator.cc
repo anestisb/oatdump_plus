@@ -610,12 +610,6 @@ void CodeGenerator::AllocateLocations(HInstruction* instruction) {
   }
 }
 
-void CodeGenerator::MaybeRecordStat(MethodCompilationStat compilation_stat, size_t count) const {
-  if (stats_ != nullptr) {
-    stats_->RecordStat(compilation_stat, count);
-  }
-}
-
 std::unique_ptr<CodeGenerator> CodeGenerator::Create(HGraph* graph,
                                                      InstructionSet instruction_set,
                                                      const InstructionSetFeatures& isa_features,
@@ -1212,10 +1206,10 @@ LocationSummary* CodeGenerator::CreateThrowingSlowPathLocations(HInstruction* in
 
 void CodeGenerator::GenerateNullCheck(HNullCheck* instruction) {
   if (compiler_options_.GetImplicitNullChecks()) {
-    MaybeRecordStat(kImplicitNullCheckGenerated);
+    MaybeRecordStat(stats_, kImplicitNullCheckGenerated);
     GenerateImplicitNullCheck(instruction);
   } else {
-    MaybeRecordStat(kExplicitNullCheckGenerated);
+    MaybeRecordStat(stats_, kExplicitNullCheckGenerated);
     GenerateExplicitNullCheck(instruction);
   }
 }

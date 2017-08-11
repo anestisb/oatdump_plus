@@ -109,7 +109,6 @@ class HGraphBuilder : public ValueObject {
   static constexpr const char* kBuilderPassName = "builder";
 
  private:
-  void MaybeRecordStat(MethodCompilationStat compilation_stat);
   bool SkipCompilation(size_t number_of_branches);
 
   HGraph* const graph_;

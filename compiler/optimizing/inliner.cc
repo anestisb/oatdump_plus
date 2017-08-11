@@ -75,7 +75,7 @@ static constexpr bool kUseAOTInlineCaches = true;
 #define LOG_TRY() LOG_INTERNAL("Try inlinining call: ")
 #define LOG_NOTE() LOG_INTERNAL("Note: ")
 #define LOG_SUCCESS() LOG_INTERNAL("Success: ")
-#define LOG_FAIL(stat) MaybeRecordStat(stat); LOG_INTERNAL("Fail: ")
+#define LOG_FAIL(stats_ptr, stat) MaybeRecordStat(stats_ptr, stat); LOG_INTERNAL("Fail: ")
 #define LOG_FAIL_NO_STAT() LOG_INTERNAL("Fail: ")
 
 std::string HInliner::DepthString(int line) const {
@@ -440,9 +440,9 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
         // Add dependency due to devirtulization. We've assumed resolved_method
         // has single implementation.
         outermost_graph_->AddCHASingleImplementationDependency(resolved_method);
-        MaybeRecordStat(kCHAInline);
+        MaybeRecordStat(stats_, kCHAInline);
       } else {
-        MaybeRecordStat(kInlinedInvokeVirtualOrInterface);
+        MaybeRecordStat(stats_, kInlinedInvokeVirtualOrInterface);
       }
     }
     return result;
@@ -532,7 +532,7 @@ bool HInliner::TryInlineFromInlineCache(const DexFile& caller_dex_file,
     }
 
     case kInlineCacheMonomorphic: {
-      MaybeRecordStat(kMonomorphicCall);
+      MaybeRecordStat(stats_, kMonomorphicCall);
       if (UseOnlyPolymorphicInliningWithNoDeopt()) {
         return TryInlinePolymorphicCall(invoke_instruction, resolved_method, inline_cache);
       } else {
@@ -541,7 +541,7 @@ bool HInliner::TryInlineFromInlineCache(const DexFile& caller_dex_file,
     }
 
     case kInlineCachePolymorphic: {
-      MaybeRecordStat(kPolymorphicCall);
+      MaybeRecordStat(stats_, kPolymorphicCall);
       return TryInlinePolymorphicCall(invoke_instruction, resolved_method, inline_cache);
     }
 
@@ -550,7 +550,7 @@ bool HInliner::TryInlineFromInlineCache(const DexFile& caller_dex_file,
           << "Interface or virtual call to "
           << caller_dex_file.PrettyMethod(invoke_instruction->GetDexMethodIndex())
           << " is megamorphic and not inlined";
-      MaybeRecordStat(kMegamorphicCall);
+      MaybeRecordStat(stats_, kMegamorphicCall);
       return false;
     }
 
@@ -754,7 +754,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   dex::TypeIndex class_index = FindClassIndexIn(
       GetMonomorphicType(classes), caller_compilation_unit_);
   if (!class_index.IsValid()) {
-    LOG_FAIL(kNotInlinedDexCache)
+    LOG_FAIL(stats_, kNotInlinedDexCache)
         << "Call to " << ArtMethod::PrettyMethod(resolved_method)
         << " from inline cache is not inlined because its class is not"
         << " accessible to the caller";
@@ -803,7 +803,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
                                      /* is_first_run */ false);
   rtp_fixup.Run();
 
-  MaybeRecordStat(kInlinedMonomorphicCall);
+  MaybeRecordStat(stats_, kInlinedMonomorphicCall);
   return true;
 }
 
@@ -993,7 +993,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
     return false;
   }
 
-  MaybeRecordStat(kInlinedPolymorphicCall);
+  MaybeRecordStat(stats_, kInlinedPolymorphicCall);
 
   // Run type propagation to get the guards typed.
   ReferenceTypePropagation rtp_fixup(graph_,
@@ -1199,7 +1199,7 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
                                      /* is_first_run */ false);
   rtp_fixup.Run();
 
-  MaybeRecordStat(kInlinedPolymorphicCall);
+  MaybeRecordStat(stats_, kInlinedPolymorphicCall);
 
   LOG_SUCCESS() << "Inlined same polymorphic target " << actual_method->PrettyMethod();
   return true;
@@ -1300,14 +1300,14 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
                                  ReferenceTypeInfo receiver_type,
                                  HInstruction** return_replacement) {
   if (method->IsProxyMethod()) {
-    LOG_FAIL(kNotInlinedProxy)
+    LOG_FAIL(stats_, kNotInlinedProxy)
         << "Method " << method->PrettyMethod()
         << " is not inlined because of unimplemented inline support for proxy methods.";
     return false;
   }
 
   if (CountRecursiveCallsOf(method) > kMaximumNumberOfRecursiveCalls) {
-    LOG_FAIL(kNotInlinedRecursiveBudget)
+    LOG_FAIL(stats_, kNotInlinedRecursiveBudget)
         << "Method "
         << method->PrettyMethod()
         << " is not inlined because it has reached its recursive call budget.";
@@ -1321,10 +1321,10 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
     if (TryPatternSubstitution(invoke_instruction, method, return_replacement)) {
       LOG_SUCCESS() << "Successfully replaced pattern of invoke "
                     << method->PrettyMethod();
-      MaybeRecordStat(kReplacedInvokeWithSimplePattern);
+      MaybeRecordStat(stats_, kReplacedInvokeWithSimplePattern);
       return true;
     }
-    LOG_FAIL(kNotInlinedWont)
+    LOG_FAIL(stats_, kNotInlinedWont)
         << "Won't inline " << method->PrettyMethod() << " in "
         << outer_compilation_unit_.GetDexFile()->GetLocation() << " ("
         << caller_compilation_unit_.GetDexFile()->GetLocation() << ") from "
@@ -1344,7 +1344,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
 
   size_t inline_max_code_units = compiler_driver_->GetCompilerOptions().GetInlineMaxCodeUnits();
   if (code_item->insns_size_in_code_units_ > inline_max_code_units) {
-    LOG_FAIL(kNotInlinedCodeItem)
+    LOG_FAIL(stats_, kNotInlinedCodeItem)
         << "Method " << method->PrettyMethod()
         << " is not inlined because its code item is too big: "
         << code_item->insns_size_in_code_units_
@@ -1354,13 +1354,13 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
   }
 
   if (code_item->tries_size_ != 0) {
-    LOG_FAIL(kNotInlinedTryCatch)
+    LOG_FAIL(stats_, kNotInlinedTryCatch)
         << "Method " << method->PrettyMethod() << " is not inlined because of try block";
     return false;
   }
 
   if (!method->IsCompilable()) {
-    LOG_FAIL(kNotInlinedNotVerified)
+    LOG_FAIL(stats_, kNotInlinedNotVerified)
         << "Method " << method->PrettyMethod()
         << " has soft failures un-handled by the compiler, so it cannot be inlined";
   }
@@ -1370,7 +1370,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
     if (Runtime::Current()->UseJitCompilation() ||
         !compiler_driver_->IsMethodVerifiedWithoutFailures(
             method->GetDexMethodIndex(), class_def_idx, *method->GetDexFile())) {
-      LOG_FAIL(kNotInlinedNotVerified)
+      LOG_FAIL(stats_, kNotInlinedNotVerified)
           << "Method " << method->PrettyMethod()
           << " couldn't be verified, so it cannot be inlined";
       return false;
@@ -1381,7 +1381,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
       invoke_instruction->AsInvokeStaticOrDirect()->IsStaticWithImplicitClinitCheck()) {
     // Case of a static method that cannot be inlined because it implicitly
     // requires an initialization check of its declaring class.
-    LOG_FAIL(kNotInlinedDexCache) << "Method " << method->PrettyMethod()
+    LOG_FAIL(stats_, kNotInlinedDexCache) << "Method " << method->PrettyMethod()
              << " is not inlined because it is static and requires a clinit"
              << " check that cannot be emitted due to Dex cache limitations";
     return false;
@@ -1393,7 +1393,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
   }
 
   LOG_SUCCESS() << method->PrettyMethod();
-  MaybeRecordStat(kInlinedInvoke);
+  MaybeRecordStat(stats_, kInlinedInvoke);
   return true;
 }
 
@@ -1677,7 +1677,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                         handles_);
 
   if (builder.BuildGraph() != kAnalysisSuccess) {
-    LOG_FAIL(kNotInlinedCannotBuild)
+    LOG_FAIL(stats_, kNotInlinedCannotBuild)
         << "Method " << callee_dex_file.PrettyMethod(method_index)
         << " could not be built, so cannot be inlined";
     return false;
@@ -1685,7 +1685,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
 
   if (!RegisterAllocator::CanAllocateRegistersFor(*callee_graph,
                                                   compiler_driver_->GetInstructionSet())) {
-    LOG_FAIL(kNotInlinedRegisterAllocator)
+    LOG_FAIL(stats_, kNotInlinedRegisterAllocator)
         << "Method " << callee_dex_file.PrettyMethod(method_index)
         << " cannot be inlined because of the register allocator";
     return false;
@@ -1738,7 +1738,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
 
   HBasicBlock* exit_block = callee_graph->GetExitBlock();
   if (exit_block == nullptr) {
-    LOG_FAIL(kNotInlinedInfiniteLoop)
+    LOG_FAIL(stats_, kNotInlinedInfiniteLoop)
         << "Method " << callee_dex_file.PrettyMethod(method_index)
         << " could not be inlined because it has an infinite loop";
     return false;
@@ -1749,14 +1749,14 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
     if (predecessor->GetLastInstruction()->IsThrow()) {
       if (invoke_instruction->GetBlock()->IsTryBlock()) {
         // TODO(ngeoffray): Support adding HTryBoundary in Hgraph::InlineInto.
-        LOG_FAIL(kNotInlinedTryCatch)
+        LOG_FAIL(stats_, kNotInlinedTryCatch)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " could not be inlined because one branch always throws and"
             << " caller is in a try/catch block";
         return false;
       } else if (graph_->GetExitBlock() == nullptr) {
         // TODO(ngeoffray): Support adding HExit in the caller graph.
-        LOG_FAIL(kNotInlinedInfiniteLoop)
+        LOG_FAIL(stats_, kNotInlinedInfiniteLoop)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " could not be inlined because one branch always throws and"
             << " caller does not have an exit block";
@@ -1775,7 +1775,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   }
 
   if (!has_one_return) {
-    LOG_FAIL(kNotInlinedAlwaysThrows)
+    LOG_FAIL(stats_, kNotInlinedAlwaysThrows)
         << "Method " << callee_dex_file.PrettyMethod(method_index)
         << " could not be inlined because it always throws";
     return false;
@@ -1788,7 +1788,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       if (block->GetLoopInformation()->IsIrreducible()) {
         // Don't inline methods with irreducible loops, they could prevent some
         // optimizations to run.
-        LOG_FAIL(kNotInlinedIrreducibleLoop)
+        LOG_FAIL(stats_, kNotInlinedIrreducibleLoop)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " could not be inlined because it contains an irreducible loop";
         return false;
@@ -1797,7 +1797,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
         // Don't inline methods with loops without exit, since they cause the
         // loop information to be computed incorrectly when updating after
         // inlining.
-        LOG_FAIL(kNotInlinedLoopWithoutExit)
+        LOG_FAIL(stats_, kNotInlinedLoopWithoutExit)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " could not be inlined because it contains a loop with no exit";
         return false;
@@ -1808,7 +1808,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
          !instr_it.Done();
          instr_it.Advance()) {
       if (++number_of_instructions >= inlining_budget_) {
-        LOG_FAIL(kNotInlinedInstructionBudget)
+        LOG_FAIL(stats_, kNotInlinedInstructionBudget)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " is not inlined because the outer method has reached"
             << " its instruction budget limit.";
@@ -1817,7 +1817,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       HInstruction* current = instr_it.Current();
       if (current->NeedsEnvironment() &&
           (total_number_of_dex_registers_ >= kMaximumNumberOfCumulatedDexRegisters)) {
-        LOG_FAIL(kNotInlinedEnvironmentBudget)
+        LOG_FAIL(stats_, kNotInlinedEnvironmentBudget)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " is not inlined because its caller has reached"
             << " its environment budget limit.";
@@ -1827,7 +1827,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       if (current->NeedsEnvironment() &&
           !CanEncodeInlinedMethodInStackMap(*caller_compilation_unit_.GetDexFile(),
                                             resolved_method)) {
-        LOG_FAIL(kNotInlinedStackMaps)
+        LOG_FAIL(stats_, kNotInlinedStackMaps)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " could not be inlined because " << current->DebugName()
             << " needs an environment, is in a different dex file"
@@ -1836,7 +1836,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       }
 
       if (!same_dex_file && current->NeedsDexCacheOfDeclaringClass()) {
-        LOG_FAIL(kNotInlinedDexCache)
+        LOG_FAIL(stats_, kNotInlinedDexCache)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " could not be inlined because " << current->DebugName()
             << " it is in a different dex file and requires access to the dex cache";
@@ -1848,7 +1848,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
           current->IsUnresolvedStaticFieldSet() ||
           current->IsUnresolvedInstanceFieldSet()) {
         // Entrypoint for unresolved fields does not handle inlined frames.
-        LOG_FAIL(kNotInlinedUnresolvedEntrypoint)
+        LOG_FAIL(stats_, kNotInlinedUnresolvedEntrypoint)
             << "Method " << callee_dex_file.PrettyMethod(method_index)
             << " could not be inlined because it is using an unresolved"
             << " entrypoint";

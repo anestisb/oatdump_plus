@@ -17,6 +17,7 @@
 #include "prepare_for_register_allocation.h"
 
 #include "jni_internal.h"
+#include "optimizing_compiler_stats.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -190,8 +191,9 @@ void PrepareForRegisterAllocation::VisitConstructorFence(HConstructorFence* cons
       // TODO: GetAssociatedAllocation should not care about multiple inputs
       // if we are in prepare_for_register_allocation pass only.
       constructor_fence->GetBlock()->RemoveInstruction(constructor_fence);
+      MaybeRecordStat(stats_,
+                      MethodCompilationStat::kConstructorFenceRemovedPFRA);
       return;
-      // TODO: actually remove the dmb from the .S entrypoints (initialized variants only).
     }
 
     // HNewArray does not need this check because the art_quick_alloc_array does not itself

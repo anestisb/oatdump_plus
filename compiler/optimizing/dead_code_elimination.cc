@@ -359,7 +359,7 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
       DCHECK(!inst->IsControlFlow());
       if (inst->IsDeadAndRemovable()) {
         block->RemoveInstruction(inst);
-        MaybeRecordStat(MethodCompilationStat::kRemovedDeadInstruction);
+        MaybeRecordStat(stats_, MethodCompilationStat::kRemovedDeadInstruction);
       }
     }
   }
