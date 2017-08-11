@@ -216,8 +216,15 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
    */
   virtual DebugFrameOpCodeWriterForAssembler& cfi() = 0;
 
+  void SetEmitRunTimeChecksInDebugMode(bool value) {
+    emit_run_time_checks_in_debug_mode_ = value;
+  }
+
  protected:
-  explicit JNIMacroAssembler() {}
+  JNIMacroAssembler() {}
+
+  // Should run-time checks be emitted in debug mode?
+  bool emit_run_time_checks_in_debug_mode_ = false;
 };
 
 // A "Label" class used with the JNIMacroAssembler

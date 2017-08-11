@@ -22,8 +22,6 @@
 
 #include <stdint.h>
 
-#include "android-base/strings.h"
-
 #ifdef ART_ENABLE_CODEGEN_arm64
 #include "instruction_simplifier_arm64.h"
 #endif
@@ -1111,12 +1109,7 @@ Compiler* CreateOptimizingCompiler(CompilerDriver* driver) {
 
 bool IsCompilingWithCoreImage() {
   const std::string& image = Runtime::Current()->GetImageLocation();
-  // TODO: This is under-approximating...
-  if (android::base::EndsWith(image, "core.art") ||
-      android::base::EndsWith(image, "core-optimizing.art")) {
-    return true;
-  }
-  return false;
+  return CompilerDriver::IsCoreImageFilename(image);
 }
 
 bool EncodeArtMethodInInlineInfo(ArtMethod* method ATTRIBUTE_UNUSED) {

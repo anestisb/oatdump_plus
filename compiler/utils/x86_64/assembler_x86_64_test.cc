@@ -2012,7 +2012,7 @@ std::string buildframe_test_fn(JNIMacroAssemblerX86_64Test::Base* assembler_test
   x86_64::X86_64ManagedRegister method_reg = ManagedFromCpu(x86_64::RDI);
 
   size_t frame_size = 10 * kStackAlignment;
-  assembler->BuildFrame(10 * kStackAlignment, method_reg, spill_regs, entry_spills);
+  assembler->BuildFrame(frame_size, method_reg, spill_regs, entry_spills);
 
   // Construct assembly text counterpart.
   std::ostringstream str;
@@ -2048,7 +2048,7 @@ std::string removeframe_test_fn(JNIMacroAssemblerX86_64Test::Base* assembler_tes
   ArrayRef<const ManagedRegister> spill_regs(raw_spill_regs);
 
   size_t frame_size = 10 * kStackAlignment;
-  assembler->RemoveFrame(10 * kStackAlignment, spill_regs);
+  assembler->RemoveFrame(frame_size, spill_regs);
 
   // Construct assembly text counterpart.
   std::ostringstream str;

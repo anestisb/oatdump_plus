@@ -22,6 +22,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "android-base/strings.h"
+
 #include "arch/instruction_set.h"
 #include "base/array_ref.h"
 #include "base/bit_utils.h"
@@ -378,6 +380,14 @@ class CompilerDriver {
   }
 
   bool CanAssumeVerified(ClassReference ref) const;
+
+  // Is `boot_image_filename` the name of a core image (small boot
+  // image used for ART testing only)?
+  static bool IsCoreImageFilename(const std::string& boot_image_filename) {
+    // TODO: This is under-approximating...
+    return android::base::EndsWith(boot_image_filename, "core.art")
+        || android::base::EndsWith(boot_image_filename, "core-optimizing.art");
+  }
 
  private:
   void PreCompile(jobject class_loader,

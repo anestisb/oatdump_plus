@@ -219,7 +219,9 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   // Assembler that holds generated instructions
   std::unique_ptr<JNIMacroAssembler<kPointerSize>> jni_asm =
       GetMacroAssembler<kPointerSize>(&arena, instruction_set, instruction_set_features);
-  jni_asm->cfi().SetEnabled(driver->GetCompilerOptions().GenerateAnyDebugInfo());
+  const CompilerOptions& compiler_options = driver->GetCompilerOptions();
+  jni_asm->cfi().SetEnabled(compiler_options.GenerateAnyDebugInfo());
+  jni_asm->SetEmitRunTimeChecksInDebugMode(compiler_options.EmitRunTimeChecksInDebugMode());
 
   // Offsets into data structures
   // TODO: if cross compiling these offsets are for the host not the target

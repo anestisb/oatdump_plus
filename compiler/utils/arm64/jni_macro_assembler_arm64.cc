@@ -662,7 +662,7 @@ void Arm64JNIMacroAssembler::Bind(JNIMacroLabel* label) {
   ___ Bind(Arm64JNIMacroLabel::Cast(label)->AsArm64());
 }
 
-void Arm64JNIMacroAssembler::EmitExceptionPoll(Arm64Exception *exception) {
+void Arm64JNIMacroAssembler::EmitExceptionPoll(Arm64Exception* exception) {
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   temps.Exclude(reg_x(exception->scratch_.AsXRegister()));
   Register temp = temps.AcquireX();
