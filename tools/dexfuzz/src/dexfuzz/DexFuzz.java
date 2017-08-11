@@ -33,9 +33,9 @@ import dexfuzz.listeners.UpdatingConsoleListener;
  * Entrypoint class for dexfuzz.
  */
 public class DexFuzz {
-  // Last version update 1.8: Added a new mutation called NewInstanceChanger.
+  // Last version update 1.9: fixed a bug in InvokeChanger.
   private static int majorVersion = 1;
-  private static int minorVersion = 8;
+  private static int minorVersion = 9;
   private static int seedChangeVersion = 0;
 
   /**
