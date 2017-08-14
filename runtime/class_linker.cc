@@ -3552,6 +3552,7 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   DexCacheData data;
   data.weak_root = dex_cache_jweak;
   data.dex_file = dex_cache->GetDexFile();
+  data.resolved_methods = dex_cache->GetResolvedMethods();
   data.class_table = ClassTableForClassLoader(class_loader);
   DCHECK(data.class_table != nullptr);
   // Make sure to hold the dex cache live in the class table. This case happens for the boot class
@@ -4667,9 +4668,6 @@ void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod*
                       kAccPublic |
                       kAccCompileDontBother);
   out->SetDeclaringClass(klass.Get());
-
-  // Set the original constructor method.
-  out->SetDataPtrSize(proxy_constructor, image_pointer_size_);
 }
 
 void ClassLinker::CheckProxyConstructor(ArtMethod* constructor) const {
@@ -4709,9 +4707,6 @@ void ClassLinker::CreateProxyMethod(Handle<mirror::Class> klass, ArtMethod* prot
   // Clear the dex_code_item_offset_. It needs to be 0 since proxy methods have no CodeItems but the
   // method they copy might (if it's a default method).
   out->SetCodeItemOffset(0);
-
-  // Set the original interface method.
-  out->SetDataPtrSize(prototype, image_pointer_size_);
 
   // At runtime the method looks like a reference and argument saving method, clone the code
   // related parameters from this method.
@@ -9034,6 +9029,53 @@ mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {
       mirror::IfTable::Alloc(self,
                              GetClassRoot(kObjectArrayClass),
                              ifcount * mirror::IfTable::kMax));
+}
+
+ArtMethod* ClassLinker::FindMethodForProxy(ArtMethod* proxy_method) {
+  DCHECK(proxy_method->IsProxyMethod());
+  {
+    uint32_t method_index = proxy_method->GetDexMethodIndex();
+    PointerSize pointer_size = image_pointer_size_;
+    Thread* const self = Thread::Current();
+    ReaderMutexLock mu(self, *Locks::dex_lock_);
+    // Locate the dex cache of the original interface/Object
+    for (const DexCacheData& data : dex_caches_) {
+      if (!self->IsJWeakCleared(data.weak_root) &&
+          proxy_method->HasSameDexCacheResolvedMethods(data.resolved_methods, pointer_size)) {
+        ObjPtr<mirror::DexCache> dex_cache =
+            ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
+        if (dex_cache != nullptr) {
+          // Lookup up the method. Instead of going through LookupResolvedMethod()
+          // and thus LookupResolvedType(), use the ClassTable from the DexCacheData.
+          ArtMethod* resolved_method = dex_cache->GetResolvedMethod(method_index, pointer_size);
+          if (resolved_method == nullptr) {
+            const DexFile::MethodId& method_id = data.dex_file->GetMethodId(method_index);
+            ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(method_id.class_idx_);
+            if (klass == nullptr) {
+              const char* descriptor = data.dex_file->StringByTypeIdx(method_id.class_idx_);
+              klass = data.class_table->Lookup(descriptor, ComputeModifiedUtf8Hash(descriptor));
+              DCHECK(klass != nullptr);
+              dex_cache->SetResolvedType(method_id.class_idx_, klass);
+            }
+            if (klass->IsInterface()) {
+              resolved_method = klass->FindInterfaceMethod(dex_cache, method_index, pointer_size);
+            } else {
+              DCHECK(
+                  klass == WellKnownClasses::ToClass(WellKnownClasses::java_lang_reflect_Proxy) ||
+                  klass == WellKnownClasses::ToClass(WellKnownClasses::java_lang_Object));
+              resolved_method = klass->FindClassMethod(dex_cache, method_index, pointer_size);
+            }
+            CHECK(resolved_method != nullptr);
+            dex_cache->SetResolvedMethod(method_index, resolved_method, pointer_size);
+          }
+          return resolved_method;
+        }
+      }
+    }
+  }
+  // Note: Do not use proxy_method->PrettyMethod() as it can call back here.
+  LOG(FATAL) << "Didn't find dex cache for " << proxy_method->GetDeclaringClass()->PrettyClass();
+  UNREACHABLE();
 }
 
 // Instantiate ResolveMethod.
