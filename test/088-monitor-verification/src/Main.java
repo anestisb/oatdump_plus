@@ -34,6 +34,12 @@ public class Main {
             disableStackFrameAsserts();
         }
 
+        ensureJitCompiled(Main.class, "recursiveSync");
+        ensureJitCompiled(Main.class, "nestedMayThrow");
+        ensureJitCompiled(Main.class, "constantLock");
+        ensureJitCompiled(Main.class, "notExcessiveNesting");
+        ensureJitCompiled(Main.class, "notNested");
+
         Main m = new Main();
 
         m.recursiveSync(0);
@@ -273,4 +279,5 @@ public class Main {
     public static native boolean runtimeIsSoftFail();
     public static native boolean isInterpreted();
     public static native void disableStackFrameAsserts();
+    private static native void ensureJitCompiled(Class<?> itf, String method_name);
 }
