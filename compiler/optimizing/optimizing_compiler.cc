@@ -489,7 +489,7 @@ static HOptimization* BuildOptimization(
   } else if (opt_name == HSharpening::kSharpeningPassName) {
     return new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver, handles);
   } else if (opt_name == HSelectGenerator::kSelectGeneratorPassName) {
-    return new (arena) HSelectGenerator(graph, stats);
+    return new (arena) HSelectGenerator(graph, handles, stats);
   } else if (opt_name == HInductionVarAnalysis::kInductionPassName) {
     return new (arena) HInductionVarAnalysis(graph);
   } else if (opt_name == InstructionSimplifier::kInstructionSimplifierPassName) {
@@ -758,7 +758,7 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
   HConstantFolding* fold1 = new (arena) HConstantFolding(graph, "constant_folding");
   InstructionSimplifier* simplify1 = new (arena) InstructionSimplifier(
       graph, codegen, driver, stats);
-  HSelectGenerator* select_generator = new (arena) HSelectGenerator(graph, stats);
+  HSelectGenerator* select_generator = new (arena) HSelectGenerator(graph, handles, stats);
   HConstantFolding* fold2 = new (arena) HConstantFolding(
       graph, "constant_folding$after_inlining");
   HConstantFolding* fold3 = new (arena) HConstantFolding(graph, "constant_folding$after_bce");

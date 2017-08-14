@@ -16,8 +16,15 @@
 
 .super Ljava/lang/Object;
 
+## CHECK-START: boolean TestCase.testCase() select_generator (after)
+## CHECK-DAG:     <<Select:i\d+>>          Select
+## CHECK-DAG:                              Return [<<Select>>]
+
 ## CHECK-START: boolean TestCase.testCase() load_store_elimination (after)
-## CHECK-DAG:     If [{{b\d+}}]
+## CHECK-DAG:     <<Or:i\d+>>              Or
+## CHECK-DAG:     <<TypeConversion:b\d+>>  TypeConversion
+## CHECK-DAG:                              StaticFieldSet
+## CHECK-DAG:                              Return [<<TypeConversion>>]
 
 .method public static testCase()Z
     .registers 6
@@ -31,7 +38,8 @@
     # LSE will replace this sget with the type conversion above...
     sget-boolean v2, LMain;->field2:Z
 
-    # ... and generate an If with a byte-typed condition.
+    # ... and select generation will replace this part with a select
+    # that simplifies into simply returning the stored boolean.
     if-eqz v2, :else
     const v0, 0x1
     return v0

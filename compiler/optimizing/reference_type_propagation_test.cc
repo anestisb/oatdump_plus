@@ -49,7 +49,7 @@ class ReferenceTypePropagationTest : public CommonCompilerTest {
   // Relay method to merge type in reference type propagation.
   ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a,
                                const ReferenceTypeInfo& b) REQUIRES_SHARED(Locks::mutator_lock_) {
-    return propagation_->MergeTypes(a, b);
+    return propagation_->MergeTypes(a, b, &propagation_->handle_cache_);
   }
 
   // Helper method to construct an invalid type.
@@ -163,4 +163,3 @@ TEST_F(ReferenceTypePropagationTest, MergeValidTypes) {
 }
 
 }  // namespace art
-
