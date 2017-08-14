@@ -54,11 +54,6 @@
                         "doesn't (and isn't meant to) work with --prebuild."]
     },
     {
-        "tests": ["529-checker-unresolved"],
-        "variant": "no-prebuild",
-        "bug": "http://b/27784033"
-    },
-    {
         "tests": ["117-nopatchoat",
                   "147-stripped-dex-fallback",
                   "608-checker-unresolved-lse"],
