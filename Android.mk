@@ -457,7 +457,7 @@ build-art-host:   $(HOST_OUT_EXECUTABLES)/art $(ART_HOST_DEPENDENCIES) $(HOST_CO
 build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TARGET_CORE_IMG_OUTS)
 
 ########################################################################
-# Phony target for only building what go/lem requires on target.
+# Phony target for only building what go/lem requires for pushing ART on /data.
 .PHONY: build-art-target-golem
 # Also include libartbenchmark, we always include it when running golem.
 # libstdc++ is needed when building for ART_TARGET_LINUX.
@@ -480,6 +480,11 @@ build-art-target-golem: dex2oat dalvikvm patchoat linker libstdc++ \
 ART_HOST_SHARED_LIBRARY_BENCHMARK := $(ART_HOST_OUT_SHARED_LIBRARIES)/libartbenchmark.so
 build-art-host-golem: build-art-host \
                       $(ART_HOST_SHARED_LIBRARY_BENCHMARK)
+
+########################################################################
+# Phony target for building what go/lem requires for syncing /system to target.
+.PHONY: build-art-unbundled-golem
+build-art-unbundled-golem: art-runtime linker oatdump $(TARGET_CORE_JARS)
 
 ########################################################################
 # Rules for building all dependencies for tests.
