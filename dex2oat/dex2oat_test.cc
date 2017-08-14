@@ -950,6 +950,7 @@ TEST_F(Dex2oatWatchdogTest, TestWatchdogOK) {
 }
 
 TEST_F(Dex2oatWatchdogTest, TestWatchdogTrigger) {
+  TEST_DISABLED_FOR_MEMORY_TOOL_VALGRIND();  // b/63052624
   // Check with ten milliseconds.
   RunTest(false, { "--watchdog-timeout=10" });
 }
