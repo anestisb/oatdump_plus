@@ -20,13 +20,15 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_IS_HOST_MODULE := true
 LOCAL_MODULE_CLASS := EXECUTABLES
-LOCAL_MODULE := art
+LOCAL_MODULE := art-script
 LOCAL_SRC_FILES := art
+LOCAL_MODULE_STEM := art
 include $(BUILD_PREBUILT)
 
 # Copy the art shell script to the target's bin directory
 include $(CLEAR_VARS)
 LOCAL_MODULE_CLASS := EXECUTABLES
-LOCAL_MODULE := art
+LOCAL_MODULE := art-script
 LOCAL_SRC_FILES := art
+LOCAL_MODULE_STEM := art
 include $(BUILD_PREBUILT)
