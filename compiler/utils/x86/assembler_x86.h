@@ -546,6 +546,11 @@ class X86Assembler FINAL : public Assembler {
   void punpckldq(XmmRegister dst, XmmRegister src);
   void punpcklqdq(XmmRegister dst, XmmRegister src);
 
+  void punpckhbw(XmmRegister dst, XmmRegister src);
+  void punpckhwd(XmmRegister dst, XmmRegister src);
+  void punpckhdq(XmmRegister dst, XmmRegister src);
+  void punpckhqdq(XmmRegister dst, XmmRegister src);
+
   void psllw(XmmRegister reg, const Immediate& shift_count);
   void pslld(XmmRegister reg, const Immediate& shift_count);
   void psllq(XmmRegister reg, const Immediate& shift_count);

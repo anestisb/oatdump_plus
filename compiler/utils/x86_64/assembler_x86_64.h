@@ -574,6 +574,11 @@ class X86_64Assembler FINAL : public Assembler {
   void punpckldq(XmmRegister dst, XmmRegister src);
   void punpcklqdq(XmmRegister dst, XmmRegister src);
 
+  void punpckhbw(XmmRegister dst, XmmRegister src);
+  void punpckhwd(XmmRegister dst, XmmRegister src);
+  void punpckhdq(XmmRegister dst, XmmRegister src);
+  void punpckhqdq(XmmRegister dst, XmmRegister src);
+
   void psllw(XmmRegister reg, const Immediate& shift_count);
   void pslld(XmmRegister reg, const Immediate& shift_count);
   void psllq(XmmRegister reg, const Immediate& shift_count);
@@ -585,6 +590,7 @@ class X86_64Assembler FINAL : public Assembler {
   void psrlw(XmmRegister reg, const Immediate& shift_count);
   void psrld(XmmRegister reg, const Immediate& shift_count);
   void psrlq(XmmRegister reg, const Immediate& shift_count);
+  void psrldq(XmmRegister reg, const Immediate& shift_count);
 
   void flds(const Address& src);
   void fstps(const Address& dst);

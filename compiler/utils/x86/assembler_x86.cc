@@ -1606,6 +1606,42 @@ void X86Assembler::punpcklqdq(XmmRegister dst, XmmRegister src) {
 }
 
 
+void X86Assembler::punpckhbw(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x68);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::punpckhwd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x69);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::punpckhdq(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x6A);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::punpckhqdq(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x6D);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
 void X86Assembler::psllw(XmmRegister reg, const Immediate& shift_count) {
   DCHECK(shift_count.is_uint8());
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
