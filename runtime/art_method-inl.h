@@ -388,8 +388,17 @@ inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy(PointerSize pointer_size)
   if (LIKELY(!IsProxyMethod())) {
     return this;
   }
-  ArtMethod* interface_method = reinterpret_cast<ArtMethod*>(GetDataPtrSize(pointer_size));
-  DCHECK(interface_method->GetDeclaringClass()->IsAssignableFrom(GetDeclaringClass()));
+  uint32_t method_index = GetDexMethodIndex();
+  uint32_t slot_idx = method_index % mirror::DexCache::kDexCacheMethodCacheSize;
+  mirror::MethodDexCachePair pair = mirror::DexCache::GetNativePairPtrSize(
+      GetDexCacheResolvedMethods(pointer_size), slot_idx, pointer_size);
+  ArtMethod* interface_method = pair.GetObjectForIndex(method_index);
+  if (LIKELY(interface_method != nullptr)) {
+    DCHECK_EQ(interface_method, Runtime::Current()->GetClassLinker()->FindMethodForProxy(this));
+  } else {
+    interface_method = Runtime::Current()->GetClassLinker()->FindMethodForProxy(this);
+    DCHECK(interface_method != nullptr);
+  }
   return interface_method;
 }
 
