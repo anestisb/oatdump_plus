@@ -823,11 +823,74 @@ void InstructionCodeGeneratorMIPS64::VisitVecUShr(HVecUShr* instruction) {
 }
 
 void LocationsBuilderMIPS64::VisitVecMultiplyAccumulate(HVecMultiplyAccumulate* instr) {
-  LOG(FATAL) << "No SIMD for " << instr->GetId();
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instr);
+  switch (instr->GetPackedType()) {
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong:
+      locations->SetInAt(
+          HVecMultiplyAccumulate::kInputAccumulatorIndex, Location::RequiresFpuRegister());
+      locations->SetInAt(
+          HVecMultiplyAccumulate::kInputMulLeftIndex, Location::RequiresFpuRegister());
+      locations->SetInAt(
+          HVecMultiplyAccumulate::kInputMulRightIndex, Location::RequiresFpuRegister());
+      DCHECK_EQ(HVecMultiplyAccumulate::kInputAccumulatorIndex, 0);
+      locations->SetOut(Location::SameAsFirstInput());
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
 }
 
 void InstructionCodeGeneratorMIPS64::VisitVecMultiplyAccumulate(HVecMultiplyAccumulate* instr) {
-  LOG(FATAL) << "No SIMD for " << instr->GetId();
+  LocationSummary* locations = instr->GetLocations();
+  VectorRegister acc =
+      VectorRegisterFrom(locations->InAt(HVecMultiplyAccumulate::kInputAccumulatorIndex));
+  VectorRegister left =
+      VectorRegisterFrom(locations->InAt(HVecMultiplyAccumulate::kInputMulLeftIndex));
+  VectorRegister right =
+      VectorRegisterFrom(locations->InAt(HVecMultiplyAccumulate::kInputMulRightIndex));
+  switch (instr->GetPackedType()) {
+    case Primitive::kPrimByte:
+      DCHECK_EQ(16u, instr->GetVectorLength());
+      if (instr->GetOpKind() == HInstruction::kAdd) {
+        __ MaddvB(acc, left, right);
+      } else {
+        __ MsubvB(acc, left, right);
+      }
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      DCHECK_EQ(8u, instr->GetVectorLength());
+      if (instr->GetOpKind() == HInstruction::kAdd) {
+        __ MaddvH(acc, left, right);
+      } else {
+        __ MsubvH(acc, left, right);
+      }
+      break;
+    case Primitive::kPrimInt:
+      DCHECK_EQ(4u, instr->GetVectorLength());
+      if (instr->GetOpKind() == HInstruction::kAdd) {
+        __ MaddvW(acc, left, right);
+      } else {
+        __ MsubvW(acc, left, right);
+      }
+      break;
+    case Primitive::kPrimLong:
+      DCHECK_EQ(2u, instr->GetVectorLength());
+      if (instr->GetOpKind() == HInstruction::kAdd) {
+        __ MaddvD(acc, left, right);
+      } else {
+        __ MsubvD(acc, left, right);
+      }
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD type";
+      UNREACHABLE();
+  }
 }
 
 // Helper to set up locations for vector memory operations.

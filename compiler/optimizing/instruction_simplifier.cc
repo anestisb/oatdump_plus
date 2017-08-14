@@ -59,6 +59,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   bool TryDeMorganNegationFactoring(HBinaryOperation* op);
   bool TryHandleAssociativeAndCommutativeOperation(HBinaryOperation* instruction);
   bool TrySubtractionChainSimplification(HBinaryOperation* instruction);
+  bool TryCombineVecMultiplyAccumulate(HVecMul* mul);
 
   void VisitShift(HBinaryOperation* shift);
 
@@ -98,6 +99,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void VisitInstanceOf(HInstanceOf* instruction) OVERRIDE;
   void VisitInvoke(HInvoke* invoke) OVERRIDE;
   void VisitDeoptimize(HDeoptimize* deoptimize) OVERRIDE;
+  void VisitVecMul(HVecMul* instruction) OVERRIDE;
 
   bool CanEnsureNotNullAt(HInstruction* instr, HInstruction* at) const;
 
@@ -238,6 +240,84 @@ bool InstructionSimplifierVisitor::TryDeMorganNegationFactoring(HBinaryOperation
 
     RecordSimplification();
     return true;
+  }
+
+  return false;
+}
+
+bool InstructionSimplifierVisitor::TryCombineVecMultiplyAccumulate(HVecMul* mul) {
+  Primitive::Type type = mul->GetPackedType();
+  InstructionSet isa = codegen_->GetInstructionSet();
+  switch (isa) {
+    case kArm64:
+      if (!(type == Primitive::kPrimByte ||
+            type == Primitive::kPrimChar ||
+            type == Primitive::kPrimShort ||
+            type == Primitive::kPrimInt)) {
+        return false;
+      }
+      break;
+    case kMips:
+    case kMips64:
+      if (!(type == Primitive::kPrimByte ||
+            type == Primitive::kPrimChar ||
+            type == Primitive::kPrimShort ||
+            type == Primitive::kPrimInt ||
+            type == Primitive::kPrimLong)) {
+        return false;
+      }
+      break;
+    default:
+      return false;
+  }
+
+  ArenaAllocator* arena = mul->GetBlock()->GetGraph()->GetArena();
+
+  if (mul->HasOnlyOneNonEnvironmentUse()) {
+    HInstruction* use = mul->GetUses().front().GetUser();
+    if (use->IsVecAdd() || use->IsVecSub()) {
+      // Replace code looking like
+      //    VECMUL tmp, x, y
+      //    VECADD/SUB dst, acc, tmp
+      // with
+      //    VECMULACC dst, acc, x, y
+      // Note that we do not want to (unconditionally) perform the merge when the
+      // multiplication has multiple uses and it can be merged in all of them.
+      // Multiple uses could happen on the same control-flow path, and we would
+      // then increase the amount of work. In the future we could try to evaluate
+      // whether all uses are on different control-flow paths (using dominance and
+      // reverse-dominance information) and only perform the merge when they are.
+      HInstruction* accumulator = nullptr;
+      HVecBinaryOperation* binop = use->AsVecBinaryOperation();
+      HInstruction* binop_left = binop->GetLeft();
+      HInstruction* binop_right = binop->GetRight();
+      // This is always true since the `HVecMul` has only one use (which is checked above).
+      DCHECK_NE(binop_left, binop_right);
+      if (binop_right == mul) {
+        accumulator = binop_left;
+      } else if (use->IsVecAdd()) {
+        DCHECK_EQ(binop_left, mul);
+        accumulator = binop_right;
+      }
+
+      HInstruction::InstructionKind kind =
+          use->IsVecAdd() ? HInstruction::kAdd : HInstruction::kSub;
+      if (accumulator != nullptr) {
+        HVecMultiplyAccumulate* mulacc =
+            new (arena) HVecMultiplyAccumulate(arena,
+                                               kind,
+                                               accumulator,
+                                               mul->GetLeft(),
+                                               mul->GetRight(),
+                                               binop->GetPackedType(),
+                                               binop->GetVectorLength());
+
+        binop->GetBlock()->ReplaceAndRemoveInstructionWith(binop, mulacc);
+        DCHECK(!mul->HasUses());
+        mul->GetBlock()->RemoveInstruction(mul);
+        return true;
+      }
+    }
   }
 
   return false;
@@ -2299,6 +2379,12 @@ bool InstructionSimplifierVisitor::TrySubtractionChainSimplification(
   block->ReplaceAndRemoveInstructionWith(instruction, z);
   RecordSimplification();
   return true;
+}
+
+void InstructionSimplifierVisitor::VisitVecMul(HVecMul* instruction) {
+  if (TryCombineVecMultiplyAccumulate(instruction)) {
+    RecordSimplification();
+  }
 }
 
 }  // namespace art

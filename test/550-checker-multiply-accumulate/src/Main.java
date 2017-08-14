@@ -424,16 +424,29 @@ public class Main {
     return - (left * right);
   }
 
-  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier_arm64 (before)
+  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:     VecAdd                         loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG:     VecMultiplyAccumulate kind:Add loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-START-ARM64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier$after_bce (after)
+  /// CHECK-NOT:     VecMul
+  /// CHECK-NOT:     VecAdd
+
+  /// CHECK-START-MIPS64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier$after_bce (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecAdd                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier$after_bce (after)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMultiplyAccumulate kind:Add loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulAdd(int[], int[]) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:     VecMul
   /// CHECK-NOT:     VecAdd
   public static void SimdMulAdd(int[] array1, int[] array2) {
@@ -442,16 +455,47 @@ public class Main {
     }
   }
 
-  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier_arm64 (before)
+  /// CHECK-START-MIPS64: void Main.SimdMulAddLong(long[], long[]) instruction_simplifier$after_bce (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecAdd                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulAddLong(long[], long[]) instruction_simplifier$after_bce (after)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMultiplyAccumulate kind:Add loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulAddLong(long[], long[]) instruction_simplifier$after_bce (after)
+  /// CHECK-NOT:     VecMul
+  /// CHECK-NOT:     VecAdd
+  public static void SimdMulAddLong(long[] array1, long[] array2) {
+    for (int j = 0; j < 100; j++) {
+      array2[j] += 12345 * array1[j];
+    }
+  }
+
+  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:     VecSub                         loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG:     VecMultiplyAccumulate kind:Sub loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-START-ARM64: void Main.SimdMulSub(int[], int[]) instruction_simplifier$after_bce (after)
+  /// CHECK-NOT:     VecMul
+  /// CHECK-NOT:     VecSub
+
+  /// CHECK-START-MIPS64: void Main.SimdMulSub(int[], int[]) instruction_simplifier$after_bce (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecSub                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulSub(int[], int[]) instruction_simplifier$after_bce (after)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMultiplyAccumulate kind:Sub loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulSub(int[], int[]) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:     VecMul
   /// CHECK-NOT:     VecSub
   public static void SimdMulSub(int[] array1, int[] array2) {
@@ -460,16 +504,57 @@ public class Main {
     }
   }
 
-  /// CHECK-START-ARM64: void Main.SimdMulMultipleUses(int[], int[]) instruction_simplifier_arm64 (before)
+  /// CHECK-START-MIPS64: void Main.SimdMulSubLong(long[], long[]) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:     VecSub                         loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START-ARM64: void Main.SimdMulMultipleUses(int[], int[]) instruction_simplifier_arm64 (after)
+  /// CHECK-START-MIPS64: void Main.SimdMulSubLong(long[], long[]) instruction_simplifier$after_bce (after)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMultiplyAccumulate kind:Sub loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulSubLong(long[], long[]) instruction_simplifier$after_bce (after)
+  /// CHECK-NOT:     VecMul
+  /// CHECK-NOT:     VecSub
+  public static void SimdMulSubLong(long[] array1, long[] array2) {
+    for (int j = 0; j < 100; j++) {
+      array2[j] -= 12345 * array1[j];
+    }
+  }
+
+  /// CHECK-START-ARM64: void Main.SimdMulMultipleUses(int[], int[]) instruction_simplifier$after_bce (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecSub                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-ARM64: void Main.SimdMulMultipleUses(int[], int[]) instruction_simplifier$after_bce (after)
+  /// CHECK-NOT: VecMultiplyAccumulate
+
+  /// CHECK-START-MIPS64: void Main.SimdMulMultipleUses(int[], int[]) instruction_simplifier$after_bce (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecSub                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulMultipleUses(int[], int[]) instruction_simplifier$after_bce (after)
   /// CHECK-NOT: VecMultiplyAccumulate
   public static void SimdMulMultipleUses(int[] array1, int[] array2) {
     for (int j = 0; j < 100; j++) {
        int temp = 12345 * array1[j];
+       array2[j] -= temp;
+       array1[j] = temp;
+    }
+  }
+
+  /// CHECK-START-MIPS64: void Main.SimdMulMultipleUsesLong(long[], long[]) instruction_simplifier$after_bce (before)
+  /// CHECK-DAG:     Phi                            loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:     VecMul                         loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:     VecSub                         loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START-MIPS64: void Main.SimdMulMultipleUsesLong(long[], long[]) instruction_simplifier$after_bce (after)
+  /// CHECK-NOT: VecMultiplyAccumulate
+  public static void SimdMulMultipleUsesLong(long[] array1, long[] array2) {
+    for (int j = 0; j < 100; j++) {
+       long temp = 12345 * array1[j];
        array2[j] -= temp;
        array1[j] = temp;
     }
@@ -483,8 +568,22 @@ public class Main {
     }
   }
 
+  public static void initArrayLong(long[] array) {
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+      array[i] = i;
+    }
+  }
+
   public static int calcArraySum(int[] array) {
     int sum = 0;
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+      sum += array[i];
+    }
+    return sum;
+  }
+
+  public static long calcArraySumLong(long[] array) {
+    long sum = 0;
     for (int i = 0; i < ARRAY_SIZE; i++) {
       sum += array[i];
     }
@@ -494,16 +593,28 @@ public class Main {
   public static void testSimdMultiplyAccumulate() {
     int[] array1 = new int[ARRAY_SIZE];
     int[] array2 = new int[ARRAY_SIZE];
+    long[] array3 = new long[ARRAY_SIZE];
+    long[] array4 = new long[ARRAY_SIZE];
 
     initArray(array1);
     initArray(array2);
     SimdMulSub(array1, array2);
     assertIntEquals(-60608250, calcArraySum(array2));
 
+    initArrayLong(array3);
+    initArrayLong(array4);
+    SimdMulSubLong(array3, array4);
+    assertLongEquals(-60608250, calcArraySumLong(array4));
+
     initArray(array1);
     initArray(array2);
     SimdMulAdd(array1, array2);
     assertIntEquals(61607250, calcArraySum(array2));
+
+    initArrayLong(array3);
+    initArrayLong(array4);
+    SimdMulAddLong(array3, array4);
+    assertLongEquals(61607250, calcArraySumLong(array4));
   }
 
   public static void main(String[] args) {
