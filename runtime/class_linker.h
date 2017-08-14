@@ -511,10 +511,6 @@ class ClassLinker {
     return intern_table_;
   }
 
-  // Set the entrypoints up for method to the given code.
-  void SetEntryPointsToCompiledCode(ArtMethod* method, const void* method_code) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Set the entrypoints up for method to the enter the interpreter.
   void SetEntryPointsToInterpreter(ArtMethod* method) const
       REQUIRES_SHARED(Locks::mutator_lock_);
