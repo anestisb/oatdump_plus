@@ -479,9 +479,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_);
   std::string GetDescriptorForProxy(ObjPtr<mirror::Class> proxy_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  ArtMethod* FindMethodForProxy(ArtMethod* proxy_method)
-      REQUIRES(!Locks::dex_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the oat code for a method when its class isn't yet initialized.
   const void* GetQuickOatCodeFor(ArtMethod* method)
@@ -675,7 +672,6 @@ class ClassLinker {
     DexCacheData()
         : weak_root(nullptr),
           dex_file(nullptr),
-          resolved_methods(nullptr),
           class_table(nullptr) { }
 
     // Check if the data is valid.
@@ -686,11 +682,9 @@ class ClassLinker {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
     jweak weak_root;
-    // The following two fields are caches to the DexCache's fields and here to avoid unnecessary
-    // jweak decode that triggers read barriers (and mark them alive unnecessarily and mess with
-    // class unloading.)
+    // The following field caches the DexCache's field here to avoid unnecessary jweak decode that
+    // triggers read barriers (and marks them alive unnecessarily and messes with class unloading.)
     const DexFile* dex_file;
-    mirror::MethodDexCacheType* resolved_methods;
     // Identify the associated class loader's class table. This is used to make sure that
     // the Java call to native DexCache.setResolvedType() inserts the resolved type in that
     // class table. It is also used to make sure we don't register the same dex cache with
