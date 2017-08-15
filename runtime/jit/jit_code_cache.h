@@ -323,8 +323,7 @@ class JitCodeCache {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool CheckLiveCompiledCodeHasProfilingInfo()
-      REQUIRES(lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES(lock_);
 
   void FreeCode(uint8_t* code) REQUIRES(lock_);
   uint8_t* AllocateCode(size_t code_size) REQUIRES(lock_);
