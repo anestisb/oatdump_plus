@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "dex_file_layout.h"
 #include "dex_ir.h"
 #include "mem_map.h"
 
@@ -84,6 +85,10 @@ class DexLayout {
 
   MemMap* GetAndReleaseMemMap() { return mem_map_.release(); }
 
+  const DexLayoutSections& GetSections() const {
+    return dex_sections_;
+  }
+
  private:
   void DumpAnnotationSetItem(dex_ir::AnnotationSetItem* set_item);
   void DumpBytecodes(uint32_t idx, const dex_ir::CodeItem* code, uint32_t code_offset);
@@ -129,6 +134,7 @@ class DexLayout {
   FILE* out_file_;
   dex_ir::Header* header_;
   std::unique_ptr<MemMap> mem_map_;
+  DexLayoutSections dex_sections_;
 
   DISALLOW_COPY_AND_ASSIGN(DexLayout);
 };

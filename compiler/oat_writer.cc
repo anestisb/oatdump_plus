@@ -62,6 +62,9 @@ namespace art {
 
 namespace {  // anonymous namespace
 
+// If we write dex layout info in the oat file.
+static constexpr bool kWriteDexLayoutInfo = true;
+
 typedef DexFile::Header __attribute__((aligned(1))) UnalignedDexFileHeader;
 
 const UnalignedDexFileHeader* AsUnalignedDexFileHeader(const uint8_t* raw_data) {
@@ -288,9 +291,13 @@ class OatWriter::OatDexFile {
   uint32_t class_offsets_offset_;
   uint32_t lookup_table_offset_;
   uint32_t method_bss_mapping_offset_;
+  uint32_t dex_sections_layout_offset_;
 
   // Data to write to a separate section.
   dchecked_vector<uint32_t> class_offsets_;
+
+  // Dex section layout info to serialize.
+  DexLayoutSections dex_sections_layout_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(OatDexFile);
@@ -362,6 +369,9 @@ OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings, ProfileCo
     size_oat_dex_file_offset_(0),
     size_oat_dex_file_class_offsets_offset_(0),
     size_oat_dex_file_lookup_table_offset_(0),
+    size_oat_dex_file_dex_layout_sections_offset_(0),
+    size_oat_dex_file_dex_layout_sections_(0),
+    size_oat_dex_file_dex_layout_sections_alignment_(0),
     size_oat_dex_file_method_bss_mapping_offset_(0),
     size_oat_lookup_table_alignment_(0),
     size_oat_lookup_table_(0),
@@ -571,8 +581,13 @@ bool OatWriter::WriteAndOpenDexFiles(
     }
   }
 
-  // Write TypeLookupTables into OAT.
+  // Write type lookup tables into the oat file.
   if (!WriteTypeLookupTables(&checksum_updating_rodata, dex_files)) {
+    return false;
+  }
+
+  // Write dex layout sections into the oat file.
+  if (!WriteDexLayoutSections(&checksum_updating_rodata, dex_files)) {
     return false;
   }
 
@@ -2320,6 +2335,9 @@ bool OatWriter::WriteCode(OutputStream* out) {
     DO_STAT(size_oat_dex_file_offset_);
     DO_STAT(size_oat_dex_file_class_offsets_offset_);
     DO_STAT(size_oat_dex_file_lookup_table_offset_);
+    DO_STAT(size_oat_dex_file_dex_layout_sections_offset_);
+    DO_STAT(size_oat_dex_file_dex_layout_sections_);
+    DO_STAT(size_oat_dex_file_dex_layout_sections_alignment_);
     DO_STAT(size_oat_dex_file_method_bss_mapping_offset_);
     DO_STAT(size_oat_lookup_table_alignment_);
     DO_STAT(size_oat_lookup_table_);
@@ -2808,6 +2826,7 @@ bool OatWriter::LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_fil
   if (!WriteDexFile(out, oat_dex_file, mem_map->Begin(), /* update_input_vdex */ false)) {
     return false;
   }
+  oat_dex_file->dex_sections_layout_ = dex_layout.GetSections();
   // Set the checksum of the new oat dex file to be the original file's checksum.
   oat_dex_file->dex_file_location_checksum_ = dex_file->GetLocationChecksum();
   return true;
@@ -3153,6 +3172,70 @@ bool OatWriter::WriteTypeLookupTables(
   return true;
 }
 
+bool OatWriter::WriteDexLayoutSections(
+    OutputStream* oat_rodata,
+    const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files) {
+  TimingLogger::ScopedTiming split(__FUNCTION__, timings_);
+
+  if (!kWriteDexLayoutInfo) {
+    return true;;
+  }
+
+  uint32_t expected_offset = oat_data_offset_ + oat_size_;
+  off_t actual_offset = oat_rodata->Seek(expected_offset, kSeekSet);
+  if (static_cast<uint32_t>(actual_offset) != expected_offset) {
+    PLOG(ERROR) << "Failed to seek to dex layout section offset section. Actual: " << actual_offset
+                << " Expected: " << expected_offset << " File: " << oat_rodata->GetLocation();
+    return false;
+  }
+
+  DCHECK_EQ(opened_dex_files.size(), oat_dex_files_.size());
+  size_t rodata_offset = oat_size_;
+  for (size_t i = 0, size = opened_dex_files.size(); i != size; ++i) {
+    OatDexFile* oat_dex_file = &oat_dex_files_[i];
+    DCHECK_EQ(oat_dex_file->dex_sections_layout_offset_, 0u);
+
+    // Write dex layout section alignment bytes.
+    const size_t padding_size =
+        RoundUp(rodata_offset, alignof(DexLayoutSections)) - rodata_offset;
+    if (padding_size != 0u) {
+      std::vector<uint8_t> buffer(padding_size, 0u);
+      if (!oat_rodata->WriteFully(buffer.data(), padding_size)) {
+        PLOG(ERROR) << "Failed to write lookup table alignment padding."
+                    << " File: " << oat_dex_file->GetLocation()
+                    << " Output: " << oat_rodata->GetLocation();
+        return false;
+      }
+      size_oat_dex_file_dex_layout_sections_alignment_ += padding_size;
+      rodata_offset += padding_size;
+    }
+
+    DCHECK_ALIGNED(rodata_offset, alignof(DexLayoutSections));
+    DCHECK_EQ(oat_data_offset_ + rodata_offset,
+              static_cast<size_t>(oat_rodata->Seek(0u, kSeekCurrent)));
+    DCHECK(oat_dex_file != nullptr);
+    if (!oat_rodata->WriteFully(&oat_dex_file->dex_sections_layout_,
+                                sizeof(oat_dex_file->dex_sections_layout_))) {
+      PLOG(ERROR) << "Failed to write dex layout sections."
+                  << " File: " << oat_dex_file->GetLocation()
+                  << " Output: " << oat_rodata->GetLocation();
+      return false;
+    }
+    oat_dex_file->dex_sections_layout_offset_ = rodata_offset;
+    size_oat_dex_file_dex_layout_sections_ += sizeof(oat_dex_file->dex_sections_layout_);
+    rodata_offset += sizeof(oat_dex_file->dex_sections_layout_);
+  }
+  oat_size_ = rodata_offset;
+
+  if (!oat_rodata->Flush()) {
+    PLOG(ERROR) << "Failed to flush stream after writing type dex layout sections."
+                << " File: " << oat_rodata->GetLocation();
+    return false;
+  }
+
+  return true;
+}
+
 bool OatWriter::WriteChecksumsAndVdexHeader(OutputStream* vdex_out) {
   if (!kIsVdexEnabled) {
     return true;
@@ -3252,6 +3335,7 @@ OatWriter::OatDexFile::OatDexFile(const char* dex_file_location,
       class_offsets_offset_(0u),
       lookup_table_offset_(0u),
       method_bss_mapping_offset_(0u),
+      dex_sections_layout_offset_(0u),
       class_offsets_() {
 }
 
@@ -3262,7 +3346,8 @@ size_t OatWriter::OatDexFile::SizeOf() const {
           + sizeof(dex_file_offset_)
           + sizeof(class_offsets_offset_)
           + sizeof(lookup_table_offset_)
-          + sizeof(method_bss_mapping_offset_);
+          + sizeof(method_bss_mapping_offset_)
+          + sizeof(dex_sections_layout_offset_);
 }
 
 bool OatWriter::OatDexFile::Write(OatWriter* oat_writer, OutputStream* out) const {
@@ -3304,6 +3389,12 @@ bool OatWriter::OatDexFile::Write(OatWriter* oat_writer, OutputStream* out) cons
     return false;
   }
   oat_writer->size_oat_dex_file_lookup_table_offset_ += sizeof(lookup_table_offset_);
+
+  if (!out->WriteFully(&dex_sections_layout_offset_, sizeof(dex_sections_layout_offset_))) {
+    PLOG(ERROR) << "Failed to write dex section layout info to " << out->GetLocation();
+    return false;
+  }
+  oat_writer->size_oat_dex_file_dex_layout_sections_offset_ += sizeof(dex_sections_layout_offset_);
 
   if (!out->WriteFully(&method_bss_mapping_offset_, sizeof(method_bss_mapping_offset_))) {
     PLOG(ERROR) << "Failed to write method bss mapping offset to " << out->GetLocation();

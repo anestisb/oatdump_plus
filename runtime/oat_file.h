@@ -26,6 +26,7 @@
 #include "base/stringpiece.h"
 #include "compiler_filter.h"
 #include "dex_file.h"
+#include "dex_file_layout.h"
 #include "method_bss_mapping.h"
 #include "mirror/class.h"
 #include "oat.h"
@@ -38,6 +39,7 @@ namespace art {
 
 class BitVector;
 class ElfFile;
+class DexLayoutSections;
 template <class MirrorType> class GcRoot;
 class MemMap;
 class OatDexFile;
@@ -442,6 +444,9 @@ class OatDexFile FINAL {
                                                const char* descriptor,
                                                size_t hash);
 
+  // Madvise the dex file based on the state we are moving to.
+  static void MadviseDexFile(const DexFile& dex_file, MadviseState state);
+
   TypeLookupTable* GetTypeLookupTable() const {
     return lookup_table_.get();
   }
@@ -450,6 +455,11 @@ class OatDexFile FINAL {
 
   // Create only with a type lookup table, used by the compiler to speed up compilation.
   explicit OatDexFile(std::unique_ptr<TypeLookupTable>&& lookup_table);
+
+  // Return the dex layout sections.
+  const DexLayoutSections* GetDexLayoutSections() const {
+    return dex_layout_sections_;
+  }
 
  private:
   OatDexFile(const OatFile* oat_file,
@@ -460,7 +470,8 @@ class OatDexFile FINAL {
              const uint8_t* lookup_table_data,
              const MethodBssMapping* method_bss_mapping,
              const uint32_t* oat_class_offsets_pointer,
-             uint8_t* dex_cache_arrays);
+             uint8_t* dex_cache_arrays,
+             const DexLayoutSections* dex_layout_sections);
 
   static void AssertAotCompiler();
 
@@ -474,6 +485,7 @@ class OatDexFile FINAL {
   const uint32_t* const oat_class_offsets_pointer_ = 0u;
   uint8_t* const dex_cache_arrays_ = nullptr;
   mutable std::unique_ptr<TypeLookupTable> lookup_table_;
+  const DexLayoutSections* const dex_layout_sections_ = nullptr;
 
   friend class OatFile;
   friend class OatFileBase;

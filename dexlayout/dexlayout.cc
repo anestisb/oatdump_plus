@@ -34,6 +34,7 @@
 #include "android-base/stringprintf.h"
 
 #include "dex_file-inl.h"
+#include "dex_file_layout.h"
 #include "dex_file_verifier.h"
 #include "dex_instruction-inl.h"
 #include "dex_ir_builder.h"
@@ -1680,21 +1681,13 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
     }
   }
 
-  enum CodeItemState {
-    kCodeItemStateExecStartupOnly = 0,
-    kCodeItemStateHot,
-    kCodeItemStateClinit,
-    kCodeItemStateExec,
-    kCodeItemStateNotExecuted,
-    kCodeItemStateSize,
-  };
-
   static constexpr InvokeType invoke_types[] = {
     kDirect,
     kVirtual
   };
 
-  std::unordered_set<dex_ir::CodeItem*> code_items[kCodeItemStateSize];
+  const size_t num_layout_types = static_cast<size_t>(LayoutType::kLayoutTypeCount);
+  std::unordered_set<dex_ir::CodeItem*> code_items[num_layout_types];
   for (InvokeType invoke_type : invoke_types) {
     for (std::unique_ptr<dex_ir::ClassDef>& class_def : header_->GetCollections().ClassDefs()) {
       const bool is_profile_class =
@@ -1719,20 +1712,20 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
         const bool is_startup_clinit = is_profile_class && is_clinit;
         using Hotness = ProfileCompilationInfo::MethodHotness;
         Hotness hotness = info_->GetMethodHotness(MethodReference(dex_file, method_id->GetIndex()));
-        CodeItemState state = kCodeItemStateNotExecuted;
+        LayoutType state = LayoutType::kLayoutTypeUnused;
         if (hotness.IsHot()) {
           // Hot code is compiled, maybe one day it won't be accessed. So lay it out together for
           // now.
-          state = kCodeItemStateHot;
+          state = LayoutType::kLayoutTypeHot;
         } else if (is_startup_clinit || hotness.GetFlags() == Hotness::kFlagStartup) {
           // Startup clinit or a method that only has the startup flag.
-          state = kCodeItemStateExecStartupOnly;
+          state = LayoutType::kLayoutTypeStartupOnly;
         } else if (is_clinit) {
-          state = kCodeItemStateClinit;
+          state = LayoutType::kLayoutTypeUsedOnce;
         } else if (hotness.IsInProfile()) {
-          state = kCodeItemStateExec;
+          state = LayoutType::kLayoutTypeSometimesUsed;
         }
-        code_items[state].insert(code_item);
+        code_items[static_cast<size_t>(state)].insert(code_item);
       }
     }
   }
@@ -1741,10 +1734,11 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
   int32_t total_diff = 0;
   // The relative placement has no effect on correctness; it is used to ensure
   // the layout is deterministic
-  for (std::unordered_set<dex_ir::CodeItem*>& code_items_set : code_items) {
+  for (size_t index = 0; index < num_layout_types; ++index) {
+    const std::unordered_set<dex_ir::CodeItem*>& code_items_set = code_items[index];
     // diff is reset for each class of code items.
     int32_t diff = 0;
-    uint32_t start_offset = code_item_offset;
+    const uint32_t start_offset = code_item_offset;
     for (dex_ir::ClassData* data : new_class_data_order) {
       data->SetOffset(data->GetOffset() + diff);
       for (InvokeType invoke_type : invoke_types) {
@@ -1763,9 +1757,13 @@ int32_t DexLayout::LayoutCodeItems(const DexFile* dex_file,
         }
       }
     }
-    for (size_t i = 0; i < kCodeItemStateSize; ++i) {
+    DexLayoutSection& code_section = dex_sections_.sections_[static_cast<size_t>(
+        DexLayoutSections::SectionType::kSectionTypeCode)];
+    code_section.parts_[index].offset_ = start_offset;
+    code_section.parts_[index].size_ = code_item_offset - start_offset;
+    for (size_t i = 0; i < num_layout_types; ++i) {
       VLOG(dex) << "Code item layout bucket " << i << " count=" << code_items[i].size()
-                << " bytes=" << code_item_offset - start_offset;
+                << " bytes=" << code_section.parts_[i].size_;
     }
     total_diff += diff;
   }

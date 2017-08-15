@@ -338,6 +338,9 @@ inline static int32_t Signum(T opnd) {
   return (opnd < 0) ? -1 : ((opnd == 0) ? 0 : 1);
 }
 
+// Madvise the largest page aligned region within begin and end.
+int MadviseLargestPageAlignedRegion(const uint8_t* begin, const uint8_t* end, int advice);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_

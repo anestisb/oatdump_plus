@@ -324,6 +324,8 @@ class OatWriter {
   bool ValidateDexFileHeader(const uint8_t* raw_header, const char* location);
   bool WriteTypeLookupTables(OutputStream* oat_rodata,
                              const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files);
+  bool WriteDexLayoutSections(OutputStream* oat_rodata,
+                              const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files);
   bool WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delta);
   bool WriteUpTo16BytesAlignment(OutputStream* out, uint32_t size, uint32_t* stat);
   void SetMultiOatRelativePatcherAdjustment();
@@ -455,6 +457,9 @@ class OatWriter {
   uint32_t size_oat_dex_file_offset_;
   uint32_t size_oat_dex_file_class_offsets_offset_;
   uint32_t size_oat_dex_file_lookup_table_offset_;
+  uint32_t size_oat_dex_file_dex_layout_sections_offset_;
+  uint32_t size_oat_dex_file_dex_layout_sections_;
+  uint32_t size_oat_dex_file_dex_layout_sections_alignment_;
   uint32_t size_oat_dex_file_method_bss_mapping_offset_;
   uint32_t size_oat_lookup_table_alignment_;
   uint32_t size_oat_lookup_table_;
