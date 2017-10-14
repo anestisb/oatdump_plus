@@ -193,7 +193,12 @@ bool OatFileBase::LoadVdex(const std::string& vdex_filename,
                            bool writable,
                            bool low_4gb,
                            std::string* error_msg) {
-  vdex_ = VdexFile::Open(vdex_filename, writable, low_4gb, /* unquicken*/ false, error_msg);
+  vdex_ = VdexFile::Open(vdex_filename,
+                         writable,
+                         low_4gb,
+                         /* unquicken*/ false,
+                         /* decompile_return_instruction */ false,
+                         error_msg);
   if (vdex_.get() == nullptr) {
     *error_msg = StringPrintf("Failed to load vdex file '%s' %s",
                               vdex_filename.c_str(),

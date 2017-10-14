@@ -1294,6 +1294,7 @@ class Dex2Oat FINAL {
                                             /* writable */ false,
                                             /* low_4gb */ false,
                                             eagerly_unquicken_vdex,
+                                            /* decompile_return_instruction */ false,
                                             &error_msg);
         }
 
@@ -1344,6 +1345,7 @@ class Dex2Oat FINAL {
                                             /* writable */ false,
                                             /* low_4gb */ false,
                                             eagerly_unquicken_vdex,
+                                            /* decompile_return_instruction */ false,
                                             &error_msg);
           // If there's any problem with the passed vdex, just warn and proceed
           // without it.

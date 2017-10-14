@@ -37,11 +37,16 @@ TEST_F(VdexFileTest, OpenEmptyVdex) {
                                                   /*writable*/false,
                                                   /*low_4gb*/false,
                                                   /*quicken*/false,
+                                                  /*decompile_return_instruction*/false,
                                                   &error_msg);
   EXPECT_TRUE(vdex == nullptr);
 
-  vdex = VdexFile::Open(
-      tmp.GetFilename(), /*writable*/false, /*low_4gb*/false, /*quicken*/ false, &error_msg);
+  vdex = VdexFile::Open(tmp.GetFilename(),
+                        /*writable*/false,
+                        /*low_4gb*/false,
+                        /*quicken*/false,
+                        /*decompile_return_instruction*/false,
+                        &error_msg);
   EXPECT_TRUE(vdex == nullptr);
 }
 

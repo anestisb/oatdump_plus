@@ -968,6 +968,7 @@ OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
                                                       /*writeable*/false,
                                                       /*low_4gb*/false,
                                                       /*unquicken*/false,
+                                                      /*decompile_return_instruction*/false,
                                                       &error_msg);
       if (vdex == nullptr) {
         status_ = kOatCannotOpen;

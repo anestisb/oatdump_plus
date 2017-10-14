@@ -442,7 +442,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
     // We do not decompile a RETURN_VOID_NO_BARRIER into a RETURN_VOID, as the quickening
     // optimization does not depend on the boot image (the optimization relies on not
     // having final fields in a class, which does not change for an app).
-    VdexFile::Unquicken(dex_files, vdex_file->GetQuickeningInfo());
+    VdexFile::Unquicken(dex_files, vdex_file->GetQuickeningInfo(), /* decompile_return_instruction */ false);
 
     Runtime::Current()->GetCompilerCallbacks()->SetVerifierDeps(
         new verifier::VerifierDeps(dex_files, vdex_file->GetVerifierDepsData()));

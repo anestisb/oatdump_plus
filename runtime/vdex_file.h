@@ -85,6 +85,7 @@ class VdexFile {
                                         bool writable,
                                         bool low_4gb,
                                         bool unquicken,
+                                        bool decompile_return_instruction,
                                         std::string* error_msg);
 
   // Returns nullptr if the vdex file cannot be opened or is not valid.
@@ -94,6 +95,7 @@ class VdexFile {
                                         bool writable,
                                         bool low_4gb,
                                         bool unquicken,
+                                        bool decompile_return_instruction,
                                         std::string* error_msg);
 
   const uint8_t* Begin() const { return mmap_->Begin(); }
@@ -137,7 +139,8 @@ class VdexFile {
 
   // In-place unquicken the given `dex_files` based on `quickening_info`.
   static void Unquicken(const std::vector<const DexFile*>& dex_files,
-                        const ArrayRef<const uint8_t>& quickening_info);
+                        const ArrayRef<const uint8_t>& quickening_info,
+                        bool decompile_return_instruction);
 
  private:
   explicit VdexFile(MemMap* mmap) : mmap_(mmap) {}

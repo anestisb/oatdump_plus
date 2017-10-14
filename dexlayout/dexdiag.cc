@@ -314,10 +314,11 @@ static bool DisplayMappingIfFromVdexFile(pm_map_t* map, Printer* printer) {
   // Extract all the dex files from the vdex file.
   std::string error_msg;
   std::unique_ptr<VdexFile> vdex(VdexFile::Open(vdex_name,
-                                                false /*writeable*/,
-                                                false /*low_4gb*/,
-                                                false /*unquicken */,
-                                                &error_msg /*out*/));
+                                                false /* writeable */,
+                                                false /* low_4gb */,
+                                                false /* unquicken */,
+                                                false /* decompile_return_instruction */,
+                                                &error_msg /* out */));
   if (vdex == nullptr) {
     std::cerr << "Could not open vdex file "
               << vdex_name
